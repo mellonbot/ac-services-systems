@@ -19,8 +19,8 @@ jobs:
   zero-install-guard:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - run: node tools/ci/schema-guard.ts
 
@@ -28,12 +28,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: zero-install-guard
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # No version here: pnpm/action-setup reads `packageManager` from
       # package.json. A version pinned in both places is two sources of truth,
       # and the one in the workflow is the one nobody updates.
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       # Type stripping runs the code without checking it. The compliance gate,
@@ -74,8 +74,8 @@ jobs:
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/ac_ci
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       # No pnpm install: the migration path is dependency-free on purpose, and
       # CI running it the same way a laptop does is what keeps it that way.
