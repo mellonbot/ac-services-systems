@@ -1,5 +1,5 @@
 import type { WriteEntity } from "./entities.ts";
-import type { Namespace } from "./scope.ts";
+import type { Namespace, Role } from "./scope.ts";
 
 /**
  * THE SURFACE REGISTRY.
@@ -29,6 +29,8 @@ export type Surface = {
   readonly phase: Phase;
   readonly enabled: boolean;
   readonly namespace: Namespace;
+  /** Internal surfaces: the roles that may open a unit of work here. Checked by the gateway before any handler runs. */
+  readonly roles?: readonly Role[];
   /** Human statement of the auth scope; the mechanism is `scopeBinding`. */
   readonly authScope: string;
   readonly scopeBinding: "none" | "org" | "region" | "customer_tier" | "firm" | "vendor" | "device_shift";
@@ -55,6 +57,7 @@ export const SURFACES: { readonly [K in SurfaceId]: Surface } = {
     id: "S2", name: "Service Manager", app: "s2-service-manager",
     block: "OFC", phase: 1, enabled: true,
     namespace: "internal", authScope: "role-based, org-wide", scopeBinding: "org",
+    roles: ["principal", "ops_leadership", "account_owner", "office_manager", "finance", "warehouse"],
     writes: ["account", "contract", "invoice", "warranty_case", "part", "purchase_order",
              "subcontractor_firm", "crew_credential", "rate_card"],
     density: "console", realtime: false, offline: false,
@@ -64,6 +67,7 @@ export const SURFACES: { readonly [K in SurfaceId]: Surface } = {
     id: "S3", name: "Dispatch Console", app: "s3-dispatch-console",
     block: "OFC", phase: 1, enabled: true,
     namespace: "internal", authScope: "region-scoped", scopeBinding: "region",
+    roles: ["dispatcher", "foreman", "ops_leadership", "principal"],
     writes: ["assignment", "job_state", "crew_release", "escalation"],
     density: "console", realtime: true, offline: false,
     degraded: "Board freezes with a visible staleness clock and stops accepting assignments. A dispatcher acting on a stale board is worse than a dispatcher who knows the board is stale. The compliance gate is enforced HERE, at assignment, with no override path.",
@@ -72,6 +76,7 @@ export const SURFACES: { readonly [K in SurfaceId]: Surface } = {
     id: "S4", name: "HQ Ops Dashboard", app: "s4-hq-dashboard",
     block: "OFC", phase: 2, enabled: false,
     namespace: "internal", authScope: "org-wide READ only", scopeBinding: "org",
+    roles: ["principal", "ops_leadership", "account_owner", "readonly"],
     // Empty by construction. If HQ can reassign a crew from here, regional
     // autonomy is decorative. See OPEN-S4 — 05 Rev B lists annotation and
     // acknowledgement; granting them is one reviewed line, and it is not
@@ -83,7 +88,7 @@ export const SURFACES: { readonly [K in SurfaceId]: Surface } = {
   S5: {
     id: "S5", name: "Technician web fallback", app: "s5-technician",
     block: "FLD", phase: 1, enabled: true,
-    namespace: "internal", authScope: "tech credential + shift device grant", scopeBinding: "device_shift",
+    namespace: "device", authScope: "tech credential + shift device grant", scopeBinding: "device_shift",
     writes: ["job_state", "checklist", "photo", "part_used", "time_entry", "signature"],
     density: "field", realtime: false, offline: true,
     degraded: "Offline-first: device holds intent, server holds truth, replay is idempotent by client-generated mutation id. `assignments` is server-authoritative so an offline device cannot route around the compliance gate. IDENTICAL for employed and subcontracted crews.",

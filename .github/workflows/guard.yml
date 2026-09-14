@@ -23,6 +23,8 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - run: node tools/ci/schema-guard.ts
+      # The unit suite is zero-install too: relative .ts imports, node:test, type stripping.
+      - run: npm run guard:test
 
   full:
     runs-on: ubuntu-latest
@@ -41,7 +43,6 @@ jobs:
       # exist only in the type system — untypechecked, they are comments.
       - run: pnpm typecheck
       - run: pnpm guard:lint
-      - run: pnpm test
       - name: generated artifacts are current
         run: |
           node tools/ci/emit-schema.ts
@@ -90,3 +91,7 @@ jobs:
             *"nothing to do"*) ;;
             *) echo "::error::A second run applied something. A migration is not recording itself." && exit 1 ;;
           esac
+      # The backbone contract, every claim, against the live database. Needs pg.
+      - uses: pnpm/action-setup@v6
+      - run: pnpm install --frozen-lockfile
+      - run: npm run test:integration

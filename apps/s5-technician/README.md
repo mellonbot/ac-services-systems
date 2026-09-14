@@ -7,7 +7,7 @@
 |---|---|
 | Block | FLD |
 | Phase | 1 |
-| Namespace | `internal` |
+| Namespace | `device` |
 | Auth scope | tech credential + shift device grant |
 | Scope binding | `device_shift` |
 | Density | `field` — 56px controls, 18px body, NO hover-dependent affordances |

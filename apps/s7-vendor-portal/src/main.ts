@@ -1,6 +1,6 @@
-import { createShell } from "@ac/shell";
-import { SURFACES } from "@ac/contracts";
-import type { Principal } from "@ac/contracts";
+import { createShell } from "../../../packages/shell/src/index.ts";
+import { SURFACES } from "../../../packages/contracts/src/index.ts";
+import type { Principal } from "../../../packages/contracts/src/index.ts";
 
 /**
  * S7 — Vendor Portal

@@ -83,6 +83,36 @@ const rel = (p: string) => relative(ROOT, p);
 }
 
 // ---------------------------------------------------------------------------
+// 3b. The term-register mirror has not drifted from the code register, and
+//     every term declares at least one authoring tier. The register is code;
+//     R_term_registry.sql is its shadow.
+// ---------------------------------------------------------------------------
+{
+  const { TERMS } = await import(join(ROOT, "packages/contracts/src/terms.ts"));
+  const sql = read(join(ROOT, "packages/schema/migrations/repeatable/R_term_registry.sql"));
+  for (const [key, t] of Object.entries(TERMS as Record<string, { authoring: string[]; combine: { kind: string } }>)) {
+    if (t.authoring.length === 0) fail("term register", `${key} has no authoring tier — a term nobody may set is a term that raises forever`);
+    if (!sql.includes(`('${key}', '${JSON.stringify(t.authoring)}'::jsonb, '${t.combine.kind}'`))
+      fail("term register mirror current", `${key} differs from R_term_registry.sql — run \`node tools/ci/emit-schema.ts\``);
+  }
+  // Every table kind of "operational" in code must appear in the assert allowlists' complement — covered by check 1.
+}
+
+// ---------------------------------------------------------------------------
+// 3c. Every mutation topic used in the gateway and worker is in the catalogue.
+// ---------------------------------------------------------------------------
+{
+  const { TOPICS } = await import(join(ROOT, "packages/contracts/src/events.ts"));
+  for (const f of files) {
+    const r = rel(f);
+    if (!/^apps[\\/](gateway|worker)[\\/]src/.test(r) || r.endsWith(".test.ts")) continue;
+    for (const m of read(f).matchAll(/topic:\s*"([a-z_]+\.[a-z_]+)"/g)) {
+      if (!(TOPICS as string[]).includes(m[1]!)) fail("event catalogue", `${r} emits "${m[1]}", which is not in packages/contracts/src/events.ts`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 4. Surface write allowlists.
 // ---------------------------------------------------------------------------
 {
@@ -112,8 +142,12 @@ for (const f of files) {
   // Build tooling is not product code; it reads the repo by definition.
   if (!/^(apps|packages)[\\/]/.test(r)) continue;
 
-  if (/apps[\\/]s\d/.test(r) && /from\s+["'](pg|postgres|drizzle-orm|knex|@ac\/schema)/.test(src))
-    fail("gateway is sole access path", `${r} imports a data layer directly`);
+  // The driver is importable from exactly one file. Everything else — surfaces,
+  // domain, worker, tools — reaches the database through the gateway's Tx.
+  if (/from\s+["'](pg|postgres|drizzle-orm|knex|typeorm|mysql2?)["']/.test(src) && r !== "apps/gateway/src/pg-tx.ts")
+    fail("gateway is sole access path", `${r} imports a database driver — apps/gateway/src/pg-tx.ts is the only door`);
+  if (/apps[\\/]s\d/.test(r) && /packages[\\/]schema/.test(src))
+    fail("gateway is sole access path", `${r} imports the schema package — a surface owns no data`);
 
   const path = /domain[\\/]src[\\/]billing[\\/]paths[\\/]([a-z_]+)/.exec(r);
   if (path) {
@@ -133,6 +167,10 @@ for (const f of files) {
 
   if (/packages[\\/]domain[\\/]/.test(r) && /(Date\.now\(\)|new Date\(\s*\)|Math\.random\(\))/.test(src))
     fail("domain has no I/O", `${r} reads an ambient clock or RNG`);
+  if (/packages[\\/]domain[\\/]/.test(r) && /from\s+["']node:/.test(src))
+    fail("domain has no I/O", `${r} imports a node: module — the domain takes its inputs as parameters`);
+  if (/packages[\\/]domain[\\/]/.test(r) && /from\s+["'][^"']*(apps|gateway|worker|schema)[\\/]/.test(src))
+    fail("dependencies point one way", `${r} imports upward — domain depends on contracts and nothing else`);
 
   if (!/compliance[\\/]/.test(r) && /as\s+ComplianceClearance|mintClearance/.test(src))
     fail("gate cannot be forged", `${r} casts or mints a ComplianceClearance`);

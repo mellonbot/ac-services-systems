@@ -6,8 +6,8 @@ assumption. Each row names the file that changes when the decision lands.
 
 | ID | Decision | What the code holds today | Lands in |
 |----|----------|---------------------------|----------|
-| **D2** | Four-tier hierarchy as a structural constraint | `TIERS` is one constant; the resolver and scope model derive from it | `packages/contracts/src/tiers.ts` — **must close before schema freeze (M1/B2).** The frame cannot protect against changing the ladder afterwards |
-| **D7** | One named infrastructure owner | Nothing. This is the only non-negotiable with no mechanism | — |
+| **D2** | Four-tier hierarchy, term policy register, `region_id` semantics | **Built in all three parts** (docs/BACKBONE_CONTRACT.md §2–3): `TIERS`; `TERMS` as two axes mirrored into `term_registry`; `region_id` derived from the parent edge by trigger with `customer_group` as the attribute. The partners' decision is now to *ratify* what runs, or to name what should differ before more contracts are recorded | `packages/contracts/src/{tiers,terms}.ts`, `migrations/0002` |
+| **D7** | One named infrastructure owner | Ethan M. (closed 2026-09-14). **D7a** — the response obligation — is a vendor contract, not a shape in this repo | — |
 | **D9** | Phase 1 scope and deferrals | Surfaces are registry rows with `phase` and `enabled`. Deferring one is a data change | `packages/contracts/src/surfaces.ts` |
 | **D12** | S8 scope in Phase 1 | Write allowlist is the minimum cut: compliance intake + settlement visibility. Widening it is one reviewed line | `surfaces.ts` → `SURFACES.S8.writes` |
 | **D13** | Payment terms / working capital | `working_capital_positions` exists so the float is measured from day one rather than sized after it hurts | `packages/schema/src/tables/billing.ts` |

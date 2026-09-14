@@ -1,4 +1,4 @@
-import type { Density } from "@ac/tokens";
+import type { Density } from "../../tokens/src/index.ts";
 
 /**
  * Every component declares the densities it is CORRECT in. Using one outside

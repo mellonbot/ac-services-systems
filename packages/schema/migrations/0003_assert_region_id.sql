@@ -9,7 +9,7 @@ DECLARE
   -- The two allowlists, mirrored from packages/schema/src/tenancy.ts.
   -- They are short on purpose and they are the whole exception surface.
   tenancy_roots TEXT[] := ARRAY['organizations','regions'];
-  global_refs   TEXT[] := ARRAY['currencies','part_manufacturers','schema_migrations'];
+  global_refs   TEXT[] := ARRAY['currencies','part_manufacturers','schema_migrations','term_registry'];
 BEGIN
   SELECT string_agg(t.table_name, ', ') INTO offender
   FROM information_schema.tables t

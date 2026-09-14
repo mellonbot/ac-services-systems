@@ -31,15 +31,18 @@ export const GLOBAL_REFERENCE_TABLES = [
   "currencies",
   "part_manufacturers",
   "schema_migrations",
+  "term_registry",
 ] as const;
 
 /** Home for pre-account rows. Not a null, not a sentinel table — a real org. */
-export const PROSPECT_ORG_ID = "00000000-0000-0000-0000-0000000000p0".replace("p", "1");
+export const PROSPECT_ORG_ID = "00000000-0000-0000-0000-000000000001";
 export const UNASSIGNED_REGION_ID = "00000000-0000-0000-0000-000000000002";
+/** Our own company. Internal users, crews we employ, and every row that is ours rather than a customer's. */
+export const INTERNAL_ORG_ID = "00000000-0000-0000-0000-000000000003";
 
 export type SqlType =
   | "uuid" | "text" | "bigint" | "integer" | "boolean"
-  | "timestamptz" | "date" | "jsonb" | "bytea";
+  | "timestamptz" | "date" | "jsonb" | "bytea" | "daterange" | "tstzrange" | "uuid[]";
 
 export type Column = {
   readonly name: string;
@@ -51,6 +54,9 @@ export type Column = {
   readonly comment?: string;
 };
 
+/** Table-level constraints. Emitted verbatim after the columns; named so migrations can reference them. */
+export type Constraint = { readonly name: string; readonly sql: string };
+
 export type TableKind = "operational" | "tenancy_root" | "global_reference";
 
 export type Table = {
@@ -59,6 +65,8 @@ export type Table = {
   readonly columns: readonly Column[];
   readonly primaryKey: readonly string[];
   readonly indexes: readonly (readonly string[])[];
+  readonly uniques: readonly (readonly string[])[];
+  readonly constraints: readonly Constraint[];
   readonly comment?: string;
 };
 
@@ -68,6 +76,8 @@ type TableInput = {
   columns: readonly Column[];
   primaryKey?: readonly string[];
   indexes?: readonly (readonly string[])[];
+  uniques?: readonly (readonly string[])[];
+  constraints?: readonly Constraint[];
   comment?: string;
 };
 
@@ -93,6 +103,8 @@ export const operationalTable = (name: string, input: TableInput): Table => {
     kind: "operational",
     primaryKey: input.primaryKey ?? ["id"],
     indexes: [["region_id"], ...(input.indexes ?? [])],
+    uniques: input.uniques ?? [],
+    constraints: input.constraints ?? [],
     ...(input.comment === undefined ? {} : { comment: input.comment }),
     columns: Object.freeze([
       { name: "id", type: "uuid", default: "gen_random_uuid()" },
@@ -117,7 +129,7 @@ export const tenancyRootTable = (name: string, input: TableInput): Table => {
       `TENANCY_ROOT_TABLES in a reviewed diff and say why.`
     );
   }
-  return Object.freeze({ name, kind: "tenancy_root", primaryKey: input.primaryKey ?? ["id"], indexes: input.indexes ?? [], ...(input.comment === undefined ? {} : { comment: input.comment }), columns: Object.freeze(input.columns) });
+  return Object.freeze({ name, kind: "tenancy_root", primaryKey: input.primaryKey ?? ["id"], indexes: input.indexes ?? [], uniques: input.uniques ?? [], constraints: input.constraints ?? [], ...(input.comment === undefined ? {} : { comment: input.comment }), columns: Object.freeze(input.columns) });
 };
 
 export const globalReferenceTable = (name: string, input: TableInput): Table => {
@@ -128,7 +140,7 @@ export const globalReferenceTable = (name: string, input: TableInput): Table => 
       `GLOBAL_REFERENCE_TABLES in a reviewed diff and say why.`
     );
   }
-  return Object.freeze({ name, kind: "global_reference", primaryKey: input.primaryKey ?? ["id"], indexes: input.indexes ?? [], ...(input.comment === undefined ? {} : { comment: input.comment }), columns: Object.freeze(input.columns) });
+  return Object.freeze({ name, kind: "global_reference", primaryKey: input.primaryKey ?? ["id"], indexes: input.indexes ?? [], uniques: input.uniques ?? [], constraints: input.constraints ?? [], ...(input.comment === undefined ? {} : { comment: input.comment }), columns: Object.freeze(input.columns) });
 };
 
 /** DDL emitter. Deterministic — migration diffs are reviewable. */
@@ -142,6 +154,8 @@ export const toDdl = (t: Table): string => {
     return parts.join(" ");
   });
   cols.push(`  PRIMARY KEY (${t.primaryKey.join(", ")})`);
+  for (const u of t.uniques) cols.push(`  UNIQUE (${u.join(", ")})`);
+  for (const c of t.constraints) cols.push(`  CONSTRAINT ${c.name} ${c.sql}`);
   const idx = t.indexes.map(
     (i) => `CREATE INDEX IF NOT EXISTS ${t.name}_${i.join("_")}_idx ON ${t.name} (${i.join(", ")});`
   );

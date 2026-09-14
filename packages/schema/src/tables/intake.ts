@@ -27,10 +27,11 @@ export const call_records = operationalTable("call_records", {
 
 export const service_requests = operationalTable("service_requests", {
   columns: [
-    { name: "account_id", type: "uuid", references: "accounts(id)" },
+    { name: "site_id", type: "uuid", references: "accounts(id)" },
     { name: "requested_by", type: "uuid" },
+    { name: "priority", type: "text", check: "priority IN ('emergency','urgent','routine')", default: "'routine'" },
     { name: "description", type: "text" },
     { name: "job_id", type: "uuid", nullable: true, references: "jobs(id)" },
   ],
-  indexes: [["account_id"]],
+  indexes: [["site_id"]],
 });

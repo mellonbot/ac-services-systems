@@ -5,16 +5,24 @@
   "packageManager": "pnpm@9.12.0",
   "engines": { "node": ">=22.18" },
   "scripts": {
-    "guard:all": "pnpm guard:schema && pnpm typecheck && pnpm guard:lint && pnpm test",
     "guard:schema": "node tools/ci/schema-guard.ts",
+    "guard:test": "node --test \"packages/**/*.test.ts\" \"apps/**/*.test.ts\" \"tools/**/*.test.ts\"",
+    "guard:all": "npm run guard:schema && npm run guard:test",
+    "test:integration": "node --test \"test/integration/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json",
     "guard:lint": "eslint .",
-    "test": "node --test --experimental-strip-types \"packages/**/*.test.ts\" \"tools/**/*.test.ts\"",
+    "emit": "node tools/ci/emit-schema.ts && node tools/ci/emit-surfaces.ts",
     "db:migrate": "node tools/ci/migrate.ts",
-    "db:assert": "node tools/ci/migrate.ts --assert"
+    "db:assert": "node tools/ci/migrate.ts --assert",
+    "gateway": "node apps/gateway/src/main.ts",
+    "worker": "node apps/worker/src/main.ts"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",
+    "@types/pg": "^8.11.0",
     "eslint": "^9.12.0",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.8.0"

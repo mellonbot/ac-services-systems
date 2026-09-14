@@ -26,9 +26,9 @@ for (const id of SURFACE_IDS) {
     dependencies: { "@ac/shell": "workspace:*", "@ac/ui": "workspace:*", "@ac/contracts": "workspace:*" },
   }, null, 2) + "\n");
 
-  writeFileSync(join(dir, "src/main.ts"), `import { createShell } from "@ac/shell";
-import { SURFACES } from "@ac/contracts";
-import type { Principal } from "@ac/contracts";
+  writeFileSync(join(dir, "src/main.ts"), `import { createShell } from "../../../packages/shell/src/index.ts";
+import { SURFACES } from "../../../packages/contracts/src/index.ts";
+import type { Principal } from "../../../packages/contracts/src/index.ts";
 
 /**
  * ${s.id} — ${s.name}

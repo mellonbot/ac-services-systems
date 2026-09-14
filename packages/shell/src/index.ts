@@ -1,5 +1,5 @@
-import { SURFACES, type SurfaceId, type Principal } from "@ac/contracts";
-import { DENSITY, type Density } from "@ac/tokens";
+import { SURFACES, type SurfaceId, type Principal } from "../../contracts/src/index.ts";
+import { DENSITY, type Density } from "../../tokens/src/index.ts";
 
 /**
  * S0 — THE SHARED SHELL. The one way a surface talks to the gateway.

@@ -7,7 +7,7 @@
  *
  * `pnpm sdk:generate` regenerates src/generated/. CI fails if it drifts.
  */
-export type { SurfaceId, Principal, WriteEntity } from "@ac/contracts";
+export type { SurfaceId, Principal, WriteEntity } from "../../contracts/src/index.ts";
 
 export type GatewayClient = {
   query<T>(operation: string, input: Readonly<Record<string, unknown>>): Promise<T>;

@@ -1,14 +1,47 @@
+import { createPool, beginTx } from "../../gateway/src/pg-tx.ts";
+import { relayOnce, notifyPublisher } from "./relay.ts";
+import { sweepCredentialExpiry, sweepSlaCascade } from "./sweeps.ts";
+
 /**
- * The worker. Everything that must happen without a user present:
- *
- *  - outbox relay (at-least-once, idempotent consumers)
- *  - credential expiry sweep — the one that emails a firm 30/14/7 days before
- *    an insurance certificate lapses, because the alternative is discovering it
- *    at assignment on the morning it matters
- *  - SLA cascade — timers derived from the RESOLVED contract per site
- *  - warehouse rollups for S4 (Phase 2)
- *
- * It runs as ac_worker, which holds INSERT+SELECT on audit_log like the gateway
- * and no more.
+ * THE WORKER. Runs as ac_worker. Three loops, each its own transaction, each
+ * tolerant of a second worker running beside it (SKIP LOCKED, idempotent
+ * emits). Region-pinnable with AC_REGION_ID for Tier 3.
  */
-export const JOBS = ["outbox_relay", "credential_expiry_sweep", "sla_cascade", "warehouse_rollup"] as const;
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) throw new Error("DATABASE_URL is required");
+const pool = createPool(DATABASE_URL, "ac-worker");
+const REGION = process.env.AC_REGION_ID;
+
+const every = (ms: number, name: string, fn: () => Promise<unknown>) => {
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const out = await fn();
+      if (out && typeof out === "object" && Object.values(out).some((v) => v)) console.log(`${name}:`, out);
+      else if (typeof out === "number" && out > 0) console.log(`${name}: ${out}`);
+    } catch (e) {
+      console.error(`${name} failed:`, (e as Error).message);
+    } finally {
+      running = false;
+    }
+  };
+  void tick();
+  return setInterval(tick, ms);
+};
+
+every(1_000, "relay", async () => {
+  const tx = await beginTx(pool, "ac_worker");
+  try { return await relayOnce(tx, notifyPublisher(tx), 200, REGION); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
+});
+every(60_000, "sla-cascade", async () => {
+  const tx = await beginTx(pool, "ac_worker");
+  try { return await sweepSlaCascade(tx, new Date()); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
+});
+every(3_600_000, "credential-expiry", async () => {
+  const tx = await beginTx(pool, "ac_worker");
+  try { return await sweepCredentialExpiry(tx, new Date()); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
+});
+
+console.log(`worker up${REGION ? ` (region ${REGION})` : ""}`);

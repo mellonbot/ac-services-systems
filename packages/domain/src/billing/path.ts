@@ -1,4 +1,4 @@
-import type { Tier } from "@ac/contracts";
+import type { Tier } from "../../../contracts/src/index.ts";
 
 export type BillableEvent = {
   readonly jobId: string;

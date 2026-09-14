@@ -37,6 +37,8 @@ const psql = (...args: string[]): string => {
     return execFileSync("psql", [url, "-v", "ON_ERROR_STOP=1", "--no-psqlrc", ...args], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "inherit"],
+      // DROP ... IF EXISTS on a fresh database is noise, not information.
+      env: { ...process.env, PGOPTIONS: `${process.env.PGOPTIONS ?? ""} -c client_min_messages=warning` },
     });
   } catch (err) {
     const e = err as { code?: string; status?: number };
@@ -72,11 +74,6 @@ const pending = readdirSync(MIGRATIONS)
   .map((f) => ({ file: f, version: f.slice(0, -4) }))
   .filter((m) => !applied.has(m.version));
 
-if (pending.length === 0) {
-  console.log(`migrate: nothing to do — ${applied.size} migration(s) already applied`);
-  process.exit(0);
-}
-
 for (const m of pending) {
   // --single-transaction covers the -f and the -c together: the migration and
   // the row recording it land atomically, or neither does.
@@ -87,4 +84,19 @@ for (const m of pending) {
   );
   console.log(`  applied ${m.version}`);
 }
-console.log(`migrate: ${pending.length} migration(s) applied`);
+
+// Repeatable migrations run on EVERY invocation, after the versioned ones.
+// Today that is the term-register mirror: the database's copy of
+// packages/contracts/src/terms.ts can never be older than the code that is
+// about to run against it.
+const REPEATABLE = join(MIGRATIONS, "repeatable");
+const repeatable = readdirSync(REPEATABLE).filter((f) => f.endsWith(".sql")).sort();
+for (const f of repeatable) {
+  psql("--single-transaction", "-f", join(REPEATABLE, f));
+}
+
+if (pending.length === 0) {
+  console.log(`migrate: nothing to do — ${applied.size} migration(s) already applied; ${repeatable.length} repeatable re-applied`);
+} else {
+  console.log(`migrate: ${pending.length} migration(s) applied; ${repeatable.length} repeatable re-applied`);
+}
