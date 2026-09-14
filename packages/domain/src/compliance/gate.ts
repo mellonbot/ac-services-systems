@@ -43,7 +43,10 @@ export const evaluate = (
   crew: Crew,
   credentials: readonly Credential[],
   window: ServiceWindow,
-  evaluatedAt: number,
+  // Callers were threading the same value through four layers to get here.
+  // Defaulting it removes the ceremony; anyone who needs a different instant
+  // can still pass one.
+  evaluatedAt: number = Date.now(),
 ): ComplianceClearance | Refusal => {
   if (!crew.active) {
     return { ok: false, reason: "crew_inactive", credentialKind: "-", detail: `Crew ${crew.id} is not active.` };
