@@ -1,0 +1,12 @@
+node_modules/
+.pnpm-store/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+infra/**/.terraform/
+infra/**/*.tfstate*

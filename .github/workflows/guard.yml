@@ -1,0 +1,33 @@
+name: guard
+
+on: [push, pull_request]
+
+jobs:
+  # Runs first and alone. Dependency-free by design: if the invariants are
+  # broken there is no reason to spend three minutes installing a toolchain to
+  # find that out.
+  zero-install-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node tools/ci/schema-guard.ts
+
+  full:
+    runs-on: ubuntu-latest
+    needs: zero-install-guard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm guard:lint
+      - run: pnpm test
+      - name: generated artifacts are current
+        run: |
+          node tools/ci/emit-schema.ts
+          node tools/ci/emit-surfaces.ts
+          git diff --exit-code || (echo "::error::Generated files drifted. Run the emitters and commit." && exit 1)

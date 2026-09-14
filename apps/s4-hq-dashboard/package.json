@@ -1,0 +1,12 @@
+{
+  "name": "@ac/s4-hq-dashboard",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/main.ts",
+  "dependencies": {
+    "@ac/shell": "workspace:*",
+    "@ac/ui": "workspace:*",
+    "@ac/contracts": "workspace:*"
+  }
+}

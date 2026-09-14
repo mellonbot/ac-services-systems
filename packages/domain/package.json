@@ -1,0 +1,13 @@
+{
+  "name": "@ac/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "//": "NO I/O. No database, no clock, no network, no config. Every function takes its inputs and the instant it is evaluating at. This is what makes the M2 gate a 40ms unit test instead of a staging exercise.",
+  "dependencies": {
+    "@ac/contracts": "workspace:*"
+  }
+}

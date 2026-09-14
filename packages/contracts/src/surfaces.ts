@@ -1,0 +1,129 @@
+import type { WriteEntity } from "./entities.ts";
+import type { Namespace } from "./scope.ts";
+
+/**
+ * THE SURFACE REGISTRY.
+ *
+ * Eight websites. None owns data. Each is a scoped view onto the same
+ * multi-tenant hierarchy, reached only through the gateway.
+ *
+ * This file is data, and that is the point:
+ *   - `writes` is enforced on every mutation by the gateway unit of work.
+ *     S4's empty list is not a rule anyone has to remember.
+ *   - `phase` + `enabled` make deferring a surface (D9) a data change.
+ *   - `density` is checked against each component's declared density set,
+ *     so a console-density control cannot compile into the field app.
+ *   - `degraded` is S0's per-surface declaration, written down before the
+ *     outage rather than discovered during it.
+ */
+export type SurfaceId = "S1" | "S2" | "S3" | "S4" | "S5" | "S6" | "S7" | "S8";
+export type Block = "OFC" | "FLD" | "INV";
+export type Density = "console" | "comfort" | "field";
+export type Phase = 1 | 2 | 3 | 4;
+
+export type Surface = {
+  readonly id: SurfaceId;
+  readonly name: string;
+  readonly app: string;
+  readonly block: Block;
+  readonly phase: Phase;
+  readonly enabled: boolean;
+  readonly namespace: Namespace;
+  /** Human statement of the auth scope; the mechanism is `scopeBinding`. */
+  readonly authScope: string;
+  readonly scopeBinding: "none" | "org" | "region" | "customer_tier" | "firm" | "vendor" | "device_shift";
+  readonly writes: readonly WriteEntity[];
+  readonly density: Density;
+  /** Realtime is a hard requirement, not a nice-to-have, where true. */
+  readonly realtime: boolean;
+  /** Offline writes. False on S2 by design — it must never fork the truth. */
+  readonly offline: boolean;
+  /** What this surface does when the backbone is unreachable. S0 obligation. */
+  readonly degraded: string;
+};
+
+export const SURFACES: { readonly [K in SurfaceId]: Surface } = {
+  S1: {
+    id: "S1", name: "Marketing / lead-gen", app: "s1-marketing",
+    block: "OFC", phase: 1, enabled: true,
+    namespace: "anonymous", authScope: "none (anonymous)", scopeBinding: "none",
+    writes: ["lead", "call_record"],
+    density: "comfort", realtime: false, offline: false,
+    degraded: "Statically generated; forms queue to a durable buffer and replay. Site stays up when the gateway does not. Coverage map is read from the hierarchy — never hard-coded (D14: supply before signature).",
+  },
+  S2: {
+    id: "S2", name: "Service Manager", app: "s2-service-manager",
+    block: "OFC", phase: 1, enabled: true,
+    namespace: "internal", authScope: "role-based, org-wide", scopeBinding: "org",
+    writes: ["account", "contract", "invoice", "warranty_case", "part", "purchase_order",
+             "subcontractor_firm", "crew_credential", "rate_card"],
+    density: "console", realtime: false, offline: false,
+    degraded: "Read-only from last server state. NO offline writes, ever — this is the only surface that authors hierarchy, contract and subcontractor-network truth, and a forked truth here is unrecoverable.",
+  },
+  S3: {
+    id: "S3", name: "Dispatch Console", app: "s3-dispatch-console",
+    block: "OFC", phase: 1, enabled: true,
+    namespace: "internal", authScope: "region-scoped", scopeBinding: "region",
+    writes: ["assignment", "job_state", "crew_release", "escalation"],
+    density: "console", realtime: true, offline: false,
+    degraded: "Board freezes with a visible staleness clock and stops accepting assignments. A dispatcher acting on a stale board is worse than a dispatcher who knows the board is stale. The compliance gate is enforced HERE, at assignment, with no override path.",
+  },
+  S4: {
+    id: "S4", name: "HQ Ops Dashboard", app: "s4-hq-dashboard",
+    block: "OFC", phase: 2, enabled: false,
+    namespace: "internal", authScope: "org-wide READ only", scopeBinding: "org",
+    // Empty by construction. If HQ can reassign a crew from here, regional
+    // autonomy is decorative. See OPEN-S4 — 05 Rev B lists annotation and
+    // acknowledgement; granting them is one reviewed line, and it is not
+    // ours to sign.
+    writes: [],
+    density: "console", realtime: false, offline: false,
+    degraded: "Warehouse-backed and already asynchronous; shows the age of its last rollup and nothing more.",
+  },
+  S5: {
+    id: "S5", name: "Technician web fallback", app: "s5-technician",
+    block: "FLD", phase: 1, enabled: true,
+    namespace: "internal", authScope: "tech credential + shift device grant", scopeBinding: "device_shift",
+    writes: ["job_state", "checklist", "photo", "part_used", "time_entry", "signature"],
+    density: "field", realtime: false, offline: true,
+    degraded: "Offline-first: device holds intent, server holds truth, replay is idempotent by client-generated mutation id. `assignments` is server-authoritative so an offline device cannot route around the compliance gate. IDENTICAL for employed and subcontracted crews.",
+  },
+  S6: {
+    id: "S6", name: "Customer Portal", app: "s6-customer-portal",
+    block: "INV", phase: 1, enabled: true,
+    namespace: "customer", authScope: "customer IdP + tier claim", scopeBinding: "customer_tier",
+    writes: ["service_request", "payment", "contact_update"],
+    density: "comfort", realtime: false, offline: false,
+    degraded: "Cached read of last known job and invoice state, clearly timestamped; request intake queues. One codebase, four scopes — scoping is enforced at the gateway, never by client-side filtering.",
+  },
+  S7: {
+    id: "S7", name: "Vendor Portal", app: "s7-vendor-portal",
+    block: "INV", phase: 4, enabled: false,
+    namespace: "vendor", authScope: "separate vendor namespace", scopeBinding: "vendor",
+    writes: ["po_ack", "ship_date", "vendor_invoice", "catalog_price", "rma"],
+    density: "comfort", realtime: false, offline: false,
+    degraded: "Read-only PO list. Vendors see parts, POs and destination tier — never customer names, never job records.",
+  },
+  S8: {
+    id: "S8", name: "Subcontractor Portal", app: "s8-subcontractor-portal",
+    block: "INV", phase: 1, enabled: true,
+    namespace: "subcontractor", authScope: "subcontractor firm namespace", scopeBinding: "firm",
+    // D12 minimum cut: compliance intake + settlement visibility. Widening to
+    // assignment/scheduling in Phase 2 is one reviewed line.
+    writes: ["compliance_doc", "crew_roster", "settlement_ack", "dispute"],
+    density: "comfort", realtime: false, offline: false,
+    degraded: "Document upload queues to durable storage and acknowledges on receipt, not on processing. Settlement views serve last statement. A firm sees its own crews, its own jobs, its own compliance, its own money — never another firm's rate card.",
+  },
+} as const;
+
+export const SURFACE_IDS = Object.keys(SURFACES) as readonly SurfaceId[];
+
+export const surfacesInPhase = (phase: Phase): readonly Surface[] =>
+  SURFACE_IDS.map((id) => SURFACES[id]).filter((s) => s.phase === phase);
+
+/**
+ * The question the gateway asks on every mutation. Not a convention — the
+ * unit of work cannot commit without an answer.
+ */
+export const mayWrite = (id: SurfaceId, entity: WriteEntity): boolean =>
+  SURFACES[id].writes.includes(entity);

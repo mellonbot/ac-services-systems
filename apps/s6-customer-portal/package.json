@@ -1,0 +1,12 @@
+{
+  "name": "@ac/s6-customer-portal",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/main.ts",
+  "dependencies": {
+    "@ac/shell": "workspace:*",
+    "@ac/ui": "workspace:*",
+    "@ac/contracts": "workspace:*"
+  }
+}

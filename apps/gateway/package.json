@@ -1,0 +1,14 @@
+{
+  "name": "@ac/gateway",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@ac/contracts": "workspace:*",
+    "@ac/audit": "workspace:*",
+    "@ac/events": "workspace:*",
+    "@ac/domain": "workspace:*",
+    "@ac/schema": "workspace:*"
+  }
+}
