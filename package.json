@@ -5,11 +5,13 @@
   "packageManager": "pnpm@9.12.0",
   "engines": { "node": ">=22.18" },
   "scripts": {
-    "guard:all": "pnpm guard:schema && pnpm guard:lint && pnpm test",
+    "guard:all": "pnpm guard:schema && pnpm typecheck && pnpm guard:lint && pnpm test",
     "guard:schema": "node tools/ci/schema-guard.ts",
+    "typecheck": "tsc -p tsconfig.json",
     "guard:lint": "eslint .",
     "test": "node --test --experimental-strip-types \"packages/**/*.test.ts\" \"tools/**/*.test.ts\"",
-    "db:migrate": "node tools/ci/migrate.ts"
+    "db:migrate": "node tools/ci/migrate.ts",
+    "db:assert": "node tools/ci/migrate.ts --assert"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",

@@ -23,9 +23,9 @@ those are the three mechanisms that fail at T-4 when someone is tired.
 
 ```bash
 pnpm install
-pnpm guard:all          # schema guard + lint + the full test suite
+pnpm guard:all          # schema guard + typecheck + lint + the full test suite
 pnpm guard:schema       # dependency-free; runs with NO install at all
-pnpm db:migrate && psql -c "SELECT ac_assert_region_id_everywhere();"
+pnpm db:migrate && pnpm db:assert   # DATABASE_URL, psql, no node_modules
 ```
 
 The last line belongs in CI after every migration. It is the assertion that the
