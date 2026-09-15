@@ -10,3 +10,6 @@ coverage/
 .DS_Store
 infra/**/.terraform/
 infra/**/*.tfstate*
+
+# Desktop-app download folder — never part of the repository
+Claude outputs/
