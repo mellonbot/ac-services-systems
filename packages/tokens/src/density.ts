@@ -19,9 +19,13 @@ export const DENSITY = Object.freeze({
     focusRing: "2px solid", hoverAffordances: true, surface: "light",
   },
   /**
-   * S5 and the tablet. 56px targets for gloves, 18px body, amber focus ring and
-   * a dark surface for direct sunlight, and NO hover-dependent affordance
-   * anywhere — there is no cursor, so a hover-only control is an invisible one.
+   * S5 and the tablet. 56px targets for gloves, 18px body, a 3px neutral focus
+   * ring and a dark surface for direct sunlight, and NO hover-dependent
+   * affordance anywhere — there is no cursor, so a hover-only control is an
+   * invisible one.
+   *
+   * The ring is neutral rather than amber: the rule is that a ring never shares
+   * the action's hue, and the action is now copper. See SEMANTIC_DARK.
    */
   field: {
     controlHeight: "56px", rowHeight: "56px", bodyText: "18px", gutter: "16px",

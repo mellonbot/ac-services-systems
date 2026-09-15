@@ -25,23 +25,33 @@ export const cssVar = (token: string): string => `--${token.replace(/\./g, "-")}
  * a component written for console renders in the field with no change,
  * which is the whole reason the roles exist.
  *
- * The focus ring is amber here, as the density tier says: on a dark surface
- * the action blue is the thing being focused, and a ring the same hue as the
- * control is a ring nobody sees.
+ * The focus ring keeps the rule the light tier keeps: never the action hue.
+ * That rule used to read "amber, because the action is blue" — with a copper
+ * action, amber IS the action hue, so the value moves and the reason does not.
+ * Stock white is hue-neutral against copper and reads at 18:1 on the ground.
+ *
+ * Status carries a 400 here where the light tier carries a 600: one value
+ * cannot clear 3:1 against both stock and ink.
  */
 export const SEMANTIC_DARK = Object.freeze({
-  "color.surface": P.gray[900],
-  "color.surface-sunken": P.gray[1000],
-  "color.border": P.gray[500],
-  "color.text": P.gray[0],
-  "color.text-muted": P.gray[300],
-  "color.action": P.blue[500],
-  "color.action-pressed": P.blue[600],
-  "color.focus-ring": P.amber[400],
-  "color.status-ok": P.green[500],
-  "color.status-at-risk": P.amber[400],
-  "color.status-breached": P.red[500],
-  "color.status-blocked": P.gray[300],
+  "color.surface": P.ink[900],
+  "color.surface-sunken": P.ink[1000],
+  "color.border": P.ink[500],
+  "color.text": P.stock[0],
+  "color.text-muted": P.stock[300],
+  /**
+   * copper.500, not the brighter copper.300, and the label is why: a filled
+   * action carries stock.0 white, which reads at 4.89:1 on copper.500 and
+   * 2.92:1 on copper.300. The brighter ink looks better in a palette and ships
+   * an unreadable button into the one tier that exists for direct sunlight.
+   */
+  "color.action": P.copper[500],
+  "color.action-pressed": P.copper[700],
+  "color.focus-ring": P.stock[0],
+  "color.status-ok": P.olive[400],
+  "color.status-at-risk": P.ochre[400],
+  "color.status-breached": P.oxblood[400],
+  "color.status-blocked": P.stock[300],
 } as const satisfies Record<SemanticToken, string>);
 
 /** The semantic tier as a density sees it. */
@@ -73,6 +83,9 @@ export const tokenCss = (density: Density): string => {
   for (const [k, v] of Object.entries(P.space)) lines.push(`--space-${k}:${v}`);
   for (const [k, v] of Object.entries(P.radius)) lines.push(`--radius-${k}:${v}`);
   for (const [k, v] of Object.entries(P.text)) lines.push(`--text-${k}:${v}`);
+  // A face is a role too. `--font-instrument` is the one every numeral uses, so
+  // a stylesheet can hold the rule in one declaration instead of a convention.
+  for (const [k, v] of Object.entries(P.font)) lines.push(`--font-${k}:${v}`);
   return `:root{${lines.join(";")}}`;
 };
 
