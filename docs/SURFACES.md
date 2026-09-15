@@ -20,10 +20,18 @@ gateway.
 ## Build order
 
 1. Backbone contract — schema with `region_id` everywhere, gateway, auth with tier claims, event stream, audit log
-2. **S2** — hierarchy, contracts and the subcontractor registry must exist before anything dispatches against them
-3. **S3 + S5 together** — the fallback is what lets the tablet ship without being a single point of failure
-4. Yocto tablet — the long pole, de-risked because S5 already carries the field
-5. **S6** — required for Amped end-to-end in Phase 1; tier scoping is the acceptance test
-6. **S8** — D12 minimum cut: compliance intake + settlement visibility
-7. **S1** — off the critical path, ship whenever a hand is free
-8. **S4** (Phase 2), **S7** (Phase 4)
+2. **S0** — the shared shell: operation catalogue → generated client → shell transport (login, hierarchy context, SSE, refusal mapping, degraded flag). Every surface below boots through it
+3. **S2** — hierarchy, contracts and the subcontractor registry must exist before anything dispatches against them
+4. **S3 + S5 together** — the fallback is what lets the tablet ship without being a single point of failure
+5. Yocto tablet — the long pole, de-risked because S5 already carries the field
+6. **S6** — required for Amped end-to-end in Phase 1; tier scoping is the acceptance test
+7. **S8** — D12 minimum cut: compliance intake + settlement visibility
+8. **S1** — off the critical path, ship whenever a hand is free
+9. **S4** (Phase 2), **S7** (Phase 4)
+
+## Runtime (09)
+
+Each surface is a build-rendered `frame.html` (from this registry) plus one
+esbuild bundle of `src/main.ts`, served as static files. Preact/htm/signals
+live in `packages/ui` alone; a surface imports `@ac/ui`. Screens are a
+registry (`src/screens.ts`) checked against the operation catalogue.

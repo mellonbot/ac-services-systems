@@ -50,6 +50,15 @@ export type DomainEvent = {
   readonly occurredAt: string;
 };
 
+/**
+ * What actually crosses the wire on NOTIFY and SSE. The NOTIFY payload cap is
+ * 8000 bytes, so the relay publishes the envelope — identity, topic, tenancy,
+ * time — and a subscriber that needs the payload fetches it by eventId. The
+ * shell's subscribe() delivers this, not a DomainEvent, so a surface cannot
+ * be written against a field that is never there.
+ */
+export type EventEnvelope = Pick<DomainEvent, "eventId" | "topic" | "entity" | "entityId" | "regionId" | "orgId" | "occurredAt">;
+
 /** Block subscriptions declared, not discovered. */
 export const SUBSCRIBERS: Readonly<Record<"OFC" | "FLD" | "INV" | "WORKER", readonly Topic[]>> = {
   OFC: ["job.transitioned", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended"],

@@ -23,8 +23,17 @@
 
 Statically generated; forms queue to a durable buffer and replay. Site stays up when the gateway does not. Coverage map is read from the hierarchy — never hard-coded (D14: supply before signature).
 
+## Runtime
+
+`frame.html` is emitted from the registry (density, tokens as CSS variables,
+the degraded slot, the mount point). `node tools/ci/build-surface.ts S1`
+bundles `src/main.ts` with esbuild into `dist/` beside the frame and the
+component stylesheet. Screens are declared in `src/screens.ts` and may use
+only operations the catalogue admits for S1; the guard checks it.
+
 ## What this surface must never do
 
 - Own data, or hold a database credential.
 - Write an entity outside the list above — `SurfaceWriteDenied` on any attempt.
 - Filter scope client-side. Scoping is enforced at the gateway or it is not enforced.
+- Import the renderer. A surface imports `@ac/ui`; preact lives behind it.

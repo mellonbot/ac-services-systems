@@ -2,6 +2,7 @@ import type { UnitOfWork } from "../unit-of-work.ts";
 import { evaluate, isRefusal, type Crew, type Credential } from "../../../../packages/domain/src/compliance/gate.ts";
 import { buildAssignment } from "../../../../packages/domain/src/compliance/assignment.ts";
 import type { Refusal } from "../../../../packages/domain/src/compliance/clearance.ts";
+import { InputRefused } from "../refusals.ts";
 
 /**
  * S3 → gateway: assign a crew to a job. THE ONE GATED DOOR.
@@ -32,13 +33,13 @@ export const assignCrew = async (uow: UnitOfWork, actorId: string, input: Assign
   const job = (await uow.tx.query<{ id: string; ws: string; we: string; state: string; region_id: string; org_id: string }>(
     `SELECT id, lower(service_window) AS ws, upper(service_window) AS we, state, region_id, org_id FROM jobs WHERE id = $1`, [input.jobId],
   ))[0];
-  if (!job) throw new Error(`job ${input.jobId} not found in scope`);
-  if (job.region_id !== input.regionId || job.org_id !== input.orgId) throw new Error(`job ${input.jobId} tenancy does not match input`);
+  if (!job) throw new InputRefused(`job ${input.jobId} not found in scope`, "unknown_job");
+  if (job.region_id !== input.regionId || job.org_id !== input.orgId) throw new InputRefused(`job ${input.jobId} tenancy does not match input`, "tenancy_mismatch");
 
   const crewRow = (await uow.tx.query<{ id: string; active: boolean; employment_type: Crew["employmentType"] }>(
     `SELECT id, active, employment_type FROM crews WHERE id = $1`, [input.crewId],
   ))[0];
-  if (!crewRow) throw new Error(`crew ${input.crewId} not found in scope`);
+  if (!crewRow) throw new InputRefused(`crew ${input.crewId} not found in scope`, "unknown_crew");
   const crew: Crew = { id: crewRow.id, active: crewRow.active, employmentType: crewRow.employment_type };
 
   const creds = await uow.tx.query<{ id: string; kind: string; valid_from: string; valid_to: string; verified_at: string | null }>(

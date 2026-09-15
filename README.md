@@ -3,10 +3,24 @@
 The AC Services platform monorepo. Eight web surfaces, one gateway, one
 hierarchy, one backbone.
 
-**State (2026-09-14): Step 0 (the frame) and Step 1 (the backbone) are built
-and verified.** `docs/BACKBONE_CONTRACT.md` is the B2 deliverable — the
-interface every block codes against — and every statement in it names the
-mechanism that enforces it and the test that proved it against PostgreSQL 16.
+**State (2026-09-15): Step 0 (the frame), Step 1 (the backbone) and Step 2 (S0,
+the shared shell) are built and verified; Step 3 (the surface runtime and S2,
+designed in `09_Surface_Runtime_and_S2_Design.md`) has its first three items
+built — refusal codes (migration 0004, `refusals.ts`), the browser session
+(`session.ts`), and the surface runtime: `packages/ui` implemented on Preact +
+htm + signals behind one package boundary, the frame emitted from the registry,
+`build-surface.ts` as the one build step, and four new guards.** C1's catalogue
+rows and screens (item 4) are next. `docs/BACKBONE_CONTRACT.md` is the
+B2 deliverable — the interface every block codes against, ratified by the
+partners 2026-09-15 — and every statement in it names the mechanism that
+enforces it and the test that proved it against PostgreSQL 16. S0 is the layer
+every surface boots through: the **operation catalogue**
+(`packages/contracts/src/operations.ts`), the client **generated** from it
+(`packages/sdk/src/generated/client.ts`), and the shell that logs in, resolves
+the hierarchy context, subscribes to events and turns refusals into typed
+decisions (`packages/shell`). The gateway's route table is built from the same
+catalogue, so routes and client methods are provably one list. Surfaces S2–S8
+start here; S1 is static and separate.
 
 Built to the frame in `06_Software_Architecture_Frame.md`, whose governing idea
 is worth restating because every structural decision here is an instance of it:
@@ -26,21 +40,30 @@ is worth restating because every structural decision here is an instance of it:
 ```bash
 # Zero install — a laptop with Node 22.18+ and nothing else.
 node tools/ci/schema-guard.ts       # every structural invariant, against the definitions
-npm run guard:test                  # 82 unit tests: resolver, admission, gate, sync, SLA, money, uow, auth
+npm run guard:test                  # 144 unit tests: resolver, admission, gate, sync, SLA, money, uow, auth, session, refusals, catalogue, sdk, shell, tokens→CSS
 npm run guard:all                   # both
+npm run sdk:generate                # regenerate the client from the operation catalogue
+npm run sdk:check                   # fail on drift (the guard runs this too)
+node tools/ci/emit-surfaces.ts      # regenerate apps/s*/{package.json,src/main.ts,frame.html,README.md} + docs/SURFACES.md from SURFACES
+npm run surfaces:check              # fail on drift (the guard runs this too)
 
 # A database.
 export DATABASE_URL=postgres://user:pass@host/db
 node tools/ci/migrate.ts            # versioned migrations + the repeatable term-register mirror
 node tools/ci/migrate.ts --assert   # region_id is total in the LIVE schema
-npm run test:integration            # 29 tests: the whole contract, end to end, with RLS on
+npm run test:integration            # 48 tests: the contract end to end with RLS on (29) + the shell and the browser session over the wire against a spawned gateway (19)
 
 # The toolchain layer.
 pnpm install
-pnpm typecheck && pnpm guard:lint   # tsc strict; eslint with the seven ac/ rules (verified: they fire)
+pnpm typecheck && pnpm guard:lint   # tsc strict; eslint with the eight ac/ rules (verified: they fire)
+npm run test:ui                     # 20 component/router/stylesheet tests rendered to a string under node --test (needs preact, hence here)
+node tools/ci/build-surface.ts S2   # THE ONE BUILD STEP: esbuild src/main.ts → apps/s2-service-manager/dist/{index.html,bundle.js,ui.css}
+node tools/ci/build-surface.ts --all --minify
 
 # Run it.
-npm run gateway                     # :8080 — login, /s2/terms/override, /terms/resolved, /s3/assign, /s5/sync, /events (SSE)
+#   AC_SITE=ac.example → production posture: Secure cookies, CORS origins https://<app>.<AC_SITE> for every enabled surface.
+#   unset             → development posture: cookies not Secure, origins from AC_DEV_ORIGINS (or none — bearer only).
+npm run gateway                     # :8080 — every route is a row in packages/contracts/src/operations.ts
 npm run worker                      # outbox relay (1s), SLA cascade (60s), credential expiry (1h)
 ```
 
@@ -53,12 +76,20 @@ apps/gateway/         the sole access path
   src/unit-of-work.ts   allowlist · role · tenancy · topic → audit + outbox in one tx
   src/pg-tx.ts          THE ONLY FILE THAT IMPORTS A DATABASE DRIVER
   src/handlers/         terms (admission + resolution), assignment (the gate), sync (device replay)
-  src/main.ts           node:http + SSE
+  src/main.ts           node:http + SSE; route table built from OPERATIONS, handlers typed over OperationId
+  src/session.ts        the browser session: httpOnly cookie, x-ac-surface as the CSRF line, CORS derived from SURFACES under AC_SITE
+  src/refusals.ts       SQLSTATE → 422/403 with the database's message; InputRefused for inputs a handler cannot resolve
 apps/worker/          outbox relay (SKIP LOCKED), credential-expiry sweep, SLA cascade
-packages/contracts/   TIERS · TERMS (the policy register, two axes) · TOPICS · SURFACES · Claims/Principal
-packages/schema/      operationalTable() and 43 tables; migrations 0001 (generated), 0002 (guardrails), 0003 (assert), repeatable/
+packages/contracts/   TIERS · TERMS (the policy register, two axes) · TOPICS · SURFACES · OPERATIONS (the catalogue) · refusals (the axis) · Claims/Principal
+packages/sdk/         generated/client.ts (emitted from OPERATIONS by tools/ci/emit-sdk.ts) + runtime.ts (THE ONLY FILE ABOVE THE GATEWAY THAT TOUCHES THE WIRE)
+packages/shell/       S0: createShell (registry checks), connectShell (login → me → shell), subscribe (SSE, dedupe), refusalOf, degraded driven by the wire
+packages/tokens/      primitives → semantic → density → white-label (contrast-validated); css.ts emits them as :root variables per density (field is dark)
+packages/ui/          THE RENDERER BOUNDARY: preact/htm/signals pinned here alone (render.ts); components typed to their spec's densities — StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner; router over the History API from a SCREENS registry; UI_CSS (roles only, no colours)
+apps/s1 … s8/         generated from SURFACES by tools/ci/emit-surfaces.ts — package.json, src/main.ts, frame.html (density, tokens, degraded slot, mount), README; each boots through the shell and can call nothing else
+tools/ci/             schema-guard (zero-install) · emit-schema · emit-sdk · emit-surfaces (--check) · build-surface (esbuild; the only step that needs an install) · migrate
+packages/schema/      operationalTable() and 43 tables; migrations 0001 (generated), 0002 (guardrails), 0003 (assert), 0004 (refusal codes — every trigger raises with an ERRCODE), repeatable/
 packages/domain/      no I/O: inheritance/{resolve,admit} · compliance · sync · sla · money · billing
-test/integration/     the backbone contract against a live Postgres
+test/integration/     backbone.test.ts — the contract against a live Postgres · s0-shell.test.ts — the shell against a spawned gateway
 docs/BACKBONE_CONTRACT.md   B2
 ```
 
@@ -68,7 +99,7 @@ docs/BACKBONE_CONTRACT.md   B2
 |---|---|---|---|
 | 1 | Four-tier hierarchy, per-level override, **term policy register** | `TIERS`; `TERMS` as authoring-tier × combine-rule; resolver with trace; admission at insert (trigger + EXCLUDE + ratchet); the register mirrored into `term_registry`, SELECT-only | 19 resolver/admission tests on the Amped fixture; 5 integration tests |
 | 2 | `region_id` on every operational row — **our service region, never the customer's grouping** | `operationalTable()`; `ac_assert_region_id_everywhere()`; trigger derives `region_id` from the parent edge and cascades; `customer_group` is an attribute | guard §1–2; migrate `--assert`; 5 integration tests |
-| 3 | Gateway as sole access path | one driver import (guard-enforced); `.npmrc` isolation; four roles, surfaces hold none; RLS with `FORCE`; `SET LOCAL ROLE` + scope binding per tx | guard; 4 RLS integration tests |
+| 3 | Gateway as sole access path | one driver import (guard-enforced); `.npmrc` isolation; four roles, surfaces hold none; RLS with `FORCE`; `SET LOCAL ROLE` + scope binding per tx; bearer or httpOnly cookie, cookie requests must name their surface; per-request session revocation check; DB refusals are 422/403, never 500 | guard; 4 RLS integration tests; 7 session + 5 refusal unit tests; 10 session/refusal wire tests |
 | 4 | Immutable audit log | same-transaction write by the unit of work; no update/delete on the interface; INSERT+SELECT grant; trigger raises for any role | uow tests; "refuses UPDATE and DELETE even from the superuser" |
 | 5 | Object storage behind our interface | branded `StorageKey`; lint + guard | guard |
 | 6 | Offline-first sync | device = intent, server = truth; policy is data; `(device, mutation_id)` UNIQUE; `assignments` server-authoritative; state machine; human queue | 10 sync tests; 2 integration tests |
@@ -76,6 +107,8 @@ docs/BACKBONE_CONTRACT.md   B2
 | 8 | Compliance gate, no override by any path | a type with an unexported symbol; whole-window evaluation; trigger re-verifies; clearance row cites credentials; `ac/no-clearance-forgery` | 6 gate tests; 5 integration tests including the raw-INSERT bypass |
 | 9 | One field experience regardless of employment | `employment_type` read only by the gate; lint + guard bar it from S5 | guard |
 | 10–13 | Infrastructure as code, restore tests, monitoring, named owner + response obligation | Operational. Owner: Ethan M. (D7). D7a open. **No code mechanism can defend these.** | — |
+| 14 | **No surface writes its own fetch call**; every surface reaches the gateway through one shell and one generated client | `OPERATIONS` is the single source for the gateway's routes and the generated client; guard byte-compares the client and checks handler parity; `fetch`/`EventSource`/`XMLHttpRequest`/`WebSocket`/wire libraries fail guard + `ac/no-fetch-in-surface` anywhere in `apps/s*`, `packages/{shell,ui,tokens}`; surfaces import nothing below the shell; no client method takes a URL; degraded written by the transport wrapper only; a package with sources and no test fails the guard | 12 catalogue + 9 sdk + 19 shell tests; 9 over-the-wire integration tests; all guards proven to fire on planted violations |
+| S0/09 | **Surface runtime** — the renderer behind one package; screens as a registry checked against the catalogue; colour as a role; the frame rendered from the registry | `packages/ui/src/render.ts` is the only file importing preact/htm/signals and `from "preact"` in `apps/s*` fails the guard; every `uses` in `apps/s*/src/screens.ts` must be a catalogue operation admitting that surface; `#rrggbb`/`rgb(` outside `packages/tokens` fails; `emit-surfaces.ts --check` byte-compares every emitted file including `frame.html`; a component handed a density outside its spec is a type error at the call and a throw at render | 20 ui tests (density contract at the type level via `@ts-expect-error`, render-to-string, router, stylesheet variables resolve for every density); all four guards proven to fire on planted violations; the S2 frame + every component executed in headless Chromium — 36px controls on console, 56px and a dark surface on the field frame, degraded slot flips |
 
 ## Conventions
 
@@ -85,6 +118,14 @@ build step. Intra-repo imports are relative `.ts` paths for the same reason.
 Money is integer minor units as `bigint`, enforced by lint; across jsonb it is a
 **string**. Quantities are integer thousandths. `packages/domain` reads no clock,
 no RNG, no `node:` module; every function takes the instant it evaluates at.
+
+Surfaces: no JSX (type stripping cannot erase it). Templates are `html\`…\``
+from `@ac/ui`; **components are called, elements are tagged** —
+`html\`<div>${StatusPill({ density, status })}</div>\`` — because a tagged
+component slot is typed `unknown`, and the call is where the density contract
+is checked. A component tagged anyway still throws on a density its spec does
+not admit. Colours are `var(--color-*)` roles; the only hex values in the
+repository are in `packages/tokens/src/primitives.ts`.
 
 ## Consolidation note
 

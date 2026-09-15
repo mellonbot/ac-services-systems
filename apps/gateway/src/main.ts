@@ -4,13 +4,17 @@ import { createPool, beginTx, hierarchyReader, listenEvents } from "./pg-tx.ts";
 import { generateKeypair, keypairFromPem, mintToken, verifyToken, principalFromClaims, verifyPassword, AuthError } from "./auth.ts";
 import { buildContext, ScopeResolutionError } from "./context.ts";
 import { createUnitOfWork, SurfaceWriteDenied, TenancyMismatch, SurfaceDisabled, RoleDenied } from "./unit-of-work.ts";
+import { InputRefused, dbRefusal } from "./refusals.ts";
+import { sessionConfigFromEnv, allowedOrigins, sessionCookie, clearedCookie, cookieToken, cors, applyHeaders } from "./session.ts";
+import type { Tx } from "./unit-of-work.ts";
 import { authorTermOverride, resolvedTermsAt } from "./handlers/terms.ts";
 import { assignCrew } from "./handlers/assignment.ts";
 import { ingestSync } from "./handlers/sync.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
 import { SURFACES, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
-import type { Claims, Namespace } from "../../../packages/contracts/src/scope.ts";
+import { OPERATIONS, OPERATION_IDS, routeKey, surfacesFor, type OperationId, type OperationIO } from "../../../packages/contracts/src/operations.ts";
+import type { Claims, Namespace, Principal } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
 
@@ -25,6 +29,13 @@ import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
  * Phase 1 transport is plain node:http + JSON, and SSE for the event stream.
  * A framework would add nothing the frame needs and one more place a
  * middleware could be forgotten.
+ *
+ * THE ROUTE TABLE IS THE OPERATION CATALOGUE. `handlers` is typed over
+ * OperationId, so a catalogue row without a handler fails typecheck and a
+ * handler without a row cannot be keyed; tools/ci/schema-guard.ts checks the
+ * same parity textually with no install. The generated SDK is emitted from
+ * the same constant. There is no route that is not an operation, and no
+ * operation a surface can call that is not a route.
  */
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) throw new Error("DATABASE_URL is required");
@@ -37,6 +48,9 @@ const keypair = process.env.AC_SIGNING_KEY_PEM
 if (keypair.kid === "ephemeral") console.warn("gateway: AC_SIGNING_KEY_PEM not set — tokens die with this process");
 const keys = new Map([[keypair.kid, keypair.publicKey]]);
 const pool = createPool(DATABASE_URL);
+const SESSION = sessionConfigFromEnv(process.env);
+const ORIGINS = allowedOrigins(SESSION);
+if (!SESSION.site) console.warn(`gateway: AC_SITE not set — development posture: cookies are not Secure and browser origins are ${ORIGINS.size ? [...ORIGINS].join(", ") : "NONE (bearer only)"}`);
 
 type Json = Record<string, unknown>;
 const readJson = (req: IncomingMessage): Promise<Json> =>
@@ -49,7 +63,8 @@ const readJson = (req: IncomingMessage): Promise<Json> =>
     req.on("error", reject);
   });
 const send = (res: ServerResponse, status: number, body: unknown) => {
-  res.writeHead(status, { "content-type": "application/json" });
+  res.setHeader("content-type", "application/json");
+  res.writeHead(status);
   res.end(JSON.stringify(body, (_, v) => (typeof v === "bigint" ? v.toString() : v)));
 };
 
@@ -58,28 +73,89 @@ class HttpError extends Error {
   constructor(status: number, message: string) { super(message); this.status = status; }
 }
 
-const statusFor = (e: unknown): number => {
-  if (e instanceof HttpError) return e.status;
-  if (e instanceof AuthError) return 401;
-  if (e instanceof SurfaceWriteDenied || e instanceof TenancyMismatch || e instanceof ScopeResolutionError || e instanceof RoleDenied) return 403;
-  if (e instanceof SurfaceDisabled) return 404;
-  if (e instanceof AdmissionRefused || e instanceof ResolutionError) return 422;
-  return 500;
+/**
+ * Every refusal has a status, a name, a code and a message a human can read.
+ * 500 is reserved for bugs: the shell treats it as a transport failure and
+ * flips the surface degraded, which is the right response to a bug and the
+ * wrong response to a refused row — so a refused row must never be a 500.
+ */
+const describe = (e: unknown): { status: number; name: string; code?: string | undefined; message: string } => {
+  const err = e as Error & { code?: string };
+  if (e instanceof HttpError) return { status: e.status, name: err.name, message: err.message };
+  if (e instanceof AuthError) return { status: 401, name: err.name, code: err.code, message: err.message };
+  if (e instanceof SurfaceWriteDenied || e instanceof TenancyMismatch || e instanceof ScopeResolutionError || e instanceof RoleDenied) return { status: 403, name: err.name, message: err.message };
+  if (e instanceof SurfaceDisabled) return { status: 404, name: err.name, message: err.message };
+  if (e instanceof AdmissionRefused || e instanceof ResolutionError || e instanceof InputRefused) return { status: 422, name: err.name, code: err.code, message: err.message };
+  const db = dbRefusal(e);
+  if (db) return db;
+  return { status: 500, name: "InternalError", message: "internal error" };
 };
 
-const principalOf = (req: IncomingMessage) => {
+/**
+ * Who is calling, and how they proved it. A bearer header wins; otherwise the
+ * `ac_session` cookie. `viaCookie` is remembered because a cookie principal
+ * must name its surface (surfaceOf) — that requirement is the CSRF line.
+ */
+type Caller = { readonly principal: Principal; readonly viaCookie: boolean };
+const callerOf = (req: IncomingMessage): Caller => {
   const auth = req.headers.authorization ?? "";
-  if (!auth.startsWith("Bearer ")) throw new AuthError("no bearer token", "malformed");
-  return principalFromClaims(verifyToken(auth.slice(7), keys, Date.now()));
+  if (auth.startsWith("Bearer ")) return { principal: principalFromClaims(verifyToken(auth.slice(7), keys, Date.now())), viaCookie: false };
+  const fromCookie = cookieToken(req.headers.cookie);
+  if (fromCookie) return { principal: principalFromClaims(verifyToken(fromCookie, keys, Date.now())), viaCookie: true };
+  throw new AuthError("no bearer token and no session cookie", "malformed");
+};
+
+/**
+ * A token is only valid while its session row is not revoked (schema: sessions).
+ * Logout revokes; this is what makes logout mean something. One indexed read per
+ * request, inside the request's own transaction.
+ */
+const assertSessionLive = async (tx: Tx, p: Principal): Promise<void> => {
+  const row = (await tx.query<{ revoked_at: string | null; expires_at: string }>("SELECT revoked_at, expires_at FROM sessions WHERE id = $1", [p.sessionId]))[0];
+  if (!row) throw new AuthError(`session ${p.sessionId} is unknown to this gateway`, "revoked");
+  if (row.revoked_at) throw new AuthError(`session was ended at ${new Date(row.revoked_at).toISOString()} — sign in again`, "revoked");
+};
+
+/**
+ * Which surface is this request made AS? The client sends `x-ac-surface`; it
+ * must be one the operation admits and one that serves the principal's
+ * namespace. Absent, and exactly one of the operation's surfaces serves the
+ * namespace, that one is used. The header selects; the token authorizes —
+ * the unit of work still checks the surface's roles and write allowlist.
+ */
+const surfaceOf = (req: IncomingMessage, opId: OperationId, { principal, viaCookie }: Caller): SurfaceId => {
+  const admitted = surfacesFor(opId, (s) => SURFACES[s].namespace, principal.namespace);
+  const claimed = req.headers["x-ac-surface"];
+  // A cookie is attached by the browser, not by our code. The header is attached
+  // by our code and cannot be set by a cross-site form or a simple request — so
+  // its presence is what tells a cookie request apart from a forged one.
+  if (viaCookie && !(typeof claimed === "string" && claimed.length > 0))
+    throw new HttpError(403, `a session-cookie request must name its surface in x-ac-surface (CSRF: a cross-site request cannot set that header)`);
+  if (typeof claimed === "string" && claimed.length > 0) {
+    if (!(admitted as readonly string[]).includes(claimed)) {
+      throw new HttpError(403, `${opId} is not served to ${claimed} for a ${principal.namespace} principal — admitted: [${OPERATIONS[opId].surfaces.join(", ")}]`);
+    }
+    return claimed as SurfaceId;
+  }
+  if (admitted.length === 1) return admitted[0]!;
+  if (admitted.length === 0) throw new HttpError(403, `${opId} is not served to the ${principal.namespace} namespace`);
+  // No header (curl, smoke tests — the generated client always sends one).
+  // Narrow by role admission, which the unit of work would apply anyway.
+  const byRole = admitted.filter((s) => { const r = SURFACES[s].roles; return !r || r.some((x) => principal.roles.includes(x)); });
+  if (byRole.length === 1) return byRole[0]!;
+  throw new HttpError(400, `${opId} is ambiguous for this principal — one of [${byRole.join(", ")}]; send x-ac-surface`);
 };
 
 /** Open a scope-bound unit of work for one request. Rolls back on any throw. */
-const withUow = async <T>(req: IncomingMessage, surfaceId: SurfaceId, fn: (uow: Awaited<ReturnType<typeof createUnitOfWork>>, principal: ReturnType<typeof principalOf>) => Promise<T>): Promise<T> => {
-  const principal = principalOf(req);
+const withUow = async <T>(req: IncomingMessage, opId: OperationId, fn: (uow: Awaited<ReturnType<typeof createUnitOfWork>>, principal: Principal, surfaceId: SurfaceId) => Promise<T>): Promise<T> => {
+  const caller = callerOf(req);
+  const { principal } = caller;
+  const surfaceId = surfaceOf(req, opId, caller);
   const tx = await beginTx(pool, "ac_gateway");
+  try { await assertSessionLive(tx, principal); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
   const uow = await createUnitOfWork({ surfaceId, principal, requestId: String(req.headers["x-request-id"] ?? randomUUID()), now: () => new Date(), newId: randomUUID }, tx);
   try {
-    const out = await fn(uow, principal);
+    const out = await fn(uow, principal, surfaceId);
     await uow.commit();
     return out;
   } catch (e) {
@@ -88,11 +164,22 @@ const withUow = async <T>(req: IncomingMessage, surfaceId: SurfaceId, fn: (uow: 
   }
 };
 
+/** A read: same scope binding, same surface admission, always rolled back. */
+const withRead = async <T>(req: IncomingMessage, opId: OperationId, fn: (uow: Awaited<ReturnType<typeof createUnitOfWork>>, principal: Principal, surfaceId: SurfaceId) => Promise<T>): Promise<T> => {
+  const caller = callerOf(req);
+  const { principal } = caller;
+  const surfaceId = surfaceOf(req, opId, caller);
+  const tx = await beginTx(pool, "ac_gateway");
+  try { await assertSessionLive(tx, principal); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
+  const uow = await createUnitOfWork({ surfaceId, principal, requestId: String(req.headers["x-request-id"] ?? randomUUID()), now: () => new Date(), newId: randomUUID }, tx);
+  try { return await fn(uow, principal, surfaceId); } finally { await uow.rollback().catch(() => {}); }
+};
+
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
-const login = async (body: Json) => {
-  const { email, password, surface } = body as { email?: string; password?: string; surface?: SurfaceId };
+const login = async (body: Partial<OperationIO["auth.login"]["input"]>, res: ServerResponse): Promise<OperationIO["auth.login"]["output"]> => {
+  const { email, password, surface } = body;
   if (!email || !password || !surface || !SURFACES[surface]) throw new HttpError(400, "email, password and surface are required");
   // Login runs unscoped (no principal yet) as the gateway role; users is not RLS-bound.
   const tx = await beginTx(pool, "ac_gateway");
@@ -112,56 +199,94 @@ const login = async (body: Json) => {
     // Hierarchy context, resolved at login, returned once.
     const context = await buildContext(principalFromClaims(minted.claims), hierarchyReader(tx));
     await tx.commit();
-    return { token: minted.token, expiresAt: new Date(minted.claims.exp * 1000).toISOString(), context: { path: context.path, parent: context.parent, regions: context.regions, activeRegionId: context.activeRegionId } };
+    const expiresAt = new Date(minted.claims.exp * 1000);
+    // The browser gets the token as an httpOnly cookie it cannot read; the body
+    // carries it too, for devices and tests, and a browser surface ignores it.
+    res.setHeader("set-cookie", sessionCookie(minted.token, expiresAt, SESSION));
+    return { token: minted.token, expiresAt: expiresAt.toISOString(), context: { path: context.path, parent: context.parent, regions: context.regions, activeRegionId: context.activeRegionId } };
   } catch (e) {
     await tx.rollback().catch(() => {});
     throw e;
   }
 };
 
-const routes: Record<string, (req: IncomingMessage, body: Json, url: URL) => Promise<unknown>> = {
-  "POST /auth/login": (_req, body) => login(body),
+type Handler<K extends OperationId> = (req: IncomingMessage, input: OperationIO[K]["input"], res: ServerResponse) => Promise<unknown>;
 
-  "GET /me": async (req) => {
-    const principal = principalOf(req);
+const handlers: { readonly [K in OperationId]: Handler<K> } = {
+  "auth.login": (_req, input, res) => login(input, res),
+
+  // Ending a session is the one mutation outside the unit of work: it writes the
+  // sessions row, which belongs to the gateway, not to any surface's allowlist.
+  "auth.logout": async (req, _input, res) => {
+    const caller = callerOf(req);
+    surfaceOf(req, "auth.logout", caller);
     const tx = await beginTx(pool, "ac_gateway");
-    try { return await buildContext(principal, hierarchyReader(tx)); } finally { await tx.rollback(); }
+    try {
+      await assertSessionLive(tx, caller.principal);
+      await tx.query("UPDATE sessions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL", [caller.principal.sessionId]);
+      await tx.commit();
+    } catch (e) { await tx.rollback().catch(() => {}); throw e; }
+    res.setHeader("set-cookie", clearedCookie(SESSION));
+    return { ok: true, sessionId: caller.principal.sessionId };
   },
 
+  "session.me": (req) => withRead(req, "session.me", (uow, p) => buildContext(p, hierarchyReader(uow.tx))),
+
   // S2 — author a contract term override. Refusals come back as 422 with the reason.
-  "POST /s2/terms/override": (req, body) => withUow(req, "S2", async (uow, p) => {
+  "terms.authorOverride": (req, input) => withUow(req, "terms.authorOverride", async (uow, p) => {
     const ctx = await buildContext(p, hierarchyReader(uow.tx));
-    const b = body as { contractId: string; scopeTier: Tier; scopeId: string; termKey: string; termValue: unknown; effectiveFrom: string; effectiveTo?: string | null; orgId: string; regionId: string };
-    return authorTermOverride(uow, ctx, { ...b, effectiveTo: b.effectiveTo ?? null });
+    return authorTermOverride(uow, ctx, { ...input, effectiveTo: input.effectiveTo ?? null });
   }),
 
   // S2/S6 — resolved terms at a node as of a date, with the trace.
-  "GET /terms/resolved": async (req, _body, url) => {
-    const principal = principalOf(req);
-    const tx = await beginTx(pool, "ac_gateway");
-    const uow = await createUnitOfWork({ surfaceId: principal.namespace === "customer" ? "S6" : "S2", principal, requestId: randomUUID(), now: () => new Date(), newId: randomUUID }, tx);
-    try {
-      const q = url.searchParams;
-      const r = await resolvedTermsAt(uow, q.get("orgId") ?? principal.orgId, (q.get("tier") ?? "site") as Tier, q.get("nodeId") ?? "", q.get("asOf") ?? new Date().toISOString().slice(0, 10));
-      return { resolved: r.resolved, refused: Object.fromEntries(Object.entries(r.refused).map(([k, e]) => [k, { code: e.code, message: e.message }])) };
-    } finally { await uow.rollback(); }
-  },
+  "terms.resolved": (req, input) => withRead(req, "terms.resolved", async (uow, p) => {
+    const r = await resolvedTermsAt(uow, input.orgId ?? p.orgId, input.tier ?? "site", input.nodeId ?? "", input.asOf ?? new Date().toISOString().slice(0, 10));
+    return { resolved: r.resolved, refused: Object.fromEntries(Object.entries(r.refused).map(([k, e]) => [k, { code: e.code, message: e.message }])) };
+  }),
 
   // S3 — the one gated door.
-  "POST /s3/assign": (req, body) => withUow(req, "S3", async (uow, p) => {
-    const b = body as { jobId: string; crewId: string; orgId: string; regionId: string };
-    return assignCrew(uow, p.subjectId, b, new Date());
-  }),
+  "dispatch.assign": (req, input) => withUow(req, "dispatch.assign", (uow, p) => assignCrew(uow, p.subjectId, input, new Date())),
 
   // S5 — replay a device log.
-  "POST /s5/sync": (req, body) => withUow(req, "S5", async (uow, p) => {
+  "sync.replay": (req, input) => withUow(req, "sync.replay", async (uow, p) => {
     if (!p.deviceId) throw new HttpError(403, "sync is a device principal's operation");
-    const b = body as { orgId: string; regionId: string; mutations: Parameters<typeof ingestSync>[2]["mutations"] };
-    return { outcomes: await ingestSync(uow, p.subjectId, { deviceId: p.deviceId, orgId: b.orgId, regionId: b.regionId, mutations: b.mutations }, new Date()) };
+    return { outcomes: await ingestSync(uow, p.subjectId, { deviceId: p.deviceId, orgId: input.orgId, regionId: input.regionId, mutations: input.mutations }, new Date()) };
   }),
+
+  // The SSE feed: one LISTEN client on the pool, fan-out per connected principal's region.
+  "events.stream": async (req, _input, res) => {
+    const caller = callerOf(req);
+    const p = caller.principal;
+    surfaceOf(req, "events.stream", caller);
+    { const tx = await beginTx(pool, "ac_gateway"); try { await assertSessionLive(tx, p); } finally { await tx.rollback().catch(() => {}); } }
+    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+    // Headers are not on the wire until the first byte. A subscriber's fetch()
+    // does not resolve — and the shell cannot report "open" — until then.
+    res.write(`: connected ${p.regionId}\n\n`);
+    const client = { res, regionId: p.regionId, orgScoped: p.namespace === "internal" && p.scopeTier === "parent" };
+    sseClients.add(client);
+    req.on("close", () => sseClients.delete(client));
+    return STREAMING;
+  },
+
+  "system.health": async () => ({ ok: true, surfaces: Object.values(SURFACES).filter((s) => s.enabled).map((s) => s.id) }),
 };
 
-// SSE event stream: one LISTEN client, fan out per connected principal's region.
+/** Sentinel: the handler owns the response and the dispatcher must not write one. */
+const STREAMING = Symbol("streaming");
+
+/** `METHOD /path` → operation id. Built from the catalogue; a route not in the catalogue does not exist. */
+const ROUTES: ReadonlyMap<string, OperationId> = new Map(OPERATION_IDS.map((id) => [routeKey(OPERATIONS[id]), id]));
+
+/** Read an operation's input from where the catalogue says it travels. */
+const inputOf = async (req: IncomingMessage, url: URL, opId: OperationId): Promise<unknown> => {
+  switch (OPERATIONS[opId].carrier) {
+    case "body": return readJson(req);
+    case "query": return Object.fromEntries(url.searchParams.entries());
+    case "none": return undefined;
+  }
+};
+
 const sseClients = new Set<{ res: ServerResponse; regionId: string; orgScoped: boolean }>();
 await listenEvents(DATABASE_URL, (payload) => {
   const env = JSON.parse(payload) as { regionId: string };
@@ -172,26 +297,25 @@ await listenEvents(DATABASE_URL, (payload) => {
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
-  const key = `${req.method} ${url.pathname}`;
+  // CORS first, on every response including refusals and the stream: a browser
+  // surface at a listed origin gets the credentialed allow-headers; anyone else
+  // gets `Vary: Origin` and nothing, and the browser refuses on its side.
+  const c = cors(req, ORIGINS);
+  applyHeaders(res, c.headers);
+  if (req.method === "OPTIONS") {
+    res.writeHead(c.allowed ? 204 : 403);
+    return res.end();
+  }
+  const opId = ROUTES.get(`${req.method} ${url.pathname}`);
   try {
-    if (key === "GET /events") {
-      const p = principalOf(req);
-      res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
-      const client = { res, regionId: p.regionId, orgScoped: p.namespace === "internal" && p.scopeTier === "parent" };
-      sseClients.add(client);
-      req.on("close", () => sseClients.delete(client));
-      return;
-    }
-    if (key === "GET /healthz") return send(res, 200, { ok: true, surfaces: Object.values(SURFACES).filter((s) => s.enabled).map((s) => s.id) });
-    const route = routes[key];
-    if (!route) return send(res, 404, { error: `no route ${key}` });
-    const body = req.method === "POST" ? await readJson(req) : {};
-    send(res, 200, await route(req, body, url));
+    if (!opId) return send(res, 404, { error: "NoRoute", message: `no route ${req.method} ${url.pathname} — not in the operation catalogue` });
+    const input = await inputOf(req, url, opId);
+    const out = await (handlers[opId] as Handler<OperationId>)(req, input as never, res);
+    if (out !== STREAMING) send(res, 200, out);
   } catch (e) {
-    const status = statusFor(e);
-    const err = e as Error & { code?: string };
-    if (status === 500) console.error(err);
-    send(res, status, { error: err.name, code: err.code, message: status === 500 ? "internal error" : err.message });
+    const d = describe(e);
+    if (d.status === 500) console.error(e);
+    send(res, d.status, { error: d.name, code: d.code, message: d.message });
   }
 });
 

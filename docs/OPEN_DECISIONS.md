@@ -1,14 +1,20 @@
 # Open decisions this repo is waiting on
 
+**Updated 2026-09-15 after the partner meeting.** D2 is ratified — `TIERS`, `TERMS`
+and the derive-region trigger are the agreed interface and are now under change
+control (see the banner at the top of `docs/BACKBONE_CONTRACT.md`). D7 confirmed.
+D1, D6, D8, D10, D11 also closed that morning; none of them has a shape in this
+repo beyond what is already here. The rows below are what is still open.
+
 The frame is built so these plug in without structural change. Where a decision
 would otherwise leak into the schema, the code holds a *shape* instead of an
 assumption. Each row names the file that changes when the decision lands.
 
 | ID | Decision | What the code holds today | Lands in |
 |----|----------|---------------------------|----------|
-| **D2** | Four-tier hierarchy, term policy register, `region_id` semantics | **Built in all three parts** (docs/BACKBONE_CONTRACT.md §2–3): `TIERS`; `TERMS` as two axes mirrored into `term_registry`; `region_id` derived from the parent edge by trigger with `customer_group` as the attribute. The partners' decision is now to *ratify* what runs, or to name what should differ before more contracts are recorded | `packages/contracts/src/{tiers,terms}.ts`, `migrations/0002` |
-| **D7** | One named infrastructure owner | Ethan M. (closed 2026-09-14). **D7a** — the response obligation — is a vendor contract, not a shape in this repo | — |
-| **D9** | Phase 1 scope and deferrals | Surfaces are registry rows with `phase` and `enabled`. Deferring one is a data change | `packages/contracts/src/surfaces.ts` |
+| ~~**D2**~~ | ~~Four-tier hierarchy, term policy register, `region_id` semantics~~ | **CLOSED — ratified as built 2026-09-15.** `TIERS`; `TERMS` as two axes mirrored into `term_registry`; `region_id` derived from the parent edge by trigger with `customer_group` as the attribute. A change to any of these is now a migration that re-admits every override row, not an edit | `packages/contracts/src/{tiers,terms}.ts`, `migrations/0002` — change-controlled |
+| ~~**D7**~~ | ~~One named infrastructure owner~~ | **CLOSED** — Ethan M. (2026-09-14, confirmed jointly 2026-09-15). **D7a** — the response obligation — is still open; it is a vendor contract, not a shape in this repo | — |
+| **D9** | Phase 1 scope and deferrals | Surfaces are registry rows with `phase` and `enabled`. Deferring one is a data change. D11 (closed 2026-09-15) took the scope-cut lever; D9 confirms the list | `packages/contracts/src/surfaces.ts` |
 | **D12** | S8 scope in Phase 1 | Write allowlist is the minimum cut: compliance intake + settlement visibility. Widening it is one reviewed line | `surfaces.ts` → `SURFACES.S8.writes` |
 | **D13** | Payment terms / working capital | `working_capital_positions` exists so the float is measured from day one rather than sized after it hurts | `packages/schema/src/tables/billing.ts` |
 | **D14** | Supply before signature | `regions.min_crew_density` holds the rule and is `0` until set. The account-authoring check reads it and reports *"rule not set"* rather than silently passing | `packages/schema/src/tables/roots.ts` |

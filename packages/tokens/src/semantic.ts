@@ -17,7 +17,7 @@ export const SEMANTIC = Object.freeze({
   "color.action-pressed": P.blue[700],
   "color.focus-ring": P.blue[600],
   "color.status-ok": P.green[500],
-  "color.status-at-risk": P.amber[500],
+  "color.status-at-risk": P.amber[600],
   "color.status-breached": P.red[500],
   "color.status-blocked": P.gray[700],
 });

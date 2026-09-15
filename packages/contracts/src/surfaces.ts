@@ -44,7 +44,7 @@ export type Surface = {
   readonly degraded: string;
 };
 
-export const SURFACES: { readonly [K in SurfaceId]: Surface } = {
+const REGISTRY = {
   S1: {
     id: "S1", name: "Marketing / lead-gen", app: "s1-marketing",
     block: "OFC", phase: 1, enabled: true,
@@ -119,7 +119,20 @@ export const SURFACES: { readonly [K in SurfaceId]: Surface } = {
     density: "comfort", realtime: false, offline: false,
     degraded: "Document upload queues to durable storage and acknowledges on receipt, not on processing. Settlement views serve last statement. A firm sees its own crews, its own jobs, its own compliance, its own money — never another firm's rate card.",
   },
-} as const;
+} as const satisfies { readonly [K in SurfaceId]: Surface };
+
+export const SURFACES: { readonly [K in SurfaceId]: Surface } = REGISTRY;
+
+/**
+ * The registry row's density, LITERALLY typed: `densityOf("S5")` is `"field"`,
+ * not `Density`. This is what lets a component's declared density set be a
+ * compile-time check at the call site — a console-only ComplianceBadge handed
+ * the S5 density is a type error in the surface, not a screenshot from a
+ * parking lot. `SURFACES[id].density` is the same value widened to the union,
+ * for the gateway and anything else that indexes by a runtime id.
+ */
+export type DensityOf<Id extends SurfaceId> = (typeof REGISTRY)[Id]["density"];
+export const densityOf = <Id extends SurfaceId>(id: Id): DensityOf<Id> => REGISTRY[id].density;
 
 export const SURFACE_IDS = Object.keys(SURFACES) as readonly SurfaceId[];
 

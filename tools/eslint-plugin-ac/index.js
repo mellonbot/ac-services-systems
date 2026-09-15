@@ -5,9 +5,10 @@ import noFloatMoney from "./rules/no-float-money.js";
 import noClockInDomain from "./rules/no-clock-in-domain.js";
 import noStorageBypass from "./rules/no-storage-bypass.js";
 import noClearanceForgery from "./rules/no-clearance-forgery.js";
+import noFetchInSurface from "./rules/no-fetch-in-surface.js";
 
 /**
- * Seven rules. All "error". None "warn".
+ * Eight rules. All "error". None "warn".
  *
  * A warning is a rule that has decided not to be one. Every rule here maps to a
  * commitment whose violation converts a later phase into a rewrite, so there is
@@ -22,5 +23,6 @@ export default {
     "no-clock-in-domain": noClockInDomain,
     "no-storage-bypass": noStorageBypass,
     "no-clearance-forgery": noClearanceForgery,
+    "no-fetch-in-surface": noFetchInSurface,
   },
 };

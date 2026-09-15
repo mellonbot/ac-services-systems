@@ -4,6 +4,7 @@ import { admitOverride, type Candidate } from "../../../../packages/domain/src/i
 import { resolveAll, type Override, type ScopePath } from "../../../../packages/domain/src/inheritance/resolve.ts";
 import { TERM_KEYS } from "../../../../packages/contracts/src/terms.ts";
 import type { Tier } from "../../../../packages/contracts/src/tiers.ts";
+import { InputRefused } from "../refusals.ts";
 
 /**
  * S2 → gateway: author a term override. The one door through which a
@@ -47,7 +48,7 @@ export const pathLoader = async (uow: UnitOfWork, orgId: string) => {
     if (tier === "parent") return [{ tier: "parent", id: orgId, name: org[0]?.name ?? "" }];
     const out: { tier: Tier; id: string; name: string }[] = [];
     let cur = byId.get(id);
-    if (!cur || cur.tier !== tier) throw new Error(`no ${tier} node ${id} in org ${orgId}`);
+    if (!cur || cur.tier !== tier) throw new InputRefused(`no ${tier} node ${id} in org ${orgId}`, "unknown_scope");
     while (cur) {
       out.unshift({ tier: cur.tier, id: cur.id, name: cur.name });
       cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;

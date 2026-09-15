@@ -21,6 +21,14 @@ export default tseslint.config(
     rules: { "ac/no-db-in-surface": "error" },
   },
   {
+    // Non-negotiable #14. The surface layer, the shell and the component set
+    // never touch the wire; packages/sdk/src/runtime.ts is the one file that does.
+    files: ["apps/s*/**/*.ts", "apps/s*/**/*.tsx", "packages/shell/**/*.ts", "packages/ui/**/*.ts"],
+    // Tests fake the wire on purpose; the guard skips them for the same reason.
+    ignores: ["**/*.test.ts"],
+    rules: { "ac/no-fetch-in-surface": "error" },
+  },
+  {
     // The field layer. S5 and, when it lands, the tablet UI.
     files: ["apps/s5-technician/**/*.ts", "packages/ui/src/field/**/*.ts"],
     rules: { "ac/no-employment-type-in-field": "error" },

@@ -1,6 +1,8 @@
 # The Backbone Contract
 
-**Rev A · 2026-09-14 · Action plan B2. The interface every block codes against.**
+**Rev C · 2026-09-15 · Action plan B2. The interface every block codes against.** *(Rev B amended §5 and §11 — refusal codes, migration 0004. Rev C amends §4 — the browser session and per-request revocation. §2–3 are untouched and remain under change control.)*
+
+> **Ratified by the partners, jointly, 2026-09-15 (D2).** §2–3 stand as written. From this line on, a change to `TIERS`, to a `TERMS` entry's authoring or combine axis, or to `region_id` semantics is a migration under change control — every existing override row is re-admitted against the new policy — not an edit.
 
 This is the frozen surface between the backbone and the three operating blocks. Every statement in it is enforced by something named in the right-hand margin — a type, a trigger, a constraint, a guard, or a test in `test/integration/backbone.test.ts` that ran green against PostgreSQL 16 on the day this was written. A statement that is not enforced is not in this document.
 
@@ -64,6 +66,8 @@ At login the gateway resolves the **hierarchy context**: the principal's scope n
 
 Every transaction the gateway opens begins with `SET LOCAL ROLE ac_gateway` and `SET LOCAL` of the **scope binding** — `ac.namespace`, `ac.org_id`, `ac.region_id`, `ac.scope_tier`, `ac.scope_id`, `ac.firm_id`, `ac.device_id`, `ac.actor_id`, `ac.surface_id` — built from the principal and from nothing a surface can set. Row-level security reads only those settings. `SET LOCAL` dies with the transaction, so a pooled connection cannot carry one principal's scope into the next request.
 
+**How the token travels, and when it stops working (Rev C).** A token arrives as `Authorization: Bearer` (devices, tests, non-browser clients) or as the `ac_session` cookie the gateway set at login — `HttpOnly; Secure; SameSite=Strict`, host-only, so a browser surface never holds a token in script. A cookie request **must** name its surface in `x-ac-surface` or it is refused 403: a cross-site form cannot set that header and a cross-site fetch with it triggers preflight, which CORS refuses for any origin not derived from the surface registry (`https://<app>.<AC_SITE>` for each enabled, non-anonymous surface — an origin is added by adding a surface). **A token is valid only while its `sessions` row is not revoked**, checked inside every authenticated request's transaction for both paths; `POST /auth/logout` revokes the row and clears the cookie, after which the same token is 401 `revoked` however it travels. Before Rev C the revocation column existed and nothing read it.
+
 Row-level security, all tables `FORCE`d so the owner is bound too:
 
 | Table(s) | Visible to |
@@ -76,7 +80,7 @@ Row-level security, all tables `FORCE`d so the owner is bound too:
 
 A forgotten `WHERE` returns zero rows, not every firm's pricing.
 
-*Enforced by:* `apps/gateway/src/{auth,context}.ts` (18 tests), `migrations/0002` (RLS section), integration tests "RLS: a West dispatcher sees zero South crews", "RLS: a subcontractor firm sees its own rate card", "RLS: a facility manager scoped to Boulder sees Boulder and its sites", "a stale token … is refused".
+*Enforced by:* `apps/gateway/src/{auth,context}.ts` (18 tests), `apps/gateway/src/session.ts` (7 tests), `migrations/0002` (RLS section), integration tests "RLS: a West dispatcher sees zero South crews", "RLS: a subcontractor firm sees its own rate card", "RLS: a facility manager scoped to Boulder sees Boulder and its sites", "a stale token … is refused", and the session wire tests: "login sets an httpOnly, Secure, SameSite=Strict session cookie …", "a cookie request that names its surface is served; the same cookie without x-ac-surface is refused 403", "preflight: a registry origin gets 204 …; an unlisted origin gets 403", "logout revokes the session … the SAME token — as cookie or as bearer — is 401 revoked".
 
 ## 5. The gateway and the unit of work
 
@@ -86,9 +90,9 @@ Every mutation goes through `createUnitOfWork(ctx, tx)`, which refuses to open u
 
 The interface is `apply`, `commit`, `rollback`, `pending`, `tx`. There is no `skipAudit`, no `force`, no write without a declared entity, no emit without a topic.
 
-Refusals surface as distinct HTTP statuses: 401 for token faults (each with its own code), 403 for scope, role, tenancy and allowlist, 404 for a phase-disabled surface, 422 for admission and resolution refusals — with the human-readable reason, because a dispatcher or contract administrator reads it under time pressure.
+Refusals surface as distinct HTTP statuses: 401 for token faults (each with its own code), 403 for scope, role, tenancy and allowlist, 404 for a phase-disabled surface, 422 for admission and resolution refusals — with the human-readable reason, because a dispatcher or contract administrator reads it under time pressure. **A database-layer refusal is a refusal too, never a 500 (Rev B, migration 0004).** Every trigger in this contract raises with an ERRCODE — `AC422` when an invariant of the data refuses the row (tier ladder, tenancy inheritance, term register, clearance), `AC403` when policy refuses the caller (audit and job-state immutability) — and the gateway maps those, plus exclusion, foreign-key, unique, check and not-null violations, to 422/403 with the database's own message and the trigger or constraint name as the code. A handler that cannot resolve an input (a scope node not in the org, a job or crew not in scope) answers 422 the same way. 500 is reserved for bugs: the shell treats a 500 as a transport failure and puts the surface into its degraded mode, which is the right response to a bug and was the wrong response to a refused row. The guard fails the build on any trigger function whose latest definition raises without a code.
 
-*Enforced by:* `apps/gateway/src/unit-of-work.ts` (10 tests with a fake `Tx`), integration test "authoring a legal override writes the row, an audit row and an outbox row with one event_id — and none of them if the tx rolls back", the HTTP smoke run recorded in the commit message.
+*Enforced by:* `apps/gateway/src/unit-of-work.ts` (10 tests with a fake `Tx`), `apps/gateway/src/refusals.ts` (5 tests), `migrations/0004`, `tools/ci/schema-guard.ts` §3d, integration test "authoring a legal override writes the row, an audit row and an outbox row with one event_id — and none of them if the tx rolls back", wire tests "a foreign-key refusal … is a 422 admission, structural — and the shell stays up", "an input the handler cannot resolve … is a 422, not a 500", "a trigger refusal carries SQLSTATE AC422 … AC403", the HTTP smoke run recorded in the commit message.
 
 ## 6. The compliance gate
 
@@ -146,9 +150,10 @@ Dependencies point one way: surfaces → shell → sdk → contracts → gateway
 
 ```
 node tools/ci/schema-guard.ts          # zero install. All structural invariants.
-npm run guard:test                     # zero install. 82 unit tests.
+npm run guard:test                     # zero install. 138 unit tests.
+npm run sdk:check                      # zero install. The generated client matches the operation catalogue.
 DATABASE_URL=… node tools/ci/migrate.ts && node tools/ci/migrate.ts --assert
-DATABASE_URL=… npm run test:integration   # 29 tests against a live database
+DATABASE_URL=… npm run test:integration   # 48 tests against a live database and a spawned gateway
 pnpm install && pnpm typecheck && pnpm guard:lint   # the toolchain layer
 DATABASE_URL=… npm run gateway          # :8080
 DATABASE_URL=… npm run worker

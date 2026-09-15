@@ -1,6 +1,6 @@
 import type { Principal, ScopeBinding } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
-import type { ScopePath } from "../../../packages/domain/src/inheritance/resolve.ts";
+import type { HierarchyNode, HierarchyContext } from "../../../packages/contracts/src/context.ts";
 
 /**
  * HIERARCHY CONTEXT — resolved at login, not per view.
@@ -10,18 +10,12 @@ import type { ScopePath } from "../../../packages/domain/src/inheritance/resolve
  * needs to filter by region itself, and why the lint rule forbidding it is
  * not an imposition.
  */
-export type HierarchyNode = { readonly tier: Tier; readonly id: string; readonly name: string; readonly regionId: string | null; readonly customerGroup: string | null };
-
-export type HierarchyContext = {
-  readonly principal: Principal;
-  /** The scope node's ancestor chain, broadest first — the resolver's ScopePath. */
-  readonly path: ScopePath;
-  /** The organization at the top. */
-  readonly parent: HierarchyNode;
-  /** Region nodes visible to this principal (all for org scope; one otherwise). */
-  readonly regions: readonly HierarchyNode[];
-  readonly activeRegionId: string;
-};
+/**
+ * The shapes are declared in packages/contracts/src/context.ts — both ends of
+ * the wire name them, and the shell must not import from the gateway. This
+ * file builds them; re-exported here so handlers keep one import path.
+ */
+export type { HierarchyNode, HierarchyContext };
 
 /** What the context builder needs from the database. Kept as an interface so the builder is unit-testable. */
 export type HierarchyReader = {
