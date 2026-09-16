@@ -68,6 +68,7 @@ export const ALL_TABLES: readonly Table[] = Object.freeze([
   platform.outbox,
   platform.subscriptions,
   platform.storage_objects,
+  platform.brand_themes,
   platform.sla_timers,
 ]);
 

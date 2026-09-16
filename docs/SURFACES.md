@@ -9,7 +9,7 @@ gateway.
 | ID | Surface | Block | Phase | Density | Auth scope | Writes |
 |----|---------|-------|-------|---------|-----------|--------|
 | S1 | Marketing / lead-gen | OFC | 1 | `comfort` | none (anonymous) | `lead`, `call_record` |
-| S2 | Service Manager | OFC | 1 | `console` | role-based, org-wide | `account`, `contract`, `invoice`, `warranty_case`, `part`, `purchase_order`, `subcontractor_firm`, `crew_credential`, `rate_card` |
+| S2 | Service Manager | OFC | 1 | `console` | role-based, org-wide | `account`, `contract`, `invoice`, `warranty_case`, `part`, `purchase_order`, `subcontractor_firm`, `crew_credential`, `rate_card`, `brand_theme` |
 | S3 | Dispatch Console | OFC | 1 | `console` | region-scoped | `assignment`, `job_state`, `crew_release`, `escalation` |
 | S4 | HQ Ops Dashboard | OFC | 2 | `console` | org-wide READ only | — |
 | S5 | Technician web fallback | FLD | 1 | `field` | tech credential + shift device grant | `job_state`, `checklist`, `photo`, `part_used`, `time_entry`, `signature` |

@@ -7,7 +7,7 @@ export const WRITE_ENTITIES = [
   "lead", "call_record",
   // S2 — the only authoring surface
   "account", "contract", "invoice", "warranty_case", "part", "purchase_order",
-  "subcontractor_firm", "crew_credential", "rate_card",
+  "subcontractor_firm", "crew_credential", "rate_card", "brand_theme",
   // S3 — dispatch
   "assignment", "job_state", "crew_release", "escalation",
   // S4 — commentary (see OPEN-S4 in docs/OPEN_DECISIONS.md; not granted)

@@ -60,6 +60,41 @@ export const subscriptions = operationalTable("subscriptions", {
   uniques: [["subscriber", "topic", "region_id"]],
 });
 
+/**
+ * A TENANT'S WHITE-LABEL, STORED.
+ *
+ * The theme is validated BEFORE it becomes a row — that is the whole shape of
+ * the feature, and the reason it is a write through the unit of work rather
+ * than a config file: the theme that satisfies a brand team and the theme that
+ * breaks the portal are separated by one check, and the check has to run
+ * somewhere a designer cannot skip. packages/tokens validateBrandTheme runs in
+ * apps/gateway/src/handlers/brand.ts; a theme that fails is a 422 with the
+ * ratio and never reaches this table.
+ *
+ * `host` is the lookup key and the unique, because the browser that asks for a
+ * theme has not authenticated yet: it can say where it is, not whose it is.
+ * `org_id` is unique too — a tenant has ONE theme, not one per region.
+ * region_id is the shard key here and nothing more; it does not mean a tenant
+ * may look different in Texas.
+ *
+ * The admission verdict is stored beside the theme rather than recomputed at
+ * read: the accent gate's answer is what an account manager was shown when
+ * they saved, and a stored answer is one an argument six months later can be
+ * held against.
+ */
+export const brand_themes = operationalTable("brand_themes", {
+  columns: [
+    { name: "host", type: "text", comment: "The portal hostname this theme answers for. Lowercased by the handler; the unique is what makes the lookup unambiguous." },
+    { name: "accent", type: "text", comment: "The tenant's brand colour. Gated separately from the slots — see accent_admission." },
+    { name: "overrides", type: "jsonb", comment: "Accent slots only. A key outside packages/tokens BRAND_OVERRIDABLE is refused by the handler before the insert." },
+    { name: "accent_admission", type: "jsonb", comment: "admitAccent()'s verdict as written: which tiers may paint it as a word, as a fill, and whether it clears the state ramp's hue." },
+    { name: "authored_by", type: "uuid" },
+    { name: "updated_at", type: "timestamptz", default: "now()" },
+  ],
+  indexes: [["host"]],
+  uniques: [["host"], ["org_id"]],
+});
+
 /** Non-negotiable #5 — object storage behind our own interface. */
 export const storage_objects = operationalTable("storage_objects", {
   columns: [
