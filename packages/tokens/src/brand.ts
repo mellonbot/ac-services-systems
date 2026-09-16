@@ -1,5 +1,4 @@
 import { PRIMITIVES as P } from "./primitives.ts";
-import { FACES } from "./type.ts";
 
 /**
  * THE BRAND TIER — who the marks belong to, and what they are allowed to say.
@@ -93,6 +92,43 @@ export const ICON_SIZES = Object.freeze({
   store: 512,
 });
 
+/**
+ * THE LETTER, AS AN OUTLINE — errata E-17, closed.
+ *
+ * A favicon is fetched before any stylesheet this system controls, so an SVG
+ * that names a font family renders in whatever the machine happens to have:
+ * the mark silently became a different mark, with no fallback chain to catch
+ * it and nobody to notice. So the letter is no longer a font reference. It is
+ * the Yellowtail R itself, extracted from the face and frozen as a path.
+ *
+ * Derived from Yellowtail (Astigmatic, Apache License 2.0) by reading the
+ * `glyf` table directly: glyph 53, 2048 units/em, advance 1502, one contour of
+ * 86 points, converted to quadratic SVG segments and transformed into the
+ * 64-unit square at the approved geometry — size 50, centred on x 41 the way
+ * `text-anchor="middle"` centres an advance, baseline 48. The extraction was
+ * cross-checked against the glyph header's own bounding box before it was
+ * trusted.
+ *
+ * It is a path, so nothing about it depends on a font being installed, and the
+ * optical thickening still works: a stroke on a path behaves exactly as a
+ * stroke on text did.
+ *
+ * NOTE THE INK BOX. The R's swash reaches x 66.17 — 2.17 units past the right
+ * edge of the square — and the viewport trims it. That is the mark as it was
+ * drawn, approved and shipped: the tuner clipped it identically, so this is
+ * the letter that was signed off, bleeding off the edge rather than sitting
+ * inside it. Recorded as E-19 rather than quietly corrected, because moving it
+ * now would change an approved mark on my own authority.
+ */
+export const BADGE_LETTER = Object.freeze({
+  /** Yellowtail R, at size 50, centred on x 41, baseline 48, in the 64-unit square. */
+  path: "M38.31 22.93Q38.68 22.93 38.68 23.34Q38.68 23.49 38.56 23.61Q36.51 25.66 33.82 25.66Q33.19 25.66 32.41 24.94Q31.62 24.22 31.62 22.85Q31.62 21.49 33.29 19.81Q34.95 18.14 37.91 16.64Q40.88 15.14 45.32 13.97Q49.76 12.79 53.3 12.79Q56.84 12.79 59.12 13.37Q61.39 13.94 62.67 14.78Q63.95 15.63 64.78 16.68Q66.17 18.43 66.17 20.25Q66.17 22.07 65 24Q63.83 25.93 61.96 27.43Q60.09 28.93 57.67 30.23Q53.16 32.62 48.01 33.74Q48.89 34.65 51.73 38.27Q54.57 41.9 56.93 44.34Q59.29 46.78 60.58 46.78L61.39 46.49Q61.65 46.49 61.65 46.69Q61.65 46.9 60.76 47.89Q59.87 48.88 59.21 49.39Q58.55 49.9 57.42 49.9Q56.28 49.9 54.84 48.81Q53.4 47.71 51.69 45.71Q49.98 43.7 48.62 41.93Q47.25 40.16 45.49 37.76Q43.73 35.35 43.08 34.5Q42.83 34.89 41.83 36.44Q40.83 37.99 40.37 38.72Q39.9 39.46 39.02 40.86Q38.14 42.26 37.66 43.12Q36.31 45.39 35.79 46.51Q35.26 47.63 34.07 47.63L33.21 47.61L32.48 47.63Q30.97 47.63 30.97 46.36Q30.97 45.41 31.78 43.64Q32.6 41.87 40.46 30.43Q48.32 19 49.13 18.23Q49.94 17.46 50.33 17.36Q50.62 17.14 50.72 17.14L51.16 17.21L51.57 17.14Q51.79 17.14 51.96 17.32Q52.13 17.51 52.21 17.56Q53.23 18.31 53.23 18.83Q53.23 19.34 52.98 19.81Q52.72 20.29 51.57 21.95Q50.42 23.61 48.56 26.26Q46.69 28.91 45.86 30.1Q47.86 30.01 50.67 28.88Q53.48 27.76 55.93 26.19Q58.38 24.61 60.13 22.77Q61.87 20.92 61.87 19.56Q61.87 18.83 61.12 18.23Q60.36 17.63 59.21 17.29Q56.92 16.6 54.04 16.6Q51.16 16.6 46.74 17.85Q42.32 19.09 40.29 20.23Q38.27 21.36 37.36 22.16Q36.46 22.95 36.46 23.27Q36.46 23.44 36.96 23.44Q37.46 23.44 37.85 23.18Q38.24 22.93 38.31 22.93Z",
+  source: "Yellowtail — Astigmatic, Apache License 2.0",
+  glyph: { id: 53, unitsPerEm: 2048, advance: 1502, contours: 1, points: 86 },
+  /** Where the ink actually lands, measured from the outline rather than guessed. */
+  ink: { x1: 30.97, y1: 12.79, x2: 66.17, y2: 49.9 },
+});
+
 /** The optical correction for a given rendered size. */
 export const thickenFor = (px: number): number =>
   BADGE.thickenAt.find((t) => px <= t.maxPx)!.stroke;
@@ -110,14 +146,13 @@ export const thickenFor = (px: number): number =>
  * development badge and not a released one.
  */
 export const badgeSvg = (px: number = ICON_SIZES.masthead): string => {
-  const { ring: g, letter: l, bar: b, treatment: t } = BADGE;
+  const { ring: g, bar: b, treatment: t } = BADGE;
   const sw = thickenFor(px);
   const stroke = sw > 0 ? ` stroke="${t.letter}" stroke-width="${sw}" paint-order="stroke"` : "";
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">` +
     `<rect width="64" height="64" fill="${t.ground}"/>` +
     `<circle cx="${g.cx}" cy="${g.cy}" r="${g.r}" fill="none" stroke="${t.ring}" stroke-width="${g.width}"/>` +
-    `<text x="${l.x}" y="${l.baseline}" fill="${t.letter}"${stroke} ` +
-    `font-family="${FACES.wordmark.stack.replace(/"/g, "'")}" font-size="${l.size}" text-anchor="middle">R</text>` +
+    `<path d="${BADGE_LETTER.path}" fill="${t.letter}"${stroke}/>` +
     `<rect x="${b.x}" y="${b.y}" width="${b.width}" height="${b.height}" fill="${t.bar}"/></svg>`;
 };
 
@@ -192,13 +227,18 @@ export const BULLETIN_ERRATA = Object.freeze([
     resolution: "A chroma floor; an accent with no hue skips the hue gate. brandCss emits under TENANT_SCOPE, so a theme applies only where it was measured and the tablet keeps Rankine's plate — the instrument argument, spelled as a selector.",
   },
   {
-    code: "E-17", subject: "the badge", status: "OPEN",
-    finding: "badgeSvg() names a font family. A favicon is fetched before any stylesheet, so on a machine without the face the mark silently becomes a different mark.",
-    resolution: "Ship the letter as an outlined path. Until then the badge is development-only, and this entry is the reason it is not released.",
+    code: "E-17", subject: "the badge", status: "closed",
+    finding: "badgeSvg() named a font family. A favicon is fetched before any stylesheet, so on a machine without the face the mark silently became a different mark.",
+    resolution: "The letter is an outlined path extracted from Yellowtail's glyf table (BADGE_LETTER), cross-checked against the glyph header's own bbox. Nothing about the mark now depends on an installed font.",
   },
   {
     code: "E-18", subject: "the wordmark", status: "accepted",
     finding: "A connected script fails the small end of the substrate list: joins close in thread and the word smears below the size floor.",
     resolution: `Accepted, because the system carries two marks. The script is the name at display size and never below ${28}px; the badge is the small end. Neither is asked to be the other.`,
+  },
+  {
+    code: "E-19", subject: "the badge ink box", status: "accepted",
+    finding: "The R's swash reaches x 66.17, which is 2.17 units past the right edge of the 64-unit square, and the viewport trims it.",
+    resolution: "Accepted, not corrected. The tuner clipped it identically, so this is the mark that was reviewed and approved — it bleeds off the edge by design now that the number is written down. Pulling the letter left is a one-line change to BADGE.letter.x if that reading is ever revisited.",
   },
 ] as const);
