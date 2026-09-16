@@ -13,8 +13,8 @@ import { PRIMITIVES as P } from "./primitives.ts";
  * diff on a named file, which is the point.
  */
 test("the badge geometry is exactly the approved position", () => {
-  assert.deepEqual(BADGE.ring, { cx: 17, cy: 20, r: 5.5, width: 5 });
-  assert.deepEqual(BADGE.letter, { size: 50, x: 41, baseline: 48 });
+  assert.deepEqual(BADGE.ring, { cx: 18, cy: 21, r: 5, width: 5 });
+  assert.deepEqual(BADGE.letter, { size: 46, x: 40, baseline: 47 });
   assert.deepEqual(BADGE.bar, { x: 12, y: 53, width: 40, height: 4 });
 });
 
@@ -87,8 +87,13 @@ test("the ink box is recorded from the outline, including the part that bleeds",
   const xs = nums.filter((_, i) => i % 2 === 0), ys = nums.filter((_, i) => i % 2 === 1);
   assert.ok(Math.abs(Math.max(...xs) - BADGE_LETTER.ink.x2) < 0.02, "recorded right edge must match the path");
   assert.ok(Math.abs(Math.min(...xs) - BADGE_LETTER.ink.x1) < 0.02, "recorded left edge must match the path");
-  // E-19, written down rather than discovered again later.
-  assert.ok(BADGE_LETTER.ink.x2 > 64, "the swash bleeds past the square, and that is the approved mark");
-  assert.equal(BULLETIN_ERRATA.find((e) => e.code === "E-19")?.status, "accepted");
+  // E-19: the whole mark stays inside the square. This is the assertion that
+  // was impossible while the letter was a font reference — a glyph's ink box
+  // is not knowable from a font-family and a size, so the 2.17 units the
+  // viewport was trimming went unnoticed until the outline made them a number.
+  const ink = BADGE_LETTER.ink;
+  assert.ok(ink.x1 >= 0 && ink.x2 <= 64, `ink spans ${ink.x1}..${ink.x2}, outside the 64-unit square`);
+  assert.ok(ink.y1 >= 0 && ink.y2 <= 64, `ink spans ${ink.y1}..${ink.y2} vertically`);
+  assert.equal(BULLETIN_ERRATA.find((e) => e.code === "E-19")?.status, "closed");
   assert.equal(BULLETIN_ERRATA.find((e) => e.code === "E-17")?.status, "closed");
 });
