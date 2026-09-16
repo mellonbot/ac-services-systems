@@ -90,7 +90,8 @@ test("a colour with no hue cannot collide with a hue ramp", () => {
 
 test("the gate rejects the slot, never the tenant", () => {
   // A failure is a narrower permission and a note that says so — not an error.
-  for (const accent of ["#E01B24", "#1A4FA0", "#00FF00", "#7A2B22"]) {
+  // The last one is the fault ink itself — the worst case the gate exists for.
+  for (const accent of ["#E01B24", "#1A4FA0", "#00FF00", SEMANTIC["color.status-breached"]]) {
     const a = admitAccent(accent);
     assert.equal(typeof a.stateSurfaces, "boolean");
     assert.ok(a.nearestState.length > 0);
