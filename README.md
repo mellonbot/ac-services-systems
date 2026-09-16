@@ -54,7 +54,7 @@ is worth restating because every structural decision here is an instance of it:
 ```bash
 # Zero install — a laptop with Node 22.18+ and nothing else.
 node tools/ci/schema-guard.ts       # every structural invariant, against the definitions
-npm run guard:test                  # 181 unit tests: resolver, admission, gate, sync, SLA, money, D14, uow, auth, session, refusals, hierarchy and contract handlers, catalogue, sdk, shell, tokens→CSS, the accent gate, the brand layer
+npm run guard:test                  # 187 unit tests: resolver, admission, gate, sync, SLA, money, D14, uow, auth, session, refusals, hierarchy and contract handlers, catalogue, sdk, shell, tokens→CSS, the accent gate, the brand layer, PR titles
 npm run guard:all                   # both
 npm run sdk:generate                # regenerate the client from the operation catalogue
 npm run sdk:check                   # fail on drift (the guard runs this too)
