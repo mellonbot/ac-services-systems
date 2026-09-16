@@ -1,0 +1,37 @@
+name: pr-title
+
+# A pull request is named after what it changes, or it is not named. GitHub
+# falls back to the BRANCH when it cannot title a PR from a single commit, which
+# is how a full rebrand shipped as "Claude/site design branding rksmnj" and then
+# sat unmerged behind that title. This renames only what a machine named — see
+# tools/ci/pr-title.ts for the three shapes it will touch and nothing else.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+# Deliberately NOT pull_request_target: that runs with a write token against the
+# PR's own code, and a title is nowhere near worth that trade. The consequence
+# is that a fork PR gets a read-only token and is skipped, which is the `if`
+# below rather than a failed job somebody has to learn to ignore.
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  retitle:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      # Zero-install, like the guard that runs beside it: node builtins, fetch
+      # and type stripping. There is no toolchain to install to rename a PR.
+      - run: node tools/ci/pr-title.ts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
