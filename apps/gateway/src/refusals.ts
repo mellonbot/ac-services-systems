@@ -29,6 +29,19 @@ export class InputRefused extends Error {
   }
 }
 
+/**
+ * A request the gateway could not even read as a request: a required field
+ * absent, a field of the wrong shape. 400, not 422 — nothing was refused on
+ * its merits, because there was nothing to judge. The generated client makes
+ * these rare (the input is typed); a curl or a stale bundle makes them possible.
+ */
+export class BadInput extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BadInput";
+  }
+}
+
 /** The fields node-postgres puts on a DatabaseError. Typed here so this module needs no driver import. */
 export type PgErrorLike = {
   readonly code?: string;

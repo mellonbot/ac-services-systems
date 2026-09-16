@@ -14,3 +14,5 @@ export { CONFLICT_POLICIES, JOB_TRANSITIONS, DEVICE_TRANSITIONS, mayDeviceWrite,
 export type { ConflictPolicy, Mutation, ServerState, SyncOutcome } from "./sync/index.ts";
 export { deriveDueAt, evaluateCascade, STAGE_NAMES, UnknownSlaTermError } from "./sla/index.ts";
 export type { SlaTerms, TimerState, CascadeAction, Stage } from "./sla/index.ts";
+export { admitLocationSupply, D14_RULE_NOT_SET } from "./supply/density.ts";
+export type { SupplyInput, SupplyDecision } from "./supply/density.ts";

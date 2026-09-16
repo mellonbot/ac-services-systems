@@ -8,7 +8,7 @@
   },
   "scripts": {
     "guard:schema": "node tools/ci/schema-guard.ts",
-    "guard:test": "node --test \"packages/!(ui)/**/*.test.ts\" \"apps/**/*.test.ts\" \"tools/**/*.test.ts\"",
+    "guard:test": "node --test \"packages/!(ui)/**/*.test.ts\" \"apps/!(s[0-9]*)/**/*.test.ts\" \"tools/**/*.test.ts\"",
     "guard:all": "npm run guard:schema && npm run guard:test",
     "test:integration": "node --test \"test/integration/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json",
@@ -20,7 +20,7 @@
     "db:assert": "node tools/ci/migrate.ts --assert",
     "gateway": "node apps/gateway/src/main.ts",
     "worker": "node apps/worker/src/main.ts",
-    "test:ui": "node --test \"packages/ui/**/*.test.ts\"",
+    "test:ui": "node --test \"packages/ui/**/*.test.ts\" \"apps/s[0-9]*/**/*.test.ts\"",
     "build:surface": "node tools/ci/build-surface.ts",
     "surfaces:check": "node tools/ci/emit-surfaces.ts --check"
   },

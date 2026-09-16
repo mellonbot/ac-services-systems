@@ -5,12 +5,14 @@ hierarchy, one backbone.
 
 **State (2026-09-15): Step 0 (the frame), Step 1 (the backbone) and Step 2 (S0,
 the shared shell) are built and verified; Step 3 (the surface runtime and S2,
-designed in `09_Surface_Runtime_and_S2_Design.md`) has its first three items
+designed in `09_Surface_Runtime_and_S2_Design.md`) has its first four items
 built — refusal codes (migration 0004, `refusals.ts`), the browser session
-(`session.ts`), and the surface runtime: `packages/ui` implemented on Preact +
-htm + signals behind one package boundary, the frame emitted from the registry,
-`build-surface.ts` as the one build step, and four new guards.** C1's catalogue
-rows and screens (item 4) are next. `docs/BACKBONE_CONTRACT.md` is the
+(`session.ts`), the surface runtime (`packages/ui` on Preact + htm + signals
+behind one package boundary, the frame emitted from the registry,
+`build-surface.ts` as the one build step, four guards), and C1: the seven
+hierarchy operations in the catalogue with their handlers, and S2's first
+screens — login, the tree, new node, move — driven in a real browser against
+the real gateway.** C2 (contracts and the override form, item 5) is next. `docs/BACKBONE_CONTRACT.md` is the
 B2 deliverable — the interface every block codes against, ratified by the
 partners 2026-09-15 — and every statement in it names the mechanism that
 enforces it and the test that proved it against PostgreSQL 16. S0 is the layer
@@ -40,7 +42,7 @@ is worth restating because every structural decision here is an instance of it:
 ```bash
 # Zero install — a laptop with Node 22.18+ and nothing else.
 node tools/ci/schema-guard.ts       # every structural invariant, against the definitions
-npm run guard:test                  # 144 unit tests: resolver, admission, gate, sync, SLA, money, uow, auth, session, refusals, catalogue, sdk, shell, tokens→CSS
+npm run guard:test                  # 158 unit tests: resolver, admission, gate, sync, SLA, money, D14, uow, auth, session, refusals, hierarchy handlers, catalogue, sdk, shell, tokens→CSS
 npm run guard:all                   # both
 npm run sdk:generate                # regenerate the client from the operation catalogue
 npm run sdk:check                   # fail on drift (the guard runs this too)
@@ -51,12 +53,13 @@ npm run surfaces:check              # fail on drift (the guard runs this too)
 export DATABASE_URL=postgres://user:pass@host/db
 node tools/ci/migrate.ts            # versioned migrations + the repeatable term-register mirror
 node tools/ci/migrate.ts --assert   # region_id is total in the LIVE schema
-npm run test:integration            # 48 tests: the contract end to end with RLS on (29) + the shell and the browser session over the wire against a spawned gateway (19)
+npm run test:integration            # 60 tests: the contract with RLS on (29) + the shell and the browser session over the wire (19) + C1 over the wire: parent+region node in one uow, move, region_id follows, D14 (12)
 
 # The toolchain layer.
 pnpm install
 pnpm typecheck && pnpm guard:lint   # tsc strict; eslint with the eight ac/ rules (verified: they fire)
-npm run test:ui                     # 20 component/router/stylesheet tests rendered to a string under node --test (needs preact, hence here)
+npm run test:ui                     # 28 tests rendered to a string under node --test: packages/ui (20) + S2's screens through the real shell against a scripted gateway (8). Need preact, hence here
+AC_GATEWAY=http://127.0.0.1:8080 node tools/ci/build-surface.ts S2   # stamp the gateway origin into the frame for a dev build
 node tools/ci/build-surface.ts S2   # THE ONE BUILD STEP: esbuild src/main.ts → apps/s2-service-manager/dist/{index.html,bundle.js,ui.css}
 node tools/ci/build-surface.ts --all --minify
 
@@ -75,7 +78,7 @@ apps/gateway/         the sole access path
   src/context.ts        hierarchy context at login; the scope binding RLS reads
   src/unit-of-work.ts   allowlist · role · tenancy · topic → audit + outbox in one tx
   src/pg-tx.ts          THE ONLY FILE THAT IMPORTS A DATABASE DRIVER
-  src/handlers/         terms (admission + resolution), assignment (the gate), sync (device replay)
+  src/handlers/         terms (admission + resolution), assignment (the gate), sync (device replay), hierarchy (C1: org+first region node in one uow, node create/move/update; D14; structure left to the triggers)
   src/main.ts           node:http + SSE; route table built from OPERATIONS, handlers typed over OperationId
   src/session.ts        the browser session: httpOnly cookie, x-ac-surface as the CSRF line, CORS derived from SURFACES under AC_SITE
   src/refusals.ts       SQLSTATE → 422/403 with the database's message; InputRefused for inputs a handler cannot resolve
@@ -86,6 +89,8 @@ packages/shell/       S0: createShell (registry checks), connectShell (login →
 packages/tokens/      primitives → semantic → density → white-label (contrast-validated); css.ts emits them as :root variables per density (field is dark)
 packages/ui/          THE RENDERER BOUNDARY: preact/htm/signals pinned here alone (render.ts); components typed to their spec's densities — StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner; router over the History API from a SCREENS registry; UI_CSS (roles only, no colours)
 apps/s1 … s8/         generated from SURFACES by tools/ci/emit-surfaces.ts — package.json, src/main.ts, frame.html (density, tokens, degraded slot, mount), README; each boots through the shell and can call nothing else
+apps/s2-service-manager/src/  the first surface with screens: screens.ts (the registry the guard reads), app.ts (cookie boot → login or tree; router; degraded slot; account events → refetch), state.ts (resources as signals, invalidated by prefix), screens/ (accounts-tree, accounts-new, accounts-move, organizations-new)
+packages/domain/src/supply/   D14 as a decision function: rule unset → caveat; set and unmet → commercial refusal
 tools/ci/             schema-guard (zero-install) · emit-schema · emit-sdk · emit-surfaces (--check) · build-surface (esbuild; the only step that needs an install) · migrate
 packages/schema/      operationalTable() and 43 tables; migrations 0001 (generated), 0002 (guardrails), 0003 (assert), 0004 (refusal codes — every trigger raises with an ERRCODE), repeatable/
 packages/domain/      no I/O: inheritance/{resolve,admit} · compliance · sync · sla · money · billing
@@ -108,6 +113,7 @@ docs/BACKBONE_CONTRACT.md   B2
 | 9 | One field experience regardless of employment | `employment_type` read only by the gate; lint + guard bar it from S5 | guard |
 | 10–13 | Infrastructure as code, restore tests, monitoring, named owner + response obligation | Operational. Owner: Ethan M. (D7). D7a open. **No code mechanism can defend these.** | — |
 | 14 | **No surface writes its own fetch call**; every surface reaches the gateway through one shell and one generated client | `OPERATIONS` is the single source for the gateway's routes and the generated client; guard byte-compares the client and checks handler parity; `fetch`/`EventSource`/`XMLHttpRequest`/`WebSocket`/wire libraries fail guard + `ac/no-fetch-in-surface` anywhere in `apps/s*`, `packages/{shell,ui,tokens}`; surfaces import nothing below the shell; no client method takes a URL; degraded written by the transport wrapper only; a package with sources and no test fails the guard | 12 catalogue + 9 sdk + 19 shell tests; 9 over-the-wire integration tests; all guards proven to fire on planted violations |
+| 1/2 (C1) | **The hierarchy enters through one door**: a parent is created with its first region node in one unit of work; `region_id` is an input for a region node only and derives from the edge below; a move changes one column and the shard key follows by trigger; D14 asked before a location is signed in | `handlers/hierarchy.ts` decides inputs; `ac_accounts_derive_region` / `ac_accounts_cascade` decide structure (no second copy of the ladder in the handler); `supply_below_density` is a commercial refusal, rule-unset a caveat; S2's forms do not offer a region field below the region tier | 10 handler tests against a scripted Tx; 4 D14 tests; 12 wire tests (parent+node atomic and refused whole; region_id typed below region → 422; site under region node → 422 with the trigger's words; move → descendant's `region_id` and `path` follow; D14 both ways); the same flow driven in headless Chromium through the cookie session |
 | S0/09 | **Surface runtime** — the renderer behind one package; screens as a registry checked against the catalogue; colour as a role; the frame rendered from the registry | `packages/ui/src/render.ts` is the only file importing preact/htm/signals and `from "preact"` in `apps/s*` fails the guard; every `uses` in `apps/s*/src/screens.ts` must be a catalogue operation admitting that surface; `#rrggbb`/`rgb(` outside `packages/tokens` fails; `emit-surfaces.ts --check` byte-compares every emitted file including `frame.html`; a component handed a density outside its spec is a type error at the call and a throw at render | 20 ui tests (density contract at the type level via `@ts-expect-error`, render-to-string, router, stylesheet variables resolve for every density); all four guards proven to fire on planted violations; the S2 frame + every component executed in headless Chromium — 36px controls on console, 56px and a dark surface on the field frame, degraded slot flips |
 
 ## Conventions
