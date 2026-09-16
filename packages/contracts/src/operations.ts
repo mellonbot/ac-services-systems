@@ -117,6 +117,34 @@ export const OPERATIONS = {
     surfaces: ["S2"], carrier: "body", sdkMethod: "updateAccount",
     summary: "Attributes of a node — name, the customer's own grouping, external ref, address, timezone, active. Never parent_id or region_id; those are accounts.move.",
   },
+  // ---- C2: the agreements and term overrides S2 authors (09 §3.6) ----
+  "contracts.list": {
+    id: "contracts.list", method: "GET", path: "/s2/contracts", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "query", sdkMethod: "listContracts",
+    summary: "The signed agreements in an organization — what a term override must belong to, and where the state machine currently stands.",
+  },
+  "contracts.create": {
+    id: "contracts.create", method: "POST", path: "/s2/contracts", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createContract",
+    summary: "Record an agreement against a node. OQ5's position is required with no default; regionId is an input for a parent-scope agreement alone and derives from the node below it.",
+  },
+  "contracts.transition": {
+    id: "contracts.transition", method: "POST", path: "/s2/contracts/transition", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "transitionContract",
+    summary: "draft → active → expired | terminated. A step off that ladder is refused by name; activation and ending are what the other blocks subscribe to.",
+  },
+  "terms.overrides.list": {
+    id: "terms.overrides.list", method: "GET", path: "/s2/terms/overrides", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "query", sdkMethod: "listTermOverrides",
+    summary: "The override rows an organization holds — every tier, optionally narrowed to one term or one agreement. What the override screen lists before it adds to it.",
+  },
+  "terms.register": {
+    id: "terms.register", method: "GET", path: "/terms/register", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S6"], carrier: "none", sdkMethod: "termRegister",
+    summary: "The term policy register as data — value kind, enum values, authoring tiers, rationale. S2 renders the override form FROM this, so a twelfth term is a register diff and the form follows.",
+  },
+
+  // ---- S3 ----
   "dispatch.assign": {
     id: "dispatch.assign", method: "POST", path: "/s3/assign", kind: "mutation", auth: "bearer",
     surfaces: ["S3"], carrier: "body", sdkMethod: "assignCrew",
@@ -276,6 +304,70 @@ export type UpdateAccountInput = {
 };
 export type UpdateAccountOutput = { readonly id: string; readonly eventId: string };
 
+// ---- C2 wire shapes ----
+export type ContractKind = "msa" | "amendment" | "location_agreement" | "project_sow" | "residential_membership" | "one_time";
+export type BillingPath = "one_time" | "residential_membership" | "enterprise_sla" | "project";
+export type ContractState = "draft" | "active" | "expired" | "terminated";
+
+export type ContractWire = {
+  readonly id: string;
+  readonly scopeTier: Tier;
+  readonly scopeId: string;
+  readonly kind: ContractKind;
+  readonly parentContractId: string | null;
+  readonly billingPath: BillingPath;
+  /**
+   * OUR region, the one this agreement is administered from. Carried on the
+   * wire because `terms.authorOverride` requires a region and the override
+   * screen authors against a contract — without it the surface would have to
+   * guess one, which is how a term override ends up in the wrong shard.
+   */
+  readonly regionId: string;
+  readonly signedAt: string;
+  /** ISO date, inclusive. */
+  readonly effectiveFrom: string;
+  /** ISO date, exclusive; null = evergreen. */
+  readonly effectiveTo: string | null;
+  readonly diagnosticDataRightsReserved: boolean;
+  readonly documentKey: string | null;
+  readonly state: ContractState;
+};
+export type ListContractsInput = { readonly orgId: string; readonly scopeId?: string };
+export type ListContractsOutput = { readonly contracts: readonly ContractWire[] };
+
+export type CreateContractInput = {
+  readonly orgId: string;
+  /** OUR region — for a parent-scope agreement only, the one scope with no edge to derive it from. Refused below it, the same rule C1 applies to a node. */
+  readonly regionId?: string;
+  readonly scopeTier: Tier;
+  readonly scopeId: string;
+  readonly kind: ContractKind;
+  /** An amendment's MSA. Required for kind "amendment" and refused when the named agreement has already ended. */
+  readonly parentContractId?: string;
+  readonly billingPath: BillingPath;
+  readonly signedAt: string;
+  readonly effectiveFrom: string;
+  readonly effectiveTo?: string | null;
+  /** OQ5, per record. No default: absent or non-boolean is a 400, because nothing was refused on its merits — no position was stated. */
+  readonly diagnosticDataRightsReserved: boolean;
+  readonly documentKey?: string;
+};
+export type CreateContractOutput = { readonly id: string; readonly regionId: string; readonly eventId: string };
+
+export type TransitionContractInput = { readonly contractId: string; readonly to: "active" | "expired" | "terminated" };
+export type TransitionContractOutput = { readonly id: string; readonly state: ContractState; readonly eventId: string };
+
+export type TermOverrideWire = {
+  readonly id: string; readonly contractId: string; readonly scopeTier: Tier; readonly scopeId: string;
+  readonly termKey: string; readonly termValue: unknown;
+  readonly effectiveFrom: string; readonly effectiveTo: string | null;
+};
+export type ListTermOverridesInput = { readonly orgId: string; readonly termKey?: string; readonly contractId?: string };
+export type ListTermOverridesOutput = { readonly overrides: readonly TermOverrideWire[] };
+
+/** The register as data. S2 builds the override form from this rather than hard-coding eleven inputs. */
+export type TermRegisterOutput = { readonly terms: readonly TermPolicy[] };
+
 export type AssignInput = { readonly jobId: string; readonly crewId: string; readonly orgId: string; readonly regionId: string };
 export type ComplianceRefusalWire = {
   readonly ok: false;
@@ -328,6 +420,11 @@ export type OperationIO = {
   "accounts.create": { input: CreateAccountInput; output: CreateAccountOutput };
   "accounts.move": { input: MoveAccountInput; output: MoveAccountOutput };
   "accounts.update": { input: UpdateAccountInput; output: UpdateAccountOutput };
+  "contracts.list": { input: ListContractsInput; output: ListContractsOutput };
+  "contracts.create": { input: CreateContractInput; output: CreateContractOutput };
+  "contracts.transition": { input: TransitionContractInput; output: TransitionContractOutput };
+  "terms.overrides.list": { input: ListTermOverridesInput; output: ListTermOverridesOutput };
+  "terms.register": { input: void; output: TermRegisterOutput };
   "dispatch.assign": { input: AssignInput; output: AssignOutput };
   "sync.replay": { input: SyncReplayInput; output: SyncReplayOutput };
   "events.stream": { input: void; output: never };

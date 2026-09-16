@@ -39,4 +39,27 @@ export const S2_CSS = `
 .s2-form__actions{display:flex;align-items:center;gap:var(--space-4)}
 .s2-parent{margin:0;color:var(--color-text-muted)}
 .s2-login{max-width:40ch;margin:10vh auto 0}
+
+/* C2 — agreements, the register-driven override form, and the resolution trace. */
+.s2-state{display:inline-block;padding:0 var(--space-2);border-radius:var(--radius-sm);border:1px solid var(--color-border);font-size:var(--text-sm)}
+.s2-state[data-tone="live"]{border-color:var(--color-action);color:var(--color-text)}
+.s2-state[data-tone="pending"]{border-style:dashed;color:var(--color-text-muted)}
+.s2-state[data-tone="ended"]{color:var(--color-text-muted);text-decoration:line-through}
+.s2-muted{color:var(--color-text-muted)}
+.s2-oq5{display:flex;flex-direction:column;gap:var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:var(--space-3)}
+.s2-oq5 legend{padding-inline:var(--space-2);font-weight:600}
+.s2-oq5__unset{color:var(--color-status-at-risk)}
+.s2-radio{display:flex;align-items:baseline;gap:var(--space-2)}
+.s2-policy{margin:0;color:var(--color-text-muted);font-size:var(--text-sm)}
+.s2-policy[data-combine="ratchet"]{color:var(--color-text)}
+.s2-rationale{margin:0 0 var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm)}
+.s2-form--inline{display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:end}
+.s2-trace{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.s2-trace__step{display:grid;grid-template-columns:10rem 6rem 8rem 1fr;gap:var(--space-3);align-items:baseline}
+.s2-trace__outcome{font-variant-caps:all-small-caps;letter-spacing:.04em}
+.s2-trace__step[data-outcome="won"] .s2-trace__outcome{color:var(--color-action)}
+.s2-trace__step[data-outcome="not_walked"]{color:var(--color-text-muted)}
+.s2-trace__note{color:var(--color-text-muted)}
+.s2-trace-table{width:100%;border-collapse:collapse}
+.s2-refused{margin:var(--space-3) 0 0;padding-inline-start:var(--space-5);color:var(--color-status-at-risk)}
 `;

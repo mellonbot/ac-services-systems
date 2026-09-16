@@ -42,6 +42,20 @@ export type Surface = {
   readonly offline: boolean;
   /** What this surface does when the backbone is unreachable. S0 obligation. */
   readonly degraded: string;
+  /**
+   * Does this surface render the state ramp — a status pill, a compliance
+   * badge, an SLA figure, a refusal?
+   *
+   * TRUE bars the brand accent here. Red measures 1.2° from the fault ink, so a
+   * red control beside a state chip reads as an alarm; `tokenCss` resolves
+   * `color.brand` to Ink Black on these surfaces, exactly as it does for a
+   * tenant accent that fails the gate (packages/tokens/src/whitelabel.ts).
+   *
+   * It is declared here rather than inferred, because "does this screen show
+   * state" is a product fact, and the safe answer is the default: a new surface
+   * that forgets to say renders in the neutral.
+   */
+  readonly stateRamp: boolean;
 };
 
 const REGISTRY = {
@@ -52,6 +66,10 @@ const REGISTRY = {
     writes: ["lead", "call_record"],
     density: "comfort", realtime: false, offline: false,
     degraded: "Statically generated; forms queue to a durable buffer and replay. Site stays up when the gateway does not. Coverage map is read from the hierarchy — never hard-coded (D14: supply before signature).",
+    // The only surface that shows no state: an anonymous visitor has nothing
+    // under SLA and no compliance to read. So it is the only one that wears the
+    // brand red, which is also the one place the brand has to do its work.
+    stateRamp: false,
   },
   S2: {
     id: "S2", name: "Service Manager", app: "s2-service-manager",
@@ -62,6 +80,7 @@ const REGISTRY = {
              "subcontractor_firm", "crew_credential", "rate_card"],
     density: "console", realtime: false, offline: false,
     degraded: "Read-only from last server state. NO offline writes, ever — this is the only surface that authors hierarchy, contract and subcontractor-network truth, and a forked truth here is unrecoverable.",
+    stateRamp: true,
   },
   S3: {
     id: "S3", name: "Dispatch Console", app: "s3-dispatch-console",
@@ -71,6 +90,7 @@ const REGISTRY = {
     writes: ["assignment", "job_state", "crew_release", "escalation"],
     density: "console", realtime: true, offline: false,
     degraded: "Board freezes with a visible staleness clock and stops accepting assignments. A dispatcher acting on a stale board is worse than a dispatcher who knows the board is stale. The compliance gate is enforced HERE, at assignment, with no override path.",
+    stateRamp: true,
   },
   S4: {
     id: "S4", name: "HQ Ops Dashboard", app: "s4-hq-dashboard",
@@ -84,6 +104,7 @@ const REGISTRY = {
     writes: [],
     density: "console", realtime: false, offline: false,
     degraded: "Warehouse-backed and already asynchronous; shows the age of its last rollup and nothing more.",
+    stateRamp: true,
   },
   S5: {
     id: "S5", name: "Technician web fallback", app: "s5-technician",
@@ -92,6 +113,7 @@ const REGISTRY = {
     writes: ["job_state", "checklist", "photo", "part_used", "time_entry", "signature"],
     density: "field", realtime: false, offline: true,
     degraded: "Offline-first: device holds intent, server holds truth, replay is idempotent by client-generated mutation id. `assignments` is server-authoritative so an offline device cannot route around the compliance gate. IDENTICAL for employed and subcontracted crews.",
+    stateRamp: true,
   },
   S6: {
     id: "S6", name: "Customer Portal", app: "s6-customer-portal",
@@ -100,6 +122,7 @@ const REGISTRY = {
     writes: ["service_request", "payment", "contact_update"],
     density: "comfort", realtime: false, offline: false,
     degraded: "Cached read of last known job and invoice state, clearly timestamped; request intake queues. One codebase, four scopes — scoping is enforced at the gateway, never by client-side filtering.",
+    stateRamp: true,
   },
   S7: {
     id: "S7", name: "Vendor Portal", app: "s7-vendor-portal",
@@ -108,6 +131,7 @@ const REGISTRY = {
     writes: ["po_ack", "ship_date", "vendor_invoice", "catalog_price", "rma"],
     density: "comfort", realtime: false, offline: false,
     degraded: "Read-only PO list. Vendors see parts, POs and destination tier — never customer names, never job records.",
+    stateRamp: true,
   },
   S8: {
     id: "S8", name: "Subcontractor Portal", app: "s8-subcontractor-portal",
@@ -118,6 +142,7 @@ const REGISTRY = {
     writes: ["compliance_doc", "crew_roster", "settlement_ack", "dispute"],
     density: "comfort", realtime: false, offline: false,
     degraded: "Document upload queues to durable storage and acknowledges on receipt, not on processing. Settlement views serve last statement. A firm sees its own crews, its own jobs, its own compliance, its own money — never another firm's rate card.",
+    stateRamp: true,
   },
 } as const satisfies { readonly [K in SurfaceId]: Surface };
 

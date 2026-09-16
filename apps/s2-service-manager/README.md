@@ -12,6 +12,7 @@
 | Scope binding | `org` |
 | Density | `console` — 36px controls, 13px body, hover affordances allowed |
 | Realtime | no |
+| State ramp | yes — the brand accent is barred here and resolves to Ink Black |
 | Offline writes | no |
 
 ## Writes

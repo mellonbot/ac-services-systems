@@ -12,6 +12,7 @@
 | Scope binding | `none` |
 | Density | `comfort` — 44px controls, 15px body, hover affordances allowed |
 | Realtime | no |
+| State ramp | no — this surface wears the brand red |
 | Offline writes | no |
 
 ## Writes

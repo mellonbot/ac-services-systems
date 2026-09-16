@@ -188,7 +188,12 @@ const rel = (p: string) => relative(ROOT, p);
   // typecheck says the same; this says it with nothing installed.
   const main = read(join(ROOT, "apps/gateway/src/main.ts"));
   const handlerBlock = /const handlers[^=]*=\s*\{([\s\S]*?)\n\};/.exec(main)?.[1] ?? "";
-  const handled = [...handlerBlock.matchAll(/^\s{2}"([a-z]+\.[A-Za-z]+)":/gm)].map((m) => m[1]!);
+  // Dotted segments, not exactly two: `terms.overrides.list` is as much an
+  // operation id as `terms.resolved`. A two-segment pattern here made the
+  // textual twin NARROWER than the type it mirrors, so the guard reported a
+  // handled operation as unhandled while typecheck disagreed — the guard has
+  // to admit every id the catalogue can hold, or it fails honest diffs.
+  const handled = [...handlerBlock.matchAll(/^\s{2}"([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+)":/gm)].map((m) => m[1]!);
   for (const id of ids) if (!handled.includes(id)) fail("catalogue ↔ gateway", `operation ${id} has no handler in apps/gateway/src/main.ts`);
   for (const h of handled) if (!ids.includes(h)) fail("catalogue ↔ gateway", `gateway handles "${h}", which is not in the operation catalogue`);
   for (const m of main.matchAll(/["'`](GET|POST|PUT|PATCH|DELETE) \/[^"'`]*["'`]/g))
@@ -273,6 +278,32 @@ const rel = (p: string) => relative(ROOT, p);
     // that may hold a hex value is in packages/tokens.
     const colour = /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])|\b(?:rgba?|hsla?)\(/.exec(src);
     if (colour) fail("no colour literal outside tokens", `${r} contains ${colour[0]} — colours are roles from packages/tokens, so a white-label tenant can re-point them and the field's dark surface renders the same component`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 4e. No surface fetches a typeface from a third party (errata E-05).
+//     The tier that most depends on aligned digits is the tier least likely to
+//     have a network. When that request fails the instrument face falls back to
+//     a proportional one, the SLA column stops aligning, and nothing reports an
+//     error — on the surface where being wrong costs the most.
+// ---------------------------------------------------------------------------
+{
+  const { FORBIDDEN_FONT_HOSTS } = await import(join(ROOT, "packages/tokens/src/type.ts"));
+  const surfaces = readdirSync(join(ROOT, "apps")).filter((d) => /^s\d/.test(d));
+  const targets = [
+    ...files.filter((f) => /^(apps[\\/]s\d|packages[\\/](ui|tokens))/.test(rel(f))),
+    ...surfaces.map((d) => join(ROOT, "apps", d, "frame.html")),
+  ];
+  for (const f of targets) {
+    // type.ts is where the list itself lives; naming a host in order to ban it
+    // is not reaching for it.
+    if (rel(f).endsWith(join("tokens", "src", "type.ts"))) continue;
+    let src = "";
+    try { src = read(f); } catch { continue; }
+    for (const host of FORBIDDEN_FONT_HOSTS as string[])
+      if (src.includes(host))
+        fail("faces are self-hosted", `${rel(f)} reaches ${host} — a face fetched at runtime is a face the attic does not get, and the SLA column stops aligning with no error`);
   }
 }
 

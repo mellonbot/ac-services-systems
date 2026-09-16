@@ -12,6 +12,7 @@
 | Scope binding | `device_shift` |
 | Density | `field` — 56px controls, 18px body, NO hover-dependent affordances |
 | Realtime | no |
+| State ramp | yes — the brand accent is barred here and resolves to Ink Black |
 | Offline writes | yes — device holds intent, server holds truth |
 
 ## Writes

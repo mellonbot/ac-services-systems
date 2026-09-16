@@ -9,7 +9,9 @@ import type { ScreenSpec } from "../../../packages/ui/src/index.ts";
  * the demo.
  *
  * Order matters: first declared match wins, so the specific routes come
- * before `accounts.tree`, whose optional `:orgId?` would otherwise claim them.
+ * before the ones whose optional trailing param would otherwise claim them —
+ * `accounts.tree` after the `/accounts/...` forms, `contracts.list` after
+ * `/contracts/:orgId/new`.
  */
 export const SCREENS = {
   "login":             { path: "/login",                                 uses: ["auth.login"] },
@@ -17,6 +19,10 @@ export const SCREENS = {
   "accounts.new":      { path: "/accounts/:orgId/new/:tier/:parentId?",  uses: ["accounts.create", "regions.list", "accounts.list"] },
   "accounts.move":     { path: "/accounts/:orgId/move/:id",              uses: ["accounts.move", "accounts.list"] },
   "accounts.tree":     { path: "/accounts/:orgId?",                      uses: ["organizations.list", "accounts.list", "regions.list"], title: "Accounts" },
+  "contracts.new":     { path: "/contracts/:orgId/new",                  uses: ["contracts.create", "contracts.list", "accounts.list", "regions.list"] },
+  "terms.override":    { path: "/terms/:orgId/override",                 uses: ["terms.authorOverride", "terms.register", "terms.overrides.list", "contracts.list", "accounts.list"] },
+  "terms.resolved":    { path: "/terms/:orgId/resolved/:nodeId?",        uses: ["terms.resolved", "terms.register", "accounts.list"] },
+  "contracts.list":    { path: "/contracts/:orgId?",                     uses: ["organizations.list", "contracts.list", "contracts.transition", "accounts.list"], title: "Agreements" },
 } as const satisfies Record<string, ScreenSpec>;
 
 export type ScreenId = keyof typeof SCREENS;

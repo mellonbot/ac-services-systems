@@ -52,6 +52,16 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   unknown_job: "structural",
   unknown_crew: "structural",
   tenancy_mismatch: "structural",
+  // C2 — the agreement's own shape, decided by the handler before the row exists.
+  // All structural: an amendment with no MSA, a window that ends before it starts
+  // or a step off the state ladder is a row that can never be right, and there is
+  // nobody to escalate it to.
+  unknown_contract: "structural",
+  region_not_an_input: "structural",
+  amendment_needs_parent: "structural",
+  parent_contract_ended: "structural",
+  empty_window: "structural",
+  illegal_transition: "structural",
 });
 
 export const admissionAxis = (code: string | undefined): AdmissionAxis =>

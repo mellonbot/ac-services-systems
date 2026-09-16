@@ -9,6 +9,10 @@ import { accountsTree } from "./screens/accounts-tree.ts";
 import { accountsNew } from "./screens/accounts-new.ts";
 import { accountsMove } from "./screens/accounts-move.ts";
 import { organizationsNew } from "./screens/organizations-new.ts";
+import { contractsList } from "./screens/contracts-list.ts";
+import { contractsNew } from "./screens/contracts-new.ts";
+import { termsOverride } from "./screens/terms-override.ts";
+import { termsResolved } from "./screens/terms-resolved.ts";
 import { S2_CSS } from "./styles.ts";
 
 /**
@@ -40,6 +44,10 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "accounts.new": accountsNew,
   "accounts.move": accountsMove,
   "organizations.new": organizationsNew,
+  "contracts.list": contractsList,
+  "contracts.new": contractsNew,
+  "terms.override": termsOverride,
+  "terms.resolved": termsResolved,
 };
 
 type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
@@ -60,7 +68,13 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     shell.subscribe((e) => {
       store.invalidate(keyOf("accounts.list", { orgId: e.orgId }));
       store.invalidate("organizations.list");
-    }, { topics: ["account.created", "account.updated", "account.deactivated"] });
+      // C2: an agreement or an override changing is a refetch of the same
+      // shape — the envelope carries no payload, so the only correct response
+      // to any of these is to forget and re-read.
+      store.invalidate(keyOf("contracts.list", { orgId: e.orgId }));
+      store.invalidate("terms.overrides.list");
+      store.invalidate("terms.resolved");
+    }, { topics: ["account.created", "account.updated", "account.deactivated", "contract.created", "contract.amended", "contract.expired", "contract.term_overridden"] });
   };
 
   const login = async (email: string, password: string) => {
