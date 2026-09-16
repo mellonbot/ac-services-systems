@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BADGE, ICON_SIZES, badgeSvg, faviconDataUri, thickenFor, BRAND } from "./brand.ts";
+import { BADGE, BADGE_LETTER, ICON_SIZES, badgeSvg, faviconDataUri, thickenFor, BRAND, BULLETIN_ERRATA } from "./brand.ts";
 import { PRIMITIVES as P } from "./primitives.ts";
 
 /**
@@ -38,7 +38,9 @@ test("every icon size draws the SAME mark — one geometry, one treatment", () =
     const svg = badgeSvg(px);
     assert.match(svg, /viewBox="0 0 64 64"/, `${px} must keep the 64-unit square`);
     assert.ok(svg.includes(`cx="${BADGE.ring.cx}" cy="${BADGE.ring.cy}"`), `${px} moved the ring`);
-    assert.ok(svg.includes(`x="${BADGE.letter.x}" y="${BADGE.letter.baseline}"`), `${px} moved the letter`);
+    // The letter's position is baked into the outline's coordinates now, so
+    // asserting the path itself is stricter than checking two attributes were.
+    assert.ok(svg.includes(BADGE_LETTER.path), `${px} redrew or moved the letter`);
     assert.ok(svg.includes(BADGE.treatment.ground) && svg.includes(BADGE.treatment.letter), `${px} changed the treatment`);
   }
 });
@@ -52,4 +54,41 @@ test("the favicon is the badge, not a second drawing of it", () => {
 test("the monogram is a unit, and the ring precedes the letter", () => {
   assert.equal(BRAND.monogram, "°R");
   assert.match(BRAND.monogram, /^°/, "°R is one symbol; a number precedes it, the ring never follows the letter");
+});
+
+/**
+ * E-17: the mark may not depend on a font being installed.
+ *
+ * This is the one asset fetched before any stylesheet we control, so there is
+ * no fallback chain to catch a miss and nobody to notice it — the mark just
+ * quietly becomes a different mark on a machine we will never see.
+ */
+test("the badge names no font, at any size — it is an outline", () => {
+  for (const px of Object.values(ICON_SIZES)) {
+    const svg = badgeSvg(px);
+    assert.doesNotMatch(svg, /font-family|font-size|<text/, `${px}px still depends on a font`);
+    assert.match(svg, /<path d="M/, `${px}px has no outline`);
+  }
+  assert.doesNotMatch(decodeURIComponent(faviconDataUri()), /font-family/);
+});
+
+test("the outline is the Yellowtail R, and says so", () => {
+  assert.match(BADGE_LETTER.source, /Yellowtail/);
+  assert.match(BADGE_LETTER.source, /Apache License 2\.0/, "an embedded outline carries its licence");
+  assert.deepEqual(BADGE_LETTER.glyph, { id: 53, unitsPerEm: 2048, advance: 1502, contours: 1, points: 86 });
+  // One closed contour: a script R is a single stroke, so a second Z would mean
+  // the extraction picked up something that is not the letter.
+  assert.equal((BADGE_LETTER.path.match(/Z/g) ?? []).length, 1);
+  assert.match(BADGE_LETTER.path, /^M/);
+});
+
+test("the ink box is recorded from the outline, including the part that bleeds", () => {
+  const nums = BADGE_LETTER.path.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+  const xs = nums.filter((_, i) => i % 2 === 0), ys = nums.filter((_, i) => i % 2 === 1);
+  assert.ok(Math.abs(Math.max(...xs) - BADGE_LETTER.ink.x2) < 0.02, "recorded right edge must match the path");
+  assert.ok(Math.abs(Math.min(...xs) - BADGE_LETTER.ink.x1) < 0.02, "recorded left edge must match the path");
+  // E-19, written down rather than discovered again later.
+  assert.ok(BADGE_LETTER.ink.x2 > 64, "the swash bleeds past the square, and that is the approved mark");
+  assert.equal(BULLETIN_ERRATA.find((e) => e.code === "E-19")?.status, "accepted");
+  assert.equal(BULLETIN_ERRATA.find((e) => e.code === "E-17")?.status, "closed");
 });
