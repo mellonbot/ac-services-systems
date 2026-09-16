@@ -1,7 +1,15 @@
 # ac-platform
 
-The AC Services platform monorepo. Eight web surfaces, one gateway, one
-hierarchy, one backbone.
+The Rankine Operating Company platform monorepo. Eight web surfaces, one
+gateway, one hierarchy, one backbone.
+
+Rankine is the network and the contracting entity: it owns the surfaces, the
+gateway and the standard, and it is what a customer signs with. The operating
+firms keep their own names — **AC Services DFW** is Works No. 1 — because a
+local firm's name, reviews and search equity are worth more than a rebrand. The
+structure is in `packages/tokens/src/brand.ts` and the marks it carries are
+documented in `docs/BRAND.md`, both generated from the tokens rather than
+written down twice.
 
 **State (2026-09-15): Step 0 (the frame), Step 1 (the backbone) and Step 2 (S0,
 the shared shell) are built and verified; Step 3 (the surface runtime and S2,
@@ -42,7 +50,7 @@ is worth restating because every structural decision here is an instance of it:
 ```bash
 # Zero install — a laptop with Node 22.18+ and nothing else.
 node tools/ci/schema-guard.ts       # every structural invariant, against the definitions
-npm run guard:test                  # 158 unit tests: resolver, admission, gate, sync, SLA, money, D14, uow, auth, session, refusals, hierarchy handlers, catalogue, sdk, shell, tokens→CSS
+npm run guard:test                  # 173 unit tests: resolver, admission, gate, sync, SLA, money, D14, uow, auth, session, refusals, hierarchy handlers, catalogue, sdk, shell, tokens→CSS, the accent gate, the brand layer
 npm run guard:all                   # both
 npm run sdk:generate                # regenerate the client from the operation catalogue
 npm run sdk:check                   # fail on drift (the guard runs this too)
@@ -86,7 +94,7 @@ apps/worker/          outbox relay (SKIP LOCKED), credential-expiry sweep, SLA c
 packages/contracts/   TIERS · TERMS (the policy register, two axes) · TOPICS · SURFACES · OPERATIONS (the catalogue) · refusals (the axis) · Claims/Principal
 packages/sdk/         generated/client.ts (emitted from OPERATIONS by tools/ci/emit-sdk.ts) + runtime.ts (THE ONLY FILE ABOVE THE GATEWAY THAT TOUCHES THE WIRE)
 packages/shell/       S0: createShell (registry checks), connectShell (login → me → shell), subscribe (SSE, dedupe), refusalOf, degraded driven by the wire
-packages/tokens/      primitives → semantic → density → white-label (contrast-validated); css.ts emits them as :root variables per density (field is dark)
+packages/tokens/      primitives → semantic → density → white-label (contrast-validated against every ground each ink is permitted on); brand.ts holds the marks and the badge geometry; type.ts the five type roles; css.ts emits it all as :root variables per density and per surface (field is a fixed dark ground, not a theme)
 packages/ui/          THE RENDERER BOUNDARY: preact/htm/signals pinned here alone (render.ts); components typed to their spec's densities — StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner; router over the History API from a SCREENS registry; UI_CSS (roles only, no colours)
 apps/s1 … s8/         generated from SURFACES by tools/ci/emit-surfaces.ts — package.json, src/main.ts, frame.html (density, tokens, degraded slot, mount), README; each boots through the shell and can call nothing else
 apps/s2-service-manager/src/  the first surface with screens: screens.ts (the registry the guard reads), app.ts (cookie boot → login or tree; router; degraded slot; account events → refetch), state.ts (resources as signals, invalidated by prefix), screens/ (accounts-tree, accounts-new, accounts-move, organizations-new)
@@ -114,7 +122,7 @@ docs/BACKBONE_CONTRACT.md   B2
 | 10–13 | Infrastructure as code, restore tests, monitoring, named owner + response obligation | Operational. Owner: Ethan M. (D7). D7a open. **No code mechanism can defend these.** | — |
 | 14 | **No surface writes its own fetch call**; every surface reaches the gateway through one shell and one generated client | `OPERATIONS` is the single source for the gateway's routes and the generated client; guard byte-compares the client and checks handler parity; `fetch`/`EventSource`/`XMLHttpRequest`/`WebSocket`/wire libraries fail guard + `ac/no-fetch-in-surface` anywhere in `apps/s*`, `packages/{shell,ui,tokens}`; surfaces import nothing below the shell; no client method takes a URL; degraded written by the transport wrapper only; a package with sources and no test fails the guard | 12 catalogue + 9 sdk + 19 shell tests; 9 over-the-wire integration tests; all guards proven to fire on planted violations |
 | 1/2 (C1) | **The hierarchy enters through one door**: a parent is created with its first region node in one unit of work; `region_id` is an input for a region node only and derives from the edge below; a move changes one column and the shard key follows by trigger; D14 asked before a location is signed in | `handlers/hierarchy.ts` decides inputs; `ac_accounts_derive_region` / `ac_accounts_cascade` decide structure (no second copy of the ladder in the handler); `supply_below_density` is a commercial refusal, rule-unset a caveat; S2's forms do not offer a region field below the region tier | 10 handler tests against a scripted Tx; 4 D14 tests; 12 wire tests (parent+node atomic and refused whole; region_id typed below region → 422; site under region node → 422 with the trigger's words; move → descendant's `region_id` and `path` follow; D14 both ways); the same flow driven in headless Chromium through the cookie session |
-| S0/09 | **Surface runtime** — the renderer behind one package; screens as a registry checked against the catalogue; colour as a role; the frame rendered from the registry | `packages/ui/src/render.ts` is the only file importing preact/htm/signals and `from "preact"` in `apps/s*` fails the guard; every `uses` in `apps/s*/src/screens.ts` must be a catalogue operation admitting that surface; `#rrggbb`/`rgb(` outside `packages/tokens` fails; `emit-surfaces.ts --check` byte-compares every emitted file including `frame.html`; a component handed a density outside its spec is a type error at the call and a throw at render | 20 ui tests (density contract at the type level via `@ts-expect-error`, render-to-string, router, stylesheet variables resolve for every density); all four guards proven to fire on planted violations; the S2 frame + every component executed in headless Chromium — 36px controls on console, 56px and a dark surface on the field frame, degraded slot flips |
+| S0/09 | **Surface runtime** — the renderer behind one package; screens as a registry checked against the catalogue; colour as a role; the frame rendered from the registry | `packages/ui/src/render.ts` is the only file importing preact/htm/signals and `from "preact"` in `apps/s*` fails the guard; every `uses` in `apps/s*/src/screens.ts` must be a catalogue operation admitting that surface; `#rrggbb`/`rgb(` outside `packages/tokens` fails; a surface reaching a third-party font host fails, because the tier that most depends on aligned digits is the tier least likely to have a network; `emit-surfaces.ts --check` byte-compares every emitted file including `frame.html`; a component handed a density outside its spec is a type error at the call and a throw at render | 32 ui tests (density contract at the type level via `@ts-expect-error`, render-to-string, router, stylesheet variables resolve for every density, no accent ink in a state-bearing column, the script confined to the masthead); all four guards proven to fire on planted violations; the S2 frame + every component executed in headless Chromium — 36px controls on console, 56px and a dark surface on the field frame, degraded slot flips |
 
 ## Conventions
 
@@ -132,6 +140,27 @@ component slot is typed `unknown`, and the call is where the density contract
 is checked. A component tagged anyway still throws on a density its spec does
 not admit. Colours are `var(--color-*)` roles; the only hex values in the
 repository are in `packages/tokens/src/primitives.ts`.
+
+## The brand, and why it is enforced rather than documented
+
+`docs/BRAND.md` is generated from the tokens. Two things in it are mechanisms
+rather than guidance:
+
+**The accent gate.** A tenant accent within 30° of a state ink converts
+decoration into apparent state — a dispatcher learns red-ish means breached,
+then opens a portal where red-ish means a logo. `admitAccent()` returns two
+independent verdicts, hue separation and each ground, and narrows the slot
+rather than rejecting the tenant.
+
+**The brand layer.** The house red measures 1.2° from the fault ink and fails
+that same gate, so it is fenced by the same mechanism: surfaces declare
+`stateRamp`, and `tokenCss` resolves the brand roles to Ink Black wherever it is
+true. S1 marketing wears the red; every surface that shows state does not. The
+default is the safe one — a surface that forgets to declare renders neutral —
+and the tests hold the line that no accent ink enters a state-bearing column.
+
+We ask a tenant to give up their brand colour on a board they paid for. That
+only holds because the house gave up its own on the same test.
 
 ## Consolidation note
 
