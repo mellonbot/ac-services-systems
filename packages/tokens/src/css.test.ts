@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { tokenCss, brandCss, cssVar, contrastFailures, semanticFor, SEMANTIC_DARK, GROUNDS, WORD_ROLES, ON_FILL, TENANT_SCOPE } from "./css.ts";
+import { tokenCss, brandCss, cssVar, contrastFailures, semanticFor, SEMANTIC_DARK, GROUNDS, WORD_ROLES, ON_FILL, TENANT_SCOPE, rolesFor } from "./css.ts";
 import { SEMANTIC, type SemanticToken } from "./semantic.ts";
 import { DENSITY, TYPE_SCALE, TYPE_FLOOR, type Density } from "./density.ts";
 import { FACES, FACE_ROLES, SUBSET_GLYPHS, MARK_GLYPHS } from "./type.ts";
@@ -27,8 +27,8 @@ test("a ratio is stated against the WORST ground, not the paper — errata E-01"
 });
 
 test("the published ink.light and rule-hard are NOT used where they fail — errata E-07, E-08", () => {
-  assert.equal(SEMANTIC["color.text-muted"], "#4E463A", "muted text is ink.mid, not the 3.17:1 ink.light");
-  assert.equal(SEMANTIC["color.status-blocked"], "#4E463A", "the muted state chip carries a word, so it is ink.mid");
+  assert.equal(SEMANTIC["color.text-muted"], "#3C4A55", "muted text is ink.mid, not the 3.17:1 ink.light");
+  assert.equal(SEMANTIC["color.status-blocked"], "#3C4A55", "the muted state chip carries a word, so it is ink.mid");
   // The border role is decorative and openly below 3:1 — which is why no chip
   // rule may be drawn in it. packages/ui/src/styles.test.ts holds that line.
   assert.ok(contrastRatio(SEMANTIC["color.border"], SEMANTIC["color.surface"]) < 3);
@@ -52,7 +52,7 @@ test("Form R-4: the word is measured against its own fill, and the fill is free"
 
 test("the light stock renders a fault as an outline; the plate ground is the only place a chip is solid", () => {
   assert.equal(SEMANTIC["color.status-breached-fill"], "transparent");
-  assert.equal(SEMANTIC_DARK["color.status-breached-fill"], "#8C2E22");
+  assert.equal(SEMANTIC_DARK["color.status-breached-fill"], "#7A2A2E");
 });
 
 test("a role is a CSS variable by mechanical renaming, for every semantic token", () => {
@@ -93,11 +93,30 @@ test("the emitter is deterministic — the frame is byte-comparable", () => {
   assert.equal(tokenCss("comfort"), tokenCss("comfort"));
 });
 
+test("THE BRAND LAYER IS FENCED BY SURFACE — red reaches marketing and nothing that shows state", () => {
+  for (const d of DENSITIES) {
+    const wearing = rolesFor(d, { brandLayer: true });
+    const barred = rolesFor(d, { brandLayer: false });
+    assert.equal(wearing["color.brand"], "#D91F11", `${d} should wear the brand red`);
+    // Plate 04's own verdict, applied to the house: an accent inside the state
+    // ramp's hue range falls back to Ink Black wherever a state renders.
+    assert.equal(barred["color.brand"], barred["color.text"], `${d} must fall back to Ink Black`);
+    assert.notEqual(barred["color.brand"], "#D91F11");
+  }
+  // The default is the SAFE one. A surface that forgets to declare renders neutral.
+  assert.equal(rolesFor("comfort")["color.brand"], rolesFor("comfort", { brandLayer: false })["color.brand"]);
+  assert.match(tokenCss("comfort"), /--brand-layer:0/);
+  assert.match(tokenCss("comfort", { brandLayer: true }), /--brand-layer:1/);
+});
+
 test("a brand stylesheet is validated before it is a string, and scoped to the stock it was measured on", () => {
-  assert.equal(brandCss({ "color.action": "#1b56cc" }), `${TENANT_SCOPE}{--color-action:#1b56cc}`);
+  // Re-pointing a FILL obliges the tenant to supply an ink that clears it.
+  assert.equal(brandCss({ "color.action": "#1b56cc", "color.action-ink": "#FFFFFF" }),
+    `${TENANT_SCOPE}{--color-action:#1b56cc;--color-action-ink:#FFFFFF}`);
+  assert.throws(() => brandCss({ "color.action": "#1b56cc" }), /the word on the action fill/);
   // The hole an unscoped :root{} block is: every pair in validateBrandTheme is
   // measured against the LIGHT stock, and the field frame is <html
-  // data-density="field"> with cream for --color-text. A tenant ground admitted
+  // data-density="field"> with frost for --color-text. A tenant ground admitted
   // against Ink Black must not be able to reach it.
   assert.match(TENANT_SCOPE, /:not\(\[data-density="field"\]\)/);
   assert.ok(!brandCss({ "color.surface": "#ffffff" }).startsWith(":root{"), "an unscoped block reaches the plate");

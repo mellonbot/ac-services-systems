@@ -35,18 +35,26 @@ code,.ac-num{font-family:var(--font-instrument);font-variant-numeric:tabular-num
 code{font-size:0.95em;background:var(--color-surface-sunken);padding:1px var(--space-1);border:1px solid var(--color-border)}
 main#mount{padding:var(--gutter);background:var(--color-surface)}
 
-/* ---- Masthead: the wordmark, the descriptor, the trade line ----
-   A thick-thin rule under condensed gothic caps — the standard American
-   catalogue masthead of the period, and the one piece of artwork that also
-   cuts in vinyl and embroiders. */
-.ac-mast{padding:var(--space-4) var(--gutter) var(--space-2);background:var(--color-page);border-bottom:1px solid var(--color-border)}
-.ac-mast__lockup{display:flex;align-items:baseline;gap:var(--space-3);flex-wrap:wrap}
-.ac-mark{font-family:var(--font-display);font-weight:800;font-size:var(--text-xl);letter-spacing:var(--track-mark);color:var(--color-action-text);line-height:.9}
-.ac-wordmark{font-family:var(--font-display);font-weight:800;font-size:var(--text-display);letter-spacing:var(--track-mark);text-transform:uppercase;line-height:.88}
-.ac-wordmark__co{font-family:var(--font-engraved);font-weight:700;font-size:var(--text-xs);letter-spacing:var(--track-widest);text-transform:uppercase;color:var(--color-action-text)}
-.ac-mast__rule{border-top:4px solid var(--color-text);border-bottom:1px solid var(--color-text);height:6px;margin-top:var(--space-2)}
-.ac-mast__trade,.ac-mast__endorse{font-family:var(--font-instrument);font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted);padding-top:var(--space-2)}
-.ac-mast__endorse{color:var(--color-action-text)}
+/* ---- Masthead: the badge, the wordmark, the descriptor ----
+   The wordmark is the ONE place the script appears on a surface. It is a mark
+   rather than a typeface: it never sets an interface, and it never goes below
+   its size floor, because a connected script's joins close up and the word
+   becomes a smear. The badge carries every size below that.
+
+   --brand-layer is 1 only on a surface that renders no state ramp. The brand
+   roles are already resolved to Ink Black everywhere else by tokenCss, so this
+   stylesheet paints var(--color-brand-text) unconditionally and the frame
+   decides what that means — the fence is a token, not a convention. */
+.ac-mast{padding:var(--space-4) var(--gutter) var(--space-2);background:var(--color-page)}
+.ac-mast__lockup{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;
+  text-decoration:none;color:inherit}
+.ac-badge-mark{display:inline-flex;flex:none}
+.ac-badge-mark__svg{display:block}
+.ac-wordmark{font-family:var(--font-wordmark);font-size:var(--text-mast);line-height:1;
+  color:var(--color-brand-text);padding-right:0.08em}
+.ac-wordmark__co{font-family:var(--font-label);font-weight:600;font-size:var(--text-xs);
+  letter-spacing:var(--track-widest);text-transform:uppercase;color:var(--color-text-muted)}
+.ac-mast__rule{height:4px;background:var(--color-brand);max-width:320px;margin-top:var(--space-2)}
 
 /* ---- Plate head: a titled section is numbered, like a plate ---- */
 .ac-plate__head{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-2) var(--space-4);padding-bottom:var(--space-2);border-bottom:3px solid var(--color-text);margin-bottom:var(--space-3)}
@@ -131,7 +139,7 @@ main#mount{padding:var(--gutter);background:var(--color-surface)}
 .ac-refusal__message{margin:0 0 var(--space-2)}
 .ac-refusal__facts{display:grid;grid-template-columns:max-content 1fr;gap:var(--space-1) var(--space-3);margin:0 0 var(--space-2);font-family:var(--font-instrument);color:var(--color-text-muted);font-size:var(--text-xs);letter-spacing:var(--track-normal);text-transform:uppercase}
 .ac-refusal__facts dd{margin:0;color:var(--color-text);text-transform:none}
-.ac-refusal__axis{margin:0 0 var(--space-3);font-family:var(--font-engraved);font-style:italic;color:var(--color-text-muted)}
+.ac-refusal__axis{margin:0 0 var(--space-3);font-family:var(--font-label);font-style:italic;color:var(--color-text-muted)}
 .ac-refusal__routes{display:flex;flex-wrap:wrap;gap:var(--space-2)}
 
 /* ---- DegradedBanner / <ac-degraded> ----
@@ -168,3 +176,14 @@ export const cssVariablesDefined = (css: string): readonly string[] =>
  * comment was the enforcement.
  */
 export const STATE_BEARING_SELECTORS = Object.freeze([".ac-pill", ".ac-badge"]);
+
+/**
+ * The accent roles that may NEVER appear in a state-bearing rule. The house red
+ * is 1.2° from the fault ink and the arc is 38.4° from the nearest state, and
+ * neither may decorate a chip: a dispatcher reads the column, not the palette.
+ * styles.test.ts fails any rule above that breaks this.
+ */
+export const ACCENT_ROLES = Object.freeze([
+  "--color-brand", "--color-brand-ink", "--color-brand-text",
+  "--color-action", "--color-action-ink", "--color-action-text", "--color-action-pressed",
+]);

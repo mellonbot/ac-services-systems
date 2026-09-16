@@ -3,56 +3,68 @@
  * A component that reaches in here has hard-coded a colour, and a hard-coded
  * colour cannot be re-pointed for a white-label tenant.
  *
- * These are the inks of RANKINE OPERATING COMPANY — Identity Standards,
- * Bulletin No. 1, Rev. B, Plates 3 (light stock) and 4 (dark ground). Every
- * value below is stated in the bulletin; css.test.ts re-measures each one
- * against every ground it is permitted on, so the schedule cannot be wrong
- * here and right on paper.
+ * RANKINE OPERATING COMPANY — Identity Standards, Bulletin No. 2 "Arc Foundry",
+ * which supersedes Bulletin No. 1 Rev. B. The reference is the electric arc
+ * furnace: the machine that electrified steelmaking, and the one hinge that is
+ * industrial-revolution in origin and unmistakably electric in the present.
  *
- * Two corrections this file makes to the bulletin as published, both measured
- * (see BULLETIN_ERRATA in ./brand.ts):
- *   E-07  ink.light #7D735F is 3.17:1 on the header ground — it cannot carry a
- *         word. Muted text and the `blocked` state use ink.mid instead.
- *   E-08  stock.ruleHard is 2.65:1 — it cannot carry chip SHAPE either. A
- *         state chip's rule is drawn in the state's own ink (currentColor);
- *         stock.rule* stays a decorative hairline.
+ * Every value below is measured by css.test.ts against every ground it is
+ * permitted on, so the schedule cannot be wrong here and right on paper.
  */
 export const PRIMITIVES = Object.freeze({
-  /** Light stock. `paper` is the page, `surface` the panel, `paper2` the header ground — the darkest, so it governs. */
-  stock: { paper: "#E7E1D2", paper2: "#DCD4C1", surface: "#F1ECE0", rule: "#B9AF98", ruleHard: "#8A8069" },
-  /** A warm printing black, never pure. `light` is caption-weight only — it does not clear AA (E-07). */
-  ink: { black: "#1C1813", mid: "#4E463A", light: "#7D735F" },
+  /** Light stock, cold. `header` is the darkest ground in the stock, so it governs every ink. */
+  stock: { page: "#E6EBF0", surface: "#F3F6F9", header: "#D4DCE4", rule: "#B3BFC9", ruleHard: "#8695A2" },
+  /** A cold near-black, never pure. `light` is a non-text rule only — it does not clear AA (E-07). */
+  ink: { black: "#0E1418", mid: "#3C4A55", light: "#6A7885" },
   /**
-   * The second ink. Copper is the metal in every line set and brazing rod in
-   * the trade — a material, not a metaphor, and the one ink that never
-   * indicates state. `fill` is display type 24px+ and button fills; any copper
-   * word under 24px is `text`; `onFill` is the ink that sits on a copper fill.
+   * THE ARC — the instrument accent, in three steps at ONE hue. An arc has a
+   * cooler envelope and a hot core, so the ramp is the phenomenon rather than
+   * decoration: three steps without breaking Rule One (colour carries meaning
+   * or it is not used), which a second decorative HUE would have broken.
+   *
+   *   envelope  every arc word under 24px, every rule, the focus ring   6.52:1
+   *   fill      the fill, fully saturated. Never a word.                2.09:1
+   *   core      SLA timers, the monogram, rules — FIELD GROUND ONLY     1.01:1 on light stock
+   *
+   * The fill is licensed to sit at 2.09:1 by the decomposition that lets the
+   * oxide fault fill sit at 2.13:1: the rule carries shape at 6.52:1 and
+   * `onFill` carries the word at 6.40:1, so the fill is free to be an arc.
    */
-  copper: { fill: "#A65F2E", text: "#7E441F", onFill: "#FFF8EC", wash: "#E0D2BE", dark: "#D1976E" },
-  /** State, light stock. Reserved exclusively for system state — never emphasis, never a chart series. */
-  state: { olive: "#4A5F2F", ochre: "#775713", oxblood: "#7A2B22" },
+  arc: { envelope: "#0A4F66", fill: "#00A3D9", core: "#7FE9FF", onFill: "#0E1418" },
   /**
-   * The field tier's ground and its own ink schedule (Plate 4). Not a dark
-   * theme — a sunlight decision, and a second substrate. The light ramp reads
-   * 2.50, 2.84 and 1.85:1 here; all three fail, and the worst failure is the
-   * most urgent state.
+   * THE BRAND RED — the one ink in this file fenced by SURFACE rather than by size.
+   *
+   * Red measures 1.2° from the fault ink. No bright red clears the accent
+   * gate's 30°, and there is nowhere to move it: the band between the fault at
+   * 4.7° and the warning at 39.5° is 34.8° wide. A red button on a dispatch
+   * board is an alarm, whatever the style guide calls it.
+   *
+   * So red is admitted exactly where a colliding TENANT accent is admitted —
+   * the wordmark, the livery, the badge and the marketing surface — and barred
+   * from every surface that renders a state ramp, where it falls back to Ink
+   * Black. We do not hold a tenant to a rule the house exempts itself from.
+   *
+   * `bright` is for a red word on the field ground, where `fill` is a fill.
+   */
+  brand: { fill: "#D91F11", text: "#A81208", onFill: "#FFFFFF", bright: "#F4796C" },
+  /** State, light stock. Reserved exclusively for system state — never emphasis, never a chart series. */
+  state: { jade: "#0E6A46", amber: "#7E5300", oxide: "#A32318" },
+  /**
+   * The field tier's ground and its own ink schedule. Not a dark theme — a
+   * sunlight decision, and a second substrate. A light ramp measured here fails
+   * outright, and the worst failure is always the most urgent state, which is
+   * why this schedule is computed rather than re-pointed.
    */
   plate: {
-    page: "#14110D", ground: "#1C1813", well: "#0D0B08", rule: "#3A3227", ruleHard: "#6A6052",
-    cream: "#EDE5D4", creamMid: "#C9BFA9", creamMute: "#A99C85",
-    olive: "#9DBE6B", ochre: "#CD9B30", oxide: "#8C2E22",
+    page: "#080D11", ground: "#111A20", well: "#050A0D", rule: "#253039", ruleHard: "#55636F",
+    frost: "#E4ECF2", frostMid: "#BFCDD8", frostMute: "#91A1AE",
+    jade: "#5FD39B", amber: "#E8B23C", oxide: "#7A2A2E",
   },
-  /** The builder's plate. Artwork, not a UI role — the floor is raised so the 10.5px spec line clears 4.55:1 at the gradient's darkest point. */
-  brass: { face: "#B08B4F", floor: "#977744", ink: "#14100A" },
 
   space: { 0: "0px", 1: "4px", 2: "8px", 3: "12px", 4: "16px", 6: "24px", 8: "32px", 12: "48px" },
-  /**
-   * A period catalogue has no rounded corner. `none` is the answer for every
-   * surface the system draws; the other two exist because an OS app icon and an
-   * embroidered patch are artwork with their own substrate rules.
-   */
+  /** No rounded corner anywhere the system draws. The other two exist because an OS app icon has its own substrate rules. */
   radius: { none: "0px", icon: "8px", app: "16px" },
   text: { xs: "11px", sm: "13px", md: "15px", lg: "18px", xl: "22px", display: "28px", mast: "40px" },
-  /** Tracking is load-bearing in this identity: the wordmark is +0.07em, a typed label +0.14em and up. */
+  /** Tracking is load-bearing: a typed label is +0.14em and up; the script wordmark takes none at all. */
   track: { tight: "0.02em", normal: "0.05em", mark: "0.07em", wide: "0.14em", wider: "0.24em", widest: "0.34em" },
 });

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { UI_CSS, cssVariablesRead, cssVariablesDefined, STATE_BEARING_SELECTORS } from "./styles.ts";
+import { UI_CSS, cssVariablesRead, cssVariablesDefined, STATE_BEARING_SELECTORS, ACCENT_ROLES } from "./styles.ts";
 import { tokenCss } from "../../tokens/src/index.ts";
 import { DENSITY, type Density } from "../../tokens/src/index.ts";
 
@@ -23,7 +23,28 @@ test("hover affordances are gated by --hover, so field density has none", () => 
 });
 
 test("every component class family has a rule", () => {
-  for (const cls of ["ac-pill", "ac-action", "ac-grid", "ac-badge", "ac-refusal", "ac-degraded"]) assert.match(UI_CSS, new RegExp(`\\.${cls}\\b`));
+  for (const cls of ["ac-pill", "ac-action", "ac-grid", "ac-badge", "ac-refusal", "ac-degraded", "ac-mast", "ac-wordmark"])
+    assert.match(UI_CSS, new RegExp(`\\.${cls}\\b`));
+});
+
+test("NO ACCENT INK ENTERS A STATE-BEARING COLUMN — neither the house red nor the arc", () => {
+  // The bulletin solves hue proximity structurally rather than with a better
+  // colour: every state carries a word, and the accent never decorates a chip.
+  // The house red is 1.2° from the fault ink, so this is the rule that makes
+  // shipping it at all defensible. It is enforced here rather than remembered.
+  for (const rule of UI_CSS.split("}")) {
+    const selector = rule.split("{")[0] ?? "";
+    if (!STATE_BEARING_SELECTORS.some((sel) => selector.includes(sel))) continue;
+    for (const role of ACCENT_ROLES)
+      assert.ok(!rule.includes(role), `${selector.trim()} paints ${role} — a dispatcher reads the column, not the palette`);
+  }
+});
+
+test("the wordmark script is confined to the masthead, and never sets an interface", () => {
+  for (const rule of UI_CSS.split("}")) {
+    if (!rule.includes("var(--font-wordmark)")) continue;
+    assert.match(rule.split("{")[0]!, /ac-wordmark/, "the script escaped the masthead");
+  }
 });
 
 /**

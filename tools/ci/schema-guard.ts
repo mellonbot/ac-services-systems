@@ -277,6 +277,32 @@ const rel = (p: string) => relative(ROOT, p);
 }
 
 // ---------------------------------------------------------------------------
+// 4e. No surface fetches a typeface from a third party (errata E-05).
+//     The tier that most depends on aligned digits is the tier least likely to
+//     have a network. When that request fails the instrument face falls back to
+//     a proportional one, the SLA column stops aligning, and nothing reports an
+//     error — on the surface where being wrong costs the most.
+// ---------------------------------------------------------------------------
+{
+  const { FORBIDDEN_FONT_HOSTS } = await import(join(ROOT, "packages/tokens/src/type.ts"));
+  const surfaces = readdirSync(join(ROOT, "apps")).filter((d) => /^s\d/.test(d));
+  const targets = [
+    ...files.filter((f) => /^(apps[\\/]s\d|packages[\\/](ui|tokens))/.test(rel(f))),
+    ...surfaces.map((d) => join(ROOT, "apps", d, "frame.html")),
+  ];
+  for (const f of targets) {
+    // type.ts is where the list itself lives; naming a host in order to ban it
+    // is not reaching for it.
+    if (rel(f).endsWith(join("tokens", "src", "type.ts"))) continue;
+    let src = "";
+    try { src = read(f); } catch { continue; }
+    for (const host of FORBIDDEN_FONT_HOSTS as string[])
+      if (src.includes(host))
+        fail("faces are self-hosted", `${rel(f)} reaches ${host} — a face fetched at runtime is a face the attic does not get, and the SLA column stops aligning with no error`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 5. The textual guards — the same things the lint plugin catches, checked
 //    without needing eslint installed.
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 /**
- * THE TYPE SCHEDULE — Bulletin Plate 6. Four faces, four jobs. Nothing is set
- * in a face that has no job.
+ * THE TYPE SCHEDULE — Bulletin No. 2, Plates 06 and 08. Five roles, four
+ * working faces, and one face that is a mark rather than a typeface.
  *
  * One rule does most of the work: EVERY NUMBER IN THE COMPANY is set in the
  * instrument face with tabular figures. SLA timers, staleness clocks, job
@@ -17,13 +17,13 @@
  * is legible on purpose.
  *
  * So: self-host, subset, pin. `FACES[*].family` is served from our own origin
- * by `apps/<app>/dist/fonts/`; the fallbacks below are what the surface renders
- * with until it is, and are chosen so the column holds even if it never is —
- * every fallback in the instrument stack is genuinely monospaced on the
- * platforms the tablet ships on. `tools/ci/schema-guard.ts` fails any surface
- * that reaches a third-party font host, so E-05 cannot recur by accident.
+ * by `apps/<app>/dist/fonts/`; the fallbacks are what a surface renders with
+ * until it is, and are chosen so the column holds even if it never is — every
+ * fallback in the instrument stack is genuinely monospaced on the platforms the
+ * tablet ships on. `tools/ci/schema-guard.ts` fails any surface that reaches a
+ * third-party font host, so E-05 cannot recur by accident.
  */
-export type FaceRole = "display" | "engraved" | "text" | "instrument";
+export type FaceRole = "wordmark" | "display" | "label" | "text" | "instrument";
 
 export type Face = {
   readonly role: FaceRole;
@@ -33,33 +33,52 @@ export type Face = {
   readonly family: string;
   /** The stack as it ships today — the family first, then faces that are actually installed. */
   readonly stack: string;
-  /** `optional` on display and text: a slow load must never reflow a 56px tap target mid-press. */
+  /** `optional` everywhere a slow load must never reflow a 56px tap target mid-press. */
   readonly display: "optional" | "swap";
+  /**
+   * Smallest size the face may be set at, in px. Only the script has one, and
+   * it is the reason the badge exists — see WORDMARK_FLOOR.
+   */
+  readonly minSize?: number;
 };
 
 export const FACES = Object.freeze({
+  /**
+   * THE WORDMARK IS NOT A TYPEFACE. It is a mark that happens to be made of
+   * letters, it appears once per surface in the masthead, and it never sets an
+   * interface — a dispatch board in script is unreadable at 13px.
+   *
+   * The reference is the sign-painter's script of the early American works: the
+   * hand of the trade on the outside, the instrument on the inside.
+   */
+  wordmark: {
+    role: "wordmark", job: "The masthead lockup, and nothing else",
+    family: "Yellowtail",
+    stack: `Yellowtail,"Brush Script MT","Snell Roundhand","Apple Chancery",cursive`,
+    display: "optional", minSize: 28,
+  },
   display: {
-    role: "display", job: "Wordmark, plate titles, livery, buttons",
-    family: "Rankine Display",
-    stack: `"Rankine Display","Big Shoulders Display",Oswald,"Arial Narrow","Helvetica Neue Condensed",Impact,system-ui,sans-serif`,
+    role: "display", job: "Plate titles, buttons, headings",
+    family: "IBM Plex Sans Condensed",
+    stack: `"IBM Plex Sans Condensed","Helvetica Neue Condensed","Arial Narrow",system-ui,sans-serif`,
     display: "optional",
   },
-  engraved: {
-    role: "engraved", job: "Descriptors, plate seals, the company line",
-    family: "Rankine Engraved",
-    stack: `"Rankine Engraved","Playfair Display",Didot,"Bodoni MT","Times New Roman",Georgia,serif`,
+  label: {
+    role: "label", job: "Descriptors, eyebrows, the company line — set in caps at +0.14em and up",
+    family: "IBM Plex Sans",
+    stack: `"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif`,
     display: "optional",
   },
   text: {
-    role: "text", job: "Body copy, catalogue prose, contracts",
-    family: "Rankine Text",
-    stack: `"Rankine Text","Libre Baskerville",Georgia,"Times New Roman",Cambria,serif`,
+    role: "text", job: "Body copy, prose, contracts",
+    family: "IBM Plex Sans",
+    stack: `"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif`,
     display: "optional",
   },
   instrument: {
     role: "instrument", job: "Every numeral in the company, without exception",
-    family: "Rankine Instrument",
-    stack: `"Rankine Instrument","Courier Prime",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace`,
+    family: "IBM Plex Mono",
+    stack: `"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace`,
     display: "swap",
   },
 } as const satisfies Record<FaceRole, Face>);
@@ -88,6 +107,18 @@ export const MARK_GLYPHS = Object.freeze({
   sortAsc: "▲",
   sortDesc: "▼",
 });
+
+/**
+ * The script's size floor, and the reason the system carries two marks.
+ *
+ * Bulletin No. 1 required ONE artwork for every substrate — truck lettering,
+ * embroidery, single-colour silkscreen, an anodised faceplate and a 16px
+ * favicon. A connected script fails the small end of that list: the joins close
+ * up in thread, and below this size the word is a smear. That is a real
+ * regression, recorded rather than hidden, and it is affordable only because
+ * the °R badge already does the small work (see brand.ts).
+ */
+export const WORDMARK_FLOOR = 28;
 
 /**
  * The glyphs the trade actually needs, beyond Latin. A subset that drops these

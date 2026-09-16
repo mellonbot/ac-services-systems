@@ -12,6 +12,7 @@
 | Scope binding | `customer_tier` |
 | Density | `comfort` — 44px controls, 15px body, hover affordances allowed |
 | Realtime | no |
+| State ramp | yes — the brand accent is barred here and resolves to Ink Black |
 | Offline writes | no |
 
 ## Writes

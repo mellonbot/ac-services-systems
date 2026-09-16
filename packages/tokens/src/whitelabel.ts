@@ -84,8 +84,8 @@ export const ACCENT_GATE = Object.freeze({
 /** Every state hue an accent must stand clear of — both stocks, because a tenant portal renders in more than one. */
 export const STATE_HUES: readonly { readonly role: string; readonly hex: string }[] = Object.freeze([
   ...STATE_ROLES.map((role) => ({ role, hex: SEMANTIC[role] })),
-  { role: "color.status-ok (field)", hex: P.plate.olive },
-  { role: "color.status-at-risk (field)", hex: P.plate.ochre },
+  { role: "color.status-ok (field)", hex: P.plate.jade },
+  { role: "color.status-at-risk (field)", hex: P.plate.amber },
   { role: "color.status-breached (field)", hex: P.plate.oxide },
 ]);
 
@@ -211,9 +211,14 @@ export const validateBrandTheme = (
     ["color.text", "color.surface-sunken", 4.5, "body text on the header ground"],
     ["color.text-muted", "color.surface", 4.5, "muted text on the panel ground"],
     ["color.text-muted", "color.surface-sunken", 4.5, "muted text on the header ground"],
-    ["color.action-text", "color.surface", 4.5, "a copper word under 24px"],
-    ["color.action", "color.surface", 3.0, "the action fill against the panel ground"],
+    ["color.action-text", "color.surface", 4.5, "an accent word under 24px"],
+    // The FILL is not measured against the ground: it carries salience, its rule
+    // carries shape and its ink carries the word. A tenant re-pointing the fill
+    // must therefore also supply an ink that clears it — the next pair — which
+    // is why overriding `color.action` on its own is rejected.
     ["color.action-ink", "color.action", 4.5, "the word on the action fill"],
+    ["color.brand-text", "color.surface", 4.5, "a brand word under 24px"],
+    ["color.brand-ink", "color.brand", 4.5, "the word on the brand fill"],
     ["color.status-breached", "color.surface", 3.0, "breach indicator against the panel ground"],
   ];
   for (const [fg, bg, min, label] of pairs) {
@@ -243,6 +248,17 @@ export const validateBrandTheme = (
  * greyscale the screen and the order still reads outline-mute, outline-bright,
  * solid. Hue only confirms what form already said.
  */
+/**
+ * THE HOUSE RED SITS BEHIND THIS SAME GATE. It measures 1.2° from the fault ink
+ * and fails outright, so it is admitted for the wordmark, the livery, the badge
+ * and marketing, and barred from every surface that renders a state ramp — see
+ * `neutralBrand` in ./css.ts, which is where the fallback actually happens.
+ *
+ * That is the point of running the gate on ourselves: Amped gives up #E01B24 on
+ * the dispatch board, and the argument only holds because we gave up ours.
+ */
+export const HOUSE_BRAND_IS_GATED = true;
+
 export const STATUS_GLYPH = Object.freeze({
   ok: { glyph: M.ok, word: "On track", form: "outline-mute" },
   at_risk: { glyph: M.atRisk, word: "At risk", form: "outline" },
