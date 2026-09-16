@@ -108,4 +108,5 @@ enforces.
 | E-16 | closed | hueOf returns 0° for any grey — what the HSL formula does when the channels are equal — so a charcoal accent scored 6.1° from oxblood and was barred from every state surface for a hue it does not have. Separately, brandCss emitted an unscoped :root{} block: overrides measured against the light stock, applied to the field frame, where --color-text is cream. |
 | E-17 | closed | badgeSvg() named a font family. A favicon is fetched before any stylesheet, so on a machine without the face the mark silently became a different mark. |
 | E-18 | accepted | A connected script fails the small end of the substrate list: joins close in thread and the word smears below the size floor. |
+| E-20 | accepted | Graphite on the brand red measures 3.67:1 — it clears the 3:1 a mark needs and not the 4.5:1 a word needs. |
 | E-19 | closed | At size 50 on x 41 the R's swash reached x 66.17 — 2.17 units past the right edge of the square — and the viewport silently trimmed it. Invisible while the letter was a font reference; measurable the moment it became an outline. |

@@ -55,17 +55,21 @@ export const BRAND = Object.freeze({
  */
 export const BADGE = Object.freeze({
   /** The degree ring — a stroked circle, never a `°` glyph, so its weight scales independently of the letter. */
-  ring: { cx: 18, cy: 21, r: 5, width: 5 },
+  ring: { cx: 17, cy: 16, r: 5, width: 3.5 },
   /** The letter, set in the wordmark face and centred on `x`. */
-  letter: { size: 46, x: 40, baseline: 47 },
+  letter: { size: 52.5, x: 30.5, baseline: 54 },
   /** Extra same-colour stroke by rendered size, smallest first. */
   thickenAt: [
     { maxPx: 16, stroke: 2.6 },
     { maxPx: 32, stroke: 1.2 },
     { maxPx: Infinity, stroke: 0 },
   ],
-  /** The bar beneath the mark, which does the job the swash gives up when the strokes thicken. */
-  bar: { x: 12, y: 53, width: 40, height: 4 },
+  /**
+   * The bar is off in the struck treatment: on a red field it would be a third
+   * element competing with the ring, and the swash no longer needs the support
+   * it was giving. Kept as a shape so turning it back on is a boolean.
+   */
+  bar: null as { x: number; y: number; width: number; height: number } | null,
   /**
    * THE STYLE, named rather than reached for. Position alone does not make a
    * mark reproducible: the four roles below are as much a part of "the badge"
@@ -73,10 +77,11 @@ export const BADGE = Object.freeze({
    * drawing of it picking its own.
    */
   treatment: {
-    ground: P.plate.ground,
-    letter: P.brand.fill,
-    ring: P.arc.core,
-    bar: P.arc.core,
+    /** Struck: the mark is a red field with the letter and ring cut into it. */
+    ground: P.brand.fill,
+    letter: P.ink.black,
+    ring: P.ink.black,
+    bar: null as string | null,
   },
 });
 
@@ -104,8 +109,8 @@ export const ICON_SIZES = Object.freeze({
  * Derived from Yellowtail (Astigmatic, Apache License 2.0) by reading the
  * `glyf` table directly: glyph 53, 2048 units/em, advance 1502, one contour of
  * 86 points, converted to quadratic SVG segments and transformed into the
- * 64-unit square at the approved geometry — size 46, centred on x 40 the way
- * `text-anchor="middle"` centres an advance, baseline 47. The extraction was
+ * 64-unit square at the approved geometry — size 52.5, centred on x 30.5 the way
+ * `text-anchor="middle"` centres an advance, baseline 54. The extraction was
  * cross-checked against the glyph header's own bounding box before it was
  * trusted.
  *
@@ -113,20 +118,18 @@ export const ICON_SIZES = Object.freeze({
  * optical thickening still works: a stroke on a path behaves exactly as a
  * stroke on text did.
  *
- * THE INK BOX FITS. At the geometry this was first cut at — size 50 on x 41 —
- * the swash reached x 66.17 and the viewport trimmed 2.17 units off it, which
- * only became measurable once the letter stopped being a font reference. The
- * tighter setting here pulls the whole mark inside the square: the swash ends
- * at 63.16, and a test holds that line so a future nudge cannot quietly push
- * the letter back off the edge.
+ * THE INK BOX FITS, with room. 19.96..56.93 across and 17.03..56 down, well
+ * inside the 64-unit square — the swash that once ran 2.17 units past the right
+ * edge now ends at 56.93. A test holds that line, so a future nudge cannot
+ * quietly push the letter back off the canvas the way the first cut did.
  */
 export const BADGE_LETTER = Object.freeze({
   /** Yellowtail R, at size 50, centred on x 41, baseline 48, in the 64-unit square. */
-  path: "M37.53 23.93Q37.87 23.93 37.87 24.31Q37.87 24.45 37.75 24.56Q35.87 26.45 33.4 26.45Q32.81 26.45 32.09 25.79Q31.38 25.12 31.38 23.87Q31.38 22.61 32.9 21.07Q34.43 19.53 37.16 18.15Q39.89 16.77 43.98 15.69Q48.06 14.61 51.32 14.61Q54.58 14.61 56.67 15.14Q58.75 15.67 59.93 16.44Q61.11 17.22 61.88 18.18Q63.16 19.8 63.16 21.47Q63.16 23.15 62.08 24.92Q61 26.7 59.28 28.08Q57.56 29.46 55.34 30.65Q51.19 32.85 46.45 33.88Q47.25 34.71 49.87 38.05Q52.49 41.38 54.66 43.63Q56.82 45.88 58.01 45.88L58.75 45.61Q59 45.61 59 45.8Q59 45.99 58.18 46.9Q57.36 47.81 56.76 48.28Q56.15 48.75 55.1 48.75Q54.06 48.75 52.74 47.74Q51.41 46.73 49.84 44.89Q48.27 43.05 47.01 41.42Q45.75 39.79 44.13 37.58Q42.52 35.37 41.91 34.58Q41.68 34.94 40.76 36.36Q39.84 37.79 39.42 38.46Q38.99 39.14 38.18 40.43Q37.37 41.72 36.92 42.51Q35.69 44.6 35.2 45.63Q34.72 46.66 33.62 46.66L32.83 46.64L32.16 46.66Q30.77 46.66 30.77 45.5Q30.77 44.62 31.52 42.99Q32.27 41.36 39.51 30.84Q46.74 20.32 47.48 19.61Q48.22 18.9 48.58 18.81Q48.85 18.61 48.94 18.61L49.34 18.68L49.73 18.61Q49.93 18.61 50.08 18.78Q50.24 18.95 50.31 18.99Q51.25 19.69 51.25 20.16Q51.25 20.63 51.02 21.07Q50.78 21.51 49.73 23.03Q48.67 24.56 46.95 27Q45.23 29.44 44.47 30.54Q46.31 30.45 48.89 29.41Q51.48 28.38 53.73 26.93Q55.99 25.48 57.6 23.79Q59.2 22.09 59.2 20.83Q59.2 20.16 58.51 19.61Q57.81 19.06 56.76 18.74Q54.64 18.12 51.99 18.12Q49.34 18.12 45.28 19.26Q41.21 20.41 39.35 21.45Q37.48 22.5 36.65 23.23Q35.82 23.96 35.82 24.25Q35.82 24.4 36.28 24.4Q36.74 24.4 37.1 24.17Q37.46 23.93 37.53 23.93Z",
+  path: "M27.68 27.67Q28.06 27.67 28.06 28.11Q28.06 28.26 27.94 28.39Q25.78 30.54 22.96 30.54Q22.3 30.54 21.48 29.79Q20.66 29.03 20.66 27.6Q20.66 26.16 22.4 24.4Q24.14 22.65 27.26 21.07Q30.37 19.5 35.04 18.27Q39.7 17.03 43.42 17.03Q47.14 17.03 49.52 17.64Q51.91 18.24 53.25 19.12Q54.6 20.01 55.47 21.11Q56.93 22.96 56.93 24.87Q56.93 26.78 55.7 28.8Q54.47 30.83 52.51 32.4Q50.55 33.98 48.01 35.34Q43.27 37.85 37.86 39.03Q38.78 39.98 41.77 43.78Q44.75 47.59 47.23 50.15Q49.7 52.72 51.06 52.72L51.91 52.41Q52.19 52.41 52.19 52.63Q52.19 52.85 51.25 53.88Q50.32 54.92 49.62 55.46Q48.93 56 47.74 56Q46.55 56 45.03 54.85Q43.52 53.69 41.73 51.59Q39.93 49.49 38.5 47.63Q37.06 45.77 35.22 43.25Q33.37 40.72 32.68 39.82Q32.42 40.23 31.37 41.86Q30.32 43.49 29.83 44.26Q29.35 45.03 28.42 46.5Q27.5 47.98 26.99 48.87Q25.58 51.26 25.03 52.44Q24.48 53.62 23.22 53.62L22.32 53.59L21.55 53.62Q19.96 53.62 19.96 52.28Q19.96 51.28 20.82 49.42Q21.68 47.57 29.94 35.56Q38.19 23.55 39.04 22.74Q39.88 21.93 40.29 21.83Q40.6 21.6 40.7 21.6L41.16 21.67L41.6 21.6Q41.83 21.6 42.01 21.79Q42.19 21.98 42.27 22.03Q43.34 22.83 43.34 23.37Q43.34 23.9 43.07 24.4Q42.8 24.9 41.6 26.65Q40.4 28.39 38.43 31.17Q36.47 33.95 35.6 35.21Q37.7 35.11 40.65 33.93Q43.6 32.75 46.18 31.1Q48.75 29.44 50.58 27.51Q52.42 25.57 52.42 24.14Q52.42 23.37 51.62 22.74Q50.83 22.11 49.62 21.75Q47.21 21.03 44.19 21.03Q41.16 21.03 36.52 22.34Q31.88 23.65 29.76 24.84Q27.63 26.03 26.68 26.87Q25.73 27.7 25.73 28.03Q25.73 28.21 26.26 28.21Q26.78 28.21 27.19 27.94Q27.6 27.67 27.68 27.67Z",
   source: "Yellowtail — Astigmatic, Apache License 2.0",
   glyph: { id: 53, unitsPerEm: 2048, advance: 1502, contours: 1, points: 86 },
   /** Where the ink actually lands, measured from the outline rather than guessed. */
-  ink: { x1: 30.77, y1: 14.61, x2: 63.16, y2: 48.75 },
+  ink: { x1: 19.96, y1: 17.03, x2: 56.93, y2: 56 },
 });
 
 /** The optical correction for a given rendered size. */
@@ -153,7 +156,8 @@ export const badgeSvg = (px: number = ICON_SIZES.masthead): string => {
     `<rect width="64" height="64" fill="${t.ground}"/>` +
     `<circle cx="${g.cx}" cy="${g.cy}" r="${g.r}" fill="none" stroke="${t.ring}" stroke-width="${g.width}"/>` +
     `<path d="${BADGE_LETTER.path}" fill="${t.letter}"${stroke}/>` +
-    `<rect x="${b.x}" y="${b.y}" width="${b.width}" height="${b.height}" fill="${t.bar}"/></svg>`;
+    (b && t.bar ? `<rect x="${b.x}" y="${b.y}" width="${b.width}" height="${b.height}" fill="${t.bar}"/>` : "") +
+    `</svg>`;
 };
 
 /** The badge as a data URI the frame carries inline — no second request, no second file to drift. */
@@ -235,6 +239,11 @@ export const BULLETIN_ERRATA = Object.freeze([
     code: "E-18", subject: "the wordmark", status: "accepted",
     finding: "A connected script fails the small end of the substrate list: joins close in thread and the word smears below the size floor.",
     resolution: `Accepted, because the system carries two marks. The script is the name at display size and never below ${28}px; the badge is the small end. Neither is asked to be the other.`,
+  },
+  {
+    code: "E-20", subject: "the struck treatment's letter", status: "accepted",
+    finding: "Graphite on the brand red measures 3.67:1 — it clears the 3:1 a mark needs and not the 4.5:1 a word needs.",
+    resolution: "Accepted: the badge letter is a mark, not a word. It carries no meaning a reader has to decode, it is never set below its own size, and the brand layer is the one place red is admitted at all. The number is written down so the next person does not re-derive it.",
   },
   {
     code: "E-19", subject: "the badge ink box", status: "closed",

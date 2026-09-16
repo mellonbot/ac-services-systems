@@ -13,17 +13,23 @@ import { PRIMITIVES as P } from "./primitives.ts";
  * diff on a named file, which is the point.
  */
 test("the badge geometry is exactly the approved position", () => {
-  assert.deepEqual(BADGE.ring, { cx: 18, cy: 21, r: 5, width: 5 });
-  assert.deepEqual(BADGE.letter, { size: 46, x: 40, baseline: 47 });
-  assert.deepEqual(BADGE.bar, { x: 12, y: 53, width: 40, height: 4 });
+  assert.deepEqual(BADGE.ring, { cx: 17, cy: 16, r: 5, width: 3.5 });
+  assert.deepEqual(BADGE.letter, { size: 52.5, x: 30.5, baseline: 54 });
+  assert.equal(BADGE.bar, null, "the struck treatment carries no bar");
 });
 
-test("the badge style is exactly the approved treatment", () => {
-  assert.equal(BADGE.treatment.ground, P.plate.ground, "furnace ground");
-  assert.equal(BADGE.treatment.letter, P.brand.fill, "the letter is brand red");
-  assert.equal(BADGE.treatment.ring, P.arc.core, "the degree ring is arc core");
-  assert.equal(BADGE.treatment.bar, P.arc.core, "the bar matches the ring");
+test("the badge style is exactly the approved treatment — struck into a red field", () => {
+  assert.equal(BADGE.treatment.ground, P.brand.fill, "a red field");
+  assert.equal(BADGE.treatment.letter, P.ink.black, "the letter is struck into it");
+  assert.equal(BADGE.treatment.ring, P.ink.black, "so is the degree ring");
+  assert.equal(BADGE.treatment.bar, null, "no bar competes with the ring on a red field");
+  // The badge is the one mark that is mostly brand colour, which is why it is
+  // fenced to the brand layer along with the wordmark and the livery.
+  assert.equal(BADGE.treatment.ground, SEMANTIC_BRAND_FILL);
 });
+
+/** The brand fill, named once so the assertion above reads as a claim about the system. */
+const SEMANTIC_BRAND_FILL = P.brand.fill;
 
 test("the optical correction grows as the mark shrinks, and only below 32px", () => {
   assert.equal(thickenFor(ICON_SIZES.favicon), 2.6);
@@ -42,6 +48,7 @@ test("every icon size draws the SAME mark — one geometry, one treatment", () =
     // asserting the path itself is stricter than checking two attributes were.
     assert.ok(svg.includes(BADGE_LETTER.path), `${px} redrew or moved the letter`);
     assert.ok(svg.includes(BADGE.treatment.ground) && svg.includes(BADGE.treatment.letter), `${px} changed the treatment`);
+    assert.doesNotMatch(svg, /<rect x="12"/, `${px} drew a bar the treatment does not have`);
   }
 });
 
