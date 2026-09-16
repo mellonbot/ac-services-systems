@@ -67,6 +67,30 @@ export const BADGE = Object.freeze({
   ],
   /** The bar beneath the mark, which does the job the swash gives up when the strokes thicken. */
   bar: { x: 12, y: 53, width: 40, height: 4 },
+  /**
+   * THE STYLE, named rather than reached for. Position alone does not make a
+   * mark reproducible: the four roles below are as much a part of "the badge"
+   * as the coordinates, and spelling them out here is what stops a second
+   * drawing of it picking its own.
+   */
+  treatment: {
+    ground: P.plate.ground,
+    letter: P.brand.fill,
+    ring: P.arc.core,
+    bar: P.arc.core,
+  },
+});
+
+/**
+ * Every size the mark is cut at. One list, so a new icon slot is a row here
+ * rather than a second drawing with its own idea of the geometry.
+ */
+export const ICON_SIZES = Object.freeze({
+  favicon: 16,
+  faviconHi: 32,
+  masthead: 64,
+  appIcon: 180,
+  store: 512,
 });
 
 /** The optical correction for a given rendered size. */
@@ -85,20 +109,20 @@ export const thickenFor = (px: number): number =>
  * the letter as an outlined path; until that lands, treat this as a
  * development badge and not a released one.
  */
-export const badgeSvg = (px = 64): string => {
-  const { ring: g, letter: l, bar: b } = BADGE;
+export const badgeSvg = (px: number = ICON_SIZES.masthead): string => {
+  const { ring: g, letter: l, bar: b, treatment: t } = BADGE;
   const sw = thickenFor(px);
-  const stroke = sw > 0 ? ` stroke="${P.brand.fill}" stroke-width="${sw}" paint-order="stroke"` : "";
+  const stroke = sw > 0 ? ` stroke="${t.letter}" stroke-width="${sw}" paint-order="stroke"` : "";
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">` +
-    `<rect width="64" height="64" fill="${P.plate.ground}"/>` +
-    `<circle cx="${g.cx}" cy="${g.cy}" r="${g.r}" fill="none" stroke="${P.arc.core}" stroke-width="${g.width}"/>` +
-    `<text x="${l.x}" y="${l.baseline}" fill="${P.brand.fill}"${stroke} ` +
+    `<rect width="64" height="64" fill="${t.ground}"/>` +
+    `<circle cx="${g.cx}" cy="${g.cy}" r="${g.r}" fill="none" stroke="${t.ring}" stroke-width="${g.width}"/>` +
+    `<text x="${l.x}" y="${l.baseline}" fill="${t.letter}"${stroke} ` +
     `font-family="${FACES.wordmark.stack.replace(/"/g, "'")}" font-size="${l.size}" text-anchor="middle">R</text>` +
-    `<rect x="${b.x}" y="${b.y}" width="${b.width}" height="${b.height}" fill="${P.arc.core}"/></svg>`;
+    `<rect x="${b.x}" y="${b.y}" width="${b.width}" height="${b.height}" fill="${t.bar}"/></svg>`;
 };
 
 /** The badge as a data URI the frame carries inline — no second request, no second file to drift. */
-export const faviconDataUri = (px = 16): string =>
+export const faviconDataUri = (px: number = ICON_SIZES.favicon): string =>
   `data:image/svg+xml,${encodeURIComponent(badgeSvg(px)).replace(/'/g, "%27").replace(/"/g, "%22")}`;
 
 /**
