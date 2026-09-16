@@ -9,8 +9,10 @@
  *   node tools/ci/build-surface.ts S2 --minify   release build
  *
  * Output, in apps/<app>/dist/ (gitignored):
- *   index.html   the frame, copied from apps/<app>/frame.html (emitted from the registry)
- *   bundle.js    esbuild of src/main.ts — esm, es2022, browser, sourcemapped
+ *   index.html   the frame from apps/<app>/frame.html (emitted from the registry), with
+ *                <meta name="ac-gateway"> stamped from AC_GATEWAY when set (empty = derive api.<site>)
+ *   bundle.js    esbuild of src/app.ts (the surface's own entry) or, absent, src/main.ts (the
+ *                generated registry boot) — esm, es2022, browser, sourcemapped
  *   bundle.js.map
  *   ui.css       packages/ui UI_CSS — roles only, no colours
  *
@@ -38,13 +40,14 @@ export type BuildReport = {
   readonly bundleBytes: number;
   readonly bundleGzipBytes: number;
   readonly files: readonly string[];
+  readonly entry: string;
 };
 
-export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean } = {}): Promise<BuildReport> => {
+export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean; gateway?: string } = {}): Promise<BuildReport> => {
   const s = SURFACES[id];
   const appDir = join(ROOT, "apps", s.app);
   const outDir = join(appDir, "dist");
-  const entry = join(appDir, "src/main.ts");
+  const entry = existsSync(join(appDir, "src/app.ts")) ? join(appDir, "src/app.ts") : join(appDir, "src/main.ts");
   const frame = join(appDir, "frame.html");
   if (!existsSync(frame)) throw new Error(`${id}: no frame.html — run \`node tools/ci/emit-surfaces.ts\``);
   mkdirSync(outDir, { recursive: true });
@@ -72,7 +75,8 @@ export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean } = {
   if (leak) throw new Error(`${id}: bundle imports a node: module (${leak[0]}) — something below the shell reached for the platform`);
 
   writeFileSync(join(outDir, "ui.css"), UI_CSS);
-  writeFileSync(join(outDir, "index.html"), readFileSync(frame, "utf8"));
+  const gateway = opts.gateway ?? process.env.AC_GATEWAY ?? "";
+  writeFileSync(join(outDir, "index.html"), readFileSync(frame, "utf8").replace('<meta name="ac-gateway" content="">', `<meta name="ac-gateway" content="${gateway.replace(/"/g, "")}">`));
 
   const inputs = Object.keys(result.metafile?.inputs ?? {});
   return {
@@ -81,6 +85,7 @@ export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean } = {
     bundleBytes: statSync(join(outDir, "bundle.js")).size,
     bundleGzipBytes: gzipSync(bundle).length,
     files: inputs,
+    entry: entry.replace(ROOT, ""),
   };
 };
 
@@ -98,6 +103,6 @@ if (isMain) {
   for (const id of ids) {
     const r = await buildSurface(id, { minify });
     const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
-    console.log(`build-surface: ${id} → ${r.outDir.replace(ROOT, "")}  bundle ${kb(r.bundleBytes)} (${kb(r.bundleGzipBytes)} gzip), ${r.files.length} modules${minify ? ", minified" : ""}`);
+    console.log(`build-surface: ${id} ${r.entry} → ${r.outDir.replace(ROOT, "")}  bundle ${kb(r.bundleBytes)} (${kb(r.bundleGzipBytes)} gzip), ${r.files.length} modules${minify ? ", minified" : ""}`);
   }
 }

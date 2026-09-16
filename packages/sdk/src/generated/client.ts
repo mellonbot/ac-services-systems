@@ -5,11 +5,39 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 9 today. There is no
+ * One method per operation in the catalogue — 16 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
 export const createGatewayClient = (transport: Transport) => ({
+  /** `POST /s2/accounts` · mutation · bearer · surfaces: S2
+   *
+   * Author a region node, location or site. region_id is an input for a region node only; below that it derives from the parent edge. D14 is checked for a location. */
+  createAccount(input: OperationIO["accounts.create"]["input"]): Promise<OperationIO["accounts.create"]["output"]> {
+    return transport.request(OPERATIONS["accounts.create"], input) as Promise<OperationIO["accounts.create"]["output"]>;
+  },
+
+  /** `GET /s2/accounts` · query · bearer · surfaces: S2, S6
+   *
+   * Every node in an organization's tree the caller may see. S6 sees its own subtree by RLS; same operation. */
+  listAccounts(input: OperationIO["accounts.list"]["input"]): Promise<OperationIO["accounts.list"]["output"]> {
+    return transport.request(OPERATIONS["accounts.list"], input) as Promise<OperationIO["accounts.list"]["output"]>;
+  },
+
+  /** `POST /s2/accounts/move` · mutation · bearer · surfaces: S2
+   *
+   * Re-parent a node. The shard key follows the edge by trigger; the output says how many descendants moved with it. */
+  moveAccount(input: OperationIO["accounts.move"]["input"]): Promise<OperationIO["accounts.move"]["output"]> {
+    return transport.request(OPERATIONS["accounts.move"], input) as Promise<OperationIO["accounts.move"]["output"]>;
+  },
+
+  /** `POST /s2/accounts/update` · mutation · bearer · surfaces: S2
+   *
+   * Attributes of a node — name, the customer's own grouping, external ref, address, timezone, active. Never parent_id or region_id; those are accounts.move. */
+  updateAccount(input: OperationIO["accounts.update"]["input"]): Promise<OperationIO["accounts.update"]["output"]> {
+    return transport.request(OPERATIONS["accounts.update"], input) as Promise<OperationIO["accounts.update"]["output"]>;
+  },
+
   /** `POST /auth/login` · login · none · surfaces: S2, S3, S4, S8
    *
    * Mint a token and resolve the hierarchy context once. The surface named in the body must serve the user's namespace. */
@@ -36,6 +64,27 @@ export const createGatewayClient = (transport: Transport) => ({
    * Server-sent domain events, filtered to the subscriber's region. At-least-once; dedupe on eventId. */
   events(onEvent: (e: EventEnvelope) => void, onState: (s: StreamState) => void = () => {}): () => void {
     return transport.stream(OPERATIONS["events.stream"], onEvent, onState);
+  },
+
+  /** `POST /s2/organizations` · mutation · bearer · surfaces: S2
+   *
+   * Create a customer parent WITH its first region node in one unit of work. No orphan parent: a parent never exists without a place we serve it from. */
+  createOrganization(input: OperationIO["organizations.create"]["input"]): Promise<OperationIO["organizations.create"]["output"]> {
+    return transport.request(OPERATIONS["organizations.create"], input) as Promise<OperationIO["organizations.create"]["output"]>;
+  },
+
+  /** `GET /s2/organizations` · query · bearer · surfaces: S2
+   *
+   * Customer and subcontractor organizations — the parent tier — with how many of our regions each one meets. */
+  listOrganizations(input: OperationIO["organizations.list"]["input"]): Promise<OperationIO["organizations.list"]["output"]> {
+    return transport.request(OPERATIONS["organizations.list"], input) as Promise<OperationIO["organizations.list"]["output"]>;
+  },
+
+  /** `GET /regions` · query · bearer · surfaces: S2, S3
+   *
+   * OUR service regions — the shard boundary. What a region node binds to; what D14's density rule is set on. */
+  listRegions(): Promise<OperationIO["regions.list"]["output"]> {
+    return transport.request(OPERATIONS["regions.list"], undefined) as Promise<OperationIO["regions.list"]["output"]>;
   },
 
   /** `GET /me` · query · bearer · surfaces: S2, S3, S4, S5, S6, S7, S8
@@ -77,4 +126,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["login", "logout", "assignCrew", "events", "me", "replaySync", "health", "authorTermOverride", "resolvedTerms"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "login", "logout", "assignCrew", "events", "createOrganization", "listOrganizations", "listRegions", "me", "replaySync", "health", "authorTermOverride", "resolvedTerms"] as const);

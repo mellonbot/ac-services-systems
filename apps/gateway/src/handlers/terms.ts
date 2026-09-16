@@ -85,8 +85,10 @@ export const authorTermOverride = async (uow: UnitOfWork, ctx: HierarchyContext,
 };
 
 /** The S2 "resolved terms" panel and the invoice engine's input: every term at a node, as of a date. */
-export const resolvedTermsAt = async (uow: UnitOfWork, orgId: string, tier: Tier, nodeId: string, asOf: string) => {
+export const resolvedTermsAt = async (uow: UnitOfWork, orgId: string, tier: Tier, nodeId: string, asOf: string, termKeys?: readonly string[]) => {
   const overrides = await loadOrgOverrides(uow, orgId);
   const pathOf = await pathLoader(uow, orgId);
-  return resolveAll(overrides, pathOf(tier, nodeId), asOf, TERM_KEYS);
+  // An unregistered key is refused by name, not silently dropped — the trace panel asked for it.
+  for (const k of termKeys ?? []) if (!(TERM_KEYS as readonly string[]).includes(k)) throw new InputRefused(`"${k}" is not a registered term`, "unknown_term");
+  return resolveAll(overrides, pathOf(tier, nodeId), asOf, termKeys ?? TERM_KEYS);
 };

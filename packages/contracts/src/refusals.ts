@@ -36,6 +36,8 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   // the ratchet, both directions — somebody has to agree and price it
   ratchet_loosened: "commercial",
   would_orphan_descendants: "commercial",
+  // D14 — supply before signature: a location in a region whose crew density is below the rule. Somebody has to staff it or price it.
+  supply_below_density: "commercial",
   // the database's second layer (migration 0004 / constraints) — the row can never be right
   ac_admit_term_override: "structural",
   ac_accounts_derive_region: "structural",

@@ -31,7 +31,7 @@ Offline-first: device holds intent, server holds truth, replay is idempotent by 
 
 `frame.html` is emitted from the registry (density, tokens as CSS variables,
 the degraded slot, the mount point). `node tools/ci/build-surface.ts S5`
-bundles `src/main.ts` with esbuild into `dist/` beside the frame and the
+bundles `src/app.ts` (or, absent, the generated `src/main.ts`) with esbuild into `dist/` beside the frame and the
 component stylesheet. Screens are declared in `src/screens.ts` and may use
 only operations the catalogue admits for S5; the guard checks it.
 

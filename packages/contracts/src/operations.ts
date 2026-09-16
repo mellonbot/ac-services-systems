@@ -81,6 +81,42 @@ export const OPERATIONS = {
     surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "resolvedTerms",
     summary: "Every term at a node as of a date, with the trace naming every rung.",
   },
+  // ---- C1: the hierarchy S2 authors (09 §3.6) ----
+  "regions.list": {
+    id: "regions.list", method: "GET", path: "/regions", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S3"], carrier: "none", sdkMethod: "listRegions",
+    summary: "OUR service regions — the shard boundary. What a region node binds to; what D14's density rule is set on.",
+  },
+  "organizations.list": {
+    id: "organizations.list", method: "GET", path: "/s2/organizations", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "query", sdkMethod: "listOrganizations",
+    summary: "Customer and subcontractor organizations — the parent tier — with how many of our regions each one meets.",
+  },
+  "organizations.create": {
+    id: "organizations.create", method: "POST", path: "/s2/organizations", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createOrganization",
+    summary: "Create a customer parent WITH its first region node in one unit of work. No orphan parent: a parent never exists without a place we serve it from.",
+  },
+  "accounts.list": {
+    id: "accounts.list", method: "GET", path: "/s2/accounts", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "listAccounts",
+    summary: "Every node in an organization's tree the caller may see. S6 sees its own subtree by RLS; same operation.",
+  },
+  "accounts.create": {
+    id: "accounts.create", method: "POST", path: "/s2/accounts", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createAccount",
+    summary: "Author a region node, location or site. region_id is an input for a region node only; below that it derives from the parent edge. D14 is checked for a location.",
+  },
+  "accounts.move": {
+    id: "accounts.move", method: "POST", path: "/s2/accounts/move", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "moveAccount",
+    summary: "Re-parent a node. The shard key follows the edge by trigger; the output says how many descendants moved with it.",
+  },
+  "accounts.update": {
+    id: "accounts.update", method: "POST", path: "/s2/accounts/update", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "updateAccount",
+    summary: "Attributes of a node — name, the customer's own grouping, external ref, address, timezone, active. Never parent_id or region_id; those are accounts.move.",
+  },
   "dispatch.assign": {
     id: "dispatch.assign", method: "POST", path: "/s3/assign", kind: "mutation", auth: "bearer",
     surfaces: ["S3"], carrier: "body", sdkMethod: "assignCrew",
@@ -162,6 +198,8 @@ export type ResolvedTermsInput = {
   readonly nodeId: string;
   /** ISO date. Defaults to the gateway's today. A disputed February job reprices against February by saying "February" here. */
   readonly asOf?: string;
+  /** Comma-separated on the query string. Absent = every registered term; the trace panel asks for one. */
+  readonly termKeys?: string;
 };
 export type TraceStepWire = {
   readonly tier: Tier; readonly id: string;
@@ -180,6 +218,63 @@ export type ResolvedTermsOutput = {
   readonly resolved: Readonly<Record<string, ResolutionWire>>;
   readonly refused: Readonly<Record<string, { readonly code: string; readonly message: string }>>;
 };
+
+// ---- C1 wire shapes ----
+export type RegionWire = { readonly id: string; readonly code: string; readonly name: string; readonly timezone: string; readonly minCrewDensity: number; readonly active: boolean };
+export type ListRegionsOutput = { readonly regions: readonly RegionWire[] };
+
+export type OrganizationKind = "customer" | "subcontractor";
+export type ListOrganizationsInput = { readonly kind?: OrganizationKind };
+export type OrganizationWire = { readonly id: string; readonly name: string; readonly kind: OrganizationKind; readonly externalRef: string | null; readonly active: boolean; readonly regionNodeCount: number };
+export type ListOrganizationsOutput = { readonly organizations: readonly OrganizationWire[] };
+
+export type CreateOrganizationInput = {
+  readonly name: string;
+  readonly kind?: OrganizationKind;
+  readonly externalRef?: string;
+  /** The first region node — created in the same unit of work. A parent never exists without a place we serve it from. */
+  readonly firstRegionNode: { readonly regionId: string; readonly name: string };
+};
+export type CreateOrganizationOutput = { readonly orgId: string; readonly regionNodeId: string; readonly eventId: string };
+
+export type AccountTierWire = "region" | "location" | "site";
+export type AccountWire = {
+  readonly id: string; readonly tier: AccountTierWire; readonly name: string; readonly parentId: string | null; readonly regionId: string;
+  readonly customerGroup: string | null; readonly externalRef: string | null; readonly timezone: string | null; readonly active: boolean;
+  /** Ancestor ids, region node first, this node last. */
+  readonly path: readonly string[];
+};
+export type ListAccountsInput = { readonly orgId: string };
+export type ListAccountsOutput = { readonly nodes: readonly AccountWire[] };
+
+export type CreateAccountInput = {
+  readonly orgId: string;
+  readonly tier: AccountTierWire;
+  /** Absent for a region node (its parent is the organization); required below. */
+  readonly parentId?: string;
+  /** OUR region — for tier "region" only, where it is the binding. Below that it derives from the parent edge and is refused as an input. */
+  readonly regionId?: string;
+  readonly name: string;
+  readonly customerGroup?: string;
+  readonly externalRef?: string;
+  readonly address?: Readonly<Record<string, unknown>>;
+  readonly timezone?: string;
+};
+export type CreateAccountOutput = {
+  readonly id: string; readonly regionId: string; readonly eventId: string;
+  /** Admitted with a caveat rather than refused — "D14 rule not set for <region>". S2 renders these as a banner, not a modal. */
+  readonly caveats: readonly string[];
+};
+
+export type MoveAccountInput = { readonly accountId: string; readonly newParentId: string };
+export type MoveAccountOutput = { readonly id: string; readonly regionId: string; readonly movedDescendants: number; readonly eventId: string };
+
+export type UpdateAccountInput = {
+  readonly accountId: string;
+  readonly name?: string; readonly customerGroup?: string | null; readonly externalRef?: string | null;
+  readonly address?: Readonly<Record<string, unknown>> | null; readonly timezone?: string | null; readonly active?: boolean;
+};
+export type UpdateAccountOutput = { readonly id: string; readonly eventId: string };
 
 export type AssignInput = { readonly jobId: string; readonly crewId: string; readonly orgId: string; readonly regionId: string };
 export type ComplianceRefusalWire = {
@@ -226,6 +321,13 @@ export type OperationIO = {
   "session.me": { input: void; output: HierarchyContext };
   "terms.authorOverride": { input: AuthorOverrideInput; output: AuthorOverrideOutput };
   "terms.resolved": { input: ResolvedTermsInput; output: ResolvedTermsOutput };
+  "regions.list": { input: void; output: ListRegionsOutput };
+  "organizations.list": { input: ListOrganizationsInput; output: ListOrganizationsOutput };
+  "organizations.create": { input: CreateOrganizationInput; output: CreateOrganizationOutput };
+  "accounts.list": { input: ListAccountsInput; output: ListAccountsOutput };
+  "accounts.create": { input: CreateAccountInput; output: CreateAccountOutput };
+  "accounts.move": { input: MoveAccountInput; output: MoveAccountOutput };
+  "accounts.update": { input: UpdateAccountInput; output: UpdateAccountOutput };
   "dispatch.assign": { input: AssignInput; output: AssignOutput };
   "sync.replay": { input: SyncReplayInput; output: SyncReplayOutput };
   "events.stream": { input: void; output: never };

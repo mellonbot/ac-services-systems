@@ -4,11 +4,12 @@ import { createPool, beginTx, hierarchyReader, listenEvents } from "./pg-tx.ts";
 import { generateKeypair, keypairFromPem, mintToken, verifyToken, principalFromClaims, verifyPassword, AuthError } from "./auth.ts";
 import { buildContext, ScopeResolutionError } from "./context.ts";
 import { createUnitOfWork, SurfaceWriteDenied, TenancyMismatch, SurfaceDisabled, RoleDenied } from "./unit-of-work.ts";
-import { InputRefused, dbRefusal } from "./refusals.ts";
+import { InputRefused, BadInput, dbRefusal } from "./refusals.ts";
 import { sessionConfigFromEnv, allowedOrigins, sessionCookie, clearedCookie, cookieToken, cors, applyHeaders } from "./session.ts";
 import type { Tx } from "./unit-of-work.ts";
 import { authorTermOverride, resolvedTermsAt } from "./handlers/terms.ts";
 import { assignCrew } from "./handlers/assignment.ts";
+import { listRegions, listOrganizations, createOrganization, listAccounts, createAccount, moveAccount, updateAccount } from "./handlers/hierarchy.ts";
 import { ingestSync } from "./handlers/sync.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
@@ -82,6 +83,7 @@ class HttpError extends Error {
 const describe = (e: unknown): { status: number; name: string; code?: string | undefined; message: string } => {
   const err = e as Error & { code?: string };
   if (e instanceof HttpError) return { status: e.status, name: err.name, message: err.message };
+  if (e instanceof BadInput) return { status: 400, name: err.name, message: err.message };
   if (e instanceof AuthError) return { status: 401, name: err.name, code: err.code, message: err.message };
   if (e instanceof SurfaceWriteDenied || e instanceof TenancyMismatch || e instanceof ScopeResolutionError || e instanceof RoleDenied) return { status: 403, name: err.name, message: err.message };
   if (e instanceof SurfaceDisabled) return { status: 404, name: err.name, message: err.message };
@@ -240,9 +242,19 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
 
   // S2/S6 — resolved terms at a node as of a date, with the trace.
   "terms.resolved": (req, input) => withRead(req, "terms.resolved", async (uow, p) => {
-    const r = await resolvedTermsAt(uow, input.orgId ?? p.orgId, input.tier ?? "site", input.nodeId ?? "", input.asOf ?? new Date().toISOString().slice(0, 10));
+    const keys = input.termKeys ? input.termKeys.split(",").map((k) => k.trim()).filter(Boolean) : undefined;
+    const r = await resolvedTermsAt(uow, input.orgId ?? p.orgId, input.tier ?? "site", input.nodeId ?? "", input.asOf ?? new Date().toISOString().slice(0, 10), keys);
     return { resolved: r.resolved, refused: Object.fromEntries(Object.entries(r.refused).map(([k, e]) => [k, { code: e.code, message: e.message }])) };
   }),
+
+  // C1 — the hierarchy S2 authors. Structure is the trigger's to refuse; inputs are the handler's.
+  "regions.list": (req) => withRead(req, "regions.list", (uow) => listRegions(uow)),
+  "organizations.list": (req, input) => withRead(req, "organizations.list", (uow) => listOrganizations(uow, input)),
+  "organizations.create": (req, input) => withUow(req, "organizations.create", (uow) => createOrganization(uow, input, randomUUID)),
+  "accounts.list": (req, input) => withRead(req, "accounts.list", (uow) => listAccounts(uow, input.orgId)),
+  "accounts.create": (req, input) => withUow(req, "accounts.create", (uow) => createAccount(uow, input, randomUUID)),
+  "accounts.move": (req, input) => withUow(req, "accounts.move", (uow) => moveAccount(uow, input)),
+  "accounts.update": (req, input) => withUow(req, "accounts.update", (uow) => updateAccount(uow, input)),
 
   // S3 — the one gated door.
   "dispatch.assign": (req, input) => withUow(req, "dispatch.assign", (uow, p) => assignCrew(uow, p.subjectId, input, new Date())),

@@ -5,13 +5,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="same-origin">
+<meta name="ac-gateway" content="">
 <title>Technician web fallback</title>
 <style>:root{--color-action:#2a6df4;--color-action-pressed:#1b56cc;--color-border:#6b7481;--color-focus-ring:#ffb020;--color-status-at-risk:#ffb020;--color-status-blocked:#c3c8d0;--color-status-breached:#d6342c;--color-status-ok:#1f8a4c;--color-surface:#14171b;--color-surface-sunken:#000000;--color-text:#ffffff;--color-text-muted:#c3c8d0;--density:field;--control-height:56px;--row-height:56px;--body-text:18px;--gutter:16px;--focus-ring:3px solid;--hover:0;--color-scheme:dark;--space-0:0px;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-6:24px;--space-8:32px;--radius-sm:3px;--radius-md:6px;--radius-lg:10px;--text-xs:11px;--text-sm:13px;--text-md:15px;--text-lg:18px;--text-xl:22px}</style>
-<link rel="stylesheet" href="./ui.css">
+<link rel="stylesheet" href="/ui.css">
 </head>
 <body>
 <ac-degraded hidden role="alert" data-density="field">Offline-first: device holds intent, server holds truth, replay is idempotent by client-generated mutation id. `assignments` is server-authoritative so an offline device cannot route around the compliance gate. IDENTICAL for employed and subcontracted crews.</ac-degraded>
 <main id="mount"></main>
-<script type="module" src="./bundle.js"></script>
+<script type="module" src="/bundle.js"></script>
 </body>
 </html>

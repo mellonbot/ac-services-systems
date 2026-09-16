@@ -67,12 +67,21 @@ export const connect = (cfg: Omit<ConnectConfig, "surfaceId">) => connectShell({
 
 /**
  * The frame. One file per surface, identical in shape across all eight; what
- * differs is data from the registry. `./ui.css` and `./bundle.js` are what
- * tools/ci/build-surface.ts writes beside it in dist/.
+ * differs is data from the registry. `/ui.css` and `/bundle.js` are what
+ * tools/ci/build-surface.ts writes beside it in dist/ — ABSOLUTE paths, because
+ * the router pushes real paths (`/accounts/<org>/new/site/<parent>`) and a
+ * relative `./bundle.js` would resolve under them. Found the first time a deep
+ * link was opened in a browser: the module script came back as the frame itself.
+ * A surface is served at its origin's root; the reverse proxy answers every
+ * path with the frame and these two files by name.
  *
  * The degraded slot carries the declared text in the HTML itself, so the
  * outage banner does not depend on the bundle having loaded — the bundle only
  * flips `hidden` and appends the age (packages/ui applyDegraded).
+ *
+ * `<meta name="ac-gateway">` is empty here and stamped by build-surface.ts from
+ * AC_GATEWAY — the registry knows no environment. Empty at runtime means
+ * "derive from the site": s2.<site> talks to api.<site>.
  */
 export const renderFrame = (s: Surface): string => `<!doctype html>
 <!-- GENERATED from packages/contracts/src/surfaces.ts by tools/ci/emit-surfaces.ts. Do not edit. -->
@@ -81,14 +90,15 @@ export const renderFrame = (s: Surface): string => `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="same-origin">
+<meta name="ac-gateway" content="">
 <title>${escapeHtml(s.name)}</title>
 <style>${tokenCss(s.density)}</style>
-<link rel="stylesheet" href="./ui.css">
+<link rel="stylesheet" href="/ui.css">
 </head>
 <body>
 <ac-degraded hidden role="alert" data-density="${s.density}">${escapeHtml(s.degraded)}</ac-degraded>
 <main id="mount"></main>
-<script type="module" src="./bundle.js"></script>
+<script type="module" src="/bundle.js"></script>
 </body>
 </html>
 `;
@@ -123,7 +133,7 @@ ${s.degraded}
 
 \`frame.html\` is emitted from the registry (density, tokens as CSS variables,
 the degraded slot, the mount point). \`node tools/ci/build-surface.ts ${s.id}\`
-bundles \`src/main.ts\` with esbuild into \`dist/\` beside the frame and the
+bundles \`src/app.ts\` (or, absent, the generated \`src/main.ts\`) with esbuild into \`dist/\` beside the frame and the
 component stylesheet. Screens are declared in \`src/screens.ts\` and may use
 only operations the catalogue admits for ${s.id}; the guard checks it.
 
