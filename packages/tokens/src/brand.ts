@@ -55,9 +55,9 @@ export const BRAND = Object.freeze({
  */
 export const BADGE = Object.freeze({
   /** The degree ring — a stroked circle, never a `°` glyph, so its weight scales independently of the letter. */
-  ring: { cx: 17, cy: 20, r: 5.5, width: 5 },
+  ring: { cx: 18, cy: 21, r: 5, width: 5 },
   /** The letter, set in the wordmark face and centred on `x`. */
-  letter: { size: 50, x: 41, baseline: 48 },
+  letter: { size: 46, x: 40, baseline: 47 },
   /** Extra same-colour stroke by rendered size, smallest first. */
   thickenAt: [
     { maxPx: 16, stroke: 2.6 },
@@ -104,8 +104,8 @@ export const ICON_SIZES = Object.freeze({
  * Derived from Yellowtail (Astigmatic, Apache License 2.0) by reading the
  * `glyf` table directly: glyph 53, 2048 units/em, advance 1502, one contour of
  * 86 points, converted to quadratic SVG segments and transformed into the
- * 64-unit square at the approved geometry — size 50, centred on x 41 the way
- * `text-anchor="middle"` centres an advance, baseline 48. The extraction was
+ * 64-unit square at the approved geometry — size 46, centred on x 40 the way
+ * `text-anchor="middle"` centres an advance, baseline 47. The extraction was
  * cross-checked against the glyph header's own bounding box before it was
  * trusted.
  *
@@ -113,20 +113,20 @@ export const ICON_SIZES = Object.freeze({
  * optical thickening still works: a stroke on a path behaves exactly as a
  * stroke on text did.
  *
- * NOTE THE INK BOX. The R's swash reaches x 66.17 — 2.17 units past the right
- * edge of the square — and the viewport trims it. That is the mark as it was
- * drawn, approved and shipped: the tuner clipped it identically, so this is
- * the letter that was signed off, bleeding off the edge rather than sitting
- * inside it. Recorded as E-19 rather than quietly corrected, because moving it
- * now would change an approved mark on my own authority.
+ * THE INK BOX FITS. At the geometry this was first cut at — size 50 on x 41 —
+ * the swash reached x 66.17 and the viewport trimmed 2.17 units off it, which
+ * only became measurable once the letter stopped being a font reference. The
+ * tighter setting here pulls the whole mark inside the square: the swash ends
+ * at 63.16, and a test holds that line so a future nudge cannot quietly push
+ * the letter back off the edge.
  */
 export const BADGE_LETTER = Object.freeze({
   /** Yellowtail R, at size 50, centred on x 41, baseline 48, in the 64-unit square. */
-  path: "M38.31 22.93Q38.68 22.93 38.68 23.34Q38.68 23.49 38.56 23.61Q36.51 25.66 33.82 25.66Q33.19 25.66 32.41 24.94Q31.62 24.22 31.62 22.85Q31.62 21.49 33.29 19.81Q34.95 18.14 37.91 16.64Q40.88 15.14 45.32 13.97Q49.76 12.79 53.3 12.79Q56.84 12.79 59.12 13.37Q61.39 13.94 62.67 14.78Q63.95 15.63 64.78 16.68Q66.17 18.43 66.17 20.25Q66.17 22.07 65 24Q63.83 25.93 61.96 27.43Q60.09 28.93 57.67 30.23Q53.16 32.62 48.01 33.74Q48.89 34.65 51.73 38.27Q54.57 41.9 56.93 44.34Q59.29 46.78 60.58 46.78L61.39 46.49Q61.65 46.49 61.65 46.69Q61.65 46.9 60.76 47.89Q59.87 48.88 59.21 49.39Q58.55 49.9 57.42 49.9Q56.28 49.9 54.84 48.81Q53.4 47.71 51.69 45.71Q49.98 43.7 48.62 41.93Q47.25 40.16 45.49 37.76Q43.73 35.35 43.08 34.5Q42.83 34.89 41.83 36.44Q40.83 37.99 40.37 38.72Q39.9 39.46 39.02 40.86Q38.14 42.26 37.66 43.12Q36.31 45.39 35.79 46.51Q35.26 47.63 34.07 47.63L33.21 47.61L32.48 47.63Q30.97 47.63 30.97 46.36Q30.97 45.41 31.78 43.64Q32.6 41.87 40.46 30.43Q48.32 19 49.13 18.23Q49.94 17.46 50.33 17.36Q50.62 17.14 50.72 17.14L51.16 17.21L51.57 17.14Q51.79 17.14 51.96 17.32Q52.13 17.51 52.21 17.56Q53.23 18.31 53.23 18.83Q53.23 19.34 52.98 19.81Q52.72 20.29 51.57 21.95Q50.42 23.61 48.56 26.26Q46.69 28.91 45.86 30.1Q47.86 30.01 50.67 28.88Q53.48 27.76 55.93 26.19Q58.38 24.61 60.13 22.77Q61.87 20.92 61.87 19.56Q61.87 18.83 61.12 18.23Q60.36 17.63 59.21 17.29Q56.92 16.6 54.04 16.6Q51.16 16.6 46.74 17.85Q42.32 19.09 40.29 20.23Q38.27 21.36 37.36 22.16Q36.46 22.95 36.46 23.27Q36.46 23.44 36.96 23.44Q37.46 23.44 37.85 23.18Q38.24 22.93 38.31 22.93Z",
+  path: "M37.53 23.93Q37.87 23.93 37.87 24.31Q37.87 24.45 37.75 24.56Q35.87 26.45 33.4 26.45Q32.81 26.45 32.09 25.79Q31.38 25.12 31.38 23.87Q31.38 22.61 32.9 21.07Q34.43 19.53 37.16 18.15Q39.89 16.77 43.98 15.69Q48.06 14.61 51.32 14.61Q54.58 14.61 56.67 15.14Q58.75 15.67 59.93 16.44Q61.11 17.22 61.88 18.18Q63.16 19.8 63.16 21.47Q63.16 23.15 62.08 24.92Q61 26.7 59.28 28.08Q57.56 29.46 55.34 30.65Q51.19 32.85 46.45 33.88Q47.25 34.71 49.87 38.05Q52.49 41.38 54.66 43.63Q56.82 45.88 58.01 45.88L58.75 45.61Q59 45.61 59 45.8Q59 45.99 58.18 46.9Q57.36 47.81 56.76 48.28Q56.15 48.75 55.1 48.75Q54.06 48.75 52.74 47.74Q51.41 46.73 49.84 44.89Q48.27 43.05 47.01 41.42Q45.75 39.79 44.13 37.58Q42.52 35.37 41.91 34.58Q41.68 34.94 40.76 36.36Q39.84 37.79 39.42 38.46Q38.99 39.14 38.18 40.43Q37.37 41.72 36.92 42.51Q35.69 44.6 35.2 45.63Q34.72 46.66 33.62 46.66L32.83 46.64L32.16 46.66Q30.77 46.66 30.77 45.5Q30.77 44.62 31.52 42.99Q32.27 41.36 39.51 30.84Q46.74 20.32 47.48 19.61Q48.22 18.9 48.58 18.81Q48.85 18.61 48.94 18.61L49.34 18.68L49.73 18.61Q49.93 18.61 50.08 18.78Q50.24 18.95 50.31 18.99Q51.25 19.69 51.25 20.16Q51.25 20.63 51.02 21.07Q50.78 21.51 49.73 23.03Q48.67 24.56 46.95 27Q45.23 29.44 44.47 30.54Q46.31 30.45 48.89 29.41Q51.48 28.38 53.73 26.93Q55.99 25.48 57.6 23.79Q59.2 22.09 59.2 20.83Q59.2 20.16 58.51 19.61Q57.81 19.06 56.76 18.74Q54.64 18.12 51.99 18.12Q49.34 18.12 45.28 19.26Q41.21 20.41 39.35 21.45Q37.48 22.5 36.65 23.23Q35.82 23.96 35.82 24.25Q35.82 24.4 36.28 24.4Q36.74 24.4 37.1 24.17Q37.46 23.93 37.53 23.93Z",
   source: "Yellowtail — Astigmatic, Apache License 2.0",
   glyph: { id: 53, unitsPerEm: 2048, advance: 1502, contours: 1, points: 86 },
   /** Where the ink actually lands, measured from the outline rather than guessed. */
-  ink: { x1: 30.97, y1: 12.79, x2: 66.17, y2: 49.9 },
+  ink: { x1: 30.77, y1: 14.61, x2: 63.16, y2: 48.75 },
 });
 
 /** The optical correction for a given rendered size. */
@@ -237,8 +237,8 @@ export const BULLETIN_ERRATA = Object.freeze([
     resolution: `Accepted, because the system carries two marks. The script is the name at display size and never below ${28}px; the badge is the small end. Neither is asked to be the other.`,
   },
   {
-    code: "E-19", subject: "the badge ink box", status: "accepted",
-    finding: "The R's swash reaches x 66.17, which is 2.17 units past the right edge of the 64-unit square, and the viewport trims it.",
-    resolution: "Accepted, not corrected. The tuner clipped it identically, so this is the mark that was reviewed and approved — it bleeds off the edge by design now that the number is written down. Pulling the letter left is a one-line change to BADGE.letter.x if that reading is ever revisited.",
+    code: "E-19", subject: "the badge ink box", status: "closed",
+    finding: "At size 50 on x 41 the R's swash reached x 66.17 — 2.17 units past the right edge of the square — and the viewport silently trimmed it. Invisible while the letter was a font reference; measurable the moment it became an outline.",
+    resolution: "The letter was cut down to size 46 on x 40, baseline 47, with the ring at 18/21. The swash now ends at 63.16, inside the square, and a test asserts the whole ink box stays within the 64 units.",
   },
 ] as const);
