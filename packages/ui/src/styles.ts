@@ -21,9 +21,15 @@ export const UI_CSS = `
 *,*::before,*::after{box-sizing:border-box}
 html{color-scheme:var(--color-scheme)}
 /* Every number holds its column even when no face loaded at all — the degraded
-   state is legible on purpose, which is the staleness clock's argument. */
+   state is legible on purpose, which is the staleness clock's argument.
+   Written as longhands, and it has to be: the font SHORTHAND resets every
+   font-variant-* longhand to its initial value, so font:... on body after
+   this line computed font-variant-numeric:normal and inherited that to the
+   whole document. Measured in Chromium: html tabular-nums, body normal. One
+   rule the type schedule calls load-bearing, off everywhere, silently, for the
+   cost of a shorthand. styles.test.ts bans the shorthand now. */
 html,body{font-variant-numeric:tabular-nums}
-body{margin:0;background:var(--color-page);color:var(--color-text);font:var(--body-text)/1.6 var(--font-text)}
+body{margin:0;background:var(--color-page);color:var(--color-text);font-family:var(--font-text);font-size:var(--body-text);line-height:1.6}
 :focus-visible{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}
 code,.ac-num{font-family:var(--font-instrument);font-variant-numeric:tabular-nums}
 code{font-size:0.95em;background:var(--color-surface-sunken);padding:1px var(--space-1);border:1px solid var(--color-border)}
@@ -69,8 +75,17 @@ main#mount{padding:var(--gutter);background:var(--color-surface)}
 .ac-action[data-kind="quiet"]{background:transparent;color:var(--color-action-text)}
 .ac-action[data-kind="danger"]{background:var(--color-status-breached-fill);border-color:var(--color-status-breached);color:var(--color-status-breached)}
 .ac-action:hover{filter:brightness(calc(1 - 0.08 * var(--hover)))}
-/* Press feedback is :active, not :hover — errata E-06. A tablet has no cursor. */
-.ac-action:active{background:var(--color-action-pressed);border-color:var(--color-action-pressed)}
+/* Press feedback is :active, not :hover — errata E-06. A tablet has no cursor.
+   The INK moves with the fill. It did not, and color.action-pressed is
+   color.action-text by value, so a quiet button — every secondary route on a
+   RefusalCard — pressed its own label to 1.00:1 and the danger variant to
+   1.24:1. A variant that sets a resting colour keeps it unless the press sets
+   one too; ON_FILL measures both pairs now. */
+.ac-action:active{background:var(--color-action-pressed);border-color:var(--color-action-pressed);color:var(--color-action-ink)}
+/* Danger inverts rather than filling with copper: a destructive control does not
+   borrow the primary's ink to say "pressed". 7.33:1 on the light stock, 15.02:1
+   on the plate. */
+.ac-action[data-kind="danger"]:active{background:var(--color-status-breached);border-color:var(--color-status-breached);color:var(--color-page)}
 .ac-action[aria-disabled="true"]{opacity:0.55;cursor:not-allowed}
 .ac-action__reason{color:var(--color-text-muted);font-size:var(--text-sm)}
 
@@ -81,8 +96,17 @@ main#mount{padding:var(--gutter);background:var(--color-surface)}
 .ac-grid__caption{text-align:start;font-family:var(--font-instrument);font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted);padding:var(--space-1) 0}
 .ac-grid__th,.ac-grid__td{height:var(--row-height);padding:0 var(--space-3);border-bottom:1px solid var(--color-border);text-align:start;vertical-align:middle}
 .ac-grid__th[data-align="end"],.ac-grid__td[data-align="end"]{text-align:end}
+/* A numeric column is the instrument face, declared once per column rather than
+   hoped for: .ac-num existed and nothing rendered it, so every SLA timer and
+   invoice total in the system was proportional serif. Column.numeric sets this. */
+.ac-grid__td[data-numeric="true"]{font-family:var(--font-instrument);font-variant-numeric:tabular-nums}
 .ac-grid__th{position:sticky;top:0;background:var(--color-surface-sunken);color:var(--color-text-muted);font-family:var(--font-instrument);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase;white-space:nowrap;border-bottom:3px solid var(--color-text)}
-.ac-grid__sort{all:unset;cursor:pointer;color:inherit;font:inherit}
+/* NOT all:unset. It ties :focus-visible on specificity and wins on source
+   order — the cascade is resolved per property, not per state — so the outline
+   above became none on the dispatch board's only keyboard control. Measured
+   in Chromium: outline-style none on a focused sort button. Reset what a button
+   actually brings and nothing else. */
+.ac-grid__sort{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:0;text-align:inherit;cursor:pointer;color:inherit;font:inherit}
 .ac-grid__row[tabindex]{cursor:pointer}
 .ac-grid__row:hover{background:color-mix(in srgb,var(--color-surface-sunken) calc(100% * var(--hover)),transparent)}
 .ac-grid__row[data-selected="true"]{background:var(--color-surface-sunken);box-shadow:inset 3px 0 0 var(--color-action)}
@@ -93,6 +117,8 @@ main#mount{padding:var(--gutter);background:var(--color-surface)}
 .ac-badge[data-cleared="true"]{--badge-color:var(--color-status-ok)}
 .ac-badge[data-cleared="false"]{--badge-color:var(--color-status-breached)}
 .ac-badge__glyph{color:var(--badge-color)}
+/* The gate's reason, rendered rather than hidden in a title attribute. */
+.ac-badge__detail{color:var(--color-text-muted);text-transform:none;letter-spacing:var(--track-tight)}
 
 /* ---- RefusalCard: the axis, the message verbatim, the routes ---- */
 .ac-refusal{border:1px solid var(--color-border-hard);border-inline-start:6px solid var(--refusal-color);border-radius:var(--radius-none);padding:var(--space-3) var(--space-4);max-width:56ch;background:var(--color-surface)}
@@ -113,7 +139,13 @@ main#mount{padding:var(--gutter);background:var(--color-surface)}
    lies, so this is a rule across the top of the page, not a toast. */
 .ac-degraded,ac-degraded{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:baseline;padding:var(--space-2) var(--gutter);background:var(--color-surface-sunken);border-bottom:3px solid var(--color-status-breached);font-size:var(--text-sm)}
 ac-degraded[hidden]{display:none}
-.ac-degraded__mark{color:var(--color-status-breached)}
+/* The mark carries the FILL, the way the breached chip does. On the plate ground
+   color.status-breached IS color.text — that is the whole point of Plate 4,
+   hue has stopped working — so a banner drawn only in the word role renders its
+   alarm in body-copy cream on the one surface read in sunlight. Form R-4 says
+   the fill carries salience; this is the fill. Transparent on the light stock,
+   where a fault is an outline, and oxide at 6.63:1 on the plate. */
+.ac-degraded__mark{color:var(--color-status-breached);background:var(--color-status-breached-fill);padding:0 var(--space-1);line-height:1.4}
 .ac-degraded__title{font-family:var(--font-display);letter-spacing:var(--track-normal);text-transform:uppercase}
 .ac-degraded__age{font-family:var(--font-instrument);color:var(--color-text-muted);font-size:var(--text-xs);letter-spacing:var(--track-normal)}
 `;
@@ -132,6 +164,7 @@ export const cssVariablesDefined = (css: string): readonly string[] =>
  * with a better orange. It solves it structurally: every state carries a word,
  * and COPPER NEVER ENTERS A STATE-BEARING COLUMN. That second half is an
  * invariant, so the test reads this list and fails any rule here that paints an
- * action role.
+ * action role — which it did not do until styles.test.ts grew the check; the
+ * comment was the enforcement.
  */
 export const STATE_BEARING_SELECTORS = Object.freeze([".ac-pill", ".ac-badge"]);

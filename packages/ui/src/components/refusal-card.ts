@@ -1,4 +1,5 @@
 import { TERMS, type Refusal, type Tier, type AdmissionAxis } from "../../../contracts/src/index.ts";
+import { MARK_GLYPHS } from "../../../tokens/src/index.ts";
 import { RefusalCardSpec } from "../component.ts";
 import { component, html } from "../render.ts";
 
@@ -57,7 +58,7 @@ export const RefusalCard = component<typeof RefusalCardSpec, RefusalCardProps>(R
   const permitted = policy?.authoring ?? null;
   const code = "code" in r ? r.code : r.kind === "scope" ? r.error : null;
   return html`<section class="ac-refusal" role="alert" data-kind=${r.kind} data-axis=${axis ?? undefined} data-density=${p.density}>
-    <h2 class="ac-refusal__heading"><span class="ac-refusal__mark" aria-hidden="true">■</span> ${refusalHeading(r)}</h2>
+    <h2 class="ac-refusal__heading"><span class="ac-refusal__mark" aria-hidden="true">${MARK_GLYPHS.fault}</span> ${refusalHeading(r)}</h2>
     <p class="ac-refusal__message">${r.message}</p>
     ${p.termKey || p.tierAttempted || permitted
       ? html`<dl class="ac-refusal__facts">

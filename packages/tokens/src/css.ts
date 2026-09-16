@@ -1,6 +1,6 @@
 import { PRIMITIVES as P } from "./primitives.ts";
 import { SEMANTIC, BRAND_OVERRIDABLE, type SemanticToken } from "./semantic.ts";
-import { DENSITY, type Density } from "./density.ts";
+import { DENSITY, TYPE_SCALE, type Density } from "./density.ts";
 import { FACES } from "./type.ts";
 import { contrastRatio, validateBrandTheme } from "./whitelabel.ts";
 
@@ -91,11 +91,31 @@ export const tokenCss = (density: Density): string => {
   );
   for (const [role, f] of Object.entries(FACES)) lines.push(`--font-${role}:${f.stack}`);
   for (const [k, v] of Object.entries(P.space)) lines.push(`--space-${k}:${v}`);
-  for (const [k, v] of Object.entries(P.radius)) lines.push(`--radius-${k}:${v}`);
-  for (const [k, v] of Object.entries(P.text)) lines.push(`--text-${k}:${v}`);
+  // `none` only. `radius.icon` and `radius.app` are artwork primitives with their
+  // own substrate rules (an OS icon, an embroidered patch); a surface that could
+  // read them is a surface that could round a corner.
+  lines.push(`--radius-none:${P.radius.none}`);
+  // The type scale is the DENSITY's, not a shared constant — see TYPE_SCALE.
+  for (const [k, v] of Object.entries(TYPE_SCALE[density])) lines.push(`--text-${k}:${v}`);
   for (const [k, v] of Object.entries(P.track)) lines.push(`--track-${k}:${v}`);
   return `:root{${lines.join(";")}}`;
 };
+
+/**
+ * THE SCOPE A TENANT THEME IS VALIDATED FOR, and therefore the only scope it may
+ * apply in. `validateBrandTheme` measures an override against the LIGHT stock —
+ * a tenant's ground against our ink, our ground against their ink — and a
+ * `:root{}` block carries none of that with it: emitted unscoped, a tenant
+ * surface token validated against Ink Black lands on the field frame, where
+ * `--color-text` is cream. Nobody has to make a mistake for that to happen; it
+ * is what an unscoped block MEANS.
+ *
+ * So the block says where it was measured. The field frame is `<html
+ * data-density="field">` (tools/ci/emit-surfaces.ts), and the tablet keeps
+ * Rankine's plate whatever a tenant sends — which is the instrument argument
+ * `admitAccent` already makes, spelled as a selector instead of a policy.
+ */
+export const TENANT_SCOPE = `:root:not([data-density="field"])`;
 
 /**
  * A tenant's brand stylesheet (S6). Validated first — the theme that breaks the
@@ -109,7 +129,7 @@ export const brandCss = (overrides: Readonly<Record<string, string>>): string =>
   }
   const allowed = new Set<string>(BRAND_OVERRIDABLE);
   const lines = Object.keys(overrides).filter((k) => allowed.has(k)).sort().map((k) => `${cssVar(k)}:${overrides[k]}`);
-  return `:root{${lines.join(";")}}`;
+  return `${TENANT_SCOPE}{${lines.join(";")}}`;
 };
 
 /**
@@ -150,8 +170,17 @@ export const SHAPE_ROLES = Object.freeze([
  */
 export const ON_FILL = Object.freeze([
   ["color.action-ink", "color.action"],
+  // Every variant's pressed label, not just the primary's. `:active` sets a
+  // fill; a variant that sets its own resting colour and does not set one here
+  // keeps it, and `action-pressed` IS `action-text` by value — a quiet button
+  // pressed to 1.00:1 (styles.ts holds the other half of this).
   ["color.action-ink", "color.action-pressed"],
   ["color.status-breached", "color.status-breached-fill"],
+  // The danger variant inverts on press rather than filling with copper: a
+  // destructive control does not borrow the primary's ink to say "pressed".
+  ["color.page", "color.status-breached"],
+  // The plate number: the one place the page ground is used AS an ink.
+  ["color.page", "color.text"],
 ] as const satisfies readonly (readonly [SemanticToken, SemanticToken])[]);
 
 /**
