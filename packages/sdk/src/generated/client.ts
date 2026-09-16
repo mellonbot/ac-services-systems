@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 16 today. There is no
+ * One method per operation in the catalogue — 21 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -50,6 +50,27 @@ export const createGatewayClient = (transport: Transport) => ({
    * Revoke the session behind this token and clear the session cookie. The next request with either is 401 revoked. */
   logout(): Promise<OperationIO["auth.logout"]["output"]> {
     return transport.request(OPERATIONS["auth.logout"], undefined) as Promise<OperationIO["auth.logout"]["output"]>;
+  },
+
+  /** `POST /s2/contracts` · mutation · bearer · surfaces: S2
+   *
+   * Record an agreement against a node. OQ5's position is required with no default; regionId is an input for a parent-scope agreement alone and derives from the node below it. */
+  createContract(input: OperationIO["contracts.create"]["input"]): Promise<OperationIO["contracts.create"]["output"]> {
+    return transport.request(OPERATIONS["contracts.create"], input) as Promise<OperationIO["contracts.create"]["output"]>;
+  },
+
+  /** `GET /s2/contracts` · query · bearer · surfaces: S2
+   *
+   * The signed agreements in an organization — what a term override must belong to, and where the state machine currently stands. */
+  listContracts(input: OperationIO["contracts.list"]["input"]): Promise<OperationIO["contracts.list"]["output"]> {
+    return transport.request(OPERATIONS["contracts.list"], input) as Promise<OperationIO["contracts.list"]["output"]>;
+  },
+
+  /** `POST /s2/contracts/transition` · mutation · bearer · surfaces: S2
+   *
+   * draft → active → expired | terminated. A step off that ladder is refused by name; activation and ending are what the other blocks subscribe to. */
+  transitionContract(input: OperationIO["contracts.transition"]["input"]): Promise<OperationIO["contracts.transition"]["output"]> {
+    return transport.request(OPERATIONS["contracts.transition"], input) as Promise<OperationIO["contracts.transition"]["output"]>;
   },
 
   /** `POST /s3/assign` · mutation · bearer · surfaces: S3
@@ -115,6 +136,20 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["terms.authorOverride"], input) as Promise<OperationIO["terms.authorOverride"]["output"]>;
   },
 
+  /** `GET /s2/terms/overrides` · query · bearer · surfaces: S2
+   *
+   * The override rows an organization holds — every tier, optionally narrowed to one term or one agreement. What the override screen lists before it adds to it. */
+  listTermOverrides(input: OperationIO["terms.overrides.list"]["input"]): Promise<OperationIO["terms.overrides.list"]["output"]> {
+    return transport.request(OPERATIONS["terms.overrides.list"], input) as Promise<OperationIO["terms.overrides.list"]["output"]>;
+  },
+
+  /** `GET /terms/register` · query · bearer · surfaces: S2, S6
+   *
+   * The term policy register as data — value kind, enum values, authoring tiers, rationale. S2 renders the override form FROM this, so a twelfth term is a register diff and the form follows. */
+  termRegister(): Promise<OperationIO["terms.register"]["output"]> {
+    return transport.request(OPERATIONS["terms.register"], undefined) as Promise<OperationIO["terms.register"]["output"]>;
+  },
+
   /** `GET /terms/resolved` · query · bearer · surfaces: S2, S6
    *
    * Every term at a node as of a date, with the trace naming every rung. */
@@ -126,4 +161,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "login", "logout", "assignCrew", "events", "createOrganization", "listOrganizations", "listRegions", "me", "replaySync", "health", "authorTermOverride", "resolvedTerms"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "login", "logout", "createContract", "listContracts", "transitionContract", "assignCrew", "events", "createOrganization", "listOrganizations", "listRegions", "me", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);

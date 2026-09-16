@@ -10,6 +10,7 @@ import type { Tx } from "./unit-of-work.ts";
 import { authorTermOverride, resolvedTermsAt } from "./handlers/terms.ts";
 import { assignCrew } from "./handlers/assignment.ts";
 import { listRegions, listOrganizations, createOrganization, listAccounts, createAccount, moveAccount, updateAccount } from "./handlers/hierarchy.ts";
+import { listContracts, createContract, transitionContract, listTermOverrides, termRegister } from "./handlers/contracts.ts";
 import { ingestSync } from "./handlers/sync.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
@@ -255,6 +256,17 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "accounts.create": (req, input) => withUow(req, "accounts.create", (uow) => createAccount(uow, input, randomUUID)),
   "accounts.move": (req, input) => withUow(req, "accounts.move", (uow) => moveAccount(uow, input)),
   "accounts.update": (req, input) => withUow(req, "accounts.update", (uow) => updateAccount(uow, input)),
+
+  // C2 — the agreements those nodes are served under, and the register the
+  // override form is drawn from. The scope's existence at its declared tier is
+  // ac_contract_scope_exists's to refuse, in its own words.
+  "contracts.list": (req, input) => withRead(req, "contracts.list", (uow) => listContracts(uow, input)),
+  "contracts.create": (req, input) => withUow(req, "contracts.create", (uow) => createContract(uow, input, randomUUID)),
+  "contracts.transition": (req, input) => withUow(req, "contracts.transition", (uow) => transitionContract(uow, input)),
+  "terms.overrides.list": (req, input) => withRead(req, "terms.overrides.list", (uow) => listTermOverrides(uow, input)),
+  // The register is code, not a row. No transaction is opened for it; the read
+  // scope exists so the answer is still behind a live session.
+  "terms.register": (req) => withRead(req, "terms.register", async () => termRegister()),
 
   // S3 — the one gated door.
   "dispatch.assign": (req, input) => withUow(req, "dispatch.assign", (uow, p) => assignCrew(uow, p.subjectId, input, new Date())),

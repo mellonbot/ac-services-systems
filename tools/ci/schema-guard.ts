@@ -188,7 +188,12 @@ const rel = (p: string) => relative(ROOT, p);
   // typecheck says the same; this says it with nothing installed.
   const main = read(join(ROOT, "apps/gateway/src/main.ts"));
   const handlerBlock = /const handlers[^=]*=\s*\{([\s\S]*?)\n\};/.exec(main)?.[1] ?? "";
-  const handled = [...handlerBlock.matchAll(/^\s{2}"([a-z]+\.[A-Za-z]+)":/gm)].map((m) => m[1]!);
+  // Dotted segments, not exactly two: `terms.overrides.list` is as much an
+  // operation id as `terms.resolved`. A two-segment pattern here made the
+  // textual twin NARROWER than the type it mirrors, so the guard reported a
+  // handled operation as unhandled while typecheck disagreed — the guard has
+  // to admit every id the catalogue can hold, or it fails honest diffs.
+  const handled = [...handlerBlock.matchAll(/^\s{2}"([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+)":/gm)].map((m) => m[1]!);
   for (const id of ids) if (!handled.includes(id)) fail("catalogue ↔ gateway", `operation ${id} has no handler in apps/gateway/src/main.ts`);
   for (const h of handled) if (!ids.includes(h)) fail("catalogue ↔ gateway", `gateway handles "${h}", which is not in the operation catalogue`);
   for (const m of main.matchAll(/["'`](GET|POST|PUT|PATCH|DELETE) \/[^"'`]*["'`]/g))
