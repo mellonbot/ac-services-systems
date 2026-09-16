@@ -1,5 +1,6 @@
 import { SEMANTIC, BRAND_OVERRIDABLE, STATE_ROLES, type SemanticToken } from "./semantic.ts";
 import { PRIMITIVES as P } from "./primitives.ts";
+import { MARK_GLYPHS as M } from "./type.ts";
 
 /** WCAG relative luminance. No dependency — this must run at authoring time. */
 const luminance = (hex: string): number => {
@@ -30,6 +31,27 @@ export const hueSeparation = (a: string, b: string): number => {
   return Math.min(d, 360 - d);
 };
 
+/** Max channel minus min, 0..1. The question `hueOf` cannot answer: is there a hue here at all? */
+export const chromaOf = (hex: string): number => {
+  const v = hex.replace("#", "");
+  const ch = [0, 2, 4].map((i) => parseInt(v.slice(i, i + 2), 16) / 255);
+  return Math.max(...ch) - Math.min(...ch);
+};
+
+/**
+ * Below this there is no hue to collide with, and `hueOf` says 0° — pure red —
+ * because that is what the HSL formula returns when the channels are equal.
+ * A tenant whose accent is charcoal was being read as 6.1° from oxblood and
+ * barred from every state surface for a hue it does not have.
+ *
+ * 0.06 keeps the warm near-neutrals chromatic on purpose: our own `ink.mid`
+ * measures 0.078 and slate blue 0.125, and both DO read as a colour next to a
+ * state chip.
+ */
+export const ACHROMATIC_MAX_CHROMA = 0.06;
+
+export const isAchromatic = (hex: string): boolean => chromaOf(hex) <= ACHROMATIC_MAX_CHROMA;
+
 export type ThemeRejection = { readonly token: string; readonly reason: string };
 
 /**
@@ -53,7 +75,9 @@ export const ACCENT_GATE = Object.freeze({
   lightGround: P.stock.surface,
   /** The field ground. Failing this bars the tablet, not the tenant. */
   darkGround: P.plate.ground,
+  /** The accent as a WORD. */
   textContrast: 4.5,
+  /** The accent as a FILL, a rule or a mark — WCAG 1.4.11. The threshold our own copper is admitted at. */
   nonTextContrast: 3.0,
 });
 
@@ -65,6 +89,19 @@ export const STATE_HUES: readonly { readonly role: string; readonly hex: string 
   { role: "color.status-breached (field)", hex: P.plate.oxide },
 ]);
 
+/**
+ * What a tier may paint the accent AS. Two verdicts, because the semantic tier
+ * already split them: `color.action` is a fill at 3:1 and `color.action-text`
+ * is the word at 4.5:1, and an accent measured only as a word is an accent
+ * judged by a threshold it was never going to be used at.
+ */
+export type SlotAdmission = {
+  /** 4.5:1 — the accent as a word, at any size. */
+  readonly text: boolean;
+  /** 3:1, WCAG 1.4.11 — the accent as a fill, a rule or a mark carrying shape. */
+  readonly fill: boolean;
+};
+
 export type AccentAdmission = {
   readonly accent: string;
   readonly minSeparation: number;
@@ -73,8 +110,10 @@ export type AccentAdmission = {
   readonly onDark: number;
   /** False → barred from every surface that renders a state ramp; the accent falls back to Ink Black there. */
   readonly stateSurfaces: boolean;
-  /** Which density tiers may paint this accent at all. */
-  readonly tiers: Readonly<Record<"console" | "comfort" | "field", boolean>>;
+  /** True when the accent has no hue to confuse with the ramp — `stateSurfaces` is then unconditional. */
+  readonly achromatic: boolean;
+  /** What each density tier may paint this accent as. */
+  readonly tiers: Readonly<Record<"console" | "comfort" | "field", SlotAdmission>>;
   readonly notes: readonly string[];
 };
 
@@ -94,28 +133,41 @@ export type AccentAdmission = {
  * enforced at the table, not by policy.
  */
 export const admitAccent = (accent: string): AccentAdmission => {
-  let minSeparation = 360, nearestState = "";
+  const achromatic = isAchromatic(accent);
+  let nearest = 360, nearestState = "";
   for (const s of STATE_HUES) {
     const sep = hueSeparation(accent, s.hex);
-    if (sep < minSeparation) { minSeparation = sep; nearestState = s.role; }
+    if (sep < nearest) { nearest = sep; nearestState = s.role; }
   }
+  // A colour with no hue cannot be mistaken for a hue-coded state. 180° is the
+  // maximum separation there is, and it is the honest answer, not a pass granted.
+  const minSeparation = achromatic ? 180 : nearest;
+  if (achromatic) nearestState = "— (achromatic)";
+
   const onLight = contrastRatio(accent, ACCENT_GATE.lightGround);
   const onDark = contrastRatio(accent, ACCENT_GATE.darkGround);
-  const stateSurfaces = minSeparation >= ACCENT_GATE.minHueSeparation;
+  const slot = (ratio: number): SlotAdmission =>
+    Object.freeze({ text: ratio >= ACCENT_GATE.textContrast, fill: ratio >= ACCENT_GATE.nonTextContrast });
+  const light = slot(onLight), dark = slot(onDark);
+  const stateSurfaces = achromatic || minSeparation >= ACCENT_GATE.minHueSeparation;
+
   const notes: string[] = [];
+  if (achromatic)
+    notes.push(`chroma ${chromaOf(accent).toFixed(3)} — no hue to confuse with the state ramp, so the hue gate does not apply.`);
   if (!stateSurfaces)
     notes.push(`${minSeparation.toFixed(1)}° from ${nearestState}, needs ${ACCENT_GATE.minHueSeparation}° — admitted for logo, masthead and marketing only; falls back to Ink Black wherever a state ramp renders.`);
-  if (onLight < ACCENT_GATE.textContrast)
-    notes.push(`${onLight.toFixed(2)}:1 on the light ground, needs ${ACCENT_GATE.textContrast} — not a text accent in the console or comfort tiers.`);
-  if (onDark < ACCENT_GATE.textContrast)
-    notes.push(`${onDark.toFixed(2)}:1 on the field ground, needs ${ACCENT_GATE.textContrast} — barred from the tablet, which is a permission and not a rejection.`);
+  if (!light.text && light.fill)
+    notes.push(`${onLight.toFixed(2)}:1 on the light ground — a fill, a rule or a mark in the console and comfort tiers, never a word. Our own copper sits here.`);
+  if (!light.fill)
+    notes.push(`${onLight.toFixed(2)}:1 on the light ground, needs ${ACCENT_GATE.nonTextContrast} — it cannot carry shape there either; the light tiers fall back to Ink Black.`);
+  if (!dark.text && dark.fill)
+    notes.push(`${onDark.toFixed(2)}:1 on the field ground — a fill only on the tablet, never a word.`);
+  if (!dark.fill)
+    notes.push(`${onDark.toFixed(2)}:1 on the field ground, needs ${ACCENT_GATE.nonTextContrast} — barred from the tablet, which is a permission and not a rejection.`);
+
   return Object.freeze({
-    accent, minSeparation, nearestState, onLight, onDark, stateSurfaces,
-    tiers: Object.freeze({
-      console: onLight >= ACCENT_GATE.textContrast,
-      comfort: onLight >= ACCENT_GATE.textContrast,
-      field: onDark >= ACCENT_GATE.textContrast,
-    }),
+    accent, minSeparation, nearestState, onLight, onDark, stateSurfaces, achromatic,
+    tiers: Object.freeze({ console: light, comfort: light, field: dark }),
     notes,
   });
 };
@@ -130,6 +182,10 @@ export const admitAccent = (accent: string): AccentAdmission => {
  * Note what is NOT a rejection: an accent that fails the hue gate, or the dark
  * ground. Those narrow where the accent may be painted (`admitAccent`), and a
  * tenant whose brand colour is simply their brand colour is not turned away.
+ *
+ * Every pair below is measured on the LIGHT STOCK, and the rejection says so,
+ * because that is the only stock a tenant theme is permitted to reach:
+ * `brandCss` emits it under `TENANT_SCOPE`, which the field frame is outside.
  */
 export const validateBrandTheme = (
   overrides: Readonly<Record<string, string>>,
@@ -166,7 +222,7 @@ export const validateBrandTheme = (
     if (ratio < min) {
       rejections.push({
         token: fg,
-        reason: `${label} is ${ratio.toFixed(2)}:1, needs ${min.toFixed(1)}:1 (WCAG AA).`,
+        reason: `${label} is ${ratio.toFixed(2)}:1 on the light stock, needs ${min.toFixed(1)}:1 (WCAG AA).`,
       });
     }
   }
@@ -178,13 +234,18 @@ export const validateBrandTheme = (
  * peripheral vision, sometimes by someone colour-blind, and a breach that reads
  * as a different shade of grey is a breach nobody escalated.
  *
+ * The glyph is `MARK_GLYPHS`, not a literal, so the subset that has to carry it
+ * is checkable — the four characters this channel is drawn with were not in
+ * SUBSET_GLYPHS, which left the fallback chain deciding what the channel that
+ * exists for the case where colour fails would look like.
+ *
  * `form` is the second channel, and the load-bearing one on the field ground:
  * greyscale the screen and the order still reads outline-mute, outline-bright,
  * solid. Hue only confirms what form already said.
  */
 export const STATUS_GLYPH = Object.freeze({
-  ok: { glyph: "●", word: "On track", form: "outline-mute" },
-  at_risk: { glyph: "▲", word: "At risk", form: "outline" },
-  breached: { glyph: "■", word: "Breached", form: "solid" },
-  blocked: { glyph: "✕", word: "Blocked", form: "outline-mute" },
+  ok: { glyph: M.ok, word: "On track", form: "outline-mute" },
+  at_risk: { glyph: M.atRisk, word: "At risk", form: "outline" },
+  breached: { glyph: M.fault, word: "Breached", form: "solid" },
+  blocked: { glyph: M.blocked, word: "Blocked", form: "outline-mute" },
 });

@@ -1,3 +1,4 @@
+import { MARK_GLYPHS } from "../../../tokens/src/index.ts";
 import { DegradedBannerSpec } from "../component.ts";
 import { component, html } from "../render.ts";
 
@@ -34,7 +35,7 @@ export const degradedLine = (lastOkAt: number | null, now: number): string =>
 export const DegradedBanner = component<typeof DegradedBannerSpec, DegradedBannerProps>(DegradedBannerSpec, (p) => {
   if (!p.degraded) return null;
   return html`<div class="ac-degraded" role="alert" data-density=${p.density}>
-    <span class="ac-degraded__mark" aria-hidden="true">■</span>
+    <span class="ac-degraded__mark" aria-hidden="true">${MARK_GLYPHS.fault}</span>
     <strong class="ac-degraded__title">Gateway unreachable.</strong>
     <span class="ac-degraded__text">${p.text}</span>
     <span class="ac-degraded__age">${degradedLine(p.lastOkAt, p.now)}</span>
@@ -51,5 +52,9 @@ export type DegradedSlot = { hidden: boolean; textContent: string | null };
 
 export const applyDegraded = (slot: DegradedSlot, p: DegradedBannerProps): void => {
   slot.hidden = !p.degraded;
-  if (p.degraded) slot.textContent = `Gateway unreachable. ${p.text} ${degradedLine(p.lastOkAt, p.now)}`;
+  // The fault mark leads, the same one the rendered banner draws. This path runs
+  // when the bundle has loaded but the surface has not mounted a tree, and it is
+  // the one the frame ships — it should not be the one variant of the banner
+  // with no mark on it.
+  if (p.degraded) slot.textContent = `${MARK_GLYPHS.fault} Gateway unreachable. ${p.text} ${degradedLine(p.lastOkAt, p.now)}`;
 };

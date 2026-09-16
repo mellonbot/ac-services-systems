@@ -1,9 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { tokenCss, brandCss, cssVar, contrastFailures, semanticFor, SEMANTIC_DARK, GROUNDS, WORD_ROLES, ON_FILL } from "./css.ts";
+import { tokenCss, brandCss, cssVar, contrastFailures, semanticFor, SEMANTIC_DARK, GROUNDS, WORD_ROLES, ON_FILL, TENANT_SCOPE } from "./css.ts";
 import { SEMANTIC, type SemanticToken } from "./semantic.ts";
-import { DENSITY, type Density } from "./density.ts";
-import { FACES, FACE_ROLES } from "./type.ts";
+import { DENSITY, TYPE_SCALE, TYPE_FLOOR, type Density } from "./density.ts";
+import { FACES, FACE_ROLES, SUBSET_GLYPHS, MARK_GLYPHS } from "./type.ts";
+import { PRIMITIVES as P } from "./primitives.ts";
+import { STATUS_GLYPH } from "./whitelabel.ts";
 import { contrastRatio } from "./whitelabel.ts";
 
 const DENSITIES = Object.keys(DENSITY) as Density[];
@@ -91,9 +93,59 @@ test("the emitter is deterministic — the frame is byte-comparable", () => {
   assert.equal(tokenCss("comfort"), tokenCss("comfort"));
 });
 
-test("a brand stylesheet is validated before it is a string", () => {
-  assert.equal(brandCss({ "color.action": "#1b56cc" }), ":root{--color-action:#1b56cc}");
+test("a brand stylesheet is validated before it is a string, and scoped to the stock it was measured on", () => {
+  assert.equal(brandCss({ "color.action": "#1b56cc" }), `${TENANT_SCOPE}{--color-action:#1b56cc}`);
+  // The hole an unscoped :root{} block is: every pair in validateBrandTheme is
+  // measured against the LIGHT stock, and the field frame is <html
+  // data-density="field"> with cream for --color-text. A tenant ground admitted
+  // against Ink Black must not be able to reach it.
+  assert.match(TENANT_SCOPE, /:not\(\[data-density="field"\]\)/);
+  assert.ok(!brandCss({ "color.surface": "#ffffff" }).startsWith(":root{"), "an unscoped block reaches the plate");
   assert.throws(() => brandCss({ "color.text": "#c8c8c8" }), /needs 4\.5:1/);
   assert.throws(() => brandCss({ "color.focus-ring": "#ff00ff" }), /not overridable/);
   assert.throws(() => brandCss({ "color.status-breached": "#e01b24" }), /not overridable/);
+});
+
+// ---------------------------------------------------------------------------
+// The type scale is the density's. It was a shared constant, and the field
+// frame shipped 56px targets over an 11px chip word — a console button with a
+// bigger hit box.
+// ---------------------------------------------------------------------------
+const px = (v: string): number => Number.parseFloat(v);
+
+test("every step of the type scale moves with the density, and nothing is set below the tier's floor", () => {
+  for (const d of DENSITIES) {
+    const scale = TYPE_SCALE[d];
+    for (const [step, v] of Object.entries(scale))
+      assert.ok(px(v) >= TYPE_FLOOR[d], `${d}: --text-${step} is ${v}, below the ${TYPE_FLOOR[d]}px floor`);
+    const steps = Object.values(scale).map(px);
+    for (let i = 1; i < steps.length; i++) assert.ok(steps[i]! >= steps[i - 1]!, `${d}: the ramp is not monotonic at step ${i}`);
+    // A label may not be smaller than the body it labels, minus one step.
+    assert.ok(px(scale.md) === px(DENSITY[d].bodyText), `${d}: --text-md and --body-text disagree`);
+  }
+  // The field tablet is the reason this exists: nothing on it under 15px.
+  assert.equal(TYPE_FLOOR.field, 15);
+  assert.ok(px(TYPE_SCALE.field.xs) > px(TYPE_SCALE.console.xs), "the field chip word was SMALLER than console body copy");
+  // comfort is the reference ramp the bulletin's plates are drawn at.
+  assert.deepEqual(TYPE_SCALE.comfort, P.text);
+});
+
+test("the frame carries its own density's scale, and no artwork radius a surface could round a corner with", () => {
+  for (const d of DENSITIES) {
+    const css = tokenCss(d);
+    for (const [step, v] of Object.entries(TYPE_SCALE[d])) assert.ok(css.includes(`--text-${step}:${v}`), `${d} lacks --text-${step}:${v}`);
+    assert.ok(css.includes("--radius-none:0px"));
+    assert.doesNotMatch(css, /--radius-(icon|app)/, "an icon and a patch are artwork with their own substrate rules");
+  }
+  assert.notEqual(tokenCss("field").match(/--text-xs:[^;]+/)?.[0], tokenCss("console").match(/--text-xs:[^;]+/)?.[0]);
+});
+
+test("the second channel is in the subset that has to carry it", () => {
+  // Form R-4 leans on form where hue has stopped working, and form is drawn
+  // with these. A subset without them hands the channel to the fallback chain.
+  for (const [name, glyph] of Object.entries(MARK_GLYPHS))
+    assert.ok(SUBSET_GLYPHS.includes(glyph), `MARK_GLYPHS.${name} (${glyph}) is not in SUBSET_GLYPHS`);
+  for (const [status, s] of Object.entries(STATUS_GLYPH))
+    assert.ok(SUBSET_GLYPHS.includes(s.glyph), `the ${status} glyph is not in SUBSET_GLYPHS`);
+  assert.ok(SUBSET_GLYPHS.includes("°"), "the degree sign the trade actually needs");
 });

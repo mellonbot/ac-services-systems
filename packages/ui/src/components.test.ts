@@ -9,7 +9,7 @@ import { ComplianceBadge } from "./components/compliance-badge.ts";
 import { RefusalCard, refusalHeading, AXIS_SENTENCE } from "./components/refusal-card.ts";
 import { DegradedBanner, applyDegraded, ageOf } from "./components/degraded-banner.ts";
 import { COMPONENT_SPECS, ComplianceBadgeSpec, DataGridSpec } from "./component.ts";
-import { STATUS_GLYPH } from "../../tokens/src/index.ts";
+import { STATUS_GLYPH, MARK_GLYPHS } from "../../tokens/src/index.ts";
 import { SURFACES, densityOf } from "../../contracts/src/index.ts";
 import type { Refusal } from "../../contracts/src/index.ts";
 
@@ -152,7 +152,7 @@ test("the frame's <ac-degraded> slot is driven by the same facts", () => {
   const slot = { hidden: true, textContent: "" as string | null };
   applyDegraded(slot, { degraded: true, text: "Read-only.", lastOkAt: 0, now: 90_000 });
   assert.equal(slot.hidden, false);
-  assert.equal(slot.textContent, "Gateway unreachable. Read-only. Last good response 1 min ago.");
+  assert.equal(slot.textContent, `${MARK_GLYPHS.fault} Gateway unreachable. Read-only. Last good response 1 min ago.`, "the no-tree path carries the mark too");
   applyDegraded(slot, { degraded: false, text: "Read-only.", lastOkAt: 0, now: 90_000 });
   assert.equal(slot.hidden, true);
 });
@@ -163,4 +163,60 @@ test("age is coarse on purpose", () => {
   assert.equal(ageOf(2 * 3_600_000), "2 h");
   assert.equal(ageOf(3 * 86_400_000), "3 d");
   assert.equal(ageOf(-5), "0 s");
+});
+
+// ---------------------------------------------------------------------------
+// The accessibility contract. Each of these is a defect the set shipped with.
+// ---------------------------------------------------------------------------
+test("a pill is a label, not a live region — forty rows are not forty announcements", () => {
+  // role="status" was unconditional, so a dispatch board was forty polite live
+  // regions and one re-sort read the whole board aloud.
+  const plain = render(html`<${StatusPill} density="console" status="breached" />`);
+  assert.doesNotMatch(plain, /role="status"/);
+  assert.match(plain, /data-status="breached"/, "the state is still on the element");
+  // Opt in where a single pill IS the news.
+  assert.match(render(html`<${StatusPill} density="field" status="breached" live=${true} />`), /role="status"/);
+});
+
+test("a numeric column reaches the instrument face, per column, declared", () => {
+  type Row = { job: string; due: string };
+  const columns = [{ key: "job", header: "Job" }, { key: "due", header: "Due", numeric: true, align: "end" as const }];
+  const out = render(html`<${DataGrid} density="console" columns=${columns} rows=${[{ job: "J-1041", due: "04:12" }]} rowKey=${(r: Row) => r.job} />`);
+  // "EVERY NUMBER IN THE COMPANY is set in the instrument face with tabular
+  // figures" was prose: .ac-num existed with no call site and the grid rendered
+  // String(row[key]) in the body face.
+  assert.match(out, /<td class="ac-grid__td" data-align="end" data-numeric="true">04:12/);
+  assert.doesNotMatch(out, /data-align="start" data-numeric/, "a text column is not marked");
+});
+
+test("a row you can activate is a grid row, and says whether it is selected", () => {
+  type Row = { id: string };
+  const rows = [{ id: "a" }, { id: "b" }];
+  const columns = [{ key: "id", header: "Id" }];
+  const inert = render(html`<${DataGrid} density="console" columns=${columns} rows=${rows} rowKey=${(r: Row) => r.id} />`);
+  assert.doesNotMatch(inert, /role="grid"/, "a read-only table is a table");
+  assert.doesNotMatch(inert, /aria-selected/);
+  // tabindex alone put a focus stop on something a reader still announced as inert.
+  const live = render(html`<${DataGrid} density="console" columns=${columns} rows=${rows} rowKey=${(r: Row) => r.id} onSelect=${() => {}} selectedKey="b" />`);
+  assert.match(live, /<table class="ac-grid" data-density="console" role="grid">/);
+  assert.match(live, /aria-selected="true"[^>]*tabindex="0"/);
+  assert.match(live, /aria-selected="false"/);
+});
+
+test("the compliance gate's detail is rendered, not hidden in a title attribute", () => {
+  const out = render(html`<${ComplianceBadge} density="console" cleared=${false} reason="expired_in_window" detail="EPA 608 expires 2026-10-02." />`);
+  assert.doesNotMatch(out, /title=/, "a title is unreachable by keyboard and by touch");
+  assert.match(out, /<span class="ac-badge__detail">EPA 608 expires 2026-10-02\.<\/span>/);
+  assert.doesNotMatch(render(html`<${ComplianceBadge} density="console" cleared=${true} />`), /ac-badge__detail/);
+});
+
+test("every mark a component draws is a named mark, so the font subset can be checked against it", () => {
+  // The four characters the second channel is drawn with were literals in six
+  // templates and absent from SUBSET_GLYPHS — see tokens/css.test.ts.
+  assert.ok(render(html`<${StatusPill} density="console" status="at_risk" />`).includes(MARK_GLYPHS.atRisk));
+  assert.ok(render(html`<${ComplianceBadge} density="console" cleared=${false} />`).includes(MARK_GLYPHS.blocked));
+  assert.ok(render(html`<${DegradedBanner} density="field" degraded=${true} text="x" lastOkAt=${null} now=${1} />`).includes(MARK_GLYPHS.fault));
+  const sorted = render(html`<${DataGrid} density="console" columns=${[{ key: "a", header: "A", sortable: true }]} rows=${[]}
+    rowKey=${() => "k"} sort=${{ key: "a", dir: "desc" }} onSort=${() => {}} />`);
+  assert.ok(sorted.includes(MARK_GLYPHS.sortDesc));
 });

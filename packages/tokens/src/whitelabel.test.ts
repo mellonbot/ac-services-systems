@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateBrandTheme, contrastRatio, hueOf, hueSeparation, admitAccent, ACCENT_GATE, STATUS_GLYPH } from "./whitelabel.ts";
+import { validateBrandTheme, contrastRatio, hueOf, hueSeparation, admitAccent, chromaOf, isAchromatic, ACHROMATIC_MAX_CHROMA, ACCENT_GATE, STATUS_GLYPH } from "./whitelabel.ts";
 import { SEMANTIC } from "./semantic.ts";
 import { PRIMITIVES as P } from "./primitives.ts";
 
@@ -31,8 +31,52 @@ test("the accent gate reproduces Plate 5 — Amped's red is barred, their navy i
   const navy = admitAccent("#1A4FA0");
   assert.ok(navy.minSeparation >= ACCENT_GATE.minHueSeparation);
   assert.equal(navy.stateSurfaces, true);
-  assert.deepEqual(navy.tiers, { console: true, comfort: true, field: false });
+  assert.deepEqual(navy.tiers, {
+    console: { text: true, fill: true },
+    comfort: { text: true, fill: true },
+    // 2.24:1 on the plate — it cannot carry a word OR a shape there, so the
+    // tablet is barred outright. A dark navy on a dark ground is not a near miss.
+    field: { text: false, fill: false },
+  });
   assert.ok(navy.notes.some((n) => /barred from the tablet/.test(n)));
+
+  // Amped's red, on the other hand, is a FILL everywhere and a word nowhere —
+  // which is exactly the sentence Plate 5 writes about it, and the one the
+  // single text threshold could not say.
+  assert.deepEqual(red.tiers.field, { text: false, fill: true });
+  assert.ok(red.notes.some((n) => /logo, masthead and marketing only/.test(n)));
+});
+
+test("the gate asks what the accent will be PAINTED as \u2014 which is why our own copper passes it", () => {
+  // It did not. Every tier was gated on 4.5:1, the word threshold, so the house
+  // accent scored {console:false, comfort:false, field:false} against a system
+  // whose semantic tier spends three roles separating the fill from the word.
+  // A gate that rejects the fill it was drawn from is measuring the wrong thing.
+  const copper = admitAccent("#A65F2E");
+  for (const tier of ["console", "comfort", "field"] as const) {
+    assert.equal(copper.tiers[tier].fill, true, `copper is a fill in ${tier} \u2014 4.15:1 light, 3.61:1 plate, both over 3`);
+    assert.equal(copper.tiers[tier].text, false, `copper is never a word in ${tier} \u2014 that is what color.action-text is for`);
+  }
+  assert.ok(copper.notes.some((n) => /never a word/.test(n)));
+});
+
+test("a colour with no hue cannot collide with a hue ramp", () => {
+  // hueOf returns 0\u00b0 \u2014 pure red \u2014 for any grey, because that is what the HSL
+  // formula does when the channels are equal. A tenant whose accent is charcoal
+  // was scored 6.1\u00b0 from oxblood and barred from every state surface.
+  assert.equal(hueOf("#2E2E2E"), 0);
+  for (const grey of ["#000000", "#2E2E2E", "#FFFFFF", "#808080"]) {
+    const a = admitAccent(grey);
+    assert.equal(isAchromatic(grey), true, grey);
+    assert.equal(a.achromatic, true, grey);
+    assert.equal(a.stateSurfaces, true, `${grey} has no hue to confuse with the ramp`);
+    assert.ok(a.notes.some((n) => /no hue to confuse/.test(n)));
+  }
+  // The threshold keeps the warm near-neutrals chromatic: these DO read as a
+  // colour beside a state chip, and one of them is our own muted ink.
+  assert.ok(chromaOf("#4E463A") > ACHROMATIC_MAX_CHROMA, "ink.mid is a colour");
+  assert.equal(isAchromatic("#708090"), false, "slate reads blue");
+  assert.equal(admitAccent("#E01B24").achromatic, false);
 });
 
 test("the gate rejects the slot, never the tenant", () => {

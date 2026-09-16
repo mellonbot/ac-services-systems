@@ -1,3 +1,4 @@
+import { MARK_GLYPHS } from "../../../tokens/src/index.ts";
 import { DataGridSpec } from "../component.ts";
 import { html, admits, type ComponentChildren, type ViewProps, type VNode } from "../render.ts";
 
@@ -11,6 +12,13 @@ export type Column<Row> = {
   readonly cell?: (row: Row) => ComponentChildren;
   readonly align?: "start" | "end";
   readonly sortable?: boolean;
+  /**
+   * The column holds figures: the instrument face, tabular. Declared per column
+   * because the grid cannot know — and the alternative was the honour system,
+   * which is what the schedule had. "EVERY NUMBER IN THE COMPANY" (tokens/type.ts)
+   * needs a place a reviewer can see it was said; this is it.
+   */
+  readonly numeric?: boolean;
 };
 
 export type DataGridProps<Row> = {
@@ -43,12 +51,17 @@ const view = <Row,>(p: ViewProps<typeof DataGridSpec, DataGridProps<Row>>): VNod
     p.sort?.key === c.key ? { key: c.key, dir: p.sort.dir === "asc" ? "desc" : "asc" } : { key: c.key, dir: "asc" };
   const ariaSort = (c: Column<Row>) => (p.sort?.key === c.key ? (p.sort.dir === "asc" ? "ascending" : "descending") : "none");
 
-  return html`<table class="ac-grid" data-density=${p.density}>
+  // A row you can activate is a grid row, not a table row. `tabindex` alone put
+  // a focus stop on something a screen reader still announced as an inert row;
+  // role="grid" plus aria-selected is the pattern that says selectable, and it
+  // only appears when the caller actually wired onSelect.
+  const interactive = p.onSelect !== undefined;
+  return html`<table class="ac-grid" data-density=${p.density} role=${interactive ? "grid" : undefined}>
     ${p.caption ? html`<caption class="ac-grid__caption">${p.caption}</caption>` : null}
     <thead><tr>
-      ${p.columns.map((c) => html`<th scope="col" class="ac-grid__th" data-align=${c.align ?? "start"} aria-sort=${ariaSort(c)}>
+      ${p.columns.map((c) => html`<th scope="col" class="ac-grid__th" data-align=${c.align ?? "start"} data-numeric=${c.numeric ? "true" : undefined} aria-sort=${ariaSort(c)}>
         ${c.sortable && p.onSort
-          ? html`<button type="button" class="ac-grid__sort" onClick=${() => p.onSort?.(nextSort(c))}>${c.header}<span aria-hidden="true" class="ac-grid__sortmark">${p.sort?.key === c.key ? (p.sort.dir === "asc" ? " ▲" : " ▼") : ""}</span></button>`
+          ? html`<button type="button" class="ac-grid__sort" onClick=${() => p.onSort?.(nextSort(c))}>${c.header}<span aria-hidden="true" class="ac-grid__sortmark">${p.sort?.key === c.key ? (p.sort.dir === "asc" ? ` ${MARK_GLYPHS.sortAsc}` : ` ${MARK_GLYPHS.sortDesc}`) : ""}</span></button>`
           : c.header}
       </th>`)}
     </tr></thead>
@@ -59,10 +72,11 @@ const view = <Row,>(p: ViewProps<typeof DataGridSpec, DataGridProps<Row>>): VNod
             const k = p.rowKey(row);
             const selected = p.selectedKey !== undefined && p.selectedKey === k;
             return html`<tr key=${k} class="ac-grid__row" data-selected=${selected ? "true" : "false"}
+              aria-selected=${interactive ? (selected ? "true" : "false") : undefined}
               tabindex=${p.onSelect ? 0 : undefined}
               onClick=${p.onSelect ? () => p.onSelect?.(row) : undefined}
               onKeyDown=${p.onSelect ? (e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); p.onSelect?.(row); } } : undefined}>
-              ${p.columns.map((c) => html`<td class="ac-grid__td" data-align=${c.align ?? "start"}>${cell(row, c)}</td>`)}
+              ${p.columns.map((c) => html`<td class="ac-grid__td" data-align=${c.align ?? "start"} data-numeric=${c.numeric ? "true" : undefined}>${cell(row, c)}</td>`)}
             </tr>`;
           })}
     </tbody>

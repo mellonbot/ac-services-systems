@@ -67,10 +67,40 @@ export const FACES = Object.freeze({
 export const FACE_ROLES = Object.freeze(Object.keys(FACES) as readonly FaceRole[]);
 
 /**
+ * THE MARKS THE COMPONENT SET DRAWS. Named here rather than typed into six
+ * templates, for the same reason a colour is a role: these five characters are
+ * the second channel the whole state schedule rests on (Form R-4 — the rule
+ * carries shape, the FILL carries salience, the word carries meaning), and the
+ * channel cannot be load-bearing in one file and a literal in another.
+ *
+ * A component importing a mark from here is also what makes the subset below
+ * checkable: css.test.ts asserts every one of these is in it.
+ */
+export const MARK_GLYPHS = Object.freeze({
+  /** Solid — a fault. The degraded rule, the refusal head, the breached chip. */
+  fault: "■",
+  /** Outline-mute — on track, and the cleared compliance gate. */
+  ok: "●",
+  /** Outline — at risk. */
+  atRisk: "▲",
+  /** Blocked, and the compliance gate that did not clear. */
+  blocked: "✕",
+  sortAsc: "▲",
+  sortDesc: "▼",
+});
+
+/**
  * The glyphs the trade actually needs, beyond Latin. A subset that drops these
  * renders a delta-T as a box on the one surface that exists to report it.
+ *
+ * The geometric marks are in it for a harder reason than the degree sign. The
+ * plate ground encodes state in FORM because hue has stopped working there, and
+ * form is drawn with ● ▲ ■ ✕. A subset cut to the published list dropped all four,
+ * so the fallback chain decided what the second channel looked like — different
+ * face, different metrics, tofu on a locked-down tablet. The channel that exists
+ * for the case where colour fails cannot itself depend on a font that loaded.
  */
-export const SUBSET_GLYPHS = "°ΔΧ×±½¼¾′″₂";
+export const SUBSET_GLYPHS = "°ΔΧ×±½¼¾′″₂" + "●▲▼■✕";
 
 /** Third-party hosts a surface must never fetch a face from. The guard reads this list. */
 export const FORBIDDEN_FONT_HOSTS = Object.freeze([
