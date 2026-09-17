@@ -1,4 +1,4 @@
-import type { SurfaceId } from "./surfaces.ts";
+import { WHITE_LABEL_SURFACES, type SurfaceId } from "./surfaces.ts";
 import type { Tier } from "./tiers.ts";
 import type { TermPolicy } from "./terms.ts";
 import type { HierarchyContext } from "./context.ts";
@@ -159,6 +159,16 @@ export const OPERATIONS = {
     id: "events.stream", method: "GET", path: "/events", kind: "stream", auth: "bearer",
     surfaces: AUTHENTICATED, carrier: "none", sdkMethod: "events",
     summary: "Server-sent domain events, filtered to the subscriber's region. At-least-once; dedupe on eventId.",
+  },
+  "brand.setTheme": {
+    id: "brand.setTheme", method: "POST", path: "/s2/brand/theme", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "setBrandTheme",
+    summary: "Store a tenant's white-label theme. Validated against the ink schedule BEFORE it is a row: a theme that would break the portal is a 422 with the ratio, not a stylesheet nobody looks at until a customer does.",
+  },
+  "brand.theme": {
+    id: "brand.theme", method: "GET", path: "/brand/theme", kind: "system", auth: "none",
+    surfaces: WHITE_LABEL_SURFACES, carrier: "query", sdkMethod: "brandTheme",
+    summary: "The stored theme for a host, as the stylesheet the shell installs. Unauthenticated because a portal is branded on its sign-in screen, before a principal exists; an unknown host gets Rankine's own plate rather than a 404, so the route cannot be used to ask which tenants exist.",
   },
   "system.health": {
     id: "system.health", method: "GET", path: "/healthz", kind: "system", auth: "none",
@@ -403,6 +413,58 @@ export type SyncReplayOutput = { readonly outcomes: readonly SyncOutcomeWire[] }
 export type HealthOutput = { readonly ok: true; readonly surfaces: readonly SurfaceId[] };
 
 /**
+ * A TENANT'S THEME, on the wire.
+ *
+ * `overrides` is the accent slots and nothing else — packages/tokens
+ * BRAND_OVERRIDABLE is the list, and the gateway refuses a key outside it with
+ * the reason. The structural tokens, the focus ring and the state ramp are not
+ * here because a themeable focus ring is an accessibility regression shipped
+ * under someone else's logo, and a themeable state ramp is an instrument a
+ * tenant re-keyed.
+ *
+ * `host` is the key, not the org id: the browser asking for a theme has not
+ * authenticated yet and cannot be trusted to name an org. It names where it is,
+ * and the gateway decides whose that is.
+ */
+export type BrandThemeInput = {
+  readonly host: string;
+  readonly orgId: string;
+  readonly regionId: string;
+  /** The tenant's brand colour, gated separately from the slots — see `admission`. */
+  readonly accent: string;
+  readonly overrides: Readonly<Record<string, string>>;
+};
+
+/** Where an accent may be painted. Narrower than "admitted": the gate refuses the slot, never the tenant. */
+export type AccentAdmissionWire = {
+  readonly stateSurfaces: boolean;
+  readonly achromatic: boolean;
+  readonly minSeparation: number;
+  readonly nearestState: string;
+  readonly tiers: Readonly<Record<string, { readonly text: boolean; readonly fill: boolean }>>;
+  readonly notes: readonly string[];
+};
+
+export type BrandThemeOutput = {
+  readonly host: string;
+  readonly eventId: string;
+  readonly admission: AccentAdmissionWire;
+};
+
+/**
+ * What the shell installs. `css` is already scoped by packages/tokens
+ * TENANT_SCOPE, so it cannot reach the field frame whatever a surface does
+ * with it, and `tenant` is false for a host with no theme — which is a plain
+ * answer, not a 404, so this route says nothing about which tenants exist.
+ */
+export type BrandStylesheetInput = { readonly host?: string };
+export type BrandStylesheetOutput = {
+  readonly tenant: boolean;
+  readonly css: string;
+  readonly admission: AccentAdmissionWire | null;
+};
+
+/**
  * One entry per operation, enforced by `satisfies`: add a row to OPERATIONS
  * without a shape here and the file does not type-check; the generator, which
  * writes these names as text, then emits a method whose type does not resolve.
@@ -427,6 +489,8 @@ export type OperationIO = {
   "terms.register": { input: void; output: TermRegisterOutput };
   "dispatch.assign": { input: AssignInput; output: AssignOutput };
   "sync.replay": { input: SyncReplayInput; output: SyncReplayOutput };
+  "brand.setTheme": { input: BrandThemeInput; output: BrandThemeOutput };
+  "brand.theme": { input: BrandStylesheetInput; output: BrandStylesheetOutput };
   "events.stream": { input: void; output: never };
   "system.health": { input: void; output: HealthOutput };
 };

@@ -706,6 +706,24 @@ CREATE TABLE IF NOT EXISTS storage_objects (
 CREATE INDEX IF NOT EXISTS storage_objects_region_id_idx ON storage_objects (region_id);
 CREATE INDEX IF NOT EXISTS storage_objects_storage_key_idx ON storage_objects (storage_key);
 
+CREATE TABLE IF NOT EXISTS brand_themes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  host text NOT NULL,
+  accent text NOT NULL,
+  overrides jsonb NOT NULL,
+  accent_admission jsonb NOT NULL,
+  authored_by uuid NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (host),
+  UNIQUE (org_id)
+);
+CREATE INDEX IF NOT EXISTS brand_themes_region_id_idx ON brand_themes (region_id);
+CREATE INDEX IF NOT EXISTS brand_themes_host_idx ON brand_themes (host);
+
 CREATE TABLE IF NOT EXISTS sla_timers (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   org_id uuid NOT NULL REFERENCES organizations(id),

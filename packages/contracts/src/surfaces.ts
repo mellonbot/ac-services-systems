@@ -56,6 +56,22 @@ export type Surface = {
    * that forgets to say renders in the neutral.
    */
   readonly stateRamp: boolean;
+  /**
+   * A TENANT MAY REPAINT THIS SURFACE.
+   *
+   * White-label is a permission, and the permission is declared here rather
+   * than decided by whoever writes the frame. Three things read this flag and
+   * they must not disagree: the frame emitter (whether the surface carries a
+   * brand slot at all), the operation catalogue (which surfaces may ask the
+   * gateway for a theme), and the shell (whether to ask).
+   *
+   * It is false on every internal surface and on the field tablet, and the
+   * field case is the load-bearing one: the tablet is an instrument, and a
+   * technician reads the board the same way in every tenant or it is not one.
+   * packages/tokens TENANT_SCOPE says the same thing as a selector; a test
+   * holds the two together.
+   */
+  readonly whiteLabel: boolean;
 };
 
 const REGISTRY = {
@@ -70,6 +86,7 @@ const REGISTRY = {
     // under SLA and no compliance to read. So it is the only one that wears the
     // brand red, which is also the one place the brand has to do its work.
     stateRamp: false,
+    whiteLabel: false,
   },
   S2: {
     id: "S2", name: "Service Manager", app: "s2-service-manager",
@@ -77,10 +94,11 @@ const REGISTRY = {
     namespace: "internal", authScope: "role-based, org-wide", scopeBinding: "org",
     roles: ["principal", "ops_leadership", "account_owner", "office_manager", "finance", "warehouse"],
     writes: ["account", "contract", "invoice", "warranty_case", "part", "purchase_order",
-             "subcontractor_firm", "crew_credential", "rate_card"],
+             "subcontractor_firm", "crew_credential", "rate_card", "brand_theme"],
     density: "console", realtime: false, offline: false,
     degraded: "Read-only from last server state. NO offline writes, ever — this is the only surface that authors hierarchy, contract and subcontractor-network truth, and a forked truth here is unrecoverable.",
     stateRamp: true,
+    whiteLabel: false,
   },
   S3: {
     id: "S3", name: "Dispatch Console", app: "s3-dispatch-console",
@@ -91,6 +109,7 @@ const REGISTRY = {
     density: "console", realtime: true, offline: false,
     degraded: "Board freezes with a visible staleness clock and stops accepting assignments. A dispatcher acting on a stale board is worse than a dispatcher who knows the board is stale. The compliance gate is enforced HERE, at assignment, with no override path.",
     stateRamp: true,
+    whiteLabel: false,
   },
   S4: {
     id: "S4", name: "HQ Ops Dashboard", app: "s4-hq-dashboard",
@@ -105,6 +124,7 @@ const REGISTRY = {
     density: "console", realtime: false, offline: false,
     degraded: "Warehouse-backed and already asynchronous; shows the age of its last rollup and nothing more.",
     stateRamp: true,
+    whiteLabel: false,
   },
   S5: {
     id: "S5", name: "Technician web fallback", app: "s5-technician",
@@ -114,6 +134,7 @@ const REGISTRY = {
     density: "field", realtime: false, offline: true,
     degraded: "Offline-first: device holds intent, server holds truth, replay is idempotent by client-generated mutation id. `assignments` is server-authoritative so an offline device cannot route around the compliance gate. IDENTICAL for employed and subcontracted crews.",
     stateRamp: true,
+    whiteLabel: false,
   },
   S6: {
     id: "S6", name: "Customer Portal", app: "s6-customer-portal",
@@ -123,6 +144,7 @@ const REGISTRY = {
     density: "comfort", realtime: false, offline: false,
     degraded: "Cached read of last known job and invoice state, clearly timestamped; request intake queues. One codebase, four scopes — scoping is enforced at the gateway, never by client-side filtering.",
     stateRamp: true,
+    whiteLabel: true,
   },
   S7: {
     id: "S7", name: "Vendor Portal", app: "s7-vendor-portal",
@@ -132,6 +154,7 @@ const REGISTRY = {
     density: "comfort", realtime: false, offline: false,
     degraded: "Read-only PO list. Vendors see parts, POs and destination tier — never customer names, never job records.",
     stateRamp: true,
+    whiteLabel: false,
   },
   S8: {
     id: "S8", name: "Subcontractor Portal", app: "s8-subcontractor-portal",
@@ -143,6 +166,7 @@ const REGISTRY = {
     density: "comfort", realtime: false, offline: false,
     degraded: "Document upload queues to durable storage and acknowledges on receipt, not on processing. Settlement views serve last statement. A firm sees its own crews, its own jobs, its own compliance, its own money — never another firm's rate card.",
     stateRamp: true,
+    whiteLabel: false,
   },
 } as const satisfies { readonly [K in SurfaceId]: Surface };
 
@@ -170,3 +194,14 @@ export const surfacesInPhase = (phase: Phase): readonly Surface[] =>
  */
 export const mayWrite = (id: SurfaceId, entity: WriteEntity): boolean =>
   SURFACES[id].writes.includes(entity);
+
+/**
+ * The surfaces a tenant may repaint — derived, never a second list. The
+ * operation catalogue serves `brand.theme` to exactly these, the frame emitter
+ * gives exactly these a brand slot, and the shell asks for a theme on exactly
+ * these. One flag, read three times, so the three cannot drift apart.
+ */
+export const WHITE_LABEL_SURFACES: readonly SurfaceId[] =
+  Object.freeze(SURFACE_IDS.filter((id) => SURFACES[id].whiteLabel));
+
+export const isWhiteLabel = (id: SurfaceId): boolean => SURFACES[id].whiteLabel;

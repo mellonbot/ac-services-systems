@@ -94,6 +94,8 @@ test("the ink box is recorded from the outline, including the part that bleeds",
   const xs = nums.filter((_, i) => i % 2 === 0), ys = nums.filter((_, i) => i % 2 === 1);
   assert.ok(Math.abs(Math.max(...xs) - BADGE_LETTER.ink.x2) < 0.02, "recorded right edge must match the path");
   assert.ok(Math.abs(Math.min(...xs) - BADGE_LETTER.ink.x1) < 0.02, "recorded left edge must match the path");
+  assert.ok(Math.abs(Math.max(...ys) - BADGE_LETTER.ink.y2) < 0.02, "recorded bottom edge must match the path");
+  assert.ok(Math.abs(Math.min(...ys) - BADGE_LETTER.ink.y1) < 0.02, "recorded top edge must match the path");
   // E-19: the whole mark stays inside the square. This is the assertion that
   // was impossible while the letter was a font reference — a glyph's ink box
   // is not knowable from a font-family and a size, so the 2.17 units the
