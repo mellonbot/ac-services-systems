@@ -25,6 +25,7 @@
 - `part`
 - `purchase_order`
 - `subcontractor_firm`
+- `crew`
 - `crew_credential`
 - `rate_card`
 - `brand_theme`

@@ -62,6 +62,20 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   parent_contract_ended: "structural",
   empty_window: "structural",
   illegal_transition: "structural",
+  // C4 — the network registry. Structural, all of it: a subcontracted crew with
+  // no firm, a firm activated before its MSA is signed, a second verification of
+  // a document, a rate that begins on a day one already begins — each is a row
+  // that can never be right, and the route is to fix the row.
+  use_firms_create: "structural",
+  unknown_firm: "structural",
+  firm_ended: "structural",
+  firm_required: "structural",
+  firm_not_an_input: "structural",
+  msa_unsigned: "structural",
+  unknown_credential: "structural",
+  already_verified: "structural",
+  rate_begins_same_day: "structural",
+  ac_credential_verification_is_earned: "structural",
 });
 
 export const admissionAxis = (code: string | undefined): AdmissionAxis =>

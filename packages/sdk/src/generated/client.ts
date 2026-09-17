@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 23 today. There is no
+ * One method per operation in the catalogue — 34 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -87,6 +87,48 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["contracts.transition"], input) as Promise<OperationIO["contracts.transition"]["output"]>;
   },
 
+  /** `GET /network/credentials` · query · bearer · surfaces: S2, S8
+   *
+   * The documents on file for a crew or a firm's crews, verified or not. An unverified certificate is on the list AS unverified — it is not hidden, and it does not clear anything. */
+  listCredentials(input: OperationIO["credentials.list"]["input"]): Promise<OperationIO["credentials.list"]["output"]> {
+    return transport.request(OPERATIONS["credentials.list"], input) as Promise<OperationIO["credentials.list"]["output"]>;
+  },
+
+  /** `POST /s2/network/credentials` · mutation · bearer · surfaces: S2
+   *
+   * Put a document on file — kind, identifier, the window it is valid for. ALWAYS unverified: there is no field for verified_at here, and the trigger refuses one on any path. */
+  recordCredential(input: OperationIO["credentials.record"]["input"]): Promise<OperationIO["credentials.record"]["output"]> {
+    return transport.request(OPERATIONS["credentials.record"], input) as Promise<OperationIO["credentials.record"]["output"]>;
+  },
+
+  /** `POST /s2/network/credentials/verify` · mutation · bearer · surfaces: S2
+   *
+   * THE ONLY PATH that sets verified_at — by S2, by the principal doing it, once. After this the document is immutable; a correction is a new document. The gate reads nothing else. */
+  verifyCredential(input: OperationIO["credentials.verify"]["input"]): Promise<OperationIO["credentials.verify"]["output"]> {
+    return transport.request(OPERATIONS["credentials.verify"], input) as Promise<OperationIO["credentials.verify"]["output"]>;
+  },
+
+  /** `POST /s2/network/crews` · mutation · bearer · surfaces: S2
+   *
+   * Record a crew in its home region. An employed crew is ours and names no firm; a subcontracted crew names its firm and is that firm's row. The tenancy follows from which. */
+  createCrew(input: OperationIO["crews.create"]["input"]): Promise<OperationIO["crews.create"]["output"]> {
+    return transport.request(OPERATIONS["crews.create"], input) as Promise<OperationIO["crews.create"]["output"]>;
+  },
+
+  /** `GET /network/crews` · query · bearer · surfaces: S2, S8
+   *
+   * Crews — ours and the firms' — with a document summary per crew: what the gate would need, what is on file, what is verified, and the earliest expiry. Read by S2 and by a firm for its own crews; never by the field layer. */
+  listCrews(input: OperationIO["crews.list"]["input"]): Promise<OperationIO["crews.list"]["output"]> {
+    return transport.request(OPERATIONS["crews.list"], input) as Promise<OperationIO["crews.list"]["output"]>;
+  },
+
+  /** `POST /s2/network/crews/update` · mutation · bearer · surfaces: S2
+   *
+   * Label and active flag. Never the firm, never the home region — a crew that changes employer or region is a new crew with a new document set. */
+  updateCrew(input: OperationIO["crews.update"]["input"]): Promise<OperationIO["crews.update"]["output"]> {
+    return transport.request(OPERATIONS["crews.update"], input) as Promise<OperationIO["crews.update"]["output"]>;
+  },
+
   /** `POST /s3/assign` · mutation · bearer · surfaces: S3
    *
    * The one gated door. A crew that does not clear the whole service window is refused in plain words and nothing is written to assignments. */
@@ -101,6 +143,27 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.stream(OPERATIONS["events.stream"], onEvent, onState);
   },
 
+  /** `POST /s2/network/firms` · mutation · bearer · surfaces: S2
+   *
+   * Record a firm WITH its tenant root in one unit of work: the organizations row and the subcontractor_firms row share an id. A firm starts onboarding, in the region it is dispatched from. OQ5 is stated or the firm is not recorded. */
+  createFirm(input: OperationIO["firms.create"]["input"]): Promise<OperationIO["firms.create"]["output"]> {
+    return transport.request(OPERATIONS["firms.create"], input) as Promise<OperationIO["firms.create"]["output"]>;
+  },
+
+  /** `GET /network/firms` · query · bearer · surfaces: S2, S8
+   *
+   * Subcontractor firms — legal name, status on the ladder, settlement terms, the MSA, OQ5 firm-side, and how many crews they field. S8 sees one row: itself. */
+  listFirms(input: OperationIO["firms.list"]["input"]): Promise<OperationIO["firms.list"]["output"]> {
+    return transport.request(OPERATIONS["firms.list"], input) as Promise<OperationIO["firms.list"]["output"]>;
+  },
+
+  /** `POST /s2/network/firms/update` · mutation · bearer · surfaces: S2
+   *
+   * Attributes and the status ladder: onboarding → active ⇄ suspended → terminated. Activation needs a signed MSA; a step off the ladder is refused by name. */
+  updateFirm(input: OperationIO["firms.update"]["input"]): Promise<OperationIO["firms.update"]["output"]> {
+    return transport.request(OPERATIONS["firms.update"], input) as Promise<OperationIO["firms.update"]["output"]>;
+  },
+
   /** `POST /s2/organizations` · mutation · bearer · surfaces: S2
    *
    * Create a customer parent WITH its first region node in one unit of work. No orphan parent: a parent never exists without a place we serve it from. */
@@ -113,6 +176,20 @@ export const createGatewayClient = (transport: Transport) => ({
    * Customer and subcontractor organizations — the parent tier — with how many of our regions each one meets. */
   listOrganizations(input: OperationIO["organizations.list"]["input"]): Promise<OperationIO["organizations.list"]["output"]> {
     return transport.request(OPERATIONS["organizations.list"], input) as Promise<OperationIO["organizations.list"]["output"]>;
+  },
+
+  /** `GET /network/rate-cards` · query · bearer · surfaces: S2, S8
+   *
+   * A firm's rates by service code over time. A firm sees its own and no other's — RLS, not a WHERE clause. */
+  listRateCards(input: OperationIO["rateCards.list"]["input"]): Promise<OperationIO["rateCards.list"]["output"]> {
+    return transport.request(OPERATIONS["rateCards.list"], input) as Promise<OperationIO["rateCards.list"]["output"]>;
+  },
+
+  /** `POST /s2/network/rate-cards` · mutation · bearer · surfaces: S2
+   *
+   * Set a rate from a day forward: the row in effect that day is closed at it and the new row inserted, both audited. A row that would overlap is refused by the EXCLUDE constraint — two prices at once is unrepresentable, not tie-broken. */
+  setRateCard(input: OperationIO["rateCards.set"]["input"]): Promise<OperationIO["rateCards.set"]["output"]> {
+    return transport.request(OPERATIONS["rateCards.set"], input) as Promise<OperationIO["rateCards.set"]["output"]>;
   },
 
   /** `GET /regions` · query · bearer · surfaces: S2, S3
@@ -175,4 +252,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "login", "logout", "setBrandTheme", "brandTheme", "createContract", "listContracts", "transitionContract", "assignCrew", "events", "createOrganization", "listOrganizations", "listRegions", "me", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "login", "logout", "setBrandTheme", "brandTheme", "createContract", "listContracts", "transitionContract", "listCredentials", "recordCredential", "verifyCredential", "createCrew", "listCrews", "updateCrew", "assignCrew", "events", "createFirm", "listFirms", "updateFirm", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "me", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);

@@ -144,6 +144,67 @@ export const OPERATIONS = {
     summary: "The term policy register as data — value kind, enum values, authoring tiers, rationale. S2 renders the override form FROM this, so a twelfth term is a register diff and the form follows.",
   },
 
+  // ---- C4: the subcontractor network S2 records (09 §3.6, item 7) ----
+  // Reads are served to S8 as well: a firm reads its own row, its own crews,
+  // its own documents and its own price, and RLS is what makes "its own" true.
+  // Writes are S2's. S8's intake (a firm PROPOSING a document) is a separate
+  // operation with its own entity, not yet in the catalogue.
+  "firms.list": {
+    id: "firms.list", method: "GET", path: "/network/firms", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listFirms",
+    summary: "Subcontractor firms — legal name, status on the ladder, settlement terms, the MSA, OQ5 firm-side, and how many crews they field. S8 sees one row: itself.",
+  },
+  "firms.create": {
+    id: "firms.create", method: "POST", path: "/s2/network/firms", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createFirm",
+    summary: "Record a firm WITH its tenant root in one unit of work: the organizations row and the subcontractor_firms row share an id. A firm starts onboarding, in the region it is dispatched from. OQ5 is stated or the firm is not recorded.",
+  },
+  "firms.update": {
+    id: "firms.update", method: "POST", path: "/s2/network/firms/update", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "updateFirm",
+    summary: "Attributes and the status ladder: onboarding → active ⇄ suspended → terminated. Activation needs a signed MSA; a step off the ladder is refused by name.",
+  },
+  "crews.list": {
+    id: "crews.list", method: "GET", path: "/network/crews", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listCrews",
+    summary: "Crews — ours and the firms' — with a document summary per crew: what the gate would need, what is on file, what is verified, and the earliest expiry. Read by S2 and by a firm for its own crews; never by the field layer.",
+  },
+  "crews.create": {
+    id: "crews.create", method: "POST", path: "/s2/network/crews", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createCrew",
+    summary: "Record a crew in its home region. An employed crew is ours and names no firm; a subcontracted crew names its firm and is that firm's row. The tenancy follows from which.",
+  },
+  "crews.update": {
+    id: "crews.update", method: "POST", path: "/s2/network/crews/update", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "updateCrew",
+    summary: "Label and active flag. Never the firm, never the home region — a crew that changes employer or region is a new crew with a new document set.",
+  },
+  "credentials.list": {
+    id: "credentials.list", method: "GET", path: "/network/credentials", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listCredentials",
+    summary: "The documents on file for a crew or a firm's crews, verified or not. An unverified certificate is on the list AS unverified — it is not hidden, and it does not clear anything.",
+  },
+  "credentials.record": {
+    id: "credentials.record", method: "POST", path: "/s2/network/credentials", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "recordCredential",
+    summary: "Put a document on file — kind, identifier, the window it is valid for. ALWAYS unverified: there is no field for verified_at here, and the trigger refuses one on any path.",
+  },
+  "credentials.verify": {
+    id: "credentials.verify", method: "POST", path: "/s2/network/credentials/verify", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "verifyCredential",
+    summary: "THE ONLY PATH that sets verified_at — by S2, by the principal doing it, once. After this the document is immutable; a correction is a new document. The gate reads nothing else.",
+  },
+  "rateCards.list": {
+    id: "rateCards.list", method: "GET", path: "/network/rate-cards", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listRateCards",
+    summary: "A firm's rates by service code over time. A firm sees its own and no other's — RLS, not a WHERE clause.",
+  },
+  "rateCards.set": {
+    id: "rateCards.set", method: "POST", path: "/s2/network/rate-cards", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "setRateCard",
+    summary: "Set a rate from a day forward: the row in effect that day is closed at it and the new row inserted, both audited. A row that would overlap is refused by the EXCLUDE constraint — two prices at once is unrepresentable, not tie-broken.",
+  },
+
   // ---- S3 ----
   "dispatch.assign": {
     id: "dispatch.assign", method: "POST", path: "/s3/assign", kind: "mutation", auth: "bearer",
@@ -378,6 +439,143 @@ export type ListTermOverridesOutput = { readonly overrides: readonly TermOverrid
 /** The register as data. S2 builds the override form from this rather than hard-coding eleven inputs. */
 export type TermRegisterOutput = { readonly terms: readonly TermPolicy[] };
 
+// ---- C4 wire shapes ----
+export type FirmStatus = "onboarding" | "active" | "suspended" | "terminated";
+export type FirmWire = {
+  /** The firm's id IS its organization's id — one tenant root, one operational row, created together. */
+  readonly id: string;
+  readonly legalName: string;
+  readonly status: FirmStatus;
+  /** OUR region the firm is dispatched from — its crews' home by default and the shard its rows live in. */
+  readonly regionId: string;
+  /** D13. Measured from day one. */
+  readonly settlementTermsDays: number;
+  readonly msaSignedAt: string | null;
+  /** OQ5, firm side. Always stated — the row does not exist otherwise. */
+  readonly diagnosticDataRightsReserved: boolean;
+  readonly w9DocumentKey: string | null;
+  readonly crewCount: number;
+  readonly activeCrewCount: number;
+};
+export type ListFirmsInput = { readonly status?: FirmStatus };
+export type ListFirmsOutput = { readonly firms: readonly FirmWire[] };
+
+export type CreateFirmInput = {
+  readonly legalName: string;
+  /** OUR region — the one the firm is dispatched from. An input here, because a firm is a root and has no edge to derive it from. */
+  readonly regionId: string;
+  readonly settlementTermsDays: number;
+  /** OQ5, firm side. No default: absent or non-boolean is a 400 — no position was stated. */
+  readonly diagnosticDataRightsReserved: boolean;
+  readonly msaSignedAt?: string;
+  readonly w9DocumentKey?: string;
+  readonly externalRef?: string;
+};
+export type CreateFirmOutput = { readonly id: string; readonly regionId: string; readonly eventId: string };
+
+export type UpdateFirmInput = {
+  readonly firmId: string;
+  readonly legalName?: string;
+  readonly settlementTermsDays?: number;
+  readonly msaSignedAt?: string | null;
+  readonly w9DocumentKey?: string | null;
+  /** A step on the ladder. Refused by name when it is not an edge from the current status. */
+  readonly status?: Exclude<FirmStatus, "onboarding">;
+};
+export type UpdateFirmOutput = { readonly id: string; readonly status: FirmStatus; readonly eventId: string };
+
+export type EmploymentType = "employed" | "subcontracted";
+/** What the gate would say about this crew's documents today — not a clearance, a summary S2 reads. */
+export type CrewDocumentSummary = {
+  /** The kinds the gate requires for this employment shape (domain/compliance/gate.ts REQUIRED). */
+  readonly required: readonly string[];
+  /** Required kinds with a VERIFIED document on file whose window includes today. */
+  readonly satisfied: readonly string[];
+  /** Required kinds with a document on file but none verified. */
+  readonly unverified: readonly string[];
+  /** Required kinds with a verified document on file, none of which covers today. */
+  readonly expired: readonly string[];
+  /** Required kinds with nothing on file at all. */
+  readonly missing: readonly string[];
+  /** Earliest valid_to among the verified documents that satisfy a required kind, ISO date, or null. */
+  readonly earliestExpiry: string | null;
+};
+export type CrewWire = {
+  readonly id: string;
+  readonly label: string;
+  readonly employmentType: EmploymentType;
+  readonly firmId: string | null;
+  readonly homeRegionId: string;
+  readonly active: boolean;
+  readonly documents: CrewDocumentSummary;
+};
+export type ListCrewsInput = { readonly firmId?: string; readonly regionId?: string };
+export type ListCrewsOutput = { readonly crews: readonly CrewWire[] };
+
+export type CreateCrewInput = {
+  readonly label: string;
+  readonly employmentType: EmploymentType;
+  /** Required for a subcontracted crew; refused for an employed one. */
+  readonly firmId?: string;
+  /** OUR region the crew is normally dispatched from. Its tenancy region on insert. */
+  readonly homeRegionId: string;
+};
+export type CreateCrewOutput = { readonly id: string; readonly regionId: string; readonly eventId: string };
+export type UpdateCrewInput = { readonly crewId: string; readonly label?: string; readonly active?: boolean };
+export type UpdateCrewOutput = { readonly id: string; readonly eventId: string };
+
+export type CredentialKind = "insurance" | "license" | "certification" | "background_check";
+export type CredentialWire = {
+  readonly id: string;
+  readonly crewId: string;
+  readonly kind: CredentialKind;
+  readonly identifier: string;
+  /** ISO dates, both inclusive — the gate covers the whole service window with them. */
+  readonly validFrom: string;
+  readonly validTo: string;
+  readonly documentKey: string | null;
+  readonly verifiedAt: string | null;
+  readonly verifiedBy: string | null;
+};
+export type ListCredentialsInput = { readonly crewId?: string; readonly firmId?: string };
+export type ListCredentialsOutput = { readonly credentials: readonly CredentialWire[] };
+export type RecordCredentialInput = {
+  readonly crewId: string;
+  readonly kind: CredentialKind;
+  readonly identifier: string;
+  readonly validFrom: string;
+  readonly validTo: string;
+  readonly documentKey?: string;
+};
+export type RecordCredentialOutput = { readonly id: string; readonly eventId: string };
+export type VerifyCredentialInput = { readonly credentialId: string };
+export type VerifyCredentialOutput = { readonly id: string; readonly verifiedAt: string; readonly verifiedBy: string; readonly eventId: string };
+
+export type RateCardWire = {
+  readonly id: string;
+  readonly firmId: string;
+  readonly serviceCode: string;
+  /** Integer minor units as a STRING. A JSON number is a double. */
+  readonly rateMinor: string;
+  readonly currency: string;
+  readonly effectiveFrom: string;
+  /** Exclusive; null = open. */
+  readonly effectiveTo: string | null;
+};
+export type ListRateCardsInput = { readonly firmId: string; readonly serviceCode?: string };
+export type ListRateCardsOutput = { readonly rateCards: readonly RateCardWire[] };
+export type SetRateCardInput = {
+  readonly firmId: string;
+  readonly serviceCode: string;
+  /** Integer minor units as a string of digits. */
+  readonly rateMinor: string;
+  readonly currency: string;
+  /** ISO date the new rate takes effect. The row in effect that day is closed at it. */
+  readonly effectiveFrom: string;
+  readonly effectiveTo?: string | null;
+};
+export type SetRateCardOutput = { readonly id: string; readonly closedId: string | null; readonly eventId: string };
+
 export type AssignInput = { readonly jobId: string; readonly crewId: string; readonly orgId: string; readonly regionId: string };
 export type ComplianceRefusalWire = {
   readonly ok: false;
@@ -487,6 +685,17 @@ export type OperationIO = {
   "contracts.transition": { input: TransitionContractInput; output: TransitionContractOutput };
   "terms.overrides.list": { input: ListTermOverridesInput; output: ListTermOverridesOutput };
   "terms.register": { input: void; output: TermRegisterOutput };
+  "firms.list": { input: ListFirmsInput; output: ListFirmsOutput };
+  "firms.create": { input: CreateFirmInput; output: CreateFirmOutput };
+  "firms.update": { input: UpdateFirmInput; output: UpdateFirmOutput };
+  "crews.list": { input: ListCrewsInput; output: ListCrewsOutput };
+  "crews.create": { input: CreateCrewInput; output: CreateCrewOutput };
+  "crews.update": { input: UpdateCrewInput; output: UpdateCrewOutput };
+  "credentials.list": { input: ListCredentialsInput; output: ListCredentialsOutput };
+  "credentials.record": { input: RecordCredentialInput; output: RecordCredentialOutput };
+  "credentials.verify": { input: VerifyCredentialInput; output: VerifyCredentialOutput };
+  "rateCards.list": { input: ListRateCardsInput; output: ListRateCardsOutput };
+  "rateCards.set": { input: SetRateCardInput; output: SetRateCardOutput };
   "dispatch.assign": { input: AssignInput; output: AssignOutput };
   "sync.replay": { input: SyncReplayInput; output: SyncReplayOutput };
   "brand.setTheme": { input: BrandThemeInput; output: BrandThemeOutput };

@@ -55,6 +55,17 @@ const admin = async (sql: string, params: unknown[] = []) => {
   try { return (await c.query(sql, params)).rows; } finally { c.release(); }
 };
 
+/** What S2 does when it verifies: one scope-bound transaction, verified_by = the acting principal. The only way 0005 lets verified_at be set. */
+const verifyAsS2 = async (where: string, params: unknown[], actorId: string, at: string) => {
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SELECT set_config('ac.namespace','internal',true), set_config('ac.surface_id','S2',true), set_config('ac.actor_id',$1,true)", [actorId]);
+    await c.query(`UPDATE crew_credentials SET verified_at = $${params.length + 1}::timestamptz, verified_by = $${params.length + 2} WHERE ${where}`, [...params, at, actorId]);
+    await c.query("COMMIT");
+  } catch (e) { await c.query("ROLLBACK").catch(() => {}); throw e; } finally { c.release(); }
+};
+
 /** Unit of work under a principal, rolled back at the end of the test. */
 const withUow = async <T>(surface: "S2" | "S3" | "S5" | "S6" | "S8", p: Principal, fn: (uow: Awaited<ReturnType<typeof createUnitOfWork>>, tx: Tx) => Promise<T>): Promise<T> => {
   const tx = await beginTx(pool, "ac_gateway");
@@ -101,13 +112,17 @@ before(async () => {
   await admin(`INSERT INTO rate_cards (org_id, region_id, firm_id, service_code, rate_minor, currency, effective) VALUES
     ($1,$3,$1,'HVAC_REPAIR',9500,'USD','[2026-01-01,)'), ($2,$3,$2,'HVAC_REPAIR',8800,'USD','[2026-01-01,)') ON CONFLICT DO NOTHING`, [FIRM_A, FIRM_B, REGION_SOUTH]);
   // Credentials for crew A: full set, verified. Insurance expires 2026-09-20 — the one that matters.
+  // Since 0005 a document ARRIVES unverified on every path, the superuser's
+  // included, and is verified by S2 as a separate act — so the fixture does
+  // what S2 does: record, then verify inside a scope-bound transaction.
   await admin(`DELETE FROM crew_credentials WHERE crew_id IN ($1,$2)`, [CREW_A, CREW_B]);
   for (const [kind, to] of [["insurance", "2026-09-20"], ["license", "2027-12-31"], ["background_check", "2027-12-31"]] as const) {
-    await admin(`INSERT INTO crew_credentials (org_id, region_id, crew_id, kind, identifier, valid_from, valid_to, verified_at, verified_by) VALUES ($1,$2,$3,$4,$5,'2025-01-01',$6,'2026-01-05',$7)`,
-      [FIRM_A, REGION_SOUTH, CREW_A, kind, `${kind}-A`, to, USER_OPS]);
+    await admin(`INSERT INTO crew_credentials (org_id, region_id, crew_id, kind, identifier, valid_from, valid_to) VALUES ($1,$2,$3,$4,$5,'2025-01-01',$6)`,
+      [FIRM_A, REGION_SOUTH, CREW_A, kind, `${kind}-A`, to]);
   }
   // Crew B: insurance on file but never verified.
-  await admin(`INSERT INTO crew_credentials (org_id, region_id, crew_id, kind, identifier, valid_from, valid_to, verified_at) VALUES ($1,$2,$3,'insurance','ins-B','2025-01-01','2027-12-31',NULL), ($1,$2,$3,'license','lic-B','2025-01-01','2027-12-31','2026-01-05'), ($1,$2,$3,'background_check','bg-B','2025-01-01','2027-12-31','2026-01-05')`, [FIRM_B, REGION_SOUTH, CREW_B]);
+  await admin(`INSERT INTO crew_credentials (org_id, region_id, crew_id, kind, identifier, valid_from, valid_to) VALUES ($1,$2,$3,'insurance','ins-B','2025-01-01','2027-12-31'), ($1,$2,$3,'license','lic-B','2025-01-01','2027-12-31'), ($1,$2,$3,'background_check','bg-B','2025-01-01','2027-12-31')`, [FIRM_B, REGION_SOUTH, CREW_B]);
+  await verifyAsS2(`crew_id = $1 OR (crew_id = $2 AND kind <> 'insurance')`, [CREW_A, CREW_B], USER_OPS, "2026-01-05");
   // Sites under El Paso and Austin, for jobs.
   for (const [id, loc, name] of [[U(40), N.elPaso, "El Paso — Roof"], [U(41), N.austin, "Austin — Roof"]] as const) {
     await admin(`INSERT INTO accounts (id, org_id, region_id, parent_id, tier, name) VALUES ($1,$2,$3,$4,'site',$5) ON CONFLICT (id) DO NOTHING`, [id, ORG, REGION_SOUTH, loc, name]);
