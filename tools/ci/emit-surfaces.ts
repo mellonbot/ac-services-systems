@@ -37,7 +37,29 @@ export const renderPackageJson = (s: Surface): string => JSON.stringify({
   dependencies: { "@ac/shell": "workspace:*", "@ac/ui": "workspace:*", "@ac/contracts": "workspace:*" },
 }, null, 2) + "\n";
 
-export const renderMain = (s: Surface): string => `import { createShell, connectShell, type ConnectConfig } from "../../../packages/shell/src/index.ts";
+/**
+ * The white-label entrypoint, for a surface the registry says a tenant may
+ * repaint. Kept out of the template above only because it is a template inside
+ * a template; it is emitted verbatim into the surface's main.ts.
+ *
+ * The slot is passed IN rather than looked up here, so the surface layer still
+ * names no DOM type and still runs under node --test.
+ */
+const BRAND_ENTRYPOINT = (s: Surface): string => `
+/**
+ * White-label. Called FIRST, before connect() — a portal branded only after a
+ * successful password looks like someone else's until you are already inside it.
+ *
+ *   await brand({ baseUrl, fetch, host: location.hostname }, document.getElementById("ac-brand"));
+ *
+ * It cannot fail in a way that matters: no theme, no answer and an unknown host
+ * all leave the page in the plate the frame already carries.
+ */
+export const brand = (cfg: Omit<BrandConfig, "surfaceId">, slot: BrandSlot | null) =>
+  installBrand({ ...cfg, surfaceId: "${s.id}" }, slot);
+`;
+
+export const renderMain = (s: Surface): string => `import { createShell, connectShell, type ConnectConfig${s.whiteLabel ? ", installBrand, type BrandConfig, type BrandSlot" : ""} } from "../../../packages/shell/src/index.ts";
 import { SURFACES } from "../../../packages/contracts/src/index.ts";
 import type { Principal } from "../../../packages/contracts/src/index.ts";
 
@@ -66,7 +88,7 @@ export const boot = (principal: Principal) => createShell({ surfaceId: "${s.id}"
 
 /** Live shell — login, hierarchy context, generated client, event stream, degraded flag. */
 export const connect = (cfg: Omit<ConnectConfig, "surfaceId">) => connectShell({ ...cfg, surfaceId: "${s.id}" });
-`;
+${s.whiteLabel ? BRAND_ENTRYPOINT(s) : ""}`;
 
 /**
  * The frame. One file per surface, identical in shape across all eight; what
@@ -121,7 +143,14 @@ export const renderFrame = (s: Surface): string => `<!doctype html>
 <meta name="theme-color" content="${semanticFor(s.density)["color.surface"]}">
 <link rel="icon" href="${faviconDataUri(16)}">
 <style>${tokenCss(s.density, { brandLayer: !s.stateRamp })}</style>
-<link rel="stylesheet" href="/ui.css">
+<link rel="stylesheet" href="/ui.css">${s.whiteLabel ? `
+<!-- The tenant's slot. EMPTY in the file, and the order is the mechanism: the
+     plate above is what the page renders with when nothing fills this, so a
+     portal with no theme, an unreachable gateway or a host we do not know is
+     Rankine's own livery and never an unstyled page. The shell fills it from
+     brand.theme with a block packages/tokens already scoped away from the
+     field ground. Only a whiteLabel surface has it. -->
+<style id="ac-brand"></style>` : ""}
 </head>
 <body>
 <ac-degraded hidden role="alert" data-density="${s.density}">${escapeHtml(s.degraded)}</ac-degraded>
@@ -150,6 +179,7 @@ export const renderReadme = (s: Surface): string => {
 | Realtime | ${s.realtime ? "hard requirement" : "no"} |
 | State ramp | ${s.stateRamp ? "yes — the brand accent is barred here and resolves to Ink Black" : "no — this surface wears the brand red"} |
 | Offline writes | ${s.offline ? "yes — device holds intent, server holds truth" : "no"} |
+| White-label | ${s.whiteLabel ? "yes — a tenant may repaint the accent slots; the state ramp, the focus ring and the structural tokens are not themeable" : "no — Rankine's plate, always"} |
 
 ## Writes
 

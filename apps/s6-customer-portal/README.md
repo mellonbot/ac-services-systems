@@ -14,6 +14,7 @@
 | Realtime | no |
 | State ramp | yes — the brand accent is barred here and resolves to Ink Black |
 | Offline writes | no |
+| White-label | yes — a tenant may repaint the accent slots; the state ramp, the focus ring and the structural tokens are not themeable |
 
 ## Writes
 

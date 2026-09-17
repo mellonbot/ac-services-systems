@@ -14,6 +14,7 @@
 | Realtime | no |
 | State ramp | no — this surface wears the brand red |
 | Offline writes | no |
+| White-label | no — Rankine's plate, always |
 
 ## Writes
 

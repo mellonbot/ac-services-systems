@@ -1,4 +1,4 @@
-import { createShell, connectShell, type ConnectConfig } from "../../../packages/shell/src/index.ts";
+import { createShell, connectShell, type ConnectConfig, installBrand, type BrandConfig, type BrandSlot } from "../../../packages/shell/src/index.ts";
 import { SURFACES } from "../../../packages/contracts/src/index.ts";
 import type { Principal } from "../../../packages/contracts/src/index.ts";
 
@@ -27,3 +27,15 @@ export const boot = (principal: Principal) => createShell({ surfaceId: "S6", pri
 
 /** Live shell — login, hierarchy context, generated client, event stream, degraded flag. */
 export const connect = (cfg: Omit<ConnectConfig, "surfaceId">) => connectShell({ ...cfg, surfaceId: "S6" });
+
+/**
+ * White-label. Called FIRST, before connect() — a portal branded only after a
+ * successful password looks like someone else's until you are already inside it.
+ *
+ *   await brand({ baseUrl, fetch, host: location.hostname }, document.getElementById("ac-brand"));
+ *
+ * It cannot fail in a way that matters: no theme, no answer and an unknown host
+ * all leave the page in the plate the frame already carries.
+ */
+export const brand = (cfg: Omit<BrandConfig, "surfaceId">, slot: BrandSlot | null) =>
+  installBrand({ ...cfg, surfaceId: "S6" }, slot);

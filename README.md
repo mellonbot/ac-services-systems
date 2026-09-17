@@ -56,7 +56,7 @@ is worth restating because every structural decision here is an instance of it:
 ```bash
 # Zero install — a laptop with Node 22.18+ and nothing else.
 node tools/ci/schema-guard.ts       # every structural invariant, against the definitions
-npm run guard:test                  # 187 unit tests: resolver, admission, gate, sync, SLA, money, D14, uow, auth, session, refusals, hierarchy and contract handlers, catalogue, sdk, shell, tokens→CSS, the accent gate, the brand layer, PR titles
+npm run guard:test                  # 193 unit tests: resolver, admission, gate, sync, SLA, money, D14, uow, auth, session, refusals, hierarchy and contract handlers, catalogue, sdk, shell, tokens→CSS, the accent gate, the brand layer, the badge, PR titles
 npm run guard:all                   # both
 npm run sdk:generate                # regenerate the client from the operation catalogue
 npm run sdk:check                   # fail on drift (the guard runs this too)
@@ -99,14 +99,19 @@ apps/gateway/         the sole access path
 apps/worker/          outbox relay (SKIP LOCKED), credential-expiry sweep, SLA cascade
 packages/contracts/   TIERS · TERMS (the policy register, two axes) · TOPICS · SURFACES · OPERATIONS (the catalogue, 32 rows) · refusals (the axis) · Claims/Principal
 packages/sdk/         generated/client.ts (emitted from OPERATIONS by tools/ci/emit-sdk.ts) + runtime.ts (THE ONLY FILE ABOVE THE GATEWAY THAT TOUCHES THE WIRE)
-packages/shell/       S0: createShell (registry checks), connectShell (login → me → shell), subscribe (SSE, dedupe), refusalOf, degraded driven by the wire
-packages/tokens/      primitives → semantic → density → white-label (contrast-validated against every ground each ink is permitted on); brand.ts holds the marks and the badge geometry; type.ts the five type roles; css.ts emits it all as :root variables per density and per surface (field is a fixed dark ground, not a theme)
+packages/shell/       S0: createShell (registry checks), connectShell (login → me → shell), subscribe (SSE, dedupe), refusalOf, degraded driven by the wire; brand.ts installs a tenant's block BEFORE login — a portal is branded on its sign-in screen
+packages/tokens/      primitives → semantic → density → white-label (contrast-validated against every ground each ink is permitted on); brand.ts holds the marks and the badge geometry; type.ts the five type roles; css.ts emits it all as :root variables per density and per surface (field is a fixed dark ground, not a theme); brandCss scopes a tenant block away from the plate
 packages/ui/          THE RENDERER BOUNDARY: preact/htm/signals pinned here alone (render.ts); components typed to their spec's densities — StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner; router over the History API from a SCREENS registry; UI_CSS (roles only, no colours)
 apps/s1 … s8/         generated from SURFACES by tools/ci/emit-surfaces.ts — package.json, src/main.ts, frame.html (density, tokens, degraded slot, mount), README; each boots through the shell and can call nothing else
 apps/s2-service-manager/src/  the first surface with screens: screens.ts (the registry the guard reads), app.ts (cookie boot → login or tree; router; degraded slot; account, contract and network events → refetch), state.ts (resources as signals, invalidated by prefix), screens/ (accounts-tree, accounts-new, accounts-move, organizations-new, contracts-list, contracts-new, terms-override, terms-resolved, network, network-new, network-documents, network-rates)
 packages/domain/src/supply/   D14 as a decision function: rule unset → caveat; set and unmet → commercial refusal
 tools/ci/             schema-guard (zero-install) · emit-schema · emit-sdk · emit-surfaces (--check) · build-surface (esbuild; the only step that needs an install) · migrate
 packages/schema/      operationalTable() and 43 tables; migrations 0001 (generated), 0002 (guardrails), 0003 (assert), 0004 (refusal codes — every trigger raises with an ERRCODE), 0005 (the network registry — verification earned and immutable, firm isolation), repeatable/
+apps/s1 … s8/         generated from SURFACES by tools/ci/emit-surfaces.ts — package.json, src/main.ts, frame.html (density, tokens, degraded slot, brand slot on a whiteLabel surface, mount), README; each boots through the shell and can call nothing else
+apps/s2-service-manager/src/  the first surface with screens: screens.ts (the registry the guard reads), app.ts (cookie boot → login or tree; router; degraded slot; account, contract and network events → refetch), state.ts (resources as signals, invalidated by prefix), screens/ (accounts-tree, accounts-new, accounts-move, organizations-new, contracts-list, contracts-new, terms-override, terms-resolved, network, network-new, network-documents, network-rates)
+packages/domain/src/supply/   D14 as a decision function: rule unset → caveat; set and unmet → commercial refusal
+tools/ci/             schema-guard (zero-install) · emit-schema · emit-sdk · emit-surfaces (--check) · build-surface (esbuild; the only step that needs an install) · migrate
+packages/schema/      operationalTable() and 44 tables; migrations 0001 (generated), 0002 (guardrails), 0003 (assert), 0004 (refusal codes — every trigger raises with an ERRCODE), 0005 (the network registry — verification earned and immutable, firm isolation), repeatable/
 packages/domain/      no I/O: inheritance/{resolve,admit} · compliance · sync · sla · money · billing
 test/integration/     backbone.test.ts — the contract against a live Postgres · s0-shell.test.ts — the shell against a spawned gateway · s2-c1 · s2-c2 · s2-c4
 docs/BACKBONE_CONTRACT.md   B2

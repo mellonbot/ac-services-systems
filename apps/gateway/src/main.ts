@@ -13,6 +13,7 @@ import { listRegions, listOrganizations, createOrganization, listAccounts, creat
 import { listContracts, createContract, transitionContract, listTermOverrides, termRegister } from "./handlers/contracts.ts";
 import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, listCredentials, recordCredential, verifyCredential, listRateCards, setRateCard } from "./handlers/network.ts";
 import { ingestSync } from "./handlers/sync.ts";
+import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
 import { SURFACES, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
@@ -307,6 +308,32 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
     sseClients.add(client);
     req.on("close", () => sseClients.delete(client));
     return STREAMING;
+  },
+
+  // S2 — store a tenant's white-label. Validated against the ink schedule before
+  // it is a row; a theme that would break the portal is a 422 with the ratio.
+  "brand.setTheme": (req, input) => withUow(req, "brand.setTheme", (uow, p) => setBrandTheme(uow, p.subjectId, input)),
+
+  /**
+   * The one read with no principal behind it, and the reason is the product's:
+   * a customer portal is branded on its SIGN-IN screen. There is no token yet,
+   * no session to assert live, and no scope to bind — so this opens its own
+   * unscoped transaction the way login does, reads one indexed row by host, and
+   * rolls back.
+   *
+   * It is safe to leave open because it answers the same shape for every host:
+   * a known one gets its stylesheet, an unknown one gets Rankine's plate and
+   * `tenant: false`. Nothing here distinguishes "not a customer" from "no theme
+   * set", so the route cannot be walked to enumerate tenants. A theme is public
+   * by construction anyway — it is the colours on a page anyone can load.
+   */
+  "brand.theme": async (req) => {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    // The query wins so a surface can ask on behalf of the host it is served
+    // from; the Host header is the fallback for a portal on its own domain.
+    const host = url.searchParams.get("host") ?? req.headers.host;
+    const tx = await beginTx(pool, "ac_gateway");
+    try { return await brandStylesheetFor(tx, host ?? undefined); } finally { await tx.rollback().catch(() => {}); }
   },
 
   "system.health": async () => ({ ok: true, surfaces: Object.values(SURFACES).filter((s) => s.enabled).map((s) => s.id) }),

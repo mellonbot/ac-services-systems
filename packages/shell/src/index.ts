@@ -23,6 +23,10 @@ import { guardedTransport, unconnectedTransport } from "./transport.ts";
  *
  * Implemented once because eight implementations means eight, and by the third
  * one somebody has quietly skipped the audit emitter for a "read-mostly" screen.
+ *
+ * White-label lives beside this in ./brand.ts rather than inside `connectShell`,
+ * because it has to run before login: a portal branded only after a successful
+ * password looks like someone else's until you are already inside it.
  */
 export type ShellConfig = {
   readonly surfaceId: SurfaceId;
@@ -179,3 +183,5 @@ export const connectShell = async (cfg: ConnectConfig): Promise<ConnectedShell> 
   // Spread copies own enumerable symbol keys too, so the DEGRADED handle travels with it.
   return Object.freeze({ ...shell, token: () => token, logout });
 };
+
+export { applyBrand, fetchBrand, installBrand, type BrandSlot, type BrandConfig, type BrandResult } from "./brand.ts";

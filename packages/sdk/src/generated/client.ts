@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 32 today. There is no
+ * One method per operation in the catalogue — 34 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -50,6 +50,20 @@ export const createGatewayClient = (transport: Transport) => ({
    * Revoke the session behind this token and clear the session cookie. The next request with either is 401 revoked. */
   logout(): Promise<OperationIO["auth.logout"]["output"]> {
     return transport.request(OPERATIONS["auth.logout"], undefined) as Promise<OperationIO["auth.logout"]["output"]>;
+  },
+
+  /** `POST /s2/brand/theme` · mutation · bearer · surfaces: S2
+   *
+   * Store a tenant's white-label theme. Validated against the ink schedule BEFORE it is a row: a theme that would break the portal is a 422 with the ratio, not a stylesheet nobody looks at until a customer does. */
+  setBrandTheme(input: OperationIO["brand.setTheme"]["input"]): Promise<OperationIO["brand.setTheme"]["output"]> {
+    return transport.request(OPERATIONS["brand.setTheme"], input) as Promise<OperationIO["brand.setTheme"]["output"]>;
+  },
+
+  /** `GET /brand/theme` · system · none · surfaces: S6
+   *
+   * The stored theme for a host, as the stylesheet the shell installs. Unauthenticated because a portal is branded on its sign-in screen, before a principal exists; an unknown host gets Rankine's own plate rather than a 404, so the route cannot be used to ask which tenants exist. */
+  brandTheme(input: OperationIO["brand.theme"]["input"]): Promise<OperationIO["brand.theme"]["output"]> {
+    return transport.request(OPERATIONS["brand.theme"], input) as Promise<OperationIO["brand.theme"]["output"]>;
   },
 
   /** `POST /s2/contracts` · mutation · bearer · surfaces: S2
@@ -238,4 +252,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "login", "logout", "createContract", "listContracts", "transitionContract", "listCredentials", "recordCredential", "verifyCredential", "createCrew", "listCrews", "updateCrew", "assignCrew", "events", "createFirm", "listFirms", "updateFirm", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "me", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "login", "logout", "setBrandTheme", "brandTheme", "createContract", "listContracts", "transitionContract", "listCredentials", "recordCredential", "verifyCredential", "createCrew", "listCrews", "updateCrew", "assignCrew", "events", "createFirm", "listFirms", "updateFirm", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "me", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);

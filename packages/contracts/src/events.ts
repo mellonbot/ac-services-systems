@@ -10,6 +10,8 @@
 export const TOPICS = [
   // hierarchy and contract — S2 authors, everything subscribes
   "account.created", "account.updated", "account.deactivated",
+  // a tenant's white-label. INV subscribes: the portal is the surface it repaints.
+  "brand.theme_set",
   "contract.created", "contract.amended", "contract.term_overridden", "contract.expired",
   // work
   "job.created", "job.assigned", "job.transitioned", "job.reassigned", "job.cancelled", "job.completed",
@@ -65,7 +67,8 @@ export type EventEnvelope = Pick<DomainEvent, "eventId" | "topic" | "entity" | "
 export const SUBSCRIBERS: Readonly<Record<"OFC" | "FLD" | "INV" | "WORKER", readonly Topic[]>> = {
   OFC: ["job.transitioned", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended"],
   FLD: ["job.assigned", "job.reassigned", "job.cancelled", "contract.term_overridden"],
-  // S8 learns of its own verification and its own price the same way S2 does — by refetch.
-  INV: ["job.completed", "contract.amended", "contract.term_overridden", "sla.breached", "settlement.statement_issued", "firm.status_changed", "credential.verified", "rate_card.changed"],
+  // S8 learns of its own verification and its own price the same way S2 does — by refetch;
+  // the customer portal learns its own theme the same way — by reinstalling the block.
+  INV: ["job.completed", "contract.amended", "contract.term_overridden", "sla.breached", "settlement.statement_issued", "firm.status_changed", "credential.verified", "rate_card.changed", "brand.theme_set"],
   WORKER: ["job.created", "job.assigned", "sla.timer_opened", "credential.verified"],
 };

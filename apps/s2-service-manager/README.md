@@ -14,6 +14,7 @@
 | Realtime | no |
 | State ramp | yes — the brand accent is barred here and resolves to Ink Black |
 | Offline writes | no |
+| White-label | no — Rankine's plate, always |
 
 ## Writes
 
@@ -27,6 +28,7 @@
 - `crew`
 - `crew_credential`
 - `rate_card`
+- `brand_theme`
 
 ## Degraded mode
 
