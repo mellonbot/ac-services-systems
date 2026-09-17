@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderFrame, renderMain } from "./emit-surfaces.ts";
+import { renderFrame, renderMain, renderStatusApp } from "./emit-surfaces.ts";
 import { SURFACES, SURFACE_IDS, WHITE_LABEL_SURFACES } from "../../packages/contracts/src/index.ts";
 
 /**
@@ -39,4 +39,13 @@ test("a white-label surface's entrypoint exposes the install, and the others do 
     assert.equal(/installBrand/.test(main), SURFACES[id].whiteLabel, id);
   }
   assert.match(renderMain(SURFACES.S6), /before connect\(\)/, "the order is the point: branding precedes login");
+});
+
+test("shared status entries mount a non-empty surface without owning product data", () => {
+  for (const id of SURFACE_IDS.filter((id) => id !== "S2")) {
+    const app = renderStatusApp();
+    assert.match(app, /export const createApp/, id);
+    assert.match(app, /mount\(html`<\$\{Root\} \/>`, document\.getElementById\("mount"\)!/, id);
+    assert.match(app, /credentials: \{ session: "cookie" \}/, id);
+  }
 });
