@@ -153,7 +153,7 @@ export const contractsNew: Screen = (ctx, params) => {
 /** The submit, with the reason it is disabled said out loud rather than rendered as a dead button. */
 const oq5Submit = (ctx: ScreenContext, f: Form): VNode =>
   f.oq5 === "unset" && !ctx.degraded
-    ? html`<button type="submit" class="ac-action" id="record" disabled aria-disabled="true" title="State the diagnostic data rights position first">Record agreement</button>`
+    ? html`<span class="ac-action-wrap"><button type="button" class="ac-action" id="record" aria-disabled="true">Record agreement</button><span class="ac-action__reason" role="note">State the diagnostic data rights position first.</span></span>`
     : submitAction(ctx, f.busy ? "Recording…" : "Record agreement", "record");
 
 export const refusalRoutes = (ctx: ScreenContext, r: Refusal, orgId: string) => {

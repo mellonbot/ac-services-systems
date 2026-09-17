@@ -20,7 +20,7 @@
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { SURFACES, SURFACE_IDS, type Surface } from "../../packages/contracts/src/index.ts";
+import { SURFACES, SURFACE_IDS, type Surface, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import {
   DENSITY, tokenCss, BRAND, faviconDataUri, semanticFor, badgeSvg,
   SEMANTIC, FACES, ACCENT_GATE, BULLETIN_ERRATA, WORDMARK_FLOOR,
@@ -89,6 +89,77 @@ export const boot = (principal: Principal) => createShell({ surfaceId: "${s.id}"
 /** Live shell — login, hierarchy context, generated client, event stream, degraded flag. */
 export const connect = (cfg: Omit<ConnectConfig, "surfaceId">) => connectShell({ ...cfg, surfaceId: "${s.id}" });
 ${s.whiteLabel ? BRAND_ENTRYPOINT(s) : ""}`;
+
+/**
+ * The shared first cut for surfaces whose product-specific workflow is not
+ * built yet. It resumes an existing browser session and makes the surface,
+ * scope, phase gate, and gateway state explicit instead of shipping an empty
+ * landmark. S2 owns its richer hand-written browser entry.
+ */
+export const renderStatusApp = (): string => `import { html, mount, signal, effect, applyDegraded, type VNode } from "../../../packages/ui/src/index.ts";
+import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
+import { SURFACE, connect } from "./main.ts";
+
+export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string } }): string => {
+  const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
+  if (stamped) return stamped;
+  const host = doc.location.host;
+  const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
+  return \`\${doc.location.protocol}//api.\${site}\`;
+};
+
+type Phase = { kind: "connecting" } | { kind: "ready"; shell: ConnectedShell } | { kind: "sign-in" };
+
+export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number }) => {
+  const now = opts.now ?? (() => Date.now());
+  const phase = signal<Phase>(SURFACE.enabled ? { kind: "connecting" } : { kind: "sign-in" });
+  const degraded = signal(false);
+  let lastOkAt: number | null = null;
+
+  const boot = async () => {
+    if (!SURFACE.enabled) return;
+    try {
+      const shell = await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { session: "cookie" } });
+      lastOkAt = now();
+      phase.value = { kind: "ready", shell };
+    } catch {
+      phase.value = { kind: "sign-in" };
+    }
+  };
+
+  const tick = () => {
+    if (phase.value.kind !== "ready") return;
+    degraded.value = phase.value.shell.isDegraded();
+    if (!degraded.value) lastOkAt = now();
+  };
+
+  const view = (): VNode => {
+    if (!SURFACE.enabled) return html\`<section class="ac-status"><h1>\${SURFACE.name}</h1><p>This surface is scheduled for Phase \${SURFACE.phase} and is not available yet.</p></section>\`;
+    if (phase.value.kind === "connecting") return html\`<section class="ac-status" aria-busy="true"><h1>\${SURFACE.name}</h1><p role="status">Connecting to your workspace…</p></section>\`;
+    if (phase.value.kind === "sign-in") return html\`<section class="ac-status"><h1>\${SURFACE.name}</h1><p>Your organization account is required to open this workspace.</p><p class="ac-status__scope">Access scope: \${SURFACE.authScope}.</p></section>\`;
+    return html\`<section class="ac-status"><h1>\${SURFACE.name}</h1><p>Workspace session is ready for \${phase.value.shell.principal.roles.join(", ")}.</p><p class="ac-status__scope">Access scope: \${SURFACE.authScope}.</p></section>\`;
+  };
+
+  return { phase, degraded, boot, tick, view, lastOkAt: () => lastOkAt };
+};
+
+if (typeof document !== "undefined" && document.getElementById("mount")) {
+  const style = document.createElement("style");
+  style.textContent = ".ac-status{max-width:65ch;padding-block:var(--space-6)}.ac-status h1{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-xl);letter-spacing:var(--track-normal);text-transform:uppercase}.ac-status p{margin:0 0 var(--space-2)}.ac-status__scope{color:var(--color-text-muted);font-size:var(--text-sm)}";
+  document.head.appendChild(style);
+  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis) });
+  const slot = document.querySelector("ac-degraded") as HTMLElement | null;
+  const Root = () => app.view();
+  mount(html\`<\${Root} />\`, document.getElementById("mount")!);
+  effect(() => {
+    if (slot) applyDegraded(slot, { degraded: app.degraded.value, text: SURFACE.degraded, lastOkAt: app.lastOkAt(), now: Date.now() });
+  });
+  setInterval(() => app.tick(), 1_000);
+  void app.boot();
+}
+`;
+
+const GENERATED_STATUS_APPS: readonly SurfaceId[] = SURFACE_IDS.filter((id) => id !== "S2");
 
 /**
  * The frame. One file per surface, identical in shape across all eight; what
@@ -320,6 +391,7 @@ export const emitted = (): readonly Emitted[] => {
     const dir = join("apps", s.app);
     out.push({ path: join(dir, "package.json"), content: renderPackageJson(s) });
     out.push({ path: join(dir, "src/main.ts"), content: renderMain(s) });
+    if (GENERATED_STATUS_APPS.includes(id)) out.push({ path: join(dir, "src/app.ts"), content: renderStatusApp() });
     out.push({ path: join(dir, "frame.html"), content: renderFrame(s) });
     out.push({ path: join(dir, "README.md"), content: renderReadme(s) });
   }
@@ -350,6 +422,6 @@ if (isMain) {
       mkdirSync(join(p, ".."), { recursive: true });
       writeFileSync(p, e.content);
     }
-    console.log(`emitted ${SURFACE_IDS.length} surface apps (package.json, src/main.ts, frame.html, README.md) + ${relative(ROOT, join(ROOT, "docs/SURFACES.md"))}`);
+    console.log(`emitted ${SURFACE_IDS.length} surface apps (package.json, src/main.ts, frame.html, README.md; shared status entries except S2) + ${relative(ROOT, join(ROOT, "docs/SURFACES.md"))}`);
   }
 }
