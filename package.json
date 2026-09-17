@@ -11,6 +11,7 @@
     "guard:test": "node --test \"packages/!(ui)/**/*.test.ts\" \"apps/!(s[0-9]*)/**/*.test.ts\" \"tools/**/*.test.ts\"",
     "guard:all": "npm run guard:schema && npm run guard:test",
     "test:integration": "node --test --test-concurrency=1 \"test/integration/*.test.ts\"",
+    "drive:s2-c4": "node tools/ci/drive-s2-c4.ts",
     "typecheck": "tsc -p tsconfig.json",
     "guard:lint": "eslint .",
     "emit": "node tools/ci/emit-schema.ts && node tools/ci/emit-surfaces.ts && node tools/ci/emit-sdk.ts",

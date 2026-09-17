@@ -101,3 +101,11 @@ jobs:
       - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
       - run: npm run test:integration
+      # The DOM is the one layer neither the render tests nor the wire tests
+      # can see, and C4 shipped with two defects that lived exactly there: a
+      # default that was a DOM property surviving a `form.reset()`, and a pill
+      # printing a raw enum beside a chip that printed words. Both need a real
+      # browser and two actions in a row. ubuntu-latest ships Chrome; the drive
+      # finds it, and skips loudly rather than silently if it ever stops.
+      - name: C4 through a real browser
+        run: npm run drive:s2-c4
