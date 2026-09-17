@@ -11,6 +11,7 @@ import { authorTermOverride, resolvedTermsAt } from "./handlers/terms.ts";
 import { assignCrew } from "./handlers/assignment.ts";
 import { listRegions, listOrganizations, createOrganization, listAccounts, createAccount, moveAccount, updateAccount } from "./handlers/hierarchy.ts";
 import { listContracts, createContract, transitionContract, listTermOverrides, termRegister } from "./handlers/contracts.ts";
+import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, listCredentials, recordCredential, verifyCredential, listRateCards, setRateCard } from "./handlers/network.ts";
 import { ingestSync } from "./handlers/sync.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
@@ -267,6 +268,21 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   // The register is code, not a row. No transaction is opened for it; the read
   // scope exists so the answer is still behind a live session.
   "terms.register": (req) => withRead(req, "terms.register", async () => termRegister()),
+
+  // C4 — the subcontractor network: firm, crew, document, price. Reads are
+  // served to S8 too and RLS makes "its own" true; writes are S2's. Whether a
+  // verification is S2's and once is ac_credential_verification_is_earned's.
+  "firms.list": (req, input) => withRead(req, "firms.list", (uow) => listFirms(uow, input)),
+  "firms.create": (req, input) => withUow(req, "firms.create", (uow) => createFirm(uow, input, randomUUID)),
+  "firms.update": (req, input) => withUow(req, "firms.update", (uow) => updateFirm(uow, input)),
+  "crews.list": (req, input) => withRead(req, "crews.list", (uow) => listCrews(uow, input, new Date().toISOString().slice(0, 10))),
+  "crews.create": (req, input) => withUow(req, "crews.create", (uow) => createCrew(uow, input, randomUUID)),
+  "crews.update": (req, input) => withUow(req, "crews.update", (uow) => updateCrew(uow, input)),
+  "credentials.list": (req, input) => withRead(req, "credentials.list", (uow) => listCredentials(uow, input)),
+  "credentials.record": (req, input) => withUow(req, "credentials.record", (uow) => recordCredential(uow, input, randomUUID)),
+  "credentials.verify": (req, input) => withUow(req, "credentials.verify", (uow, p) => verifyCredential(uow, input, p.subjectId, new Date())),
+  "rateCards.list": (req, input) => withRead(req, "rateCards.list", (uow) => listRateCards(uow, input)),
+  "rateCards.set": (req, input) => withUow(req, "rateCards.set", (uow) => setRateCard(uow, input, randomUUID)),
 
   // S3 — the one gated door.
   "dispatch.assign": (req, input) => withUow(req, "dispatch.assign", (uow, p) => assignCrew(uow, p.subjectId, input, new Date())),

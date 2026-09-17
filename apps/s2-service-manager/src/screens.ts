@@ -23,6 +23,11 @@ export const SCREENS = {
   "terms.override":    { path: "/terms/:orgId/override",                 uses: ["terms.authorOverride", "terms.register", "terms.overrides.list", "contracts.list", "accounts.list"] },
   "terms.resolved":    { path: "/terms/:orgId/resolved/:nodeId?",        uses: ["terms.resolved", "terms.register", "accounts.list"] },
   "contracts.list":    { path: "/contracts/:orgId?",                     uses: ["organizations.list", "contracts.list", "contracts.transition", "accounts.list"], title: "Agreements" },
+  "network.firm.new":  { path: "/network/firms/new",                     uses: ["firms.create", "regions.list"] },
+  "network.crew.new":  { path: "/network/crews/new/:firmId?",            uses: ["crews.create", "firms.list", "regions.list"] },
+  "network.crew.documents": { path: "/network/crews/:crewId/documents",  uses: ["credentials.list", "credentials.record", "credentials.verify", "crews.list"] },
+  "network.rates":     { path: "/network/rates/:firmId",                 uses: ["rateCards.list", "rateCards.set", "firms.list"] },
+  "network":           { path: "/network/:firmId?",                      uses: ["firms.list", "firms.update", "crews.list", "regions.list"], title: "Network" },
 } as const satisfies Record<string, ScreenSpec>;
 
 export type ScreenId = keyof typeof SCREENS;

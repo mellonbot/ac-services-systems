@@ -99,6 +99,12 @@ export const createOrganization = async (uow: UnitOfWork, input: CreateOrganizat
   const name = requireText(input.name, "name");
   const kind: OrganizationKind = input.kind ?? "customer";
   if (kind !== "customer" && kind !== "subcontractor") throw new BadInput(`kind must be customer or subcontractor`);
+  // C4: a firm is a root AND an operational row, and it has no customer tree to
+  // hang a region node on. Its door is firms.create; this one would leave an
+  // organization with no subcontractor_firms row behind it.
+  if (kind === "subcontractor") {
+    throw new InputRefused(`"${name}" is a subcontractor firm — record it through the network registry (firms.create), which writes the firm with its tenant root in one unit of work`, "use_firms_create");
+  }
   if (!input.firstRegionNode || typeof input.firstRegionNode !== "object") throw new BadInput("firstRegionNode is required — a parent never exists without a place we serve it from");
   const regionId = requireUuid(input.firstRegionNode.regionId, "firstRegionNode.regionId");
   const nodeName = requireText(input.firstRegionNode.name, "firstRegionNode.name");

@@ -45,6 +45,15 @@ export const S2_CSS = `
 .s2-state[data-tone="live"]{border-color:var(--color-action);color:var(--color-text)}
 .s2-state[data-tone="pending"]{border-style:dashed;color:var(--color-text-muted)}
 .s2-state[data-tone="ended"]{color:var(--color-text-muted);text-decoration:line-through}
+/* C4 — a suspended firm: held, not ended. Dotted rather than dashed so the
+   three filing states are distinguishable without hue, like the state marks
+   above; the colour roles stay the neutral ones, because filing state is not
+   operational health and must not borrow the status ramp. */
+.s2-state[data-tone="held"]{border-style:dotted;color:var(--color-text-muted)}
+.s2-terms{display:grid;grid-template-columns:auto 1fr;gap:var(--space-2) var(--space-4);margin:0 0 var(--space-4);align-items:baseline}
+.s2-terms dt{color:var(--color-text-muted);font-size:var(--text-sm)}
+.s2-terms dd{margin:0}
+.s2-firm{display:flex;flex-direction:column;gap:var(--space-3)}
 .s2-muted{color:var(--color-text-muted)}
 .s2-oq5{display:flex;flex-direction:column;gap:var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:var(--space-3)}
 .s2-oq5 legend{padding-inline:var(--space-2);font-weight:600}

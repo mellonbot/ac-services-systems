@@ -13,6 +13,10 @@ import { contractsList } from "./screens/contracts-list.ts";
 import { contractsNew } from "./screens/contracts-new.ts";
 import { termsOverride } from "./screens/terms-override.ts";
 import { termsResolved } from "./screens/terms-resolved.ts";
+import { network } from "./screens/network.ts";
+import { networkFirmNew, networkCrewNew } from "./screens/network-new.ts";
+import { networkCrewDocuments } from "./screens/network-documents.ts";
+import { networkRates } from "./screens/network-rates.ts";
 import { S2_CSS } from "./styles.ts";
 
 /**
@@ -48,6 +52,11 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "contracts.new": contractsNew,
   "terms.override": termsOverride,
   "terms.resolved": termsResolved,
+  "network": network,
+  "network.firm.new": networkFirmNew,
+  "network.crew.new": networkCrewNew,
+  "network.crew.documents": networkCrewDocuments,
+  "network.rates": networkRates,
 };
 
 type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
@@ -74,7 +83,17 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       store.invalidate(keyOf("contracts.list", { orgId: e.orgId }));
       store.invalidate("terms.overrides.list");
       store.invalidate("terms.resolved");
-    }, { topics: ["account.created", "account.updated", "account.deactivated", "contract.created", "contract.amended", "contract.expired", "contract.term_overridden"] });
+      // C4: a firm's own events arrive with the FIRM as the org — a firm is its
+      // own tenant — so these are invalidated wholesale rather than by orgId.
+      // Four prefixes, because a verification changes both the document list
+      // and the crew summary that reads it.
+      store.invalidate("firms.list");
+      store.invalidate("crews.list");
+      store.invalidate("credentials.list");
+      store.invalidate("rateCards.list");
+    }, { topics: ["account.created", "account.updated", "account.deactivated", "contract.created", "contract.amended", "contract.expired", "contract.term_overridden",
+                  "firm.created", "firm.updated", "firm.status_changed", "crew.created", "crew.updated",
+                  "credential.recorded", "credential.verified", "credential.expiring", "credential.expired", "rate_card.changed"] });
   };
 
   const login = async (email: string, password: string) => {

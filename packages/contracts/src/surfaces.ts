@@ -77,7 +77,11 @@ const REGISTRY = {
     namespace: "internal", authScope: "role-based, org-wide", scopeBinding: "org",
     roles: ["principal", "ops_leadership", "account_owner", "office_manager", "finance", "warehouse"],
     writes: ["account", "contract", "invoice", "warranty_case", "part", "purchase_order",
-             "subcontractor_firm", "crew_credential", "rate_card"],
+             // C4: the network registry. `crew` was added 2026-09-16 — the
+             // registry listed the firm, the document and the price, and not
+             // the crew they all attach to. S8's `crew_roster` is a firm's
+             // proposal; the crew row itself is ours to record.
+             "subcontractor_firm", "crew", "crew_credential", "rate_card"],
     density: "console", realtime: false, offline: false,
     degraded: "Read-only from last server state. NO offline writes, ever — this is the only surface that authors hierarchy, contract and subcontractor-network truth, and a forked truth here is unrecoverable.",
     stateRamp: true,

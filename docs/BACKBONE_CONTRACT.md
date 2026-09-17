@@ -1,6 +1,6 @@
 # The Backbone Contract
 
-**Rev D · 2026-09-16 · Action plan B2. The interface every block codes against.** *(Rev B amended §5 and §11 — refusal codes, migration 0004. Rev C amended §4 — the browser session and per-request revocation. Rev D amends §5, §11 and §12 — the hierarchy's one door (C1), current counts, D14 as a checked rule. §2–3 are untouched and remain under change control.)*
+**Rev E · 2026-09-16 · Action plan B2. The interface every block codes against.** *(Rev E amends §4, §6, §11 and §12 — C4 built. The RLS row for crews and credentials read "own region", which is too wide for a firm principal; migration 0005 adds firm isolation and makes "only S2 verifies a credential" a mechanism rather than a sentence the gate assumes. Rev E also carries §11's counts forward past C2, which this copy had not picked up. Rev B amended §5 and §11 — refusal codes, migration 0004. Rev C amended §4 — the browser session and per-request revocation. Rev D amends §5, §11 and §12 — the hierarchy's one door (C1), current counts, D14 as a checked rule. §2–3 are untouched and remain under change control.)*
 
 > **Ratified by the partners, jointly, 2026-09-15 (D2).** §2–3 stand as written. From this line on, a change to `TIERS`, to a `TERMS` entry's authoring or combine axis, or to `region_id` semantics is a migration under change control — every existing override row is re-admitted against the new policy — not an edit.
 
@@ -73,7 +73,9 @@ Row-level security, all tables `FORCE`d so the owner is bound too:
 | Table(s) | Visible to |
 |---|---|
 | `accounts` | internal: all · device/subcontractor: own region · customer: own org, subtree under the scope node (`scope_id = ANY(path)`) · anonymous: none |
-| `jobs`, `assignments`, `crews`, `crew_credentials`, `compliance_clearances`, `job_state_events`, `projects`, `sla_timers` | org-scoped internal: all · everyone else: own region |
+| `jobs`, `assignments`, `compliance_clearances`, `job_state_events`, `projects`, `sla_timers` | org-scoped internal: all · everyone else: own region |
+| `crews`, `crew_credentials` | as above, **and** a subcontractor principal additionally sees only its own firm's rows (0005). Region alone was too wide: a firm scoped to South could list every South crew, other firms' included |
+| `subcontractor_firms` | internal: all · a firm: itself (0005). Before 0005 this table had no policy |
 | `rate_cards`, `settlements` | internal: all · a firm: its own rows only |
 | `invoices` | internal: all · customer: own org |
 | `sync_mutations` | internal: all · a device: its own intents |
@@ -102,11 +104,13 @@ Assignment has one door: `POST /s3/assign`, handled by `assignCrew()`. `buildAss
 
 A refusal is returned in plain words and recorded as a `crew.compliance_refused` event — the quality signal C9 feeds on — and nothing is written to `assignments`.
 
+**And since C4 the credentials it reads cannot be forged (0005).** The gate refuses an unverified document; `ac_credential_verification_is_earned()` now decides what *verified* may ever mean. A credential arrives unverified on **every** path, the superuser's raw INSERT included (AC422). The NULL → set transition is admitted only for an `internal` principal acting as **S2**, with `verified_by` equal to the acting principal (AC403/AC422 otherwise). A verified row is immutable — window, kind, identifier, crew and the verification itself — because a clearance may already cite it by id, so a correction is a new document (AC403). This matters because the write allowlist could not hold the rule: `crew_credential` is an entity label the unit of work checks, while the TABLE is reachable by any role with INSERT on it, and S8's compliance intake will write it by design.
+
 Layer two: `ac_assignment_requires_clearance()` re-verifies, for any INSERT from anywhere, that the clearance belongs to the crew and its window contains the job's; `ac_clearance_is_earned()` refuses a clearance row whose cited credentials do not belong to the crew, are unverified, or do not cover its window. Layer three: the clearance row itself, citing the exact credential ids, for the subrogation conversation afterwards.
 
 `assignments` is server-authoritative under sync (§7), so an offline device cannot route around the gate.
 
-*Enforced by:* `domain/compliance/` (6 tests), `migrations/0002` (gate section), integration tests "THE ONE THAT MATTERS", "the same crew clears a job on the 16th", "an unverified certificate is not a certificate", "layer 2", "layer 2b".
+*Enforced by:* `domain/compliance/` (6 tests), `migrations/0002` (gate section), `migrations/0005` (verification earned and immutable), `apps/gateway/src/handlers/network.ts` (13 tests), integration tests "THE ONE THAT MATTERS", "the same crew clears a job on the 16th", "an unverified certificate is not a certificate", "layer 2", "layer 2b", and `test/integration/s2-c4.test.ts` ("A DOCUMENT ARRIVES UNVERIFIED — on every path…", "ONLY S2 VERIFIES…").
 
 ## 7. Offline sync
 
@@ -151,14 +155,14 @@ A `StorageKey` is a branded string `region/org/kind/id` carrying no bucket, host
 Dependencies point one way: surfaces → shell → sdk → contracts → gateway → {domain, events, audit, storage, schema}. `packages/domain` has no I/O and imports nothing from `node:` or from any layer above it; the guard refuses `Date.now()`, `new Date()`, `Math.random()` and upward imports there. Intra-repo imports are relative `.ts` paths, so every guard and every unit test runs with **no install**.
 
 ```
-node tools/ci/schema-guard.ts          # zero install. All structural invariants (132 files).
-npm run guard:test                     # zero install. 158 unit tests.
-npm run sdk:check                      # zero install. The generated client matches the operation catalogue (16 operations).
+node tools/ci/schema-guard.ts          # zero install. All structural invariants (153 files).
+npm run guard:test                     # zero install. 206 unit tests.
+npm run sdk:check                      # zero install. The generated client matches the operation catalogue (32 operations).
 npm run surfaces:check                 # zero install. Every emitted surface file, frame.html included, matches the registry.
 DATABASE_URL=… node tools/ci/migrate.ts && node tools/ci/migrate.ts --assert
-DATABASE_URL=… npm run test:integration   # 60 tests against a live database and a spawned gateway (29 backbone, 19 S0/session, 12 C1)
+DATABASE_URL=… npm run test:integration   # 79 tests against a live database and a spawned gateway (29 backbone, 19 S0/session, 12 C1, 11 C2, 8 C4)
 pnpm install && pnpm typecheck && pnpm guard:lint   # the toolchain layer
-npm run test:ui                        # 28 render tests (packages/ui, S2 screens) — need preact, hence after install
+npm run test:ui                        # 61 render tests (packages/ui, S2 screens) — need preact, hence after install
 node tools/ci/build-surface.ts --all   # the one build step
 DATABASE_URL=… npm run gateway          # :8080
 DATABASE_URL=… npm run worker
@@ -166,6 +170,6 @@ DATABASE_URL=… npm run worker
 
 ## 12. What this contract does not decide
 
-Pricing architecture (OQ1) shapes invoice path internals, not the four paths or the register. Diagnostic data rights (OQ5) is a `NOT NULL` boolean on both the contract and the firm; the position must be stated, and the register carries it as a parent-only term with no default. S8's Phase 1 scope (D12) is S8's write allowlist. Supply-before-signature (D14) is `regions.min_crew_density`, zero until set — and since Rev D it is **asked** when a location is created: rule set and unmet refuses the row as `supply_below_density` (commercial — somebody has to staff the region or price the gap); rule unset admits it with the caveat `D14 rule not set for <region>`, which S2 shows as a banner rather than passing silently (`packages/domain/src/supply/density.ts`, wire test "D14 with the rule SET"). Working capital (D13) is `working_capital_positions`, measured from day one. None of these can change the shape above; each is a data change or a handler behind an existing door.
+Pricing architecture (OQ1) shapes invoice path internals, not the four paths or the register. Diagnostic data rights (OQ5) is a `NOT NULL` boolean on both the contract and the firm; the position must be stated, and the register carries it as a parent-only term with no default. S8's Phase 1 scope (D12) is S8's write allowlist. Supply-before-signature (D14) is `regions.min_crew_density`, zero until set — and since Rev D it is **asked** when a location is created: rule set and unmet refuses the row as `supply_below_density` (commercial — somebody has to staff the region or price the gap); rule unset admits it with the caveat `D14 rule not set for <region>`, which S2 shows as a banner rather than passing silently (`packages/domain/src/supply/density.ts`, wire test "D14 with the rule SET"). Working capital (D13) is `working_capital_positions`, measured from day one, and `subcontractor_firms.settlement_terms_days` is stated per firm when the firm is recorded. A firm's own **intake** of compliance documents — a firm proposing what S2 then verifies — is still ahead of us; C4 built the registry S2 authors, and 0005's trigger is already waiting for that second path, which is the point of having put the rule in the database rather than in the handler. None of these can change the shape above; each is a data change or a handler behind an existing door.
 
-What *would* break this contract: a nullable `region_id`; a second database driver import; a tier added to `TIERS` after rows exist; a term's policy changed after override rows exist; an `assignments` write path other than `assignCrew`; a `force` argument anywhere. The guards refuse the first two mechanically. The other four are reviewed diffs on named files, which is the most a frame can make them.
+What *would* break this contract: a nullable `region_id`; a second database driver import; a tier added to `TIERS` after rows exist; a term's policy changed after override rows exist; an `assignments` write path other than `assignCrew`; a path that sets `verified_at` other than `credentials.verify`; a `force` argument anywhere. The guards refuse the first two mechanically. The other four are reviewed diffs on named files, which is the most a frame can make them.
