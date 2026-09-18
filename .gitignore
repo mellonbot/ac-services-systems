@@ -13,6 +13,3 @@ infra/**/*.tfstate*
 
 # Desktop-app download folder — never part of the repository
 Claude outputs/
-
-# Desktop-app download folder — never part of the repository
-Claude outputs/
