@@ -159,7 +159,14 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
 }
 `;
 
-const GENERATED_STATUS_APPS: readonly SurfaceId[] = SURFACE_IDS.filter((id) => id !== "S2");
+/**
+ * Surfaces with a hand-written `src/app.ts` of their own — S2 first, and now
+ * item 4's S3 (dispatch board + the one gated door) and S5 (offline-first
+ * field screens). Every other surface still gets the shared first cut until
+ * its own product-specific workflow is built.
+ */
+const HAND_WRITTEN_APPS: readonly SurfaceId[] = ["S2", "S3", "S5"];
+const GENERATED_STATUS_APPS: readonly SurfaceId[] = SURFACE_IDS.filter((id) => !HAND_WRITTEN_APPS.includes(id));
 
 /**
  * The frame. One file per surface, identical in shape across all eight; what
@@ -422,6 +429,6 @@ if (isMain) {
       mkdirSync(join(p, ".."), { recursive: true });
       writeFileSync(p, e.content);
     }
-    console.log(`emitted ${SURFACE_IDS.length} surface apps (package.json, src/main.ts, frame.html, README.md; shared status entries except S2) + ${relative(ROOT, join(ROOT, "docs/SURFACES.md"))}`);
+    console.log(`emitted ${SURFACE_IDS.length} surface apps (package.json, src/main.ts, frame.html, README.md; shared status entries except ${HAND_WRITTEN_APPS.join(", ")}) + ${relative(ROOT, join(ROOT, "docs/SURFACES.md"))}`);
   }
 }

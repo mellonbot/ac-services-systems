@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 34 today. There is no
+ * One method per operation in the catalogue — 43 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -36,6 +36,13 @@ export const createGatewayClient = (transport: Transport) => ({
    * Attributes of a node — name, the customer's own grouping, external ref, address, timezone, active. Never parent_id or region_id; those are accounts.move. */
   updateAccount(input: OperationIO["accounts.update"]["input"]): Promise<OperationIO["accounts.update"]["output"]> {
     return transport.request(OPERATIONS["accounts.update"], input) as Promise<OperationIO["accounts.update"]["output"]>;
+  },
+
+  /** `POST /auth/device-login` · login · none · surfaces: S5
+   *
+   * A technician's own credential PLUS the hardware they are holding. Mints a device-namespace token bound to the one active shift grant for (device, technician) — the token expires with the shift, never later. */
+  deviceLogin(input: OperationIO["auth.deviceLogin"]["input"]): Promise<OperationIO["auth.deviceLogin"]["output"]> {
+    return transport.request(OPERATIONS["auth.deviceLogin"], input) as Promise<OperationIO["auth.deviceLogin"]["output"]>;
   },
 
   /** `POST /auth/login` · login · none · surfaces: S2, S3, S4, S8
@@ -129,11 +136,46 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["crews.update"], input) as Promise<OperationIO["crews.update"]["output"]>;
   },
 
+  /** `POST /s2/devices/grant` · mutation · bearer · surfaces: S2
+   *
+   * The primitive: this device, this crew, this technician, this window. What auth.deviceLogin mints a token against. Refused if the technician is not on the named crew, the crew is inactive, or the device already holds an overlapping grant. */
+  grantDeviceShift(input: OperationIO["devices.grantShift"]["input"]): Promise<OperationIO["devices.grantShift"]["output"]> {
+    return transport.request(OPERATIONS["devices.grantShift"], input) as Promise<OperationIO["devices.grantShift"]["output"]>;
+  },
+
+  /** `GET /s2/devices` · query · bearer · surfaces: S2
+   *
+   * Registered hardware — ours and firms' own tablets and phones alike (D-2a: provisioning is a credential grant, not a shipment). */
+  listDevices(input: OperationIO["devices.list"]["input"]): Promise<OperationIO["devices.list"]["output"]> {
+    return transport.request(OPERATIONS["devices.list"], input) as Promise<OperationIO["devices.list"]["output"]>;
+  },
+
+  /** `POST /s2/devices` · mutation · bearer · surfaces: S2
+   *
+   * Record a physical device. firmId ties it to hardware the firm already owns; absent, it is ours (INTERNAL_ORG). */
+  registerDevice(input: OperationIO["devices.register"]["input"]): Promise<OperationIO["devices.register"]["output"]> {
+    return transport.request(OPERATIONS["devices.register"], input) as Promise<OperationIO["devices.register"]["output"]>;
+  },
+
   /** `POST /s3/assign` · mutation · bearer · surfaces: S3
    *
-   * The one gated door. A crew that does not clear the whole service window is refused in plain words and nothing is written to assignments. */
+   * The one gated door. A crew that does not clear the whole service window is refused in plain words and nothing is written to assignments. Satisfies the job's SLA timer on success — the response the cascade is timing. */
   assignCrew(input: OperationIO["dispatch.assign"]["input"]): Promise<OperationIO["dispatch.assign"]["output"]> {
     return transport.request(OPERATIONS["dispatch.assign"], input) as Promise<OperationIO["dispatch.assign"]["output"]>;
+  },
+
+  /** `GET /s3/dispatch/candidates` · query · bearer · surfaces: S3
+   *
+   * A DRY RUN of the same gate dispatch.assign enforces, over every active crew in the job's region — nothing is written. What a dispatcher reads before deciding, not a second gate with its own opinion. */
+  candidateCrews(input: OperationIO["dispatch.candidates"]["input"]): Promise<OperationIO["dispatch.candidates"]["output"]> {
+    return transport.request(OPERATIONS["dispatch.candidates"], input) as Promise<OperationIO["dispatch.candidates"]["output"]>;
+  },
+
+  /** `POST /s3/release` · mutation · bearer · surfaces: S3
+   *
+   * Release a crew from a job that has not yet started (state still 'assigned') and return it to 'created' for re-dispatch. Once field execution has begun this is refused by name — that is a cancellation or a reassignment conversation, not a release. */
+  releaseAssignment(input: OperationIO["dispatch.release"]["input"]): Promise<OperationIO["dispatch.release"]["output"]> {
+    return transport.request(OPERATIONS["dispatch.release"], input) as Promise<OperationIO["dispatch.release"]["output"]>;
   },
 
   /** `GET /events` · stream · bearer · surfaces: S2, S3, S4, S5, S6, S7, S8
@@ -162,6 +204,27 @@ export const createGatewayClient = (transport: Transport) => ({
    * Attributes and the status ladder: onboarding → active ⇄ suspended → terminated. Activation needs a signed MSA; a step off the ladder is refused by name. */
   updateFirm(input: OperationIO["firms.update"]["input"]): Promise<OperationIO["firms.update"]["output"]> {
     return transport.request(OPERATIONS["firms.update"], input) as Promise<OperationIO["firms.update"]["output"]>;
+  },
+
+  /** `POST /s2/jobs` · mutation · bearer · surfaces: S2
+   *
+   * Author a job against a site. Opens its SLA timer in the same unit of work — due_at is DERIVED from the site's resolved sla_response term, never typed in (domain/sla deriveDueAt). Shadow mode until a region turns it off. */
+  createJob(input: OperationIO["jobs.create"]["input"]): Promise<OperationIO["jobs.create"]["output"]> {
+    return transport.request(OPERATIONS["jobs.create"], input) as Promise<OperationIO["jobs.create"]["output"]>;
+  },
+
+  /** `GET /jobs` · query · bearer · surfaces: S2, S3
+   *
+   * Jobs visible to this principal — S2 org-wide, S3 region-locked by RLS, same operation. Carries each job's current (unreleased) assignment and open SLA timer, if any. */
+  listJobs(input: OperationIO["jobs.list"]["input"]): Promise<OperationIO["jobs.list"]["output"]> {
+    return transport.request(OPERATIONS["jobs.list"], input) as Promise<OperationIO["jobs.list"]["output"]>;
+  },
+
+  /** `GET /s5/jobs/mine` · query · bearer · surfaces: S5
+   *
+   * Jobs assigned to this shift's crew, unreleased. The field layer's own read — no employment shape, no compliance detail, no other crew's board. */
+  myJobs(): Promise<OperationIO["jobs.mine"]["output"]> {
+    return transport.request(OPERATIONS["jobs.mine"], undefined) as Promise<OperationIO["jobs.mine"]["output"]>;
   },
 
   /** `POST /s2/organizations` · mutation · bearer · surfaces: S2
@@ -252,4 +315,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "login", "logout", "setBrandTheme", "brandTheme", "createContract", "listContracts", "transitionContract", "listCredentials", "recordCredential", "verifyCredential", "createCrew", "listCrews", "updateCrew", "assignCrew", "events", "createFirm", "listFirms", "updateFirm", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "me", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "createContract", "listContracts", "transitionContract", "listCredentials", "recordCredential", "verifyCredential", "createCrew", "listCrews", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "events", "createFirm", "listFirms", "updateFirm", "createJob", "listJobs", "myJobs", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "me", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);

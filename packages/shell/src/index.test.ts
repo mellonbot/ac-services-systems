@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createShell, densityTokens } from "./index.ts";
+import { createShell, connectShell, densityTokens } from "./index.ts";
 import { DEGRADED, type DegradedState } from "./internal.ts";
-import { SURFACES, SURFACE_IDS, type Principal, type SurfaceId } from "../../contracts/src/index.ts";
+import { SURFACES, SURFACE_IDS, OPERATIONS, type Principal, type SurfaceId, type HierarchyContext } from "../../contracts/src/index.ts";
+import type { FetchLike } from "../../sdk/src/runtime.ts";
 
 /**
  * The shell had no test file, and so `createShell` threw TypeError on every
@@ -109,4 +110,50 @@ test("every surface carries its declared degraded mode to the shell", () => {
 test("densityTokens resolves each surface to its declared density set", () => {
   assert.equal(densityTokens("S5").hoverAffordances, false, "no cursor on a tablet");
   assert.equal(densityTokens("S3").hoverAffordances, true);
+});
+
+/**
+ * connectShell's device path (item 4, S5). What this holds: a device-login
+ * connect carries the crew auth.deviceLogin resolved on `deviceCrew` — the
+ * one place a device-namespace shell can read it, since it is deliberately
+ * not a token claim — and an ordinary email/password connect carries none.
+ */
+const deviceContext: HierarchyContext = {
+  principal: {
+    namespace: "device", subjectId: "tech-1", orgId: "org-internal", regionId: "region-1", scopeTier: "region", scopeId: "region-1",
+    roles: ["technician"], firmId: null, deviceId: "device-1", shiftId: "shift-1", tierClaim: null, sessionId: "sess-1",
+  },
+  path: [], parent: { tier: "parent", id: "org-internal", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "region-1",
+};
+
+const fakeDeviceGateway = (): FetchLike => async (url) => {
+  const path = new URL(url).pathname;
+  const reply = (status: number, body: unknown) => ({ status, ok: status < 300, json: async () => body, text: async () => JSON.stringify(body), body: null });
+  if (path === OPERATIONS["auth.deviceLogin"].path) return reply(200, { token: "dev-token", expiresAt: "2026-09-18T18:00:00Z", crewId: "crew-1", crewLabel: "Crew A1", context: {} });
+  if (path === OPERATIONS["session.me"].path) return reply(200, deviceContext);
+  return reply(404, { error: "NoRoute", message: `no route ${path}` });
+};
+
+test("connectShell with a device grant carries the resolved crew on deviceCrew — never on the principal", async () => {
+  const shell = await connectShell({ surfaceId: "S5", baseUrl: "https://api.ac.test", fetch: fakeDeviceGateway(), credentials: { hardwareId: "hw-001", email: "tech@ac.test", password: "pw" } });
+  assert.deepEqual(shell.deviceCrew, { id: "crew-1", label: "Crew A1" });
+  assert.equal(shell.principal.shiftId, "shift-1");
+  assert.equal((shell.principal as unknown as { crewId?: unknown }).crewId, undefined, "the crew is not a claim on the principal");
+});
+
+test("connectShell with email/password carries no deviceCrew", async () => {
+  const fetch: FetchLike = async (url) => {
+    const path = new URL(url).pathname;
+    const reply = (status: number, body: unknown) => ({ status, ok: status < 300, json: async () => body, text: async () => JSON.stringify(body), body: null });
+    if (path === OPERATIONS["auth.login"].path) return reply(200, { token: "office-token", expiresAt: "2026-09-18T18:00:00Z", context: {} });
+    if (path === OPERATIONS["session.me"].path) {
+      return reply(200, {
+        principal: { namespace: "internal", subjectId: "u-1", orgId: "org-internal", regionId: "region-1", scopeTier: "region", scopeId: "region-1", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "sess-2" },
+        path: [], parent: { tier: "parent", id: "org-internal", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "region-1",
+      });
+    }
+    return reply(404, { error: "NoRoute", message: `no route ${path}` });
+  };
+  const shell = await connectShell({ surfaceId: "S3", baseUrl: "https://api.ac.test", fetch, credentials: { email: "dispatcher@ac.test", password: "pw" } });
+  assert.equal(shell.deviceCrew, null);
 });

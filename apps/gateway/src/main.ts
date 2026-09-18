@@ -8,12 +8,14 @@ import { InputRefused, BadInput, dbRefusal } from "./refusals.ts";
 import { sessionConfigFromEnv, allowedOrigins, sessionCookie, clearedCookie, cookieToken, cors, applyHeaders } from "./session.ts";
 import type { Tx } from "./unit-of-work.ts";
 import { authorTermOverride, resolvedTermsAt } from "./handlers/terms.ts";
-import { assignCrew } from "./handlers/assignment.ts";
+import { assignCrew, candidateCrews, releaseAssignment } from "./handlers/assignment.ts";
 import { listRegions, listOrganizations, createOrganization, listAccounts, createAccount, moveAccount, updateAccount } from "./handlers/hierarchy.ts";
 import { listContracts, createContract, transitionContract, listTermOverrides, termRegister } from "./handlers/contracts.ts";
 import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, listCredentials, recordCredential, verifyCredential, listRateCards, setRateCard } from "./handlers/network.ts";
 import { ingestSync } from "./handlers/sync.ts";
 import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
+import { createJob, listJobs, listMyJobs } from "./handlers/jobs.ts";
+import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
 import { SURFACES, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
@@ -215,10 +217,56 @@ const login = async (body: Partial<OperationIO["auth.login"]["input"]>, res: Ser
   }
 };
 
+/**
+ * S5 → gateway: a technician's own credential plus the hardware in their
+ * hands. Runs unscoped, the same as `login()` — there is no principal to
+ * bind a transaction to yet. Where it differs: the claims it mints are not
+ * the user's own tier, but the shift grant's — `resolveDeviceLogin` is the
+ * one place that reads `devices` and `device_grants` before authentication,
+ * exactly as `login` reads `users` before it.
+ */
+const deviceLogin = async (body: Partial<OperationIO["auth.deviceLogin"]["input"]>, res: ServerResponse): Promise<OperationIO["auth.deviceLogin"]["output"]> => {
+  const { hardwareId, email, password } = body;
+  if (!hardwareId || !email || !password) throw new HttpError(400, "hardwareId, email and password are required");
+  const tx = await beginTx(pool, "ac_gateway");
+  try {
+    const u = (await tx.query<{ id: string; password_hash: string | null; active: boolean; crew_id: string | null }>(
+      "SELECT id, password_hash, active, crew_id FROM users WHERE email = $1", [email],
+    ))[0];
+    if (!u || !u.active || !u.password_hash || !verifyPassword(password, u.password_hash) || !u.crew_id) {
+      throw new AuthError("invalid credentials", "bad_claims");
+    }
+    const resolved = await resolveDeviceLogin(tx, hardwareId, u.id, new Date());
+    if (!resolved) throw new AuthError("invalid credentials", "bad_claims");
+
+    const ttl = Math.min(TOKEN_TTL, Math.max(1, Math.floor((resolved.shiftEndsAt.getTime() - Date.now()) / 1000)));
+    const claims: Omit<Claims, "iat" | "exp" | "sid"> = {
+      sub: resolved.technicianId, ns: "device", org: resolved.orgId, region: resolved.regionId,
+      scope_tier: "region", scope_id: resolved.regionId, roles: ["technician"],
+      device: resolved.deviceId, shift: resolved.grantId,
+    };
+    const minted = mintToken(keypair, claims, Date.now(), ttl);
+    await tx.query("INSERT INTO sessions (id, org_id, region_id, principal_kind, principal_id, expires_at, surface_id) VALUES ($1,$2,$3,'device_grant',$4,to_timestamp($5),'S5')",
+      [minted.claims.sid, resolved.orgId, resolved.regionId, resolved.grantId, minted.claims.exp]);
+    const context = await buildContext(principalFromClaims(minted.claims), hierarchyReader(tx));
+    await tx.commit();
+    const expiresAt = new Date(minted.claims.exp * 1000);
+    res.setHeader("set-cookie", sessionCookie(minted.token, expiresAt, SESSION));
+    return {
+      token: minted.token, expiresAt: expiresAt.toISOString(), crewId: resolved.crewId, crewLabel: resolved.crewLabel,
+      context: { path: context.path, parent: context.parent, regions: context.regions, activeRegionId: context.activeRegionId },
+    };
+  } catch (e) {
+    await tx.rollback().catch(() => {});
+    throw e;
+  }
+};
+
 type Handler<K extends OperationId> = (req: IncomingMessage, input: OperationIO[K]["input"], res: ServerResponse) => Promise<unknown>;
 
 const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "auth.login": (_req, input, res) => login(input, res),
+  "auth.deviceLogin": (_req, input, res) => deviceLogin(input, res),
 
   // Ending a session is the one mutation outside the unit of work: it writes the
   // sessions row, which belongs to the gateway, not to any surface's allowlist.
@@ -285,10 +333,25 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "rateCards.list": (req, input) => withRead(req, "rateCards.list", (uow) => listRateCards(uow, input)),
   "rateCards.set": (req, input) => withUow(req, "rateCards.set", (uow) => setRateCard(uow, input, randomUUID)),
 
-  // S3 — the one gated door.
-  "dispatch.assign": (req, input) => withUow(req, "dispatch.assign", (uow, p) => assignCrew(uow, p.subjectId, input, new Date())),
+  // item 4 — the job itself, created in Office & Dispatch.
+  "jobs.create": (req, input) => withUow(req, "jobs.create", (uow) => createJob(uow, input, randomUUID, new Date())),
+  "jobs.list": (req, input) => withRead(req, "jobs.list", (uow) => listJobs(uow, input.state)),
 
-  // S5 — replay a device log.
+  // S3 — the one gated door, its dry run, and its release.
+  "dispatch.assign": (req, input) => withUow(req, "dispatch.assign", (uow, p) => assignCrew(uow, p.subjectId, input, new Date())),
+  "dispatch.candidates": (req, input) => withRead(req, "dispatch.candidates", (uow) => candidateCrews(uow, input, new Date())),
+  "dispatch.release": (req, input) => withUow(req, "dispatch.release", (uow, p) => releaseAssignment(uow, p.subjectId, input, new Date())),
+
+  // item 4 — D-2a's primitive: this device, this crew, this window.
+  "devices.list": (req, input) => withRead(req, "devices.list", (uow) => listDevices(uow, input)),
+  "devices.register": (req, input) => withUow(req, "devices.register", (uow) => registerDevice(uow, input, randomUUID)),
+  "devices.grantShift": (req, input) => withUow(req, "devices.grantShift", (uow, p) => grantDeviceShift(uow, p.subjectId, input, randomUUID)),
+
+  // S5 — what a technician reads before replaying a sync batch, and the replay itself.
+  "jobs.mine": (req) => withRead(req, "jobs.mine", (uow, p) => {
+    if (!p.shiftId) throw new HttpError(403, "jobs.mine is a device principal's operation");
+    return listMyJobs(uow, p.shiftId);
+  }),
   "sync.replay": (req, input) => withUow(req, "sync.replay", async (uow, p) => {
     if (!p.deviceId) throw new HttpError(403, "sync is a device principal's operation");
     return { outcomes: await ingestSync(uow, p.subjectId, { deviceId: p.deviceId, orgId: input.orgId, regionId: input.regionId, mutations: input.mutations }, new Date()) };

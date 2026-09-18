@@ -66,6 +66,11 @@ export const OPERATIONS = {
     surfaces: AUTHENTICATED, carrier: "none", sdkMethod: "logout",
     summary: "Revoke the session behind this token and clear the session cookie. The next request with either is 401 revoked.",
   },
+  "auth.deviceLogin": {
+    id: "auth.deviceLogin", method: "POST", path: "/auth/device-login", kind: "login", auth: "none",
+    surfaces: ["S5"], carrier: "body", sdkMethod: "deviceLogin",
+    summary: "A technician's own credential PLUS the hardware they are holding. Mints a device-namespace token bound to the one active shift grant for (device, technician) — the token expires with the shift, never later.",
+  },
   "session.me": {
     id: "session.me", method: "GET", path: "/me", kind: "query", auth: "bearer",
     surfaces: AUTHENTICATED, carrier: "none", sdkMethod: "me",
@@ -205,11 +210,54 @@ export const OPERATIONS = {
     summary: "Set a rate from a day forward: the row in effect that day is closed at it and the new row inserted, both audited. A row that would overlap is refused by the EXCLUDE constraint — two prices at once is unrepresentable, not tie-broken.",
   },
 
+  // ---- item 4: the job itself, created in Office & Dispatch ----
+  "jobs.create": {
+    id: "jobs.create", method: "POST", path: "/s2/jobs", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createJob",
+    summary: "Author a job against a site. Opens its SLA timer in the same unit of work — due_at is DERIVED from the site's resolved sla_response term, never typed in (domain/sla deriveDueAt). Shadow mode until a region turns it off.",
+  },
+  "jobs.list": {
+    id: "jobs.list", method: "GET", path: "/jobs", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S3"], carrier: "query", sdkMethod: "listJobs",
+    summary: "Jobs visible to this principal — S2 org-wide, S3 region-locked by RLS, same operation. Carries each job's current (unreleased) assignment and open SLA timer, if any.",
+  },
   // ---- S3 ----
   "dispatch.assign": {
     id: "dispatch.assign", method: "POST", path: "/s3/assign", kind: "mutation", auth: "bearer",
     surfaces: ["S3"], carrier: "body", sdkMethod: "assignCrew",
-    summary: "The one gated door. A crew that does not clear the whole service window is refused in plain words and nothing is written to assignments.",
+    summary: "The one gated door. A crew that does not clear the whole service window is refused in plain words and nothing is written to assignments. Satisfies the job's SLA timer on success — the response the cascade is timing.",
+  },
+  "dispatch.candidates": {
+    id: "dispatch.candidates", method: "GET", path: "/s3/dispatch/candidates", kind: "query", auth: "bearer",
+    surfaces: ["S3"], carrier: "query", sdkMethod: "candidateCrews",
+    summary: "A DRY RUN of the same gate dispatch.assign enforces, over every active crew in the job's region — nothing is written. What a dispatcher reads before deciding, not a second gate with its own opinion.",
+  },
+  "dispatch.release": {
+    id: "dispatch.release", method: "POST", path: "/s3/release", kind: "mutation", auth: "bearer",
+    surfaces: ["S3"], carrier: "body", sdkMethod: "releaseAssignment",
+    summary: "Release a crew from a job that has not yet started (state still 'assigned') and return it to 'created' for re-dispatch. Once field execution has begun this is refused by name — that is a cancellation or a reassignment conversation, not a release.",
+  },
+  // ---- item 4: the device shift grant (D-2a) — this device, this crew, this window ----
+  "devices.list": {
+    id: "devices.list", method: "GET", path: "/s2/devices", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "query", sdkMethod: "listDevices",
+    summary: "Registered hardware — ours and firms' own tablets and phones alike (D-2a: provisioning is a credential grant, not a shipment).",
+  },
+  "devices.register": {
+    id: "devices.register", method: "POST", path: "/s2/devices", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "registerDevice",
+    summary: "Record a physical device. firmId ties it to hardware the firm already owns; absent, it is ours (INTERNAL_ORG).",
+  },
+  "devices.grantShift": {
+    id: "devices.grantShift", method: "POST", path: "/s2/devices/grant", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "grantDeviceShift",
+    summary: "The primitive: this device, this crew, this technician, this window. What auth.deviceLogin mints a token against. Refused if the technician is not on the named crew, the crew is inactive, or the device already holds an overlapping grant.",
+  },
+  // ---- S5: what a technician reads before replaying a sync batch ----
+  "jobs.mine": {
+    id: "jobs.mine", method: "GET", path: "/s5/jobs/mine", kind: "query", auth: "bearer",
+    surfaces: ["S5"], carrier: "none", sdkMethod: "myJobs",
+    summary: "Jobs assigned to this shift's crew, unreleased. The field layer's own read — no employment shape, no compliance detail, no other crew's board.",
   },
   "sync.replay": {
     id: "sync.replay", method: "POST", path: "/s5/sync", kind: "mutation", auth: "bearer",
@@ -272,6 +320,20 @@ export type LoginOutput = {
   readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId">;
 };
 export type LogoutOutput = { readonly ok: true; readonly sessionId: string };
+
+/**
+ * A technician's own credential plus the hardware in their hands. Unlike
+ * `auth.login`, the surface is not a caller's choice among several — S5 is
+ * the only one this mints for — so there is no `surface` field to lie about.
+ */
+export type DeviceLoginInput = { readonly hardwareId: string; readonly email: string; readonly password: string };
+export type DeviceLoginOutput = {
+  readonly token: string;
+  readonly expiresAt: string;
+  readonly crewId: string;
+  readonly crewLabel: string;
+  readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId">;
+};
 
 export type AuthorOverrideInput = {
   readonly contractId: string;
@@ -576,6 +638,93 @@ export type SetRateCardInput = {
 };
 export type SetRateCardOutput = { readonly id: string; readonly closedId: string | null; readonly eventId: string };
 
+// ---- item 4 wire shapes: the job, dispatch's dry run and release, the device shift grant ----
+export type JobPriority = "emergency" | "urgent" | "routine" | "pm";
+export type JobStateWire =
+  | "created" | "assigned" | "reassigned" | "en_route" | "on_site" | "in_progress" | "awaiting_parts"
+  | "complete" | "reopened" | "invoiced" | "cancelled" | "aborted";
+
+export type CreateJobInput = {
+  readonly siteId: string;
+  readonly serviceCode: string;
+  readonly priority?: JobPriority;
+  /** ISO datetime, inclusive. */
+  readonly serviceWindowStart: string;
+  /** ISO datetime, exclusive. */
+  readonly serviceWindowEnd: string;
+  readonly contractId?: string;
+  readonly projectId?: string;
+};
+export type CreateJobOutput = {
+  readonly id: string; readonly orgId: string; readonly regionId: string;
+  /** The timer this job opened, derived from the site's resolved sla_response — never typed in. */
+  readonly slaTimerId: string; readonly dueAt: string; readonly responseTerm: string;
+  readonly eventId: string;
+};
+
+/** What a job carries on a board, in the middle of its life. Same shape for S2 (any state) and S3 (region-locked by RLS). */
+export type JobWire = {
+  readonly id: string; readonly siteId: string; readonly contractId: string | null; readonly projectId: string | null;
+  readonly serviceCode: string; readonly priority: JobPriority; readonly state: JobStateWire;
+  readonly serviceWindowStart: string; readonly serviceWindowEnd: string; readonly version: number; readonly openedAt: string;
+  readonly regionId: string; readonly orgId: string;
+  /** The crew currently holding this job, unreleased — null once dispatched-and-released or never assigned. */
+  readonly currentCrewId: string | null; readonly currentCrewLabel: string | null;
+  /** The open assignment's own id — what `dispatch.release` names. Null exactly when currentCrewId is null. */
+  readonly currentAssignmentId: string | null;
+  /** The open (unsatisfied) SLA timer, if this job still has one. */
+  readonly slaDueAt: string | null; readonly slaEscalationStage: number | null; readonly slaSatisfiedAt: string | null;
+};
+export type ListJobsInput = { readonly state?: string };
+export type ListJobsOutput = { readonly jobs: readonly JobWire[] };
+
+/** S5's own read. No employment shape, no compliance detail — the field layer never sees either (09 §3.10, non-negotiable #9). */
+export type FieldJobWire = {
+  readonly id: string; readonly siteId: string; readonly serviceCode: string; readonly priority: JobPriority; readonly state: JobStateWire;
+  readonly serviceWindowStart: string; readonly serviceWindowEnd: string; readonly version: number;
+};
+export type MyJobsOutput = { readonly jobs: readonly FieldJobWire[] };
+
+export type ComplianceRefusalWireItem = { readonly reason: "missing" | "expired_in_window" | "unverified" | "crew_inactive"; readonly credentialKind: string; readonly detail: string };
+export type CandidateCrewWire = {
+  readonly crewId: string; readonly label: string; readonly employmentType: EmploymentType;
+  readonly cleared: boolean;
+  /** Present exactly when `cleared` is false — the same verdict `dispatch.assign` would return. */
+  readonly refusal: ComplianceRefusalWireItem | null;
+};
+export type CandidateCrewsInput = { readonly jobId: string; readonly orgId: string; readonly regionId: string };
+export type CandidateCrewsOutput = { readonly jobId: string; readonly candidates: readonly CandidateCrewWire[] };
+
+export type ReleaseAssignmentInput = { readonly assignmentId: string; readonly orgId: string; readonly regionId: string; readonly reason?: string };
+export type ReleaseAssignmentOutput = { readonly jobId: string; readonly eventId: string };
+
+export type DeviceKind = "android_pilot" | "yocto_tablet" | "web_fallback";
+export type DeviceWire = {
+  readonly id: string; readonly hardwareId: string; readonly kind: DeviceKind;
+  readonly firmId: string | null; readonly active: boolean; readonly orgId: string; readonly regionId: string;
+};
+export type ListDevicesInput = { readonly firmId?: string };
+export type ListDevicesOutput = { readonly devices: readonly DeviceWire[] };
+export type RegisterDeviceInput = {
+  readonly hardwareId: string; readonly kind: DeviceKind;
+  /** The device-held public key a future challenge-response login would verify against. Base64. Not yet checked at login — see claude/19_S3_S5_Dispatch_and_Field.md. */
+  readonly publicKey: string;
+  /** Where this hardware is provisioned. Required — a device is an operational row and region_id is never null. */
+  readonly regionId: string;
+  /** Hardware the firm already owns (D-2a). Absent: the device is ours. */
+  readonly firmId?: string;
+};
+export type RegisterDeviceOutput = { readonly id: string; readonly orgId: string; readonly regionId: string; readonly eventId: string };
+
+export type GrantShiftInput = {
+  readonly deviceId: string; readonly crewId: string; readonly technicianId: string;
+  /** ISO datetime, inclusive. */
+  readonly windowStart: string;
+  /** ISO datetime, exclusive. */
+  readonly windowEnd: string;
+};
+export type GrantShiftOutput = { readonly id: string; readonly orgId: string; readonly regionId: string; readonly eventId: string };
+
 export type AssignInput = { readonly jobId: string; readonly crewId: string; readonly orgId: string; readonly regionId: string };
 export type ComplianceRefusalWire = {
   readonly ok: false;
@@ -670,6 +819,7 @@ export type BrandStylesheetOutput = {
 export type OperationIO = {
   "auth.login": { input: LoginInput; output: LoginOutput };
   "auth.logout": { input: void; output: LogoutOutput };
+  "auth.deviceLogin": { input: DeviceLoginInput; output: DeviceLoginOutput };
   "session.me": { input: void; output: HierarchyContext };
   "terms.authorOverride": { input: AuthorOverrideInput; output: AuthorOverrideOutput };
   "terms.resolved": { input: ResolvedTermsInput; output: ResolvedTermsOutput };
@@ -696,7 +846,15 @@ export type OperationIO = {
   "credentials.verify": { input: VerifyCredentialInput; output: VerifyCredentialOutput };
   "rateCards.list": { input: ListRateCardsInput; output: ListRateCardsOutput };
   "rateCards.set": { input: SetRateCardInput; output: SetRateCardOutput };
+  "jobs.create": { input: CreateJobInput; output: CreateJobOutput };
+  "jobs.list": { input: ListJobsInput; output: ListJobsOutput };
+  "jobs.mine": { input: void; output: MyJobsOutput };
   "dispatch.assign": { input: AssignInput; output: AssignOutput };
+  "dispatch.candidates": { input: CandidateCrewsInput; output: CandidateCrewsOutput };
+  "dispatch.release": { input: ReleaseAssignmentInput; output: ReleaseAssignmentOutput };
+  "devices.list": { input: ListDevicesInput; output: ListDevicesOutput };
+  "devices.register": { input: RegisterDeviceInput; output: RegisterDeviceOutput };
+  "devices.grantShift": { input: GrantShiftInput; output: GrantShiftOutput };
   "sync.replay": { input: SyncReplayInput; output: SyncReplayOutput };
   "brand.setTheme": { input: BrandThemeInput; output: BrandThemeOutput };
   "brand.theme": { input: BrandStylesheetInput; output: BrandStylesheetOutput };

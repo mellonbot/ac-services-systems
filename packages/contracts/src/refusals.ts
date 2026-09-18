@@ -76,6 +76,21 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   already_verified: "structural",
   rate_begins_same_day: "structural",
   ac_credential_verification_is_earned: "structural",
+  // item 4 — S3/S5. All structural: a site that is not a site, a job past the
+  // point a release is meaningful, a grant that overlaps the one device can
+  // hold at a time, a technician granted onto a crew they are not on — each is
+  // a row that can never be right, not a commercial position to price.
+  unknown_site: "structural",
+  not_a_site: "structural",
+  bad_window: "structural",
+  already_released: "structural",
+  job_in_progress: "structural",
+  unknown_device: "structural",
+  unknown_assignment: "structural",
+  device_inactive: "structural",
+  crew_inactive_for_grant: "structural",
+  not_crew_member: "structural",
+  grant_overlap: "structural",
 });
 
 export const admissionAxis = (code: string | undefined): AdmissionAxis =>

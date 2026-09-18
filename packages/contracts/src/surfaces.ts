@@ -98,7 +98,16 @@ const REGISTRY = {
              // registry listed the firm, the document and the price, and not
              // the crew they all attach to. S8's `crew_roster` is a firm's
              // proposal; the crew row itself is ours to record.
-             "subcontractor_firm", "crew", "crew_credential", "rate_card", "brand_theme"],
+             "subcontractor_firm", "crew", "crew_credential", "rate_card", "brand_theme",
+             // item 4 (2026-09-17): a job is created in Office & Dispatch —
+             // the SLA timer it opens is derived, never typed in (deriveDueAt
+             // reads the resolved contract), so authoring a job is authoring
+             // truth the same way an account or a contract is. `device` and
+             // `device_grant` are D-2a's primitive, recorded here for the
+             // same reason a crew's own record is: nobody else is positioned
+             // to author it, and there is no S2 screen for it in this pass —
+             // see claude/19_S3_S5_Dispatch_and_Field.md.
+             "job", "device", "device_grant"],
     density: "console", realtime: false, offline: false,
     degraded: "Read-only from last server state. NO offline writes, ever — this is the only surface that authors hierarchy, contract and subcontractor-network truth, and a forked truth here is unrecoverable.",
     stateRamp: true,

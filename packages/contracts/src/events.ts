@@ -23,6 +23,9 @@ export const TOPICS = [
   "crew.created", "crew.updated",
   "firm.created", "firm.updated", "firm.status_changed",
   "rate_card.changed",
+  // item 4 — D-2a's primitive, recorded. No subscriber yet; added when a
+  // screen needs to react rather than in anticipation of one.
+  "device.registered", "device.shift_granted",
   // money
   "invoice.issued", "invoice.paid", "settlement.statement_issued",
   // sync
