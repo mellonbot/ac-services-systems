@@ -29,6 +29,9 @@
 - `crew_credential`
 - `rate_card`
 - `brand_theme`
+- `job`
+- `device`
+- `device_grant`
 
 ## Degraded mode
 

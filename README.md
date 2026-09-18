@@ -26,7 +26,16 @@ network operations, `handlers/network.ts`, migration 0005, and S2's five
 network screens — the firm, the crew, the document and the price. Every flow is
 driven in a real browser against the real gateway.**
 C3 (Amped recorded in full through the screens) waits on OQ1/OQ5 and is the
-last item in step 3. `docs/BACKBONE_CONTRACT.md` is the
+last item in step 3. **Structural build order item 4 (`00_MASTER_SYSTEM_PLAN.md`
+§2.8) is built (2026-09-17): S3 Dispatch Console and S5 Technician Web
+Fallback** — the board and dispatch screens, the offline-first mutation queue,
+the device-shaped login, unit- and render-tested (23 new tests; 334 unit tests
+total), schema-guard clean, and driven in headless Chromium against a static
+build of all six enabled surfaces. Detail: `claude/19_S3_S5_UI_Built.md`. A
+live-gateway integration proof mirroring `test/integration/s2-c4.test.ts` and
+`tools/ci/drive-s2-c4.ts` is the next rung and is not yet run — it needs a
+Postgres and a browser this sandbox does not carry both of at once.
+`docs/BACKBONE_CONTRACT.md` is the
 B2 deliverable — the interface every block codes against, ratified by the
 partners 2026-09-15 — and every statement in it names the mechanism that
 enforces it and the test that proved it against PostgreSQL 16. S0 is the layer

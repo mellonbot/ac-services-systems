@@ -138,11 +138,13 @@ export type ConnectConfig = {
    * How the session is held.
    *   { email, password }                    password login; the token from the body is held in memory and sent as a bearer (devices, tests, non-browser clients)
    *   { email, password, session: "cookie" } password login; the body's token is DISCARDED — the browser holds the httpOnly cookie the gateway set
+   *   { hardwareId, email, password }        S5 only — a technician's own credential plus the hardware in their hands (auth.deviceLogin); always bearer, held in memory. The web fallback IS the fallback, so its own session survives a reload with nothing else to hold a cookie's place.
    *   { token }                              a token already held (customer IdP exchange, device shift grant, resumed non-browser session)
    *   { session: "cookie" }                  resume a browser session: no login, the cookie is already there; `session.me` says who
    */
   readonly credentials:
     | { readonly email: string; readonly password: string; readonly session?: "bearer" | "cookie" }
+    | { readonly hardwareId: string; readonly email: string; readonly password: string }
     | { readonly token: string }
     | { readonly session: "cookie" };
   readonly requestId?: () => string;
@@ -151,6 +153,16 @@ export type ConnectConfig = {
 export type ConnectedShell = Shell & {
   /** The bearer token in force, for a non-browser surface to persist. Null in cookie-session mode — script never sees it. */
   readonly token: () => string | null;
+  /**
+   * Set only when connected with `{ hardwareId, email, password }` — the crew
+   * `auth.deviceLogin` resolved for this shift. Null otherwise. S5 needs this
+   * for anything it writes that carries a crew_id (a time entry), but it is
+   * deliberately NOT a token claim (context.ts's own reasoning: a crew claim
+   * on the token would be wrong the moment the shift grant is revoked, so the
+   * principal carries none) — this is the one place a device-logged-in
+   * surface can read it, from the login response itself, once, at connect.
+   */
+  readonly deviceCrew: { readonly id: string; readonly label: string } | null;
   /** Revoke the session at the gateway and forget the token. The next call with either is a `token` refusal (revoked). */
   logout(): Promise<void>;
 };
@@ -170,7 +182,12 @@ export const connectShell = async (cfg: ConnectConfig): Promise<ConnectedShell> 
   });
   const bootstrap = createGatewayClient(raw);
 
-  if ("email" in c) {
+  let deviceCrew: ConnectedShell["deviceCrew"] = null;
+  if ("hardwareId" in c) {
+    const login = await bootstrap.deviceLogin({ hardwareId: c.hardwareId, email: c.email, password: c.password });
+    token = login.token;
+    deviceCrew = { id: login.crewId, label: login.crewLabel };
+  } else if ("email" in c) {
     const login = await bootstrap.login({ email: c.email, password: c.password, surface: cfg.surfaceId });
     // In cookie mode the browser now holds the httpOnly cookie; the body's token is not retained anywhere script can read.
     if (session === "bearer") token = login.token;
@@ -181,7 +198,7 @@ export const connectShell = async (cfg: ConnectConfig): Promise<ConnectedShell> 
     try { await shell.gateway.logout(); } finally { token = null; }
   };
   // Spread copies own enumerable symbol keys too, so the DEGRADED handle travels with it.
-  return Object.freeze({ ...shell, token: () => token, logout });
+  return Object.freeze({ ...shell, token: () => token, deviceCrew, logout });
 };
 
 export { applyBrand, fetchBrand, installBrand, type BrandSlot, type BrandConfig, type BrandResult } from "./brand.ts";
