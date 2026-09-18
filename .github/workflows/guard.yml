@@ -114,3 +114,8 @@ jobs:
       # is the wire half, above).
       - name: S6 through a real browser
         run: npm run drive:s6
+      # Item 7: the subcontractor portal, two firms, one bundle — the DOM half
+      # of firm visibility (test/integration/s8.test.ts is the wire half), and
+      # D12's four writes from the page: enroll, file, acknowledge, dispute.
+      - name: S8 through a real browser
+        run: npm run drive:s8

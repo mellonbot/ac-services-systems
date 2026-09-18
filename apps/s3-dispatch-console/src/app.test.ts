@@ -32,7 +32,7 @@ const context: HierarchyContext = {
 };
 
 const jobCreated: JobWire = {
-  id: JOB_CREATED, siteId: SITE, contractId: null, projectId: null, serviceCode: "hvac_repair", priority: "urgent", state: "created",
+  id: JOB_CREATED, siteId: SITE, siteName: "Austin — Roof", contractId: null, projectId: null, serviceCode: "hvac_repair", priority: "urgent", state: "created",
   serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T17:00:00.000Z", version: 1, openedAt: "2026-09-17T12:00:00.000Z",
   regionId: SOUTH, orgId: ORG, currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 1, slaSatisfiedAt: null,

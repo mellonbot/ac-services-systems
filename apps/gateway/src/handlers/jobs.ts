@@ -38,7 +38,7 @@ const requireIso = (v: unknown, field: string): Date => {
 const PRIORITIES: readonly JobPriority[] = ["emergency", "urgent", "routine", "pm"];
 
 type JobRow = {
-  id: string; site_id: string; contract_id: string | null; project_id: string | null;
+  id: string; site_id: string; site_name: string | null; contract_id: string | null; project_id: string | null;
   service_code: string; priority: JobPriority; state: JobStateWire;
   ws: string; we: string; version: number; opened_at: string; region_id: string; org_id: string;
   current_crew_id: string | null; current_crew_label: string | null; current_assignment_id: string | null;
@@ -46,7 +46,7 @@ type JobRow = {
 };
 
 const toWire = (r: JobRow): JobWire => ({
-  id: r.id, siteId: r.site_id, contractId: r.contract_id, projectId: r.project_id,
+  id: r.id, siteId: r.site_id, siteName: r.site_name, contractId: r.contract_id, projectId: r.project_id,
   serviceCode: r.service_code, priority: r.priority, state: r.state,
   serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version, openedAt: r.opened_at,
   regionId: r.region_id, orgId: r.org_id,
@@ -55,13 +55,14 @@ const toWire = (r: JobRow): JobWire => ({
 });
 
 const JOB_SELECT = `
-  SELECT j.id, j.site_id, j.contract_id, j.project_id, j.service_code, j.priority, j.state,
+  SELECT j.id, j.site_id, s.name AS site_name, j.contract_id, j.project_id, j.service_code, j.priority, j.state,
          lower(j.service_window) AS ws, upper(j.service_window) AS we, j.version,
          to_char(j.opened_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS opened_at, j.region_id, j.org_id,
          a.crew_id AS current_crew_id, c.label AS current_crew_label, a.id AS current_assignment_id,
          to_char(st.due_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_due_at, st.escalation_stage AS sla_escalation_stage,
          to_char(st.satisfied_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_satisfied_at
     FROM jobs j
+    LEFT JOIN accounts s ON s.id = j.site_id
     LEFT JOIN assignments a ON a.job_id = j.id AND a.released_at IS NULL
     LEFT JOIN crews c ON c.id = a.crew_id
     LEFT JOIN sla_timers st ON st.job_id = j.id`;

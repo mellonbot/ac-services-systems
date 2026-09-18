@@ -7,6 +7,7 @@ import type {
   EmploymentType, CrewDocumentSummary, ListCrewsInput, ListCrewsOutput, CreateCrewInput, CreateCrewOutput, UpdateCrewInput, UpdateCrewOutput,
   CredentialWire, CredentialKind, ListCredentialsInput, ListCredentialsOutput, RecordCredentialInput, RecordCredentialOutput, VerifyCredentialInput, VerifyCredentialOutput,
   RateCardWire, ListRateCardsInput, ListRateCardsOutput, SetRateCardInput, SetRateCardOutput,
+  SubmitCredentialInput, SubmitCredentialOutput, EnrollCrewInput, EnrollCrewOutput, RetireCrewInput, RetireCrewOutput,
 } from "../../../../packages/contracts/src/operations.ts";
 
 /**
@@ -346,6 +347,66 @@ export const updateCrew = async (uow: UnitOfWork, input: UpdateCrewInput): Promi
 };
 
 // ---------------------------------------------------------------------------
+// The roster — S8's leg (item 7). A firm's crew is the firm's row: firm,
+// type and region are the PRINCIPAL's, never inputs, and 0007's
+// ac_crew_roster_is_the_firms refuses a row that says otherwise from any
+// path. The handler's job is the inputs and the refusals a click can produce.
+// ---------------------------------------------------------------------------
+export const enrollCrew = async (uow: UnitOfWork, input: EnrollCrewInput, firmId: string | null, newId: () => string): Promise<EnrollCrewOutput> => {
+  const label = requireText(input.label, "label");
+  if (!firmId) throw new InputRefused("this principal carries no firm — a roster belongs to a firm", "no_firm");
+  // RLS: a firm principal sees one firm. If the row is not there, the token and the registry disagree, and nothing is rostered.
+  const firm = await loadFirm(uow, firmId);
+  if (firm.status === "terminated" || firm.status === "suspended") {
+    throw new InputRefused(`firm ${firm.legal_name} is ${firm.status} — a crew rostered under it is a crew nobody can dispatch. The office lifts a suspension; a terminated firm does not roster again.`, "firm_ended");
+  }
+  const id = newId();
+  const eventId = await uow.apply(
+    {
+      entity: "crew_roster", entityId: id, action: "crew.enroll", topic: "crew.created",
+      before: null, after: { id, label, employmentType: "subcontracted", firmId: firm.id, homeRegionId: firm.region_id, active: true },
+      orgId: firm.org_id, regionId: firm.region_id,
+      payload: { label, firmId: firm.id, enrolledBy: "firm" },
+    },
+    async (tx) => {
+      await tx.query(
+        "INSERT INTO crews (id, org_id, region_id, label, employment_type, firm_id, home_region_id, active) VALUES ($1, $2, $3, $4, 'subcontracted', $5, $3, true)",
+        [id, firm.org_id, firm.region_id, label, firm.id],
+      );
+    },
+  );
+  return { id, firmId: firm.id, regionId: firm.region_id, eventId };
+};
+
+export const retireCrew = async (uow: UnitOfWork, input: RetireCrewInput): Promise<RetireCrewOutput> => {
+  const crewId = requireUuid(input.crewId, "crewId");
+  const current = await loadCrew(uow, crewId);
+  const sets: string[] = []; const params: unknown[] = [crewId];
+  const before: Record<string, unknown> = {}; const after: Record<string, unknown> = {};
+  if (input.label !== undefined) { params.push(requireText(input.label, "label")); sets.push(`label = $${params.length}`); before.label = current.label; after.label = params[params.length - 1]; }
+  if (input.active !== undefined) {
+    if (typeof input.active !== "boolean") throw new BadInput("active must be true or false");
+    if (input.active === false && current.active) {
+      // A crew holding a live assignment is not taken off the roster from a portal: the dispatcher releases it, with a reason, on S3.
+      const live = (await uow.tx.query<{ n: string }>("SELECT count(*)::text AS n FROM assignments WHERE crew_id = $1 AND released_at IS NULL", [crewId]))[0]!;
+      if (Number(live.n) > 0) {
+        throw new InputRefused(`crew ${current.label} holds ${live.n} live assignment${live.n === "1" ? "" : "s"} — ask the office to release the work before retiring the crew`, "crew_assigned");
+      }
+    }
+    params.push(input.active); sets.push(`active = $${params.length}`); before.active = current.active; after.active = input.active;
+  }
+  if (sets.length === 0) throw new BadInput("nothing to change — name label or active");
+  const eventId = await uow.apply(
+    {
+      entity: "crew_roster", entityId: crewId, action: input.active === false ? "crew.retire" : "crew.roster_update", topic: "crew.updated",
+      before, after, orgId: current.org_id, regionId: current.region_id, payload: { fields: Object.keys(after), by: "firm" },
+    },
+    async (tx) => { await tx.query(`UPDATE crews SET ${sets.join(", ")} WHERE id = $1`, params); },
+  );
+  return { id: crewId, eventId };
+};
+
+// ---------------------------------------------------------------------------
 // Credentials
 // ---------------------------------------------------------------------------
 export const listCredentials = async (uow: UnitOfWork, input: ListCredentialsInput): Promise<ListCredentialsOutput> => {
@@ -391,6 +452,41 @@ export const recordCredential = async (uow: UnitOfWork, input: RecordCredentialI
     },
   );
   return { id, eventId };
+};
+
+/**
+ * S8's intake (item 7): the same row `recordCredential` writes, under the
+ * firm's own entity. A firm principal's `loadCrew` finds only its own crews
+ * (0005), so another firm's crew is `unknown_crew`. The INSERT names no
+ * verification — the handler cannot say it, and 0005's trigger refuses it
+ * from anyone who does. What the office then does is `credentials.verify`.
+ */
+export const submitCredential = async (uow: UnitOfWork, input: SubmitCredentialInput, newId: () => string): Promise<SubmitCredentialOutput> => {
+  const crew = await loadCrew(uow, requireUuid(input.crewId, "crewId"));
+  const kind = requireOneOf(input.kind, "kind", CREDENTIAL_KINDS);
+  const identifier = requireText(input.identifier, "identifier");
+  const validFrom = requireDate(input.validFrom, "validFrom");
+  const validTo = requireDate(input.validTo, "validTo");
+  if (validTo < validFrom) {
+    throw new InputRefused(`${kind} ${identifier} is valid from ${validFrom} to ${validTo} — a window that ends before it starts covers no day at all`, "empty_window");
+  }
+  const documentKey = input.documentKey === undefined ? null : requireText(input.documentKey, "documentKey");
+  const id = newId();
+  const eventId = await uow.apply(
+    {
+      entity: "compliance_doc", entityId: id, action: "credential.submit", topic: "credential.recorded",
+      before: null, after: { id, crewId: crew.id, kind, identifier, validFrom, validTo, documentKey, verifiedAt: null, verifiedBy: null },
+      orgId: crew.org_id, regionId: crew.region_id,
+      payload: { crewId: crew.id, kind, validFrom, validTo, submittedBy: "firm" },
+    },
+    async (tx) => {
+      await tx.query(
+        "INSERT INTO crew_credentials (id, org_id, region_id, crew_id, kind, identifier, valid_from, valid_to, document_key) VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8::date, $9)",
+        [id, crew.org_id, crew.region_id, crew.id, kind, identifier, validFrom, validTo, documentKey],
+      );
+    },
+  );
+  return { id, crewId: crew.id, eventId };
 };
 
 export const verifyCredential = async (uow: UnitOfWork, input: VerifyCredentialInput, actorId: string, now: Date): Promise<VerifyCredentialOutput> => {

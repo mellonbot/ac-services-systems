@@ -77,6 +77,12 @@ export const settlements = operationalTable("settlements", {
     { name: "currency", type: "text", references: "currencies(code)" },
     { name: "state", type: "text", check: "state IN ('draft','issued','acknowledged','disputed','paid')", default: "'draft'" },
     { name: "issued_at", type: "timestamptz", nullable: true },
+    // Item 7 (S8): the firm's position on a statement we issued. Set by the
+    // firm's two writes and by nothing else; 0007's trigger holds that a firm
+    // changes these four columns and no other.
+    { name: "acknowledged_at", type: "timestamptz", nullable: true },
+    { name: "disputed_at", type: "timestamptz", nullable: true },
+    { name: "dispute_reason", type: "text", nullable: true },
   ],
   indexes: [["firm_id"]],
 });

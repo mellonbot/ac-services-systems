@@ -564,6 +564,9 @@ CREATE TABLE IF NOT EXISTS settlements (
   currency text NOT NULL REFERENCES currencies(code),
   state text NOT NULL DEFAULT 'draft' CHECK (state IN ('draft','issued','acknowledged','disputed','paid')),
   issued_at timestamptz,
+  acknowledged_at timestamptz,
+  disputed_at timestamptz,
+  dispute_reason text,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (id)
 );

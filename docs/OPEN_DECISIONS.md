@@ -43,6 +43,40 @@ Lands in: `apps/gateway/src/main.ts` (`login`), `PASSWORD_LOGIN`, and a users
 provisioning operation (there is none yet — customer principals are seeded by
 SQL, which does not survive the third account).
 
+**OPEN-S8-D12 — the firm's writes, as built, are the registry's line; D12 ratifies or edits it.**
+
+`00` §2 keeps D12 (S8 scope in Phase 1) open and says: *"the minimum cut is
+compliance document intake plus settlement visibility. In code, D12 is S8's
+write allowlist — one reviewed line."* Item 7 (2026-09-18) built exactly the
+line as written — `compliance_doc`, `crew_roster`, `settlement_ack`, `dispute` —
+each as its own operation (`credentials.submit`, `crews.enroll`/`crews.retire`,
+`settlements.acknowledge`, `settlements.dispute`), each held at the table by
+0007's triggers so the entity label and the row agree. Closing D12 is therefore
+confirming the four, or deleting a word from `SURFACES.S8.writes`: an entity
+removed there makes its operation a scope refusal on the next request, with
+nothing else to change.
+
+Three things D12's owner should know were decided in the build:
+- **Roster before activation.** An onboarding firm rosters crews and files
+  their documents; a suspended or terminated firm does not. The office verifies
+  documents before the first job either way, so a firm that cannot roster until
+  it is active cannot be made active with a cleared crew.
+- **A dispute is not withdrawn by the firm.** issued → acknowledged, and
+  issued|acknowledged → disputed, are the firm's steps; every other step on a
+  statement is ours (WS-E's ladder, D13). A firm that disputed in error tells
+  the office, which answers on the row.
+- **Statements are still rows.** There is no operation that issues one; that is
+  WS-E (E4/E5). The tests seed them by SQL. `settlements.list`/`.lines` read
+  what that work will write, with `acknowledged_at`, `disputed_at` and
+  `dispute_reason` already on the table (0007 + regenerated 0001).
+
+Also from item 7, not blocking anything: **`sessions` has no row-level policy.**
+A bound external principal can read every session row (ids, principal, expiry —
+no token, no secret). `users` was closed by 0007 (own row); `sessions` was left
+because the gateway reads it under every kind of binding and a device grant's
+session names the grant, not the technician. One policy, one wire test; do it
+when the next migration opens.
+
 **OPEN-S4 — can the HQ dashboard write annotations?**
 
 `05_Web_Surface_Architecture.md` Rev B lists S4's writes as *"annotation,

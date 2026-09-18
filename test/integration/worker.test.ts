@@ -16,14 +16,23 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { createPool, beginTx, type Pool } from "../../apps/gateway/src/pg-tx.ts";
 import { sweepSlaCascade, sweepCredentialExpiry, workerScope, WORKER_ACTOR } from "../../apps/worker/src/sweeps.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 
-const URL_ = process.env.DATABASE_URL;
-const skip = URL_ ? false : "DATABASE_URL not set — the worker was not run against RLS";
+const GIVEN = process.env.DATABASE_URL;
+const skip = GIVEN ? false : "DATABASE_URL not set — the worker was not run against RLS";
 const RUN = `wk-${Date.now().toString(36)}`;
+// A SWEEP IS GLOBAL. Run on a scratch database (create, migrate, sweep, drop), the way the
+// drives do, so a sweep here never emits for another suite's rows on a shared database —
+// the backbone suite's own credential test reads "the latest expiring row" and would find ours.
+const SCRATCH = `ac_worker_${RUN.replace(/-/g, "_")}`;
+const withDb = (url: string, name: string): string => { const u = new URL(url); u.pathname = `/${name}`; return u.toString(); };
+const URL_ = GIVEN ? withDb(GIVEN, SCRATCH) : undefined;
+let maintenance: Pool;
 const U = (n: number) => `e7000000-0000-0000-0000-0000000000${String(n).padStart(2, "0")}`;
 const ORG = U(10), SITE_NODE = U(11), SITE = U(12), JOB = U(13), TIMER = U(14), CREW = U(15), CRED = U(16), CRED_FAR = U(17);
 
@@ -34,7 +43,16 @@ const admin = async (sql: string, params: unknown[] = []) => {
 };
 
 before(async () => {
-  if (!URL_) return;
+  if (!GIVEN || !URL_) return;
+  const given = new URL(GIVEN).pathname.replace(/^\//, "");
+  maintenance = createPool(withDb(GIVEN, given === "postgres" ? "template1" : "postgres"), "ac-worker-test-admin");
+  { const c = await maintenance.connect(); try { await c.query(`CREATE DATABASE ${SCRATCH}`); } finally { c.release(); } }
+  const mig = spawn(process.execPath, [fileURLToPath(new URL("../../tools/ci/migrate.ts", import.meta.url))], { env: { ...process.env, DATABASE_URL: URL_ }, stdio: ["ignore", "pipe", "pipe"] });
+  let mlog = "";
+  mig.stdout!.on("data", (d) => { mlog += String(d); });
+  mig.stderr!.on("data", (d) => { mlog += String(d); });
+  const mcode = await new Promise<number>((r) => mig.on("exit", (c) => r(c ?? 1)));
+  if (mcode !== 0) throw new Error(`migrate failed on ${SCRATCH}:\n${mlog}`);
   pool = createPool(URL_, "ac-worker-test");
   await admin(`INSERT INTO regions (id, code, name) VALUES ($1,'SOUTH','South') ON CONFLICT (id) DO NOTHING`, [REGION_SOUTH]);
   await admin(`INSERT INTO organizations (id, name, kind, external_ref) VALUES ($1, $2, 'customer', $2) ON CONFLICT (id) DO NOTHING`, [ORG, `Worker Org ${RUN}`]);
@@ -58,7 +76,14 @@ before(async () => {
   await admin(`DELETE FROM outbox WHERE entity_id IN ($1, $2) AND surface_id = 'worker'`, [TIMER, CRED]);
 });
 
-after(async () => { await pool?.end(); });
+after(async () => {
+  await pool?.end();
+  if (maintenance) {
+    const c = await maintenance.connect().catch(() => null);
+    if (c) { try { await c.query(`DROP DATABASE IF EXISTS ${SCRATCH} WITH (FORCE)`); } finally { c.release(); } }
+    await maintenance.end().catch(() => {});
+  }
+});
 
 test("an UNBOUND worker transaction sees zero timers and zero credentials — the defect, stated", { skip }, async () => {
   const tx = await beginTx(pool, "ac_worker");
