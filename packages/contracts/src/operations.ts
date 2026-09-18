@@ -52,8 +52,21 @@ type OperationSpec = {
 };
 
 const AUTHENTICATED: readonly SurfaceId[] = ["S2", "S3", "S4", "S5", "S6", "S7", "S8"];
-/** Surfaces whose principals hold a password at OUR gateway. Customers federate to their IdP; devices carry a shift grant; S1 is anonymous. */
-const PASSWORD_LOGIN: readonly SurfaceId[] = ["S2", "S3", "S4", "S8"];
+/**
+ * Surfaces whose principals hold a password at OUR gateway. Devices carry a
+ * shift grant; S1 is anonymous.
+ *
+ * S6 joined this list with item 6 (2026-09-17) as the PHASE 1 DOOR. The
+ * registry says "customer IdP + tier claim", and that stays the destination:
+ * federation replaces the credential check inside `auth.login` and nothing
+ * else — the claims it mints (namespace, org, scope tier, scope node) are the
+ * same either way, and everything downstream of the token (RLS, the context
+ * walk, the tier scoping the acceptance test measures) is proven against those
+ * claims, not against how the password was checked. Building the federation
+ * needs a customer's IdP to test against, which is a conversation with
+ * Amped's IT, not a diff here; docs/OPEN_DECISIONS.md carries it as OPEN-S6-IDP.
+ */
+const PASSWORD_LOGIN: readonly SurfaceId[] = ["S2", "S3", "S4", "S6", "S8"];
 
 export const OPERATIONS = {
   "auth.login": {
@@ -125,7 +138,9 @@ export const OPERATIONS = {
   // ---- C2: the agreements and term overrides S2 authors (09 §3.6) ----
   "contracts.list": {
     id: "contracts.list", method: "GET", path: "/s2/contracts", kind: "query", auth: "bearer",
-    surfaces: ["S2"], carrier: "query", sdkMethod: "listContracts",
+    // S6 since item 6: a customer reads the agreements it signed. Its own org
+    // by RLS (0006) — the orgId input is inert for a customer principal.
+    surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "listContracts",
     summary: "The signed agreements in an organization — what a term override must belong to, and where the state machine currently stands.",
   },
   "contracts.create": {
@@ -218,8 +233,22 @@ export const OPERATIONS = {
   },
   "jobs.list": {
     id: "jobs.list", method: "GET", path: "/jobs", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S3"], carrier: "query", sdkMethod: "listJobs",
-    summary: "Jobs visible to this principal — S2 org-wide, S3 region-locked by RLS, same operation. Carries each job's current (unreleased) assignment and open SLA timer, if any.",
+    // S6 since item 6: a customer sees work at the sites it can see (0006's
+    // ac_work_visible), and no crew — the assignment join returns nothing for
+    // a customer principal, so currentCrew* are null on its rows by mechanism.
+    surfaces: ["S2", "S3", "S6"], carrier: "query", sdkMethod: "listJobs",
+    summary: "Jobs visible to this principal — S2 org-wide, S3 region-locked, S6 at its own sites, all by RLS, same operation. Carries each job's current (unreleased) assignment and open SLA timer, if any.",
+  },
+  // ---- item 6: S6's first write. A customer asks for work; the office turns it into a job. ----
+  "serviceRequests.create": {
+    id: "serviceRequests.create", method: "POST", path: "/s6/service-requests", kind: "mutation", auth: "bearer",
+    surfaces: ["S6"], carrier: "body", sdkMethod: "createServiceRequest",
+    summary: "A customer's request for service at one of its sites. The site must be visible to the principal (RLS decides; an invisible site is 'unknown_site', not 'forbidden'); tenancy derives from the site. It is a request, not a job — S2/S3 open the job against it.",
+  },
+  "serviceRequests.list": {
+    id: "serviceRequests.list", method: "GET", path: "/service-requests", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S3", "S6"], carrier: "query", sdkMethod: "listServiceRequests",
+    summary: "Requests visible to this principal — a customer's own, the office's by region — with the site's name and, once one is opened, the job's state.",
   },
   // ---- S3 ----
   "dispatch.assign": {
@@ -675,6 +704,25 @@ export type JobWire = {
   /** The open (unsatisfied) SLA timer, if this job still has one. */
   readonly slaDueAt: string | null; readonly slaEscalationStage: number | null; readonly slaSatisfiedAt: string | null;
 };
+// ---- item 6: service requests ----
+export type ServiceRequestPriority = "emergency" | "urgent" | "routine";
+export type CreateServiceRequestInput = {
+  readonly siteId: string;
+  readonly priority?: ServiceRequestPriority;
+  readonly description: string;
+};
+export type CreateServiceRequestOutput = { readonly id: string; readonly orgId: string; readonly regionId: string; readonly eventId: string };
+export type ServiceRequestWire = {
+  readonly id: string; readonly siteId: string; readonly siteName: string;
+  readonly priority: ServiceRequestPriority; readonly description: string;
+  readonly requestedBy: string; readonly createdAt: string;
+  /** The job the office opened against this request, if one has been. */
+  readonly jobId: string | null; readonly jobState: JobStateWire | null;
+  readonly orgId: string; readonly regionId: string;
+};
+export type ListServiceRequestsInput = { readonly siteId?: string };
+export type ListServiceRequestsOutput = { readonly requests: readonly ServiceRequestWire[] };
+
 export type ListJobsInput = { readonly state?: string };
 export type ListJobsOutput = { readonly jobs: readonly JobWire[] };
 
@@ -848,6 +896,8 @@ export type OperationIO = {
   "rateCards.set": { input: SetRateCardInput; output: SetRateCardOutput };
   "jobs.create": { input: CreateJobInput; output: CreateJobOutput };
   "jobs.list": { input: ListJobsInput; output: ListJobsOutput };
+  "serviceRequests.create": { input: CreateServiceRequestInput; output: CreateServiceRequestOutput };
+  "serviceRequests.list": { input: ListServiceRequestsInput; output: ListServiceRequestsOutput };
   "jobs.mine": { input: void; output: MyJobsOutput };
   "dispatch.assign": { input: AssignInput; output: AssignOutput };
   "dispatch.candidates": { input: CandidateCrewsInput; output: CandidateCrewsOutput };

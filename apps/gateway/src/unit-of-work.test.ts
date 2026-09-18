@@ -88,6 +88,23 @@ test("an org-scoped internal principal may write across regions; a customer prin
     u2.apply({ entity: "service_request", entityId: "sr", action: "open", topic: "job.created", before: null, after: {}, orgId: "org-other", regionId: "reg-mountain" }, async () => {}),
     TenancyMismatch,
   );
+  // ...nor, below the parent tier, across our regions: Boulder's manager writes Boulder's region.
+  await assert.rejects(
+    u2.apply({ entity: "service_request", entityId: "sr", action: "open", topic: "service_request.created", before: null, after: {}, orgId: "org-amped", regionId: "reg-west" }, async () => {}),
+    TenancyMismatch,
+  );
+});
+
+test("a parent-tier customer writes into any region its org is served from — the row's region is the site's, not the token's (item 6)", async () => {
+  const exec: Principal = { ...dispatcher, namespace: "customer", orgId: "org-amped", scopeTier: "parent", scopeId: "org-amped", regionId: "reg-mountain" };
+  const f = fakeTx();
+  const uow = await createUnitOfWork(ctx("S6", exec), f.tx);
+  await uow.apply({ entity: "service_request", entityId: "sr", action: "open", topic: "service_request.created", before: null, after: {}, orgId: "org-amped", regionId: "reg-west" }, async () => {});
+  await assert.rejects(
+    uow.apply({ entity: "service_request", entityId: "sr2", action: "open", topic: "service_request.created", before: null, after: {}, orgId: "org-other", regionId: "reg-west" }, async () => {}),
+    TenancyMismatch,
+    "the org check is not relaxed with it",
+  );
 });
 
 test("a surface serves one namespace: a customer token cannot open the dispatch console's unit of work", async () => {

@@ -110,10 +110,17 @@ export const createUnitOfWork = async (ctx: UnitOfWorkContext, tx: Tx) => {
     // 3. Tenancy. Internal and device principals are OURS: they write into customer
     //    orgs, bounded by region (org-scoped internal principals: any region).
     //    External principals (customer, subcontractor, vendor, anonymous) write
-    //    only into their own org, and only in their own region.
+    //    only into their own org, and only in their own region — EXCEPT a
+    //    parent-tier customer (item 6). Its token names one of our regions
+    //    because every users row carries one, but its org is served from
+    //    several, and the region a customer's row belongs to is the SITE's
+    //    (derived by the handler from a site RLS let it see), never the one an
+    //    executive happened to be bound to at login. The org check still
+    //    holds; below the parent tier the region check does too, and agrees
+    //    with the site's by derivation.
     const p = ctx.principal;
     const ours = p.namespace === "internal" || p.namespace === "device";
-    const orgScoped = p.namespace === "internal" && p.scopeTier === "parent";
+    const orgScoped = (p.namespace === "internal" || p.namespace === "customer") && p.scopeTier === "parent";
     if (!ours && m.orgId !== p.orgId) throw new TenancyMismatch(`row org ${m.orgId} is not principal org ${p.orgId}`);
     if (!orgScoped && m.regionId !== p.regionId) throw new TenancyMismatch(`row region ${m.regionId} is not principal region ${p.regionId}`);
     if (!isTopic(m.topic)) throw new Error(`"${m.topic}" is not in the event catalogue (packages/contracts/src/events.ts)`);

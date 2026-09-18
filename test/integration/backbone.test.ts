@@ -374,10 +374,14 @@ test("RLS: a subcontractor firm sees its own rate card and nobody else's — a f
   });
 });
 
-test("RLS: a facility manager scoped to Boulder sees Boulder and its sites, not El Paso, not the region node's siblings", skip, async () => {
+test("RLS: a facility manager scoped to Boulder sees Boulder, its sites and its own breadcrumb (the region node above it) — not El Paso, not the region node's other locations", skip, async () => {
   await withUow("S6", CUST_BOULDER, async (uow) => {
     const rows = await uow.tx.query<{ id: string }>(`SELECT id FROM accounts ORDER BY id`);
-    assert.deepEqual(rows.map((r) => r.id).sort(), [N.boulder, N.boulderRoof, N.boulderAhu].sort());
+    // 0006: the scope node's ancestors are visible so the context walk and the
+    // resolver's path are whole — an override at the region tier applies to
+    // Boulder because Boulder can see the region node it hangs from. Nothing
+    // beside the path is: no sibling location, no other site.
+    assert.deepEqual(rows.map((r) => r.id).sort(), [N.mountain, N.boulder, N.boulderRoof, N.boulderAhu].sort());
   });
 });
 

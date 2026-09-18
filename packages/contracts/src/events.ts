@@ -13,7 +13,9 @@ export const TOPICS = [
   // a tenant's white-label. INV subscribes: the portal is the surface it repaints.
   "brand.theme_set",
   "contract.created", "contract.amended", "contract.term_overridden", "contract.expired",
-  // work
+  // work. `service_request.created` is item 6's — the customer asked; OFC
+  // subscribes so a dispatcher's board can refetch its intake.
+  "service_request.created",
   "job.created", "job.assigned", "job.transitioned", "job.reassigned", "job.cancelled", "job.completed",
   "project.created", "project.crew_requested", "project.crew_released", "project.closed",
   // SLA
@@ -68,7 +70,7 @@ export type EventEnvelope = Pick<DomainEvent, "eventId" | "topic" | "entity" | "
 
 /** Block subscriptions declared, not discovered. */
 export const SUBSCRIBERS: Readonly<Record<"OFC" | "FLD" | "INV" | "WORKER", readonly Topic[]>> = {
-  OFC: ["job.transitioned", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended"],
+  OFC: ["service_request.created", "job.transitioned", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended"],
   FLD: ["job.assigned", "job.reassigned", "job.cancelled", "contract.term_overridden"],
   // S8 learns of its own verification and its own price the same way S2 does — by refetch.
   INV: ["job.completed", "contract.amended", "contract.term_overridden", "sla.breached", "settlement.statement_issued", "firm.status_changed", "credential.verified", "rate_card.changed", "brand.theme_set"],

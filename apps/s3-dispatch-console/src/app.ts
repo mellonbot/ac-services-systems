@@ -58,7 +58,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     // technician's own device pushed, or the cascade escalating a timer —
     // and the dry run is invalidated with it because a credential event can
     // change what candidateCrews would say about a crew already on screen.
-    shell.subscribe((_e) => {
+    shell.subscribe(() => {
       store.invalidate("jobs.list");
       store.invalidate("dispatch.candidates");
     }, { topics: [

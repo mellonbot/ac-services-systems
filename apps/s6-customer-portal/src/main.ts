@@ -11,7 +11,7 @@ import type { Principal } from "../../../packages/contracts/src/index.ts";
  * Writes: service_request, payment, contact_update
  *
  * Degraded mode:
- *   Cached read of last known job and invoice state, clearly timestamped; request intake queues. One codebase, four scopes — scoping is enforced at the gateway, never by client-side filtering.
+ *   Last known sites, work and agreements, each stamped with when the gateway last answered. Requests are not taken while the gateway is unreachable — a request that looks accepted and was never received is worse than one refused. One codebase, four scopes — scoping is enforced at the gateway, never by client-side filtering.
  *
  * This surface owns no data. Every read and every write goes through
  * `shell.gateway` — the client generated from the operation catalogue — and

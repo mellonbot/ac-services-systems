@@ -176,6 +176,18 @@ export const resolveDeviceLogin = async (
     [device.id, technicianId, now.toISOString()],
   ))[0];
   if (!grant) return null;
+  // `crews` is behind row-level security, and the login transaction has no
+  // scope bound yet — read unbound, the policy sees no namespace and returns
+  // ZERO rows, so every device login was "invalid credentials" against a live
+  // database while the scripted unit test passed (found by the wire suite,
+  // test/integration/s3-s5.test.ts). The grant is the principal this login is
+  // about to mint, so its own tenancy is bound here, before the first scoped
+  // read, exactly as the unit of work binds it for every request after this one.
+  await tx.setLocal({
+    "ac.namespace": "device", "ac.org_id": grant.org_id, "ac.region_id": grant.region_id,
+    "ac.scope_tier": "region", "ac.scope_id": grant.region_id,
+    "ac.firm_id": "", "ac.device_id": device.id, "ac.actor_id": technicianId, "ac.surface_id": "S5",
+  });
   const crew = (await tx.query<{ label: string; active: boolean }>(`SELECT label, active FROM crews WHERE id = $1`, [grant.crew_id]))[0];
   if (!crew || !crew.active) return null;
   return {

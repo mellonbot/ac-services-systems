@@ -61,7 +61,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       // Envelopes carry no payload; a job assigned to or pulled off this
       // shift's crew, or a term change affecting the field ground, is a
       // refetch of jobs.mine, same as every other surface's own event handling.
-      shell.subscribe((_e) => { store.invalidate("jobs.mine"); }, { topics: ["job.assigned", "job.reassigned", "job.cancelled"] });
+      shell.subscribe(() => { store.invalidate("jobs.mine"); }, { topics: ["job.assigned", "job.reassigned", "job.cancelled"] });
     } catch (e) {
       phase.value = { kind: "login", refusal: refusalOf(e), busy: false };
     }

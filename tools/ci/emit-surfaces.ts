@@ -160,12 +160,13 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
 `;
 
 /**
- * Surfaces with a hand-written `src/app.ts` of their own — S2 first, and now
- * item 4's S3 (dispatch board + the one gated door) and S5 (offline-first
- * field screens). Every other surface still gets the shared first cut until
- * its own product-specific workflow is built.
+ * Surfaces with a hand-written `src/app.ts` of their own — S2 first, item 4's
+ * S3 (dispatch board + the one gated door) and S5 (offline-first field
+ * screens), and item 6's S6 (the customer's sites, work, agreements and
+ * request intake, scoped by RLS). Every other surface still gets the shared
+ * first cut until its own product-specific workflow is built.
  */
-const HAND_WRITTEN_APPS: readonly SurfaceId[] = ["S2", "S3", "S5"];
+const HAND_WRITTEN_APPS: readonly SurfaceId[] = ["S2", "S3", "S5", "S6"];
 const GENERATED_STATUS_APPS: readonly SurfaceId[] = SURFACE_IDS.filter((id) => !HAND_WRITTEN_APPS.includes(id));
 
 /**

@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { randomUUID } from "node:crypto";
 import { createPool, beginTx, hierarchyReader, listenEvents } from "./pg-tx.ts";
 import { generateKeypair, keypairFromPem, mintToken, verifyToken, principalFromClaims, verifyPassword, AuthError } from "./auth.ts";
-import { buildContext, ScopeResolutionError } from "./context.ts";
+import { buildContext, scopeBinding, ScopeResolutionError } from "./context.ts";
 import { createUnitOfWork, SurfaceWriteDenied, TenancyMismatch, SurfaceDisabled, RoleDenied } from "./unit-of-work.ts";
 import { InputRefused, BadInput, dbRefusal } from "./refusals.ts";
 import { sessionConfigFromEnv, allowedOrigins, sessionCookie, clearedCookie, cookieToken, cors, applyHeaders } from "./session.ts";
@@ -16,6 +16,7 @@ import { ingestSync } from "./handlers/sync.ts";
 import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
 import { createJob, listJobs, listMyJobs } from "./handlers/jobs.ts";
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
+import { createServiceRequest, listServiceRequests } from "./handlers/service-requests.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
 import { SURFACES, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
@@ -203,8 +204,15 @@ const login = async (body: Partial<OperationIO["auth.login"]["input"]>, res: Ser
     const minted = mintToken(keypair, claims, Date.now(), TOKEN_TTL);
     await tx.query("INSERT INTO sessions (id, org_id, region_id, principal_kind, principal_id, expires_at, surface_id) VALUES ($1,$2,$3,'user',$4,to_timestamp($5),$6)",
       [minted.claims.sid, u.org_id === INTERNAL_ORG_ID ? INTERNAL_ORG_ID : u.org_id, u.region_id, u.id, minted.claims.exp, surface]);
-    // Hierarchy context, resolved at login, returned once.
-    const context = await buildContext(principalFromClaims(minted.claims), hierarchyReader(tx));
+    // Hierarchy context, resolved at login, returned once — UNDER THE PRINCIPAL'S
+    // OWN SCOPE. `accounts` is behind row-level security; unbound, the policy
+    // sees no namespace and a customer's scope node "does not exist". Internal
+    // principals never noticed (their walk reads `regions`, which has no
+    // policy); the first location-scoped customer login would have been refused
+    // at the door. Bound here as the unit of work binds it for every request after.
+    const principal = principalFromClaims(minted.claims);
+    await tx.setLocal(scopeBinding(principal, surface));
+    const context = await buildContext(principal, hierarchyReader(tx));
     await tx.commit();
     const expiresAt = new Date(minted.claims.exp * 1000);
     // The browser gets the token as an httpOnly cookie it cannot read; the body
@@ -248,6 +256,7 @@ const deviceLogin = async (body: Partial<OperationIO["auth.deviceLogin"]["input"
     const minted = mintToken(keypair, claims, Date.now(), ttl);
     await tx.query("INSERT INTO sessions (id, org_id, region_id, principal_kind, principal_id, expires_at, surface_id) VALUES ($1,$2,$3,'device_grant',$4,to_timestamp($5),'S5')",
       [minted.claims.sid, resolved.orgId, resolved.regionId, resolved.grantId, minted.claims.exp]);
+    // The grant's tenancy is already bound (resolveDeviceLogin bound it to read the crew).
     const context = await buildContext(principalFromClaims(minted.claims), hierarchyReader(tx));
     await tx.commit();
     const expiresAt = new Date(minted.claims.exp * 1000);
@@ -294,7 +303,11 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   // S2/S6 — resolved terms at a node as of a date, with the trace.
   "terms.resolved": (req, input) => withRead(req, "terms.resolved", async (uow, p) => {
     const keys = input.termKeys ? input.termKeys.split(",").map((k) => k.trim()).filter(Boolean) : undefined;
-    const r = await resolvedTermsAt(uow, input.orgId ?? p.orgId, input.tier ?? "site", input.nodeId ?? "", input.asOf ?? new Date().toISOString().slice(0, 10), keys);
+    // A customer resolves its own agreements. RLS (0006) already makes another
+    // org's rows absent; naming the org from the token as well means the
+    // answer for a customer never depends on what the query string said.
+    const orgId = p.namespace === "internal" ? (input.orgId ?? p.orgId) : p.orgId;
+    const r = await resolvedTermsAt(uow, orgId, input.tier ?? "site", input.nodeId ?? "", input.asOf ?? new Date().toISOString().slice(0, 10), keys);
     return { resolved: r.resolved, refused: Object.fromEntries(Object.entries(r.refused).map(([k, e]) => [k, { code: e.code, message: e.message }])) };
   }),
 
@@ -302,7 +315,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "regions.list": (req) => withRead(req, "regions.list", (uow) => listRegions(uow)),
   "organizations.list": (req, input) => withRead(req, "organizations.list", (uow) => listOrganizations(uow, input)),
   "organizations.create": (req, input) => withUow(req, "organizations.create", (uow) => createOrganization(uow, input, randomUUID)),
-  "accounts.list": (req, input) => withRead(req, "accounts.list", (uow) => listAccounts(uow, input.orgId)),
+  "accounts.list": (req, input) => withRead(req, "accounts.list", (uow, p) => listAccounts(uow, p.namespace === "internal" ? input.orgId : p.orgId)),
   "accounts.create": (req, input) => withUow(req, "accounts.create", (uow) => createAccount(uow, input, randomUUID)),
   "accounts.move": (req, input) => withUow(req, "accounts.move", (uow) => moveAccount(uow, input)),
   "accounts.update": (req, input) => withUow(req, "accounts.update", (uow) => updateAccount(uow, input)),
@@ -310,7 +323,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   // C2 — the agreements those nodes are served under, and the register the
   // override form is drawn from. The scope's existence at its declared tier is
   // ac_contract_scope_exists's to refuse, in its own words.
-  "contracts.list": (req, input) => withRead(req, "contracts.list", (uow) => listContracts(uow, input)),
+  "contracts.list": (req, input) => withRead(req, "contracts.list", (uow, p) => listContracts(uow, p.namespace === "internal" ? input : { ...input, orgId: p.orgId })),
   "contracts.create": (req, input) => withUow(req, "contracts.create", (uow) => createContract(uow, input, randomUUID)),
   "contracts.transition": (req, input) => withUow(req, "contracts.transition", (uow) => transitionContract(uow, input)),
   "terms.overrides.list": (req, input) => withRead(req, "terms.overrides.list", (uow) => listTermOverrides(uow, input)),
@@ -336,6 +349,10 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   // item 4 — the job itself, created in Office & Dispatch.
   "jobs.create": (req, input) => withUow(req, "jobs.create", (uow) => createJob(uow, input, randomUUID, new Date())),
   "jobs.list": (req, input) => withRead(req, "jobs.list", (uow) => listJobs(uow, input.state)),
+
+  // item 6 — S6's first write, and the office's read of it.
+  "serviceRequests.create": (req, input) => withUow(req, "serviceRequests.create", (uow, p) => createServiceRequest(uow, p.subjectId, input, randomUUID)),
+  "serviceRequests.list": (req, input) => withRead(req, "serviceRequests.list", (uow) => listServiceRequests(uow, input)),
 
   // S3 — the one gated door, its dry run, and its release.
   "dispatch.assign": (req, input) => withUow(req, "dispatch.assign", (uow, p) => assignCrew(uow, p.subjectId, input, new Date())),

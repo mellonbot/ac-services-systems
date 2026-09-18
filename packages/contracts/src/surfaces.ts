@@ -155,7 +155,12 @@ const REGISTRY = {
     namespace: "customer", authScope: "customer IdP + tier claim", scopeBinding: "customer_tier",
     writes: ["service_request", "payment", "contact_update"],
     density: "comfort", realtime: false, offline: false,
-    degraded: "Cached read of last known job and invoice state, clearly timestamped; request intake queues. One codebase, four scopes — scoping is enforced at the gateway, never by client-side filtering.",
+    // "request intake queues" was the design's line (05 §S6); the registry
+    // says `offline: false`, and the registry is what runs. A request the
+    // portal showed as accepted but the gateway never received is a
+    // customer waiting on nobody — so while the gateway is unreachable the
+    // form is refused with this reason, and the reads carry their age.
+    degraded: "Last known sites, work and agreements, each stamped with when the gateway last answered. Requests are not taken while the gateway is unreachable — a request that looks accepted and was never received is worse than one refused. One codebase, four scopes — scoping is enforced at the gateway, never by client-side filtering.",
     stateRamp: true,
     whiteLabel: true,
   },
