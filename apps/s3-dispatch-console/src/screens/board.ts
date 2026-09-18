@@ -1,4 +1,4 @@
-import { html, DataGrid, StatusPill, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
 import type { JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, submitAction, linkTo, type Screen } from "./common.ts";

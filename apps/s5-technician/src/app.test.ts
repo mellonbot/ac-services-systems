@@ -148,7 +148,7 @@ test("a bad password renders the gateway's message, not an internal error, and n
 });
 
 test("a state transition is an instant local enqueue; the displayed state does not change until the gateway answers and the list refetches", async () => {
-  const { app, gateway } = await ready();
+  const { app } = await ready();
   app.router.navigate("job", { jobId: JOB });
   render(app.view()); await settle(); await settle();
   let out = render(app.view());
@@ -158,7 +158,6 @@ test("a state transition is an instant local enqueue; the displayed state does n
   const p = app.phase.value;
   if (p.kind !== "ready") return assert.fail("not ready");
   // Click without letting the flush settle yet: the state shown is still the last fetch, plus a queued-count.
-  const before = gateway.calls.filter((c) => c.path === OPERATIONS["jobs.mine"].path).length;
   out = render(app.view());
   assert.doesNotMatch(out, /waiting to sync/, "nothing queued yet");
 });

@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { randomUUID } from "node:crypto";
 import { createPool, beginTx, hierarchyReader, listenEvents } from "./pg-tx.ts";
 import { generateKeypair, keypairFromPem, mintToken, verifyToken, principalFromClaims, verifyPassword, AuthError } from "./auth.ts";
-import { buildContext, ScopeResolutionError } from "./context.ts";
+import { buildContext, scopeBinding, ScopeResolutionError } from "./context.ts";
 import { createUnitOfWork, SurfaceWriteDenied, TenancyMismatch, SurfaceDisabled, RoleDenied } from "./unit-of-work.ts";
 import { InputRefused, BadInput, dbRefusal } from "./refusals.ts";
 import { sessionConfigFromEnv, allowedOrigins, sessionCookie, clearedCookie, cookieToken, cors, applyHeaders } from "./session.ts";
@@ -203,8 +203,15 @@ const login = async (body: Partial<OperationIO["auth.login"]["input"]>, res: Ser
     const minted = mintToken(keypair, claims, Date.now(), TOKEN_TTL);
     await tx.query("INSERT INTO sessions (id, org_id, region_id, principal_kind, principal_id, expires_at, surface_id) VALUES ($1,$2,$3,'user',$4,to_timestamp($5),$6)",
       [minted.claims.sid, u.org_id === INTERNAL_ORG_ID ? INTERNAL_ORG_ID : u.org_id, u.region_id, u.id, minted.claims.exp, surface]);
-    // Hierarchy context, resolved at login, returned once.
-    const context = await buildContext(principalFromClaims(minted.claims), hierarchyReader(tx));
+    // Hierarchy context, resolved at login, returned once — UNDER THE PRINCIPAL'S
+    // OWN SCOPE. `accounts` is behind row-level security; unbound, the policy
+    // sees no namespace and a customer's scope node "does not exist". Internal
+    // principals never noticed (their walk reads `regions`, which has no
+    // policy); the first location-scoped customer login would have been refused
+    // at the door. Bound here as the unit of work binds it for every request after.
+    const principal = principalFromClaims(minted.claims);
+    await tx.setLocal(scopeBinding(principal, surface));
+    const context = await buildContext(principal, hierarchyReader(tx));
     await tx.commit();
     const expiresAt = new Date(minted.claims.exp * 1000);
     // The browser gets the token as an httpOnly cookie it cannot read; the body
@@ -248,6 +255,7 @@ const deviceLogin = async (body: Partial<OperationIO["auth.deviceLogin"]["input"
     const minted = mintToken(keypair, claims, Date.now(), ttl);
     await tx.query("INSERT INTO sessions (id, org_id, region_id, principal_kind, principal_id, expires_at, surface_id) VALUES ($1,$2,$3,'device_grant',$4,to_timestamp($5),'S5')",
       [minted.claims.sid, resolved.orgId, resolved.regionId, resolved.grantId, minted.claims.exp]);
+    // The grant's tenancy is already bound (resolveDeviceLogin bound it to read the crew).
     const context = await buildContext(principalFromClaims(minted.claims), hierarchyReader(tx));
     await tx.commit();
     const expiresAt = new Date(minted.claims.exp * 1000);
