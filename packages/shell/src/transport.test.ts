@@ -224,3 +224,54 @@ test("connectShell bearer mode still retains the token and logout forgets it", a
   await shell.logout().catch(() => {}); // the fake gateway has no /auth/logout route → 404 no_route; the token is forgotten regardless
   assert.equal(shell.token(), null);
 });
+
+test("a stream belongs to a page that is showing: closed on pagehide, reopened on pageshow from the cache, dedupe kept across the gap", () => {
+  // drive-s6 check 11: six full navigations in, the page on screen could not
+  // open a request — the five pages in the back/forward cache each held an
+  // event stream, and the browser allows about six connections per origin.
+  const opens: ((e: EventEnvelope) => void)[] = [];
+  let closed = 0;
+  const inner: Transport = { request: async () => ({}), stream: (_op, onEvent) => { opens.push(onEvent); return () => { closed++; }; } };
+  const listeners = new Map<string, (ev: { persisted?: boolean }) => void>();
+  const page = {
+    document: {},
+    addEventListener: (t: string, cb: (ev: { persisted?: boolean }) => void) => { listeners.set(t, cb); },
+    removeEventListener: (t: string) => { listeners.delete(t); },
+  };
+  const shell = createShell({ surfaceId: "S3", principal: dispatcher, transport: inner, page });
+  const got: string[] = [];
+  const states: string[] = [];
+  const stop = shell.subscribe((e) => got.push(e.eventId), { topics: "all", onState: (s) => states.push(s) });
+  const ev = (eventId: string): EventEnvelope => ({ topic: "job.transitioned", eventId, entity: "job", entityId: "j", regionId: "r", orgId: "o", occurredAt: "t" });
+  assert.equal(opens.length, 1);
+  opens[0]!(ev("e1"));
+
+  listeners.get("pagehide")!({});
+  assert.equal(closed, 1, "hidden → the stream is closed");
+  assert.deepEqual(states, ["closed"]);
+  listeners.get("pagehide")!({});
+  assert.equal(closed, 1, "hiding twice closes once");
+
+  listeners.get("pageshow")!({ persisted: false });
+  assert.equal(opens.length, 1, "a fresh load is not a page back from the cache — the shell there is new");
+  listeners.get("pageshow")!({ persisted: true });
+  assert.equal(opens.length, 2, "back from the cache → the stream reopens");
+  opens[1]!(ev("e1")); // republished across the gap
+  opens[1]!(ev("e2"));
+  assert.deepEqual(got, ["e1", "e2"], "the dedupe set survives the gap");
+
+  stop();
+  assert.equal(closed, 2, "unsubscribe closes the live stream");
+  assert.equal(listeners.size, 0, "and removes both listeners");
+  listeners.get("pagehide")?.({});
+  assert.equal(closed, 2);
+});
+
+test("under node there is no page: subscribe returns the stream's own stop and listens to nothing", () => {
+  let closed = 0;
+  const inner: Transport = { request: async () => ({}), stream: () => () => { closed++; } };
+  const shell = createShell({ surfaceId: "S3", principal: dispatcher, transport: inner });
+  const stop = shell.subscribe(() => {});
+  stop();
+  assert.equal(closed, 1);
+});

@@ -225,6 +225,49 @@ export const OPERATIONS = {
     summary: "Set a rate from a day forward: the row in effect that day is closed at it and the new row inserted, both audited. A row that would overlap is refused by the EXCLUDE constraint — two prices at once is unrepresentable, not tie-broken.",
   },
 
+  // ---- item 7: THE FIRM'S OWN WRITES (D12's minimum cut as the registry states
+  // it: compliance_doc, crew_roster, settlement_ack, dispute) and the reads
+  // behind settlement visibility. Each write has its own entity because the
+  // allowlist is checked by entity: S2's `credentials.record` writes
+  // crew_credential and S8's `credentials.submit` writes compliance_doc into
+  // the same table, and 0005's trigger makes both arrive unverified. What a
+  // firm's row may SAY is the table's (0007's two triggers), not the handler's.
+  "credentials.submit": {
+    id: "credentials.submit", method: "POST", path: "/s8/network/credentials", kind: "mutation", auth: "bearer",
+    surfaces: ["S8"], carrier: "body", sdkMethod: "submitCredential",
+    summary: "A firm puts a document on file for one of ITS OWN crews — kind, identifier, window, the stored file's key. Unverified on arrival, like every document; S2 verifies it, once, or it clears nothing. A crew the firm cannot see is 'unknown_crew', not 'forbidden'.",
+  },
+  "crews.enroll": {
+    id: "crews.enroll", method: "POST", path: "/s8/network/crews", kind: "mutation", auth: "bearer",
+    surfaces: ["S8"], carrier: "body", sdkMethod: "enrollCrew",
+    summary: "A firm adds a crew to its roster: subcontracted, under itself, in the region it is dispatched from — none of which is an input. Onboarding and active firms roster (documents are verified before the first job); a suspended or terminated firm does not.",
+  },
+  "crews.retire": {
+    id: "crews.retire", method: "POST", path: "/s8/network/crews/retire", kind: "mutation", auth: "bearer",
+    surfaces: ["S8"], carrier: "body", sdkMethod: "retireCrew",
+    summary: "A firm takes one of its crews off the roster (active = false) or renames it. Never the firm, the type or the region — 0007 refuses those from any path — and never a crew holding a live assignment: release it first.",
+  },
+  "settlements.list": {
+    id: "settlements.list", method: "GET", path: "/money/settlements", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listSettlements",
+    summary: "Statements we issue to firms for work done — period, total, state, and the firm's position on each. S2 reads every firm's; a firm reads its own, once issued (a draft is ours). RLS, not a WHERE.",
+  },
+  "settlements.lines": {
+    id: "settlements.lines", method: "GET", path: "/money/settlements/lines", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listSettlementLines",
+    summary: "One statement's lines: the job, the rate applied, the quantity, the amount. A firm sees the lines of a statement it can see and no other's — another firm's price is not derivable from a row the firm cannot read.",
+  },
+  "settlements.acknowledge": {
+    id: "settlements.acknowledge", method: "POST", path: "/s8/money/settlements/acknowledge", kind: "mutation", auth: "bearer",
+    surfaces: ["S8"], carrier: "body", sdkMethod: "acknowledgeSettlement",
+    summary: "The firm states that an issued statement is right: issued → acknowledged, stamped. The one forward step a firm may take on money; the trigger refuses every other change to the row.",
+  },
+  "settlements.dispute": {
+    id: "settlements.dispute", method: "POST", path: "/s8/money/settlements/dispute", kind: "mutation", auth: "bearer",
+    surfaces: ["S8"], carrier: "body", sdkMethod: "disputeSettlement",
+    summary: "The firm states that a statement is wrong, and why: issued or acknowledged → disputed, with the reason on the row. The office reads it on S2 (settlement.disputed on OFC). What happens next is WS-E's ladder, not S8's.",
+  },
+
   // ---- item 4: the job itself, created in Office & Dispatch ----
   "jobs.create": {
     id: "jobs.create", method: "POST", path: "/s2/jobs", kind: "mutation", auth: "bearer",
@@ -236,8 +279,11 @@ export const OPERATIONS = {
     // S6 since item 6: a customer sees work at the sites it can see (0006's
     // ac_work_visible), and no crew — the assignment join returns nothing for
     // a customer principal, so currentCrew* are null on its rows by mechanism.
-    surfaces: ["S2", "S3", "S6"], carrier: "query", sdkMethod: "listJobs",
-    summary: "Jobs visible to this principal — S2 org-wide, S3 region-locked, S6 at its own sites, all by RLS, same operation. Carries each job's current (unreleased) assignment and open SLA timer, if any.",
+    // S8 since item 7: a firm sees work one of its own crews has been assigned
+    // (0007's ac_firm_work_visible) — live or released — and the crew on the
+    // row is its own, because the assignment join is behind the same rule.
+    surfaces: ["S2", "S3", "S6", "S8"], carrier: "query", sdkMethod: "listJobs",
+    summary: "Jobs visible to this principal — S2 org-wide, S3 region-locked, S6 at its own sites, S8 where its crews were sent, all by RLS, same operation. Carries each job's current (unreleased) assignment and open SLA timer, if any.",
   },
   // ---- item 6: S6's first write. A customer asks for work; the office turns it into a job. ----
   "serviceRequests.create": {
@@ -667,6 +713,63 @@ export type SetRateCardInput = {
 };
 export type SetRateCardOutput = { readonly id: string; readonly closedId: string | null; readonly eventId: string };
 
+// ---- item 7 wire shapes: the firm's own writes, and the statement ----
+export type SubmitCredentialInput = {
+  readonly crewId: string;
+  readonly kind: CredentialKind;
+  readonly identifier: string;
+  readonly validFrom: string;
+  readonly validTo: string;
+  /** The stored file's key, from the upload path. Optional in Phase 1: a document may be identified before it is scanned. */
+  readonly documentKey?: string;
+};
+export type SubmitCredentialOutput = { readonly id: string; readonly crewId: string; readonly eventId: string };
+/** No employmentType, no firmId, no homeRegionId: each is the principal's, derived. */
+export type EnrollCrewInput = { readonly label: string };
+export type EnrollCrewOutput = { readonly id: string; readonly firmId: string; readonly regionId: string; readonly eventId: string };
+export type RetireCrewInput = { readonly crewId: string; readonly label?: string; readonly active?: boolean };
+export type RetireCrewOutput = { readonly id: string; readonly eventId: string };
+
+export type SettlementState = "draft" | "issued" | "acknowledged" | "disputed" | "paid";
+export type SettlementWire = {
+  readonly id: string;
+  readonly firmId: string;
+  readonly regionId: string;
+  /** ISO dates: the period's first day, and its last day inclusive. */
+  readonly periodFrom: string;
+  readonly periodTo: string;
+  /** Integer minor units as a STRING. A JSON number is a double. */
+  readonly totalMinor: string;
+  readonly currency: string;
+  readonly state: SettlementState;
+  readonly issuedAt: string | null;
+  readonly acknowledgedAt: string | null;
+  readonly disputedAt: string | null;
+  readonly disputeReason: string | null;
+  readonly lineCount: number;
+};
+export type ListSettlementsInput = { readonly firmId?: string; readonly state?: SettlementState };
+export type ListSettlementsOutput = { readonly settlements: readonly SettlementWire[] };
+export type SettlementLineWire = {
+  readonly id: string;
+  readonly settlementId: string;
+  readonly jobId: string;
+  readonly serviceCode: string | null;
+  readonly siteName: string | null;
+  readonly rateCardId: string;
+  /** Integer minor units as a string. */
+  readonly rateMinor: string | null;
+  /** Integer thousandths as a string. */
+  readonly quantityMilli: string;
+  readonly amountMinor: string;
+};
+export type ListSettlementLinesInput = { readonly settlementId: string };
+export type ListSettlementLinesOutput = { readonly settlementId: string; readonly lines: readonly SettlementLineWire[] };
+export type AcknowledgeSettlementInput = { readonly settlementId: string };
+export type AcknowledgeSettlementOutput = { readonly id: string; readonly state: "acknowledged"; readonly acknowledgedAt: string; readonly eventId: string };
+export type DisputeSettlementInput = { readonly settlementId: string; readonly reason: string };
+export type DisputeSettlementOutput = { readonly id: string; readonly state: "disputed"; readonly disputedAt: string; readonly eventId: string };
+
 // ---- item 4 wire shapes: the job, dispatch's dry run and release, the device shift grant ----
 export type JobPriority = "emergency" | "urgent" | "routine" | "pm";
 export type JobStateWire =
@@ -693,7 +796,10 @@ export type CreateJobOutput = {
 
 /** What a job carries on a board, in the middle of its life. Same shape for S2 (any state) and S3 (region-locked by RLS). */
 export type JobWire = {
-  readonly id: string; readonly siteId: string; readonly contractId: string | null; readonly projectId: string | null;
+  readonly id: string; readonly siteId: string;
+  /** The site's name as RLS lets this principal see the row — null when the account row is not visible to it (item 7: a firm sees the site it was sent to). */
+  readonly siteName: string | null;
+  readonly contractId: string | null; readonly projectId: string | null;
   readonly serviceCode: string; readonly priority: JobPriority; readonly state: JobStateWire;
   readonly serviceWindowStart: string; readonly serviceWindowEnd: string; readonly version: number; readonly openedAt: string;
   readonly regionId: string; readonly orgId: string;
@@ -894,6 +1000,13 @@ export type OperationIO = {
   "credentials.verify": { input: VerifyCredentialInput; output: VerifyCredentialOutput };
   "rateCards.list": { input: ListRateCardsInput; output: ListRateCardsOutput };
   "rateCards.set": { input: SetRateCardInput; output: SetRateCardOutput };
+  "credentials.submit": { input: SubmitCredentialInput; output: SubmitCredentialOutput };
+  "crews.enroll": { input: EnrollCrewInput; output: EnrollCrewOutput };
+  "crews.retire": { input: RetireCrewInput; output: RetireCrewOutput };
+  "settlements.list": { input: ListSettlementsInput; output: ListSettlementsOutput };
+  "settlements.lines": { input: ListSettlementLinesInput; output: ListSettlementLinesOutput };
+  "settlements.acknowledge": { input: AcknowledgeSettlementInput; output: AcknowledgeSettlementOutput };
+  "settlements.dispute": { input: DisputeSettlementInput; output: DisputeSettlementOutput };
   "jobs.create": { input: CreateJobInput; output: CreateJobOutput };
   "jobs.list": { input: ListJobsInput; output: ListJobsOutput };
   "serviceRequests.create": { input: CreateServiceRequestInput; output: CreateServiceRequestOutput };

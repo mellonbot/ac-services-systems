@@ -55,7 +55,7 @@ const contextFor = (p: Principal): HierarchyContext => ({
 
 /** A customer's job row as RLS hands it back: the assignment join found nothing, so the crew fields are null. */
 const job: JobWire = {
-  id: JOB, siteId: AUSTIN_ROOF, contractId: null, projectId: null, serviceCode: "HVAC-REPAIR", priority: "urgent", state: "en_route",
+  id: JOB, siteId: AUSTIN_ROOF, siteName: "Austin — Roof", contractId: null, projectId: null, serviceCode: "HVAC-REPAIR", priority: "urgent", state: "en_route",
   serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T13:00:00.000Z", version: 3, openedAt: "2026-09-17T12:00:00.000Z",
   regionId: SOUTH, orgId: ORG, currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 0, slaSatisfiedAt: "2026-09-17T13:00:00.000Z",

@@ -34,6 +34,23 @@ export type ShellConfig = {
   /** Omit for a configuration-only shell (server-rendered checks, tests): every call is then a transport refusal. */
   readonly transport?: Transport;
   readonly context?: HierarchyContext;
+  /**
+   * The page the shell lives on, for the stream's lifecycle (see `subscribe`).
+   * Defaults to `globalThis`, which is a page in a browser and nothing under
+   * node — a shell in a test or a device runtime has no page and no cache to
+   * survive. Tests pass a fake to drive the two events.
+   */
+  readonly page?: unknown;
+};
+
+/** A page, if `g` is one: something that dispatches `pagehide`/`pageshow` and has a document. Null under node. */
+type PageLike = { addEventListener(t: string, cb: (ev: { persisted?: boolean }) => void): void; removeEventListener(t: string, cb: (ev: { persisted?: boolean }) => void): void };
+const pageOf = (g: unknown): PageLike | null => {
+  const w = g as { document?: unknown; addEventListener?: unknown; removeEventListener?: unknown } | null;
+  if (!w || typeof w !== "object" && typeof w !== "function") return null;
+  if (typeof w.document !== "object" || w.document === null) return null;
+  if (typeof w.addEventListener !== "function" || typeof w.removeEventListener !== "function") return null;
+  return w as PageLike;
 };
 
 export type SubscribeOptions = {
@@ -98,14 +115,38 @@ export const createShell = (config: ShellConfig): Shell => {
     const wanted: ReadonlySet<string> | null =
       opts.topics === "all" ? null : new Set(opts.topics ?? SUBSCRIBERS[surface.block]);
     const seen = new Set<string>();
-    return gateway.events((e) => {
+    const onState = opts.onState ?? (() => {});
+    const deliver = (e: EventEnvelope) => {
       if (wanted && !wanted.has(e.topic)) return;
       // At-least-once delivery; the outbox relay may republish after a crash.
       if (seen.has(e.eventId)) return;
       seen.add(e.eventId);
       if (seen.size > SEEN_LIMIT) { const first = seen.values().next().value; if (first !== undefined) seen.delete(first); }
       handler(e);
-    }, opts.onState ?? (() => {}));
+    };
+    let stop = gateway.events(deliver, onState);
+    const page = pageOf(config.page ?? globalThis);
+    if (!page) return stop;
+
+    // A STREAM BELONGS TO A PAGE THAT IS SHOWING. A browser keeps the last few
+    // pages alive in its back/forward cache, and a page kept alive keeps its
+    // event stream open — one connection each, against a per-origin limit of
+    // about six. Six full navigations later the page that is actually on
+    // screen cannot open a single request: every screen reads "Loading…" and
+    // the gateway never hears from it. drive-s6 found this at its 11th check.
+    // So the stream closes on `pagehide` and, if the page comes back from the
+    // cache, reopens on `pageshow` — with the same dedupe set, so an event
+    // republished across the gap is still delivered once.
+    let live = true;
+    const onHide = () => { if (!live) return; live = false; stop(); onState("closed"); };
+    const onShow = (ev: { persisted?: boolean }) => { if (live || !ev.persisted) return; live = true; stop = gateway.events(deliver, onState); };
+    page.addEventListener("pagehide", onHide);
+    page.addEventListener("pageshow", onShow);
+    return () => {
+      page.removeEventListener("pagehide", onHide);
+      page.removeEventListener("pageshow", onShow);
+      if (live) { live = false; stop(); }
+    };
   };
 
   return Object.freeze(Object.assign(

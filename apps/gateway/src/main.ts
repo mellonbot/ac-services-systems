@@ -11,7 +11,8 @@ import { authorTermOverride, resolvedTermsAt } from "./handlers/terms.ts";
 import { assignCrew, candidateCrews, releaseAssignment } from "./handlers/assignment.ts";
 import { listRegions, listOrganizations, createOrganization, listAccounts, createAccount, moveAccount, updateAccount } from "./handlers/hierarchy.ts";
 import { listContracts, createContract, transitionContract, listTermOverrides, termRegister } from "./handlers/contracts.ts";
-import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, listCredentials, recordCredential, verifyCredential, listRateCards, setRateCard } from "./handlers/network.ts";
+import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, listCredentials, recordCredential, verifyCredential, listRateCards, setRateCard, enrollCrew, retireCrew, submitCredential } from "./handlers/network.ts";
+import { listSettlements, listSettlementLines, acknowledgeSettlement, disputeSettlement } from "./handlers/settlements.ts";
 import { ingestSync } from "./handlers/sync.ts";
 import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
 import { createJob, listJobs, listMyJobs } from "./handlers/jobs.ts";
@@ -345,6 +346,15 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "credentials.verify": (req, input) => withUow(req, "credentials.verify", (uow, p) => verifyCredential(uow, input, p.subjectId, new Date())),
   "rateCards.list": (req, input) => withRead(req, "rateCards.list", (uow) => listRateCards(uow, input)),
   "rateCards.set": (req, input) => withUow(req, "rateCards.set", (uow) => setRateCard(uow, input, randomUUID)),
+  // item 7 — the firm's own writes (D12) and the statement. Firm, type and
+  // region come from the principal; visibility comes from 0007.
+  "credentials.submit": (req, input) => withUow(req, "credentials.submit", (uow) => submitCredential(uow, input, randomUUID)),
+  "crews.enroll": (req, input) => withUow(req, "crews.enroll", (uow, p) => enrollCrew(uow, input, p.firmId, randomUUID)),
+  "crews.retire": (req, input) => withUow(req, "crews.retire", (uow) => retireCrew(uow, input)),
+  "settlements.list": (req, input) => withRead(req, "settlements.list", (uow) => listSettlements(uow, input)),
+  "settlements.lines": (req, input) => withRead(req, "settlements.lines", (uow) => listSettlementLines(uow, input)),
+  "settlements.acknowledge": (req, input) => withUow(req, "settlements.acknowledge", (uow) => acknowledgeSettlement(uow, input, new Date())),
+  "settlements.dispute": (req, input) => withUow(req, "settlements.dispute", (uow) => disputeSettlement(uow, input, new Date())),
 
   // item 4 — the job itself, created in Office & Dispatch.
   "jobs.create": (req, input) => withUow(req, "jobs.create", (uow) => createJob(uow, input, randomUUID, new Date())),

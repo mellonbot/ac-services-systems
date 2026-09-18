@@ -2,6 +2,8 @@ import type { RelayTx } from "./relay.ts";
 import { evaluateCascade, type TimerState, type SlaTerms } from "../../../packages/domain/src/sla/index.ts";
 import { randomUUID } from "node:crypto";
 import { isTopic } from "../../../packages/contracts/src/events.ts";
+import type { ScopeBinding } from "../../../packages/contracts/src/scope.ts";
+import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
 
 /**
  * SCHEDULED SWEEPS. Each runs as the ac_worker role, inside one transaction,
@@ -11,6 +13,28 @@ import { isTopic } from "../../../packages/contracts/src/events.ts";
  * outbox shape do not care who writes; they care that both rows land together.
  */
 export const WORKER_ACTOR = "00000000-0000-0000-0000-00000000aa01";
+
+/**
+ * THE WORKER'S SCOPE BINDING. Every table the sweeps read is behind row-level
+ * security whose policies read `ac.*` settings, and a transaction that has
+ * bound none is a principal from nowhere: `ac_region_visible` is false, and
+ * the sweep sees zero rows — not an error, zero rows. That is how the SLA
+ * cascade and the credential-expiry sweep ran green for a week against a live
+ * database and escalated nothing (found 2026-09-18 while reading the schema
+ * as a firm for item 7). The worker is us, org-wide, or pinned to one region
+ * for Tier 3; it says so before its first statement, the way the gateway does.
+ */
+export const workerScope = (regionId?: string): ScopeBinding => ({
+  "ac.namespace": "internal",
+  "ac.org_id": INTERNAL_ORG_ID,
+  "ac.region_id": regionId ?? "",
+  "ac.scope_tier": regionId ? "region" : "parent",
+  "ac.scope_id": regionId ?? INTERNAL_ORG_ID,
+  "ac.firm_id": "",
+  "ac.device_id": "",
+  "ac.actor_id": WORKER_ACTOR,
+  "ac.surface_id": "worker",
+});
 
 const emit = async (tx: RelayTx, e: { topic: string; entity: string; entityId: string; payload: Record<string, unknown>; orgId: string; regionId: string; action: string; before?: unknown; after?: unknown }, at: Date) => {
   if (!isTopic(e.topic)) throw new Error(`worker: "${e.topic}" is not in the event catalogue`);

@@ -30,6 +30,8 @@ export const TOPICS = [
   "device.registered", "device.shift_granted",
   // money
   "invoice.issued", "invoice.paid", "settlement.statement_issued",
+  // item 7: the firm's position on a statement. The office subscribes to both.
+  "settlement.acknowledged", "settlement.disputed",
   // sync
   "sync.conflict_queued",
   // warranty
@@ -70,7 +72,9 @@ export type EventEnvelope = Pick<DomainEvent, "eventId" | "topic" | "entity" | "
 
 /** Block subscriptions declared, not discovered. */
 export const SUBSCRIBERS: Readonly<Record<"OFC" | "FLD" | "INV" | "WORKER", readonly Topic[]>> = {
-  OFC: ["service_request.created", "job.transitioned", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended"],
+  OFC: ["service_request.created", "job.transitioned", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended",
+        // item 7: a firm's document arrived (to verify), a firm's position on a statement (to act on).
+        "credential.recorded", "settlement.acknowledged", "settlement.disputed"],
   FLD: ["job.assigned", "job.reassigned", "job.cancelled", "contract.term_overridden"],
   // S8 learns of its own verification and its own price the same way S2 does — by refetch.
   INV: ["job.completed", "contract.amended", "contract.term_overridden", "sla.breached", "settlement.statement_issued", "firm.status_changed", "credential.verified", "rate_card.changed", "brand.theme_set"],
