@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 43 today. There is no
+ * One method per operation in the catalogue — 45 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -45,7 +45,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["auth.deviceLogin"], input) as Promise<OperationIO["auth.deviceLogin"]["output"]>;
   },
 
-  /** `POST /auth/login` · login · none · surfaces: S2, S3, S4, S8
+  /** `POST /auth/login` · login · none · surfaces: S2, S3, S4, S6, S8
    *
    * Mint a token and resolve the hierarchy context once. The surface named in the body must serve the user's namespace. */
   login(input: OperationIO["auth.login"]["input"]): Promise<OperationIO["auth.login"]["output"]> {
@@ -80,7 +80,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["contracts.create"], input) as Promise<OperationIO["contracts.create"]["output"]>;
   },
 
-  /** `GET /s2/contracts` · query · bearer · surfaces: S2
+  /** `GET /s2/contracts` · query · bearer · surfaces: S2, S6
    *
    * The signed agreements in an organization — what a term override must belong to, and where the state machine currently stands. */
   listContracts(input: OperationIO["contracts.list"]["input"]): Promise<OperationIO["contracts.list"]["output"]> {
@@ -213,9 +213,9 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["jobs.create"], input) as Promise<OperationIO["jobs.create"]["output"]>;
   },
 
-  /** `GET /jobs` · query · bearer · surfaces: S2, S3
+  /** `GET /jobs` · query · bearer · surfaces: S2, S3, S6
    *
-   * Jobs visible to this principal — S2 org-wide, S3 region-locked by RLS, same operation. Carries each job's current (unreleased) assignment and open SLA timer, if any. */
+   * Jobs visible to this principal — S2 org-wide, S3 region-locked, S6 at its own sites, all by RLS, same operation. Carries each job's current (unreleased) assignment and open SLA timer, if any. */
   listJobs(input: OperationIO["jobs.list"]["input"]): Promise<OperationIO["jobs.list"]["output"]> {
     return transport.request(OPERATIONS["jobs.list"], input) as Promise<OperationIO["jobs.list"]["output"]>;
   },
@@ -260,6 +260,20 @@ export const createGatewayClient = (transport: Transport) => ({
    * OUR service regions — the shard boundary. What a region node binds to; what D14's density rule is set on. */
   listRegions(): Promise<OperationIO["regions.list"]["output"]> {
     return transport.request(OPERATIONS["regions.list"], undefined) as Promise<OperationIO["regions.list"]["output"]>;
+  },
+
+  /** `POST /s6/service-requests` · mutation · bearer · surfaces: S6
+   *
+   * A customer's request for service at one of its sites. The site must be visible to the principal (RLS decides; an invisible site is 'unknown_site', not 'forbidden'); tenancy derives from the site. It is a request, not a job — S2/S3 open the job against it. */
+  createServiceRequest(input: OperationIO["serviceRequests.create"]["input"]): Promise<OperationIO["serviceRequests.create"]["output"]> {
+    return transport.request(OPERATIONS["serviceRequests.create"], input) as Promise<OperationIO["serviceRequests.create"]["output"]>;
+  },
+
+  /** `GET /service-requests` · query · bearer · surfaces: S2, S3, S6
+   *
+   * Requests visible to this principal — a customer's own, the office's by region — with the site's name and, once one is opened, the job's state. */
+  listServiceRequests(input: OperationIO["serviceRequests.list"]["input"]): Promise<OperationIO["serviceRequests.list"]["output"]> {
+    return transport.request(OPERATIONS["serviceRequests.list"], input) as Promise<OperationIO["serviceRequests.list"]["output"]>;
   },
 
   /** `GET /me` · query · bearer · surfaces: S2, S3, S4, S5, S6, S7, S8
@@ -315,4 +329,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "createContract", "listContracts", "transitionContract", "listCredentials", "recordCredential", "verifyCredential", "createCrew", "listCrews", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "events", "createFirm", "listFirms", "updateFirm", "createJob", "listJobs", "myJobs", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "me", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "createContract", "listContracts", "transitionContract", "listCredentials", "recordCredential", "verifyCredential", "createCrew", "listCrews", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "events", "createFirm", "listFirms", "updateFirm", "createJob", "listJobs", "myJobs", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "createServiceRequest", "listServiceRequests", "me", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);

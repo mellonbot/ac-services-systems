@@ -109,3 +109,8 @@ jobs:
       # finds it, and skips loudly rather than silently if it ever stops.
       - name: C4 through a real browser
         run: npm run drive:s2-c4
+      # Item 6: the customer portal, two principals, one bundle — the DOM half
+      # of "tier scoping is the acceptance test" (test/integration/s6.test.ts
+      # is the wire half, above).
+      - name: S6 through a real browser
+        run: npm run drive:s6

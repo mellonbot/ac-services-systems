@@ -25,16 +25,24 @@ register-driven override form and the resolution trace, and C4: the eleven
 network operations, `handlers/network.ts`, migration 0005, and S2's five
 network screens — the firm, the crew, the document and the price. Every flow is
 driven in a real browser against the real gateway.**
-C3 (Amped recorded in full through the screens) waits on OQ1/OQ5 and is the
-last item in step 3. **Structural build order item 4 (`00_MASTER_SYSTEM_PLAN.md`
-§2.8) is built (2026-09-17): S3 Dispatch Console and S5 Technician Web
-Fallback** — the board and dispatch screens, the offline-first mutation queue,
-the device-shaped login, unit- and render-tested (23 new tests; 334 unit tests
-total), schema-guard clean, and driven in headless Chromium against a static
-build of all six enabled surfaces. Detail: `claude/19_S3_S5_UI_Built.md`. A
-live-gateway integration proof mirroring `test/integration/s2-c4.test.ts` and
-`tools/ci/drive-s2-c4.ts` is the next rung and is not yet run — it needs a
-Postgres and a browser this sandbox does not carry both of at once.
+C3 (Amped recorded in full through the real operations against a live gateway)
+closed step 3 on 2026-09-17 once OQ1/OQ5 were answered. **Structural build order
+item 4 (`00_MASTER_SYSTEM_PLAN.md` §2.8) is built: S3 Dispatch Console and S5
+Technician Web Fallback** — the board and dispatch screens, the offline-first
+mutation queue, the device-shaped login — and **proven over the wire
+(`test/integration/s3-s5.test.ts`, 10 tests)**, which found that
+`auth.deviceLogin` had refused every technician against a live database: the
+login transaction had no scope bound and `crews` is behind row security. Fixed
+at the login path for devices and people alike. **Item 6 is built (2026-09-17):
+S6 Customer Portal** — sites, work, agreements, terms and the one write, a
+service request — over **migration 0006**, which is the item's substance: a
+customer principal now sees work at its own sites (not every job in its
+region), its own agreements (not any org's by id), its own breadcrumb (so a
+region-tier term applies to a location-scoped manager), and no crew, document,
+clearance or assignment at all. Tier scoping is the acceptance test:
+`test/integration/s6.test.ts` (10) and `tools/ci/drive-s6.ts` (12 checks in a
+real browser, two principals, one bundle). Detail: `claude/20_S6_Customer_Portal_Built.md`.
+Item 5 (the Yocto tablet) is contracted (D11); the next in-house item is 7, S8.
 `docs/BACKBONE_CONTRACT.md` is the
 B2 deliverable — the interface every block codes against, ratified by the
 partners 2026-09-15 — and every statement in it names the mechanism that
@@ -65,7 +73,7 @@ is worth restating because every structural decision here is an instance of it:
 ```bash
 # Zero install — a laptop with Node 22.18+ and nothing else.
 node tools/ci/schema-guard.ts       # every structural invariant, against the definitions
-npm run guard:test                  # 193 unit tests: resolver, admission, gate, sync, SLA, money, D14, uow, auth, session, refusals, hierarchy and contract handlers, catalogue, sdk, shell, tokens→CSS, the accent gate, the brand layer, the badge, PR titles
+npm run guard:test                  # 256 unit tests: resolver, admission, gate, sync, SLA, money, D14, uow, auth, session, refusals, hierarchy and contract handlers, catalogue, sdk, shell, tokens→CSS, the accent gate, the brand layer, the badge, PR titles
 npm run guard:all                   # both
 npm run sdk:generate                # regenerate the client from the operation catalogue
 npm run sdk:check                   # fail on drift (the guard runs this too)
@@ -76,8 +84,9 @@ npm run surfaces:check              # fail on drift (the guard runs this too)
 export DATABASE_URL=postgres://user:pass@host/db
 node tools/ci/migrate.ts            # versioned migrations + the repeatable term-register mirror
 node tools/ci/migrate.ts --assert   # region_id is total in the LIVE schema
-npm run test:integration            # 79 tests: the contract with RLS on (29) + the shell and the browser session over the wire (19) + C1 over the wire (12) + C2 over the wire (11) + C4 over the wire: the forged verification refused on every path, firm isolation, the rate that closes the one before it (8)
+npm run test:integration            # 99 tests: the contract with RLS on (29) + the shell and the browser session over the wire (19) + C1 (12) + C2 (11) + C4 (8) + item 4, S3/S5: the gated door, the shift token, the offline replay (10) + item 6, S6: tier scoping as four customer principals see it (10)
 npm run drive:s2-c4                 # 13 checks through a REAL browser: the C4 screens end to end against the live gateway.
+npm run drive:s6                    # 12 checks through a REAL browser: a facility manager and then the executive, same bundle — AC_DRIVE_SHOTS=<dir> keeps a PNG per screen
                                     #   Needs a browser (AC_CHROME, or found on PATH) and a database. Skips on a laptop that
                                     #   has neither; in CI a skip is a failure, because a check that stops checking is worse
                                     #   than no check — it reports green.
@@ -85,7 +94,7 @@ npm run drive:s2-c4                 # 13 checks through a REAL browser: the C4 s
 # The toolchain layer.
 pnpm install
 pnpm typecheck && pnpm guard:lint   # tsc strict; eslint with the eight ac/ rules (verified: they fire)
-npm run test:ui                     # 61 tests rendered to a string under node --test: packages/ui + S2's screens (C1, C2 and C4) through the real shell against a scripted gateway. Need preact, hence here
+npm run test:ui                     # 94 tests rendered to a string under node --test: packages/ui + S2 (C1, C2, C4), S3, S5 and S6 screens through the real shell against a scripted gateway. Need preact, hence here
 AC_GATEWAY=http://127.0.0.1:8080 node tools/ci/build-surface.ts S2   # stamp the gateway origin into the frame for a dev build
 node tools/ci/build-surface.ts S2   # THE ONE BUILD STEP: esbuild src/main.ts → apps/s2-service-manager/dist/{index.html,bundle.js,ui.css}
 node tools/ci/build-surface.ts --all --minify
@@ -119,9 +128,11 @@ apps/s1 … s8/         generated from SURFACES by tools/ci/emit-surfaces.ts —
 apps/s2-service-manager/src/  the first surface with screens: screens.ts (the registry the guard reads), app.ts (cookie boot → login or tree; router; degraded slot; account, contract and network events → refetch), state.ts (resources as signals, invalidated by prefix), screens/ (accounts-tree, accounts-new, accounts-move, organizations-new, contracts-list, contracts-new, terms-override, terms-resolved, network, network-new, network-documents, network-rates)
 packages/domain/src/supply/   D14 as a decision function: rule unset → caveat; set and unmet → commercial refusal
 tools/ci/             schema-guard (zero-install) · emit-schema · emit-sdk · emit-surfaces (--check) · build-surface (esbuild; the only step that needs an install) · migrate
-packages/schema/      operationalTable() and 44 tables; migrations 0001 (generated), 0002 (guardrails), 0003 (assert), 0004 (refusal codes — every trigger raises with an ERRCODE), 0005 (the network registry — verification earned and immutable, firm isolation), repeatable/
+packages/schema/      operationalTable() and 44 tables; migrations 0001 (generated), 0002 (guardrails), 0003 (assert), 0004 (refusal codes — every trigger raises with an ERRCODE), 0005 (the network registry — verification earned and immutable, firm isolation), 0006 (customer visibility — work by site, agreements by org, the breadcrumb, no crew; agreements writable by us alone), repeatable/
 packages/domain/      no I/O: inheritance/{resolve,admit} · compliance · sync · sla · money · billing
-test/integration/     backbone.test.ts — the contract against a live Postgres · s0-shell.test.ts — the shell against a spawned gateway · s2-c1 · s2-c2 · s2-c4
+apps/s6-customer-portal/src/  item 6: screens.ts, app.ts (brand first, then the cookie boot), state.ts, screens/ (sites, work, agreements, terms, request) — no filter anywhere; the rows are the scope
+apps/gateway/src/handlers/service-requests.ts  item 6: S6's one write — inputs the handler's, visibility the database's, tenancy the site's
+test/integration/     backbone.test.ts — the contract against a live Postgres · s0-shell.test.ts — the shell against a spawned gateway · s2-c1 · s2-c2 · s2-c4 · s3-s5 (item 4) · s6 (item 6)
 docs/BACKBONE_CONTRACT.md   B2
 ```
 
@@ -144,6 +155,8 @@ docs/BACKBONE_CONTRACT.md   B2
 | 7/OQ5 (C2) | **An agreement states its position before it is recorded**, and a term override belongs to the document that agreed to it | `handlers/contracts.ts` decides the agreement's own shape — `region_id` is an input at parent scope alone and derives from the scope node below it; OQ5 absent or non-boolean is a **400**, because nothing was refused on its merits; an inverted window is `empty_window` said by the handler, since Postgres raises 22000 there and 22000 would reach the surface as a 500; `draft → active → expired \| terminated`, a step off it `illegal_transition`. Scope existence at the declared tier stays with `ac_contract_scope_exists`. S2's form is a THREE-state OQ5 control that does not submit unset, and the override form is rendered from `terms.register` rather than eleven hard-coded inputs | 8 handler tests against a scripted Tx; 9 screen tests; 11 wire tests (finding 1 → 422 `illegal_tier` structural, finding 2 → 422 `ratchet_loosened` commercial with the resolver agreeing, OQ5 unstated → 400, the overlap-then-orphan chain, the ladder, the trigger's own words for a mis-declared tier); 22 checks driven in headless Chromium, including zero gateway calls with OQ5 unstated |
 | 8/C4 | **Only S2 verifies a credential, once, and a verified credential is immutable** — the sentence the gate has depended on since 05 Rev D, made into a mechanism. The write allowlist could not hold it: `crew_credential` is an entity label the unit of work checks, while the TABLE is reachable by any role with INSERT on it and S8's compliance intake will write the same table | `ac_credential_verification_is_earned` (0005) refuses a verified INSERT **from every path including the superuser's**, admits NULL → set only for an internal principal acting AS S2 with `verified_by` equal to the acting principal, and refuses any change to a verified row — a clearance may already cite it by id, so a correction is a new document. `handlers/network.ts` adds `already_verified` so a second click is a named refusal rather than an AC403. 0005 also closes a hole 0002 left: crews and crew_credentials were bound by REGION only, so a firm principal could list every crew in its region including other firms' — firm isolation is now a policy on `subcontractor_firms`, `crews` and `crew_credentials`. A firm enters through one door (tenant root + operational row, one id, one uow; `organizations.create` refuses kind subcontractor); activation is behind a signed MSA; a crew's tenancy follows its employment; a rate is set from a day forward, the row in effect closed at it as its own audited mutation, and overlap left to the EXCLUDE constraint | 13 handler tests against a scripted Tx; 12 screen tests; 8 wire tests (the forged INSERT, the S3-binding verification, the second verification, the edit of a verified row — all four refused; a firm on S8 seeing one firm, its own crews, its own documents and no other firm's price; the close rolling back with the refused insert); and **`tools/ci/drive-s2-c4.ts` — 13 checks through a real browser, committed and run by CI**, which is where the two defects C4 shipped with actually lived: it walks record → refuse → sign → activate → crew → document → verify → two rates, and it is proven to fire on both of them planted back in |
 | S0/09 | **Surface runtime** — the renderer behind one package; screens as a registry checked against the catalogue; colour as a role; the frame rendered from the registry | `packages/ui/src/render.ts` is the only file importing preact/htm/signals and `from "preact"` in `apps/s*` fails the guard; every `uses` in `apps/s*/src/screens.ts` must be a catalogue operation admitting that surface; `#rrggbb`/`rgb(` outside `packages/tokens` fails; a surface reaching a third-party font host fails, because the tier that most depends on aligned digits is the tier least likely to have a network; `emit-surfaces.ts --check` byte-compares every emitted file including `frame.html`; a component handed a density outside its spec is a type error at the call and a throw at render | 32 ui tests (density contract at the type level via `@ts-expect-error`, render-to-string, router, stylesheet variables resolve for every density, no accent ink in a state-bearing column, the script confined to the masthead); all four guards proven to fire on planted violations; the S2 frame + every component executed in headless Chromium — 36px controls on console, 56px and a dark surface on the field frame, degraded slot flips |
+
+| 6/S6 | **One codebase, four scopes — scoping enforced at the gateway, never by client-side filtering** (05 §S6; 00 §2.8 build order item 6: "tier scoping is the acceptance test"). Before 0006 the sentence held for `accounts` alone: a customer bound to South could read every South job of every customer, resolve any org's terms by typing its id, and list our crews and their documents by region; and a location-scoped manager could not see the region node above them, so a term authored at the region tier silently did not apply | Migration 0006: `ac_work_visible` (a job, its timer, its state events and a service request are visible to a customer exactly when the site is — the EXISTS runs under `accounts`' own policy); `ac_agreement_visible` on `contracts` and `contract_term_overrides` (own org; nothing for a firm) with INSERT/UPDATE for the internal namespace alone — the table says what the allowlist says; the customer namespace closed on `crews`, `crew_credentials`, `compliance_clearances`, `assignments`; `ac_scope_ancestors()` (SECURITY DEFINER) makes the scope node's own path visible. `login()` binds the principal's scope before resolving its context; `terms.resolved`, `accounts.list`, `contracts.list` take the org from the token for a non-internal principal; a parent-tier customer's unit of work writes into any region its org is served from (the row's region is the site's). `handlers/service-requests.ts` decides inputs; 0006 decides visibility. S6 itself: `auth.login` serves S6 as the Phase 1 door (OPEN-S6-IDP names federation as the replacement of the credential check, nothing downstream); five screens over `accounts.list`, `jobs.list`, `serviceRequests.*`, `contracts.list`, `terms.resolved`, `terms.register`; RefusalCard is console-only by spec, so the customer reads the heading and the gateway's words | 5 handler tests; 2 uow tests; 10 render tests; **10 wire tests** — four customer principals (a manager at Austin, one at Reno, the executive, another customer's manager): the subtree and the breadcrumb, work by site across our regions with the crew invisible, zero rows on four tables at the binding, a REGION-tier override applying to a location-scoped manager, `orgId` inert, the one write landing in the site's tenancy and refused for an invisible site, six authoring operations refused by scope, a raw INSERT refused at the table; **`tools/ci/drive-s6.ts` — 12 checks in a real browser, run by CI** |
 
 ## Conventions
 

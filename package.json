@@ -23,7 +23,8 @@
     "worker": "node apps/worker/src/main.ts",
     "test:ui": "node --test \"packages/ui/**/*.test.ts\" \"apps/s[0-9]*/**/*.test.ts\"",
     "build:surface": "node tools/ci/build-surface.ts",
-    "surfaces:check": "node tools/ci/emit-surfaces.ts --check"
+    "surfaces:check": "node tools/ci/emit-surfaces.ts --check",
+    "drive:s6": "node tools/ci/drive-s6.ts"
   },
   "dependencies": {
     "pg": "^8.13.0"

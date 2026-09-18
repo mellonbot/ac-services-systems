@@ -23,6 +23,26 @@ assumption. Each row names the file that changes when the decision lands.
 
 ## Raised by this scaffold
 
+**OPEN-S6-IDP — when does the customer portal federate?**
+
+`05` and the surface registry say S6's auth is *"customer IdP + tier claim"*.
+Item 6 (2026-09-17) built the portal with a **password held at our gateway** as
+the Phase 1 door: `auth.login` now serves S6 (`packages/contracts/src/operations.ts`,
+`PASSWORD_LOGIN`), and customer users carry a `password_hash` like ours do.
+
+The claims a customer token carries — namespace, org, scope tier, scope node —
+are the same whichever way the credential is checked, and everything the
+acceptance test measures (RLS, the context walk, tier scoping) is proven against
+those claims. Federation therefore replaces the credential check inside `login()`
+and nothing downstream of it. What it needs is a customer's identity provider to
+test against — Amped's IT — and a decision on how the IdP's tier claim maps to a
+scope node (the `users` row already holds `external_idp_subject` and the scope
+columns; that mapping is the one design question left).
+
+Lands in: `apps/gateway/src/main.ts` (`login`), `PASSWORD_LOGIN`, and a users
+provisioning operation (there is none yet — customer principals are seeded by
+SQL, which does not survive the third account).
+
 **OPEN-S4 — can the HQ dashboard write annotations?**
 
 `05_Web_Surface_Architecture.md` Rev B lists S4's writes as *"annotation,
