@@ -63,7 +63,7 @@ main#mount{padding:var(--gutter);background:var(--color-surface)}
 
 /* ---- StatusPill: rule, fill and word — Form R-4 ----
    The rule is drawn in the state's OWN ink, never in --color-border: a chip's
-   rule carries SHAPE, and the border role measures 2.65:1 (errata E-08).
+   rule carries SHAPE, and the border role measures 2.22:1 (errata E-08).
    The fill is transparent in the light stock and oxide on the field ground,
    where hue has stopped working and form is the only channel left. */
 .ac-pill{display:inline-flex;align-items:center;gap:var(--space-1);padding:0 var(--space-2);height:calc(var(--control-height) - var(--space-2));border-radius:var(--radius-none);border:1px solid var(--status-color);color:var(--status-color);background:var(--status-fill,transparent);font-family:var(--font-instrument);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase;white-space:nowrap}
@@ -179,7 +179,7 @@ export const STATE_BEARING_SELECTORS = Object.freeze([".ac-pill", ".ac-badge"]);
 
 /**
  * The accent roles that may NEVER appear in a state-bearing rule. The house red
- * is 1.2° from the fault ink and the arc is 38.4° from the nearest state, and
+ * is 0.55° from the fault ink and the arc is 38.41° from the nearest state, and
  * neither may decorate a chip: a dispatcher reads the column, not the palette.
  * styles.test.ts fails any rule above that breaks this.
  */

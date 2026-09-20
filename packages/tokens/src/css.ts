@@ -192,7 +192,7 @@ export const WORD_ROLES = Object.freeze([
  * `color.status-breached-fill` — are deliberately absent. A fill carries
  * salience, not shape; its rule carries the shape and its ink carries the word,
  * both checked below. That decomposition is what lets the arc be an arc at
- * 2.09:1 and the oxide fault fill be a saturated oxide at 2.13:1.
+ * 2.09:1 and the oxide fault fill be a saturated oxide at 1.84:1.
  */
 export const SHAPE_ROLES = Object.freeze([
   "color.focus-ring", "color.action-text",
@@ -220,7 +220,7 @@ export const ON_FILL = Object.freeze([
 
 /**
  * Every failure in a density, stated with the number — "insufficient contrast"
- * starts an argument and "3.17:1, needs 4.5:1" ends one. Checked for BOTH
+ * starts an argument and "3.27:1, needs 4.5:1" ends one. Checked for BOTH
  * resolutions of the brand layer, because a surface gets one or the other and
  * a schedule that only holds for one of them is half a schedule.
  */

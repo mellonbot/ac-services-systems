@@ -182,12 +182,12 @@ export const faviconDataUri = (px: number = ICON_SIZES.favicon): string =>
 export const BULLETIN_ERRATA = Object.freeze([
   {
     code: "E-07", subject: "ink.light", status: "closed",
-    finding: "The published caption ink measured 3.17:1 against the header ground, below AA, and was used for the muted state chip.",
+    finding: "The published caption ink measured 3.27:1 against the header ground, below AA, and was used for the muted state chip.",
     resolution: "color.text-muted and color.status-blocked point at ink.mid (6.29:1). ink.light survives as a non-text rule only.",
   },
   {
     code: "E-08", subject: "rule-hard", status: "closed",
-    finding: "The heavy rule measured 2.65:1. Form R-4 requires a chip's rule to carry SHAPE at 3:1, and it cannot.",
+    finding: "The heavy rule measured 2.22:1. Form R-4 requires a chip's rule to carry SHAPE at 3:1, and it cannot.",
     resolution: "A state chip's rule is drawn in the state's own ink, which clears 4.5:1 by the word's own requirement. color.border* stays decorative.",
   },
   {

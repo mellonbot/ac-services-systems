@@ -12,7 +12,7 @@ import { PRIMITIVES as P } from "./primitives.ts";
  *
  *   color.brand*   RED. The wordmark, the livery, the badge, S1 marketing.
  *                  Barred from any surface that renders a state ramp, because
- *                  red measures 1.2° from the fault ink and a red control on a
+ *                  red measures 0.55° from the fault ink and a red control on a
  *                  dispatch board is an alarm whatever we name it.
  *   color.action*  ARC. Every interface that shows state. The board reads the
  *                  same in every tenant, including ours.
@@ -40,7 +40,7 @@ export const SEMANTIC = Object.freeze({
   /** The heavier rule: plate heads, the underline beneath a table head. Still decorative. */
   "color.border-hard": P.stock.ruleHard,
   "color.text": P.ink.black,
-  /** ink.mid, not ink.light: the published ink.light is 3.17:1 on the header ground (E-07). */
+  /** ink.mid, not ink.light: the published ink.light is 3.27:1 on the header ground (E-07). */
   "color.text-muted": P.ink.mid,
 
   "color.action": P.arc.fill,

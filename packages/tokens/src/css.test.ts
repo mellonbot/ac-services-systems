@@ -27,7 +27,7 @@ test("a ratio is stated against the WORST ground, not the paper — errata E-01"
 });
 
 test("the published ink.light and rule-hard are NOT used where they fail — errata E-07, E-08", () => {
-  assert.equal(SEMANTIC["color.text-muted"], "#3C4A55", "muted text is ink.mid, not the 3.17:1 ink.light");
+  assert.equal(SEMANTIC["color.text-muted"], "#3C4A55", "muted text is ink.mid, not the 3.27:1 ink.light");
   assert.equal(SEMANTIC["color.status-blocked"], "#3C4A55", "the muted state chip carries a word, so it is ink.mid");
   // The border role is decorative and openly below 3:1 — which is why no chip
   // rule may be drawn in it. packages/ui/src/styles.test.ts holds that line.
@@ -36,7 +36,7 @@ test("the published ink.light and rule-hard are NOT used where they fail — err
 
 test("Form R-4: the word is measured against its own fill, and the fill is free", () => {
   const field = semanticFor("field");
-  // The oxide fault fill is 2.13:1 against the plate ground and that is correct:
+  // The oxide fault fill is 1.84:1 against the plate ground and that is correct:
   // it carries neither the word nor the shape.
   assert.ok(contrastRatio(field["color.status-breached-fill"], field["color.surface"]) < 3);
   // The word on it is what has to clear AA.

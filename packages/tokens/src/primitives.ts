@@ -27,16 +27,16 @@ export const PRIMITIVES = Object.freeze({
    *   core      SLA timers, the monogram, rules — FIELD GROUND ONLY     1.01:1 on light stock
    *
    * The fill is licensed to sit at 2.09:1 by the decomposition that lets the
-   * oxide fault fill sit at 2.13:1: the rule carries shape at 6.52:1 and
+   * oxide fault fill sit at 1.84:1: the rule carries shape at 6.52:1 and
    * `onFill` carries the word at 6.40:1, so the fill is free to be an arc.
    */
   arc: { envelope: "#0A4F66", fill: "#00A3D9", core: "#7FE9FF", onFill: "#0E1418" },
   /**
    * THE BRAND RED — the one ink in this file fenced by SURFACE rather than by size.
    *
-   * Red measures 1.2° from the fault ink. No bright red clears the accent
+   * Red measures 0.55° from the fault ink. No bright red clears the accent
    * gate's 30°, and there is nowhere to move it: the band between the fault at
-   * 4.7° and the warning at 39.5° is 34.8° wide. A red button on a dispatch
+   * 4.75° and the warning at 39.52° is 34.78° wide. A red button on a dispatch
    * board is an alarm, whatever the style guide calls it.
    *
    * So red is admitted exactly where a colliding TENANT accent is admitted —

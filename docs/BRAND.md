@@ -11,9 +11,9 @@ schedule; the company is Rankine Operating Company.
 
 ## Two accent layers
 
-The load-bearing decision. Red measures 1.2° from the fault ink, and there is no
+The load-bearing decision. Red measures 0.55° from the fault ink, and there is no
 bright red that clears the accent gate's 30°: the band between the fault
-and the warning is 34.8° wide. So red is admitted exactly where a colliding
+and the warning is 34.78° wide. So red is admitted exactly where a colliding
 tenant accent is admitted, and barred everywhere a state ramp renders.
 
 | Layer | Where | Resolved by |
@@ -96,8 +96,8 @@ enforces.
 
 | Code | Status | Finding |
 |---|---|---|
-| E-07 | closed | The published caption ink measured 3.17:1 against the header ground, below AA, and was used for the muted state chip. |
-| E-08 | closed | The heavy rule measured 2.65:1. Form R-4 requires a chip's rule to carry SHAPE at 3:1, and it cannot. |
+| E-07 | closed | The published caption ink measured 3.27:1 against the header ground, below AA, and was used for the muted state chip. |
+| E-08 | closed | The heavy rule measured 2.22:1. Form R-4 requires a chip's rule to carry SHAPE at 3:1, and it cannot. |
 | E-09 | closed | body set its font with the `font` SHORTHAND, one line under html,body{font-variant-numeric:tabular-nums}. The shorthand resets every font-variant-* longhand to initial, so body computed `normal` and inherited it to the document. Measured in Chromium. No numeral in the system held its column; .ac-num was defined with no call site and DataGrid rendered figures in the body face. |
 | E-10 | closed | `all:unset` ties :focus-visible on specificity (0,1,0) and is declared later, and the cascade resolves per property and not per state — so the sort button, the dispatch board's only keyboard control, computed outline-style:none while focused. WCAG 2.4.7. |
 | E-11 | closed | It is color.action-text by value, and :active repainted the fill without the ink. A variant carrying its own resting colour kept it: a quiet button pressed its own label to 1.00:1 and danger to 1.24:1 — every secondary route on a RefusalCard. |

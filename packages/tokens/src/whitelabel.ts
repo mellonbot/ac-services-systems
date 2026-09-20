@@ -2,8 +2,15 @@ import { SEMANTIC, BRAND_OVERRIDABLE, STATE_ROLES, type SemanticToken } from "./
 import { PRIMITIVES as P } from "./primitives.ts";
 import { MARK_GLYPHS as M } from "./type.ts";
 
-/** WCAG relative luminance. No dependency — this must run at authoring time. */
-const luminance = (hex: string): number => {
+/**
+ * WCAG relative luminance. No dependency — this must run at authoring time.
+ *
+ * Exported because a ratio is not the only thing measured against it: the
+ * greyscale check in `figures.test.ts` reads luminance directly, to ask the
+ * question a ratio cannot — whether the state ramp still ORDERS once hue is
+ * gone, which is the whole premise of Form R-4.
+ */
+export const luminance = (hex: string): number => {
   const v = hex.replace("#", "");
   const ch = [0, 2, 4].map((i) => parseInt(v.slice(i, i + 2), 16) / 255);
   const lin = ch.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
@@ -177,7 +184,7 @@ export const admitAccent = (accent: string): AccentAdmission => {
  *
  * The theme that satisfies a brand team and the theme that breaks the portal
  * are separated by exactly this check. Rejections carry the number, because
- * "insufficient contrast" starts an argument and "3.17:1, needs 4.5:1" ends one.
+ * "insufficient contrast" starts an argument and "3.27:1, needs 4.5:1" ends one.
  *
  * Note what is NOT a rejection: an accent that fails the hue gate, or the dark
  * ground. Those narrow where the accent may be painted (`admitAccent`), and a
@@ -249,7 +256,7 @@ export const validateBrandTheme = (
  * solid. Hue only confirms what form already said.
  */
 /**
- * THE HOUSE RED SITS BEHIND THIS SAME GATE. It measures 1.2° from the fault ink
+ * THE HOUSE RED SITS BEHIND THIS SAME GATE. It measures 0.55° from the fault ink
  * and fails outright, so it is admitted for the wordmark, the livery, the badge
  * and marketing, and barred from every surface that renders a state ramp — see
  * `neutralBrand` in ./css.ts, which is where the fallback actually happens.
