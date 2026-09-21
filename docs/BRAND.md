@@ -113,4 +113,5 @@ enforces.
 | E-17 | closed | badgeSvg() named a font family. A favicon is fetched before any stylesheet, so on a machine without the face the mark silently became a different mark. |
 | E-18 | accepted | A connected script fails the small end of the substrate list: joins close in thread and the word smears below the size floor. |
 | E-20 | accepted | Graphite on the brand red measures 3.67:1 — it clears the 3:1 a mark needs and not the 4.5:1 a word needs. |
+| E-23 | closed | E-08 measured the heavy rule on the light stock at 2.22:1 and fenced the role. Nobody measured its twin: on the plate the same role is 2.85:1 against the ground, also under the 3:1 a shape needs, and no errata row said so either way. A rule that is decorative on one substrate and undeclared on the other is decided by whoever reads it next — on the tier read in sunlight, where a missed chip rule costs most. |
 | E-19 | closed | At size 50 on x 41 the R's swash reached x 66.17 — 2.17 units past the right edge of the square — and the viewport silently trimmed it. Invisible while the letter was a font reference; measurable the moment it became an outline. |

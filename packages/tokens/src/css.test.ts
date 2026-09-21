@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { tokenCss, brandCss, cssVar, contrastFailures, semanticFor, SEMANTIC_DARK, GROUNDS, WORD_ROLES, ON_FILL, TENANT_SCOPE, rolesFor } from "./css.ts";
-import { SEMANTIC, type SemanticToken } from "./semantic.ts";
+import { SEMANTIC, STATE_ROLES, type SemanticToken } from "./semantic.ts";
 import { DENSITY, TYPE_SCALE, TYPE_FLOOR, type Density } from "./density.ts";
 import { FACES, FACE_ROLES, SUBSET_GLYPHS, MARK_GLYPHS } from "./type.ts";
 import { PRIMITIVES as P } from "./primitives.ts";
@@ -26,12 +26,23 @@ test("a ratio is stated against the WORST ground, not the paper — errata E-01"
   }
 });
 
-test("the published ink.light and rule-hard are NOT used where they fail — errata E-07, E-08", () => {
+test("the published ink.light and rule-hard are NOT used where they fail — errata E-07, E-08, E-23", () => {
   assert.equal(SEMANTIC["color.text-muted"], "#3C4A55", "muted text is ink.mid, not the 3.27:1 ink.light");
   assert.equal(SEMANTIC["color.status-blocked"], "#3C4A55", "the muted state chip carries a word, so it is ink.mid");
-  // The border role is decorative and openly below 3:1 — which is why no chip
-  // rule may be drawn in it. packages/ui/src/styles.test.ts holds that line.
-  assert.ok(contrastRatio(SEMANTIC["color.border"], SEMANTIC["color.surface"]) < 3);
+  // BOTH border roles are decorative and openly below 3:1, on BOTH substrates —
+  // which is why no chip rule may be drawn in either. E-08 measured the light
+  // stock's heavy rule at 2.22:1 and E-23 the plate's at 2.85:1, because a role
+  // fenced on one ground and merely assumed on the other is decided by whoever
+  // reads it next.
+  // packages/ui/src/styles.test.ts holds the other half: the rule is drawn in
+  // the state's OWN ink, which clears the threshold by the word's requirement.
+  for (const d of DENSITIES) {
+    const sem = semanticFor(d);
+    for (const role of ["color.border", "color.border-hard"] as const)
+      assert.ok(contrastRatio(sem[role], sem["color.surface"]) < 3, `${d}: ${role} is not decorative`);
+    for (const state of STATE_ROLES)
+      assert.ok(contrastRatio(sem[state], sem["color.surface"]) >= 3, `${d}: ${state} cannot carry a chip's shape`);
+  }
 });
 
 test("Form R-4: the word is measured against its own fill, and the fill is free", () => {

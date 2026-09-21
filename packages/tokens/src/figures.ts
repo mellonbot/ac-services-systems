@@ -168,6 +168,21 @@ export const FIGURES = Object.freeze({
     SEMANTIC_DARK["color.status-breached"],
   ),
 
+  /**
+   * E-23. The field tier's heavy rule, which no errata row had ever measured.
+   * E-08 measured the light stock's and fenced the ROLE; the plate's twin was
+   * left to inference for two revisions. It is 2.85:1 against the plate
+   * ground — the same position, on the substrate where a missed rule costs
+   * most — and it is fenced by the same sentence, not repainted.
+   */
+  borderHardPlate: ratio(
+    ["packages/tokens/src/brand.ts", "packages/tokens/src/css.test.ts"],
+    "the heavy rule on the field ground — decorative there too, and below the 3:1 a shape needs",
+    2.85,
+    P.plate.ruleHard,
+    PLATE,
+  ),
+
   /** The frost word on the one solid chip in the system. */
   frostOnOxide: ratio(
     ["docs/BRAND.md"],

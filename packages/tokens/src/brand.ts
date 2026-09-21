@@ -246,6 +246,11 @@ export const BULLETIN_ERRATA = Object.freeze([
     resolution: "Accepted: the badge letter is a mark, not a word. It carries no meaning a reader has to decode, it is never set below its own size, and the brand layer is the one place red is admitted at all. The number is written down so the next person does not re-derive it.",
   },
   {
+    code: "E-23", subject: "rule-hard, on the field ground", status: "closed",
+    finding: "E-08 measured the heavy rule on the light stock at 2.22:1 and fenced the role. Nobody measured its twin: on the plate the same role is 2.85:1 against the ground, also under the 3:1 a shape needs, and no errata row said so either way. A rule that is decorative on one substrate and undeclared on the other is decided by whoever reads it next — on the tier read in sunlight, where a missed chip rule costs most.",
+    resolution: "Same sentence as E-08, now stated for both grounds: color.border* is decorative on every substrate and a chip's rule is drawn in the state's own ink — 6.89:1 light, 14.74:1 on the plate. css.test.ts measures both border roles on both grounds; figures.ts carries the number so it cannot drift back to inference.",
+  },
+  {
     code: "E-19", subject: "the badge ink box", status: "closed",
     finding: "At size 50 on x 41 the R's swash reached x 66.17 — 2.17 units past the right edge of the square — and the viewport silently trimmed it. Invisible while the letter was a font reference; measurable the moment it became an outline.",
     resolution: "The letter was cut down to size 46 on x 40, baseline 47, with the ring at 18/21. The swash now ends at 63.16, inside the square, and a test asserts the whole ink box stays within the 64 units.",
