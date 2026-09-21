@@ -55,6 +55,35 @@ export const SEMANTIC = Object.freeze({
   "color.brand-ink": P.brand.onFill,
   "color.brand-text": P.brand.text,
 
+  /**
+   * THE LIVERY PAIR — the lockup's own red, and the one exemption in this tier.
+   *
+   * The brand fence above is drawn by SURFACE: `color.brand*` falls back to Ink Black
+   * wherever a state ramp renders, because a red control on a dispatch board is an alarm
+   * whatever we name it. That is the right cut for a control and the wrong question for
+   * the masthead. The lockup is not a control, not a chip, and not inside the data
+   * region — it is the plate the instrument is screwed to.
+   *
+   * Applied to the masthead the surface fence produced a visible defect: `BADGE.treatment`
+   * reads `P.brand.fill` directly, so every console frame rendered a brand-red badge
+   * beside an Ink Black wordmark — one lockup in two identities, on six surfaces.
+   *
+   * So the lockup is fenced by ELEMENT instead. These two roles are never neutralised and
+   * may appear in exactly one place: the masthead lockup — the badge ground, the wordmark,
+   * and the rule beneath them. Anywhere else is a defect a guard can name, which "use your
+   * judgement" is not.
+   *
+   * MEASURED, because an exemption has to earn one. #D91F11 clears the 3:1 large-text
+   * floor on every ground in both stocks — worst case 3.48:1 on the plate ground #111A20,
+   * then 3.65:1 on the light header, 3.86:1 on the plate page, 3.94:1 on the plate well,
+   * 4.21:1 on the light page, 4.66:1 on the light surface — and the wordmark never renders
+   * below WORDMARK_FLOOR, so it is always large text. The badge's own pair, ink.black on
+   * the red ground, is 3.67:1: gated at the non-text floor because the letter is a MARK,
+   * artwork at 52.5 of a 64-unit square, not a word anyone reads.
+   */
+  "color.livery": P.brand.fill,
+  "color.livery-ink": P.ink.black,
+
   "color.status-ok": P.state.jade,
   "color.status-at-risk": P.state.amber,
   "color.status-breached": P.state.oxide,
@@ -103,6 +132,16 @@ export const STATE_ROLES = Object.freeze([
   "color.status-ok",
   "color.status-at-risk",
   "color.status-breached",
+] as const satisfies readonly SemanticToken[]);
+
+/**
+ * The lockup roles. Fenced by element, never by surface — `neutralBrand` does not touch
+ * them, and no tenant re-points them: a tenant gets its own lockup, which is a different
+ * artefact, not a recolour of this one.
+ */
+export const LIVERY_ROLES = Object.freeze([
+  "color.livery",
+  "color.livery-ink",
 ] as const satisfies readonly SemanticToken[]);
 
 /** The brand-layer roles, which `tokenCss` resolves to neutral on a state-rendering surface. */

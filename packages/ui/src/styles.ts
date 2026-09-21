@@ -41,20 +41,37 @@ main#mount{padding:var(--gutter);background:var(--color-surface)}
    its size floor, because a connected script's joins close up and the word
    becomes a smear. The badge carries every size below that.
 
-   --brand-layer is 1 only on a surface that renders no state ramp. The brand
-   roles are already resolved to Ink Black everywhere else by tokenCss, so this
-   stylesheet paints var(--color-brand-text) unconditionally and the frame
-   decides what that means — the fence is a token, not a convention. */
+   THE LOCKUP IS FENCED BY ELEMENT, NOT BY SURFACE — and the reason is visible
+   on any console frame built before this change. The brand fence is a token:
+   tokenCss resolves --color-brand* to Ink Black wherever a state ramp renders,
+   and this sheet painted var(--color-brand-text) unconditionally and let the
+   frame decide what that meant. Correct for a control. Wrong here — because
+   BADGE.treatment reads P.brand.fill directly and is not resolved by anything,
+   so the masthead rendered a brand-red badge beside an Ink Black wordmark. One
+   lockup, two identities, on six of eight surfaces.
+
+   The surface fence answers "may a CONTROL be red here", and the masthead is
+   not a control, not a chip, and not inside the data region: it is the plate the
+   instrument is screwed to. So the lockup takes --color-livery, which tokenCss
+   never neutralises, and the fence that keeps it honest is the element it may
+   appear on — checked in styles.test.ts, not remembered.
+
+   Measured: the house red clears the 3:1 large-text floor on every ground in
+   both stocks, worst case 3.48:1 on the plate ground, and the wordmark never
+   renders below WORDMARK_FLOOR so it is always large text. The badge's own
+   pair, ink.black on the red ground, is 3.67:1 — the non-text floor, because
+   the letter is a MARK and not a word anyone reads. (No hex in this file: the
+   sheet names roles, and styles.test.ts fails a colour even in a comment.) */
 .ac-mast{padding:var(--space-4) var(--gutter) var(--space-2);background:var(--color-page)}
 .ac-mast__lockup{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;
   text-decoration:none;color:inherit}
 .ac-badge-mark{display:inline-flex;flex:none}
 .ac-badge-mark__svg{display:block}
 .ac-wordmark{font-family:var(--font-wordmark);font-size:var(--text-mast);line-height:1;
-  color:var(--color-brand-text);padding-right:0.08em}
+  color:var(--color-livery);padding-right:0.08em}
 .ac-wordmark__co{font-family:var(--font-label);font-weight:600;font-size:var(--text-xs);
   letter-spacing:var(--track-widest);text-transform:uppercase;color:var(--color-text-muted)}
-.ac-mast__rule{height:4px;background:var(--color-brand);max-width:320px;margin-top:var(--space-2)}
+.ac-mast__rule{height:4px;background:var(--color-livery);max-width:320px;margin-top:var(--space-2)}
 
 /* ---- Plate head: a titled section is numbered, like a plate ---- */
 .ac-plate__head{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-2) var(--space-4);padding-bottom:var(--space-2);border-bottom:3px solid var(--color-text);margin-bottom:var(--space-3)}
@@ -189,5 +206,18 @@ export const STATE_BEARING_SELECTORS = Object.freeze([".ac-pill", ".ac-badge"]);
  */
 export const ACCENT_ROLES = Object.freeze([
   "--color-brand", "--color-brand-ink", "--color-brand-text",
+  // The livery is the same red, exempt from the SURFACE fence and not from this one:
+  // a lockup role decorating a chip is the exact failure the exemption was argued past.
+  "--color-livery", "--color-livery-ink",
   "--color-action", "--color-action-ink", "--color-action-text", "--color-action-pressed",
 ]);
+
+/**
+ * THE LOCKUP ROLES, and the only selectors they may appear on.
+ *
+ * tokenCss never neutralises these, so nothing downstream will catch them if they
+ * escape — which makes this list the whole fence. An element fence that is not checked
+ * is a convention, and a convention is what produced the two-identity masthead.
+ */
+export const LIVERY_ROLES = Object.freeze(["--color-livery", "--color-livery-ink"]);
+export const LIVERY_SELECTORS = Object.freeze([".ac-mast", ".ac-wordmark", ".ac-badge-mark"]);
