@@ -35,6 +35,8 @@ const URL_ = GIVEN ? withDb(GIVEN, SCRATCH) : undefined;
 let maintenance: Pool;
 const U = (n: number) => `e7000000-0000-0000-0000-0000000000${String(n).padStart(2, "0")}`;
 const ORG = U(10), SITE_NODE = U(11), SITE = U(12), JOB = U(13), TIMER = U(14), CREW = U(15), CRED = U(16), CRED_FAR = U(17);
+/** Its own credential, so the timezone test counts its own rows and not the idempotency test's. */
+const CRED_TZ = U(19);
 
 let pool: Pool;
 const admin = async (sql: string, params: unknown[] = []) => {
@@ -73,6 +75,11 @@ before(async () => {
     VALUES ($1, $2, $3, $4, 'license', $5, current_date - 300, current_date + 10),
            ($6, $2, $3, $4, 'insurance', $7, current_date - 300, current_date + 365)
     ON CONFLICT (id) DO NOTHING`, [CRED, INTERNAL_ORG_ID, REGION_SOUTH, CREW, `LIC-${RUN}`, CRED_FAR, `INS-${RUN}`]);
+  // Twelve days out FROM THE UTC DAY, because the sweep's day is UTC and the
+  // timezone test below is about exactly that disagreement.
+  await admin(`INSERT INTO crew_credentials (id, org_id, region_id, crew_id, kind, identifier, valid_from, valid_to)
+    VALUES ($1, $2, $3, $4, 'background_check', $5, (now() AT TIME ZONE 'UTC')::date - 300, (now() AT TIME ZONE 'UTC')::date + 12)
+    ON CONFLICT (id) DO NOTHING`, [CRED_TZ, INTERNAL_ORG_ID, REGION_SOUTH, CREW, `BGC-${RUN}`]);
   await admin(`DELETE FROM outbox WHERE entity_id IN ($1, $2) AND surface_id = 'worker'`, [TIMER, CRED]);
 });
 
@@ -126,6 +133,39 @@ test("bound as the worker, the credential-expiry sweep warns of the licence ten 
   await tx2.setLocal(workerScope());
   await sweepCredentialExpiry(tx2, new Date());
   assert.equal((await admin(`SELECT count(*)::text AS n FROM outbox WHERE entity = 'crew_credential' AND entity_id = $1`, [CRED]))[0]!.n, "1");
+});
+
+/**
+ * THE TIMEZONE THE SWEEP RUNS IN (found while proving item 8, 2026-09-18).
+ *
+ * `sweepCredentialExpiry` keys its own idempotency on
+ * `today.toISOString().slice(0, 10)` — a UTC date — against
+ * `occurred_at::date`, which Postgres casts in the SESSION's timezone. On a
+ * cluster set to anything west of UTC the two disagree from local evening
+ * until midnight: the NOT EXISTS never matches, and the sweep warns again
+ * every hour, all night, about the same credential.
+ *
+ * It was invisible because CI runs UTC. So this test PINS the session
+ * timezone rather than trusting the machine's, which makes it fail on the old
+ * SQL everywhere — including in CI — and pass on the new SQL everywhere.
+ */
+test("THE SWEEP'S DAY IS UTC WHEREVER THE SERVER THINKS IT IS: two runs in one UTC day warn once, on a cluster set to America/Chicago", { skip }, async () => {
+  // 03:00Z is the evening of the PREVIOUS day in Chicago — the window where
+  // the two calendars disagree, and the window the bug lived in. Derived from
+  // today rather than written down, so the test does not rot.
+  const utc = new Date();
+  const at = new Date(Date.UTC(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate(), 3, 0, 0));
+  const chicago = async () => {
+    const tx = await beginTx(pool, "ac_worker");
+    await tx.setLocal(workerScope());
+    await tx.query("SET LOCAL TIME ZONE 'America/Chicago'");
+    return tx;
+  };
+  await sweepCredentialExpiry(await chicago(), at);
+  const after1 = await admin(`SELECT count(*)::text AS n FROM outbox WHERE entity = 'crew_credential' AND entity_id = $1`, [CRED_TZ]);
+  await sweepCredentialExpiry(await chicago(), at);
+  const after2 = await admin(`SELECT count(*)::text AS n FROM outbox WHERE entity = 'crew_credential' AND entity_id = $1`, [CRED_TZ]);
+  assert.equal(after2[0]!.n, after1[0]!.n, "the second sweep of the same UTC day warns about nothing");
 });
 
 test("a worker pinned to a region (AC_REGION_ID) sweeps that region and not another", { skip }, async () => {

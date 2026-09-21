@@ -119,3 +119,10 @@ jobs:
       # D12's four writes from the page: enroll, file, acknowledge, dispute.
       - name: S8 through a real browser
         run: npm run drive:s8
+      # Item 8: the marketing surface, whose principal is nobody. The DOM half
+      # of the anonymous door (test/integration/s1.test.ts is the wire half),
+      # and the only place two of its mechanisms can be checked at all: the
+      # durable buffer surviving a reload, and the D7a/OQ6 copy ceiling against
+      # the PAINTED page, so a promise arriving through a stylesheet fails too.
+      - name: S1 through a real browser
+        run: npm run drive:s1

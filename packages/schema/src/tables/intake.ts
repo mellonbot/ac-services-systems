@@ -10,9 +10,15 @@ export const leads = operationalTable("leads", {
     { name: "source", type: "text" },
     { name: "contact", type: "jsonb" },
     { name: "requested_metro", type: "text", nullable: true },
+    {
+      name: "submission_id", type: "uuid", nullable: true,
+      comment:
+        "ITEM 8 — what makes S1's durable buffer replayable. The browser mints this ONCE when the visitor presses the button, keeps it in the buffer, and replays the same id until the gateway answers; the UNIQUE below turns a duplicate replay into a named refusal instead of a second row. Exactly the role `(device, mutation_id)` plays for S5, for exactly the same reason: a queue that can retry and cannot deduplicate is a queue that phones the same person twice. Nullable because a lead we author ourselves was never queued.",
+    },
     { name: "converted_account_id", type: "uuid", nullable: true, references: "accounts(id)" },
   ],
   indexes: [["converted_account_id"]],
+  uniques: [["submission_id"]],
 });
 
 export const call_records = operationalTable("call_records", {

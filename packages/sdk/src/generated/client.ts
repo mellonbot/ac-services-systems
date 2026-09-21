@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 52 today. There is no
+ * One method per operation in the catalogue — 56 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -36,6 +36,13 @@ export const createGatewayClient = (transport: Transport) => ({
    * Attributes of a node — name, the customer's own grouping, external ref, address, timezone, active. Never parent_id or region_id; those are accounts.move. */
   updateAccount(input: OperationIO["accounts.update"]["input"]): Promise<OperationIO["accounts.update"]["output"]> {
     return transport.request(OPERATIONS["accounts.update"], input) as Promise<OperationIO["accounts.update"]["output"]>;
+  },
+
+  /** `POST /auth/anonymous` · login · none · surfaces: S1
+   *
+   * Mint a short-lived anonymous token bound to PROSPECT/UNASSIGNED for S1's intake. Carries no roles and no scope below the prospect root; the only thing it can do is the two writes below. */
+  anonymousSession(): Promise<OperationIO["auth.anonymousSession"]["output"]> {
+    return transport.request(OPERATIONS["auth.anonymousSession"], undefined) as Promise<OperationIO["auth.anonymousSession"]["output"]>;
   },
 
   /** `POST /auth/device-login` · login · none · surfaces: S5
@@ -73,6 +80,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["brand.theme"], input) as Promise<OperationIO["brand.theme"]["output"]>;
   },
 
+  /** `POST /s1/call-records` · mutation · bearer · surfaces: S1
+   *
+   * A visitor used the call button. Recorded against the lead when there is one, and against nothing when there is not — an inbound call is a fact whether or not a form was filled. */
+  recordCall(input: OperationIO["callRecords.record"]["input"]): Promise<OperationIO["callRecords.record"]["output"]> {
+    return transport.request(OPERATIONS["callRecords.record"], input) as Promise<OperationIO["callRecords.record"]["output"]>;
+  },
+
   /** `POST /s2/contracts` · mutation · bearer · surfaces: S2
    *
    * Record an agreement against a node. OQ5's position is required with no default; regionId is an input for a parent-scope agreement alone and derives from the node below it. */
@@ -92,6 +106,13 @@ export const createGatewayClient = (transport: Transport) => ({
    * draft → active → expired | terminated. A step off that ladder is refused by name; activation and ending are what the other blocks subscribe to. */
   transitionContract(input: OperationIO["contracts.transition"]["input"]): Promise<OperationIO["contracts.transition"]["output"]> {
     return transport.request(OPERATIONS["contracts.transition"], input) as Promise<OperationIO["contracts.transition"]["output"]>;
+  },
+
+  /** `GET /coverage` · system · none · surfaces: S1
+   *
+   * The metros we serve, read from the regions table — code and name, nothing else. No density, no availability, no response window: the ceiling on what S1 may promise is D7a/OQ6 and it is not written yet (F9). */
+  coverage(): Promise<OperationIO["coverage.list"]["output"]> {
+    return transport.request(OPERATIONS["coverage.list"], undefined) as Promise<OperationIO["coverage.list"]["output"]>;
   },
 
   /** `GET /network/credentials` · query · bearer · surfaces: S2, S8
@@ -248,6 +269,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["jobs.mine"], undefined) as Promise<OperationIO["jobs.mine"]["output"]>;
   },
 
+  /** `POST /s1/leads` · mutation · bearer · surfaces: S1
+   *
+   * A stranger asks us to call them. Lands in PROSPECT/UNASSIGNED — tenancy is total, so a lead is owned before an account exists (arc 1). The submitter can never read it back. */
+  submitLead(input: OperationIO["leads.submit"]["input"]): Promise<OperationIO["leads.submit"]["output"]> {
+    return transport.request(OPERATIONS["leads.submit"], input) as Promise<OperationIO["leads.submit"]["output"]>;
+  },
+
   /** `POST /s2/organizations` · mutation · bearer · surfaces: S2
    *
    * Create a customer parent WITH its first region node in one unit of work. No orphan parent: a parent never exists without a place we serve it from. */
@@ -378,4 +406,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "createContract", "listContracts", "transitionContract", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "events", "createFirm", "listFirms", "updateFirm", "createJob", "listJobs", "myJobs", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "createServiceRequest", "listServiceRequests", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "events", "createFirm", "listFirms", "updateFirm", "createJob", "listJobs", "myJobs", "submitLead", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "createServiceRequest", "listServiceRequests", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);

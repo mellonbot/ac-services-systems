@@ -25,6 +25,14 @@ import {
   DENSITY, tokenCss, BRAND, faviconDataUri, semanticFor, badgeSvg,
   SEMANTIC, FACES, ACCENT_GATE, BULLETIN_ERRATA, WORDMARK_FLOOR,
 } from "../../packages/tokens/src/index.ts";
+// Not via index.ts: figures.ts is the table of every number the system states
+// about itself, and it is imported HERE so the generated doc quotes the
+// measurement rather than a literal somebody typed beside it. Two figures in
+// this file were typed, both were wrong, and figures.test.ts could not see
+// them because it only reads the OUTPUT (docs/BRAND.md) — which was corrected
+// by hand, leaving the generator and its artifact disagreeing and
+// `guard:schema` red.
+import { FIGURES } from "../../packages/tokens/src/figures.ts";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
@@ -59,7 +67,7 @@ export const brand = (cfg: Omit<BrandConfig, "surfaceId">, slot: BrandSlot | nul
   installBrand({ ...cfg, surfaceId: "${s.id}" }, slot);
 `;
 
-export const renderMain = (s: Surface): string => `import { createShell, connectShell, type ConnectConfig${s.whiteLabel ? ", installBrand, type BrandConfig, type BrandSlot" : ""} } from "../../../packages/shell/src/index.ts";
+export const renderMain = (s: Surface): string => `import { createShell, ${s.namespace === "anonymous" ? "openAnonymousShell, type AnonymousConfig" : "connectShell, type ConnectConfig"}${s.whiteLabel ? ", installBrand, type BrandConfig, type BrandSlot" : ""} } from "../../../packages/shell/src/index.ts";
 import { SURFACES } from "../../../packages/contracts/src/index.ts";
 import type { Principal } from "../../../packages/contracts/src/index.ts";
 
@@ -86,8 +94,11 @@ export const SURFACE = SURFACES.${s.id};
 /** Configuration-only shell — the registry checks, no transport. */
 export const boot = (principal: Principal) => createShell({ surfaceId: "${s.id}", principal });
 
-/** Live shell — login, hierarchy context, generated client, event stream, degraded flag. */
-export const connect = (cfg: Omit<ConnectConfig, "surfaceId">) => connectShell({ ...cfg, surfaceId: "${s.id}" });
+${s.namespace === "anonymous"
+  ? `/** Live shell — no login. The principal is the shared constant; the session is minted on the first write. */
+export const open = (cfg: Omit<AnonymousConfig, "surfaceId">) => openAnonymousShell({ ...cfg, surfaceId: "${s.id}" });`
+  : `/** Live shell — login, hierarchy context, generated client, event stream, degraded flag. */
+export const connect = (cfg: Omit<ConnectConfig, "surfaceId">) => connectShell({ ...cfg, surfaceId: "${s.id}" });`}
 ${s.whiteLabel ? BRAND_ENTRYPOINT(s) : ""}`;
 
 /**
@@ -163,11 +174,16 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
  * Surfaces with a hand-written `src/app.ts` of their own — S2 first, item 4's
  * S3 (dispatch board + the one gated door) and S5 (offline-first field
  * screens), item 6's S6 (the customer's sites, work, agreements and
- * request intake, scoped by RLS) and item 7's S8 (a firm's row, roster,
- * documents, work and statements — D12's four writes). Every other surface
- * still gets the shared first cut until its own product-specific workflow is built.
+ * request intake, scoped by RLS), item 7's S8 (a firm's row, roster,
+ * documents, work and statements — D12's four writes) and item 8's S1 (the
+ * coverage map, the lead form and the durable buffer behind it).
+ *
+ * S1 is the one whose shared first cut was actively WRONG rather than merely
+ * thin: `renderStatusApp` resumes a browser session and offers to sign in,
+ * and S1 has no session and no sign-in. Every other surface still gets the
+ * first cut until its own product-specific workflow is built.
  */
-const HAND_WRITTEN_APPS: readonly SurfaceId[] = ["S2", "S3", "S5", "S6", "S8"];
+const HAND_WRITTEN_APPS: readonly SurfaceId[] = ["S1", "S2", "S3", "S5", "S6", "S8"];
 const GENERATED_STATUS_APPS: readonly SurfaceId[] = SURFACE_IDS.filter((id) => !HAND_WRITTEN_APPS.includes(id));
 
 /**
@@ -343,9 +359,9 @@ schedule; the company is ${BRAND.legalName}.
 
 ## Two accent layers
 
-The load-bearing decision. Red measures 1.2° from the fault ink, and there is no
+The load-bearing decision. Red measures ${FIGURES.redFromFault.measured.toFixed(2)}° from the fault ink, and there is no
 bright red that clears the accent gate's ${ACCENT_GATE.minHueSeparation}°: the band between the fault
-and the warning is 34.8° wide. So red is admitted exactly where a colliding
+and the warning is ${FIGURES.faultToWarning.measured.toFixed(2)}° wide. So red is admitted exactly where a colliding
 tenant accent is admitted, and barred everywhere a state ramp renders.
 
 | Layer | Where | Resolved by |

@@ -18,13 +18,14 @@ import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
 import { createJob, listJobs, listMyJobs } from "./handlers/jobs.ts";
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
 import { createServiceRequest, listServiceRequests } from "./handlers/service-requests.ts";
+import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
 import { SURFACES, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
 import { OPERATIONS, OPERATION_IDS, routeKey, surfacesFor, type OperationId, type OperationIO } from "../../../packages/contracts/src/operations.ts";
 import type { Claims, Namespace, Principal } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
-import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
+import { INTERNAL_ORG_ID, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
 
 /**
  * THE GATEWAY — B3. The sole access path.
@@ -49,6 +50,22 @@ const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) throw new Error("DATABASE_URL is required");
 const PORT = Number(process.env.PORT ?? 8080);
 const TOKEN_TTL = Number(process.env.TOKEN_TTL_SECONDS ?? 8 * 3600);
+/**
+ * ITEM 8 — how long a stranger stays a principal. Fifteen minutes is the time
+ * to fill in a form and press the button once more after a typo, and it is
+ * deliberately not the eight hours a person who signed in gets: nothing on
+ * the other side of this token is worth keeping open, and every minute of it
+ * is a minute a token scraped off a page is still good for.
+ */
+const ANONYMOUS_TTL = Number(process.env.ANONYMOUS_TTL_SECONDS ?? 900);
+/**
+ * The actor id on an anonymous audit row. A constant, the way WORKER_ACTOR is
+ * in the worker: `actor_id` is a uuid and not a foreign key, so the honest
+ * answer to "who did this" is a named nobody rather than an invented user.
+ * The SESSION id beside it is real and per-visit, which is what makes two
+ * submissions from one visitor distinguishable in the log.
+ */
+const ANONYMOUS_ACTOR = "00000000-0000-0000-0000-0000000000a1";
 
 const keypair = process.env.AC_SIGNING_KEY_PEM
   ? keypairFromPem(process.env.AC_SIGNING_KEY_PEM, process.env.AC_SIGNING_KID ?? "k1")
@@ -272,6 +289,50 @@ const deviceLogin = async (body: Partial<OperationIO["auth.deviceLogin"]["input"
   }
 };
 
+/**
+ * ITEM 8 — a visitor becomes a principal, for fifteen minutes, to say one thing.
+ *
+ * There is no credential to check, so what is left of a login is the part
+ * that matters downstream: a `sessions` row and a signed token. That is not
+ * ceremony. It is what makes an anonymous write arrive at the unit of work
+ * the same way every other write does — a verified token, a live session
+ * asserted per request, a scope binding RLS can read, and an audit row with a
+ * real session id on it. The alternative, an unauthenticated POST straight
+ * onto `leads`, would have been the only mutation in the system with no
+ * principal behind it, and the only one an operator could not revoke.
+ *
+ * The claims are the narrowest the validator will accept: PROSPECT/UNASSIGNED
+ * (auth.ts refuses an anonymous token that says anything else), scope tier
+ * `parent` at the prospect root, and NO ROLES. The roles array is empty and
+ * that is load-bearing — S1 declares no `roles` in the registry, so the unit
+ * of work's role check does not run for it, and the write allowlist is the
+ * whole of what this principal may do: `lead` and `call_record`.
+ *
+ * `principal_kind = 'anonymous'` has been a legal value in `sessions` since
+ * the bootstrap migration. This is the row that finally writes it.
+ */
+const anonymousSession = async (res: ServerResponse): Promise<OperationIO["auth.anonymousSession"]["output"]> => {
+  const claims: Omit<Claims, "iat" | "exp" | "sid"> = {
+    sub: ANONYMOUS_ACTOR, ns: "anonymous", org: PROSPECT_ORG_ID, region: UNASSIGNED_REGION_ID,
+    scope_tier: "parent", scope_id: PROSPECT_ORG_ID, roles: [],
+  };
+  const minted = mintToken(keypair, claims, Date.now(), ANONYMOUS_TTL);
+  const tx = await beginTx(pool, "ac_gateway");
+  try {
+    await tx.query(
+      "INSERT INTO sessions (id, org_id, region_id, principal_kind, principal_id, expires_at, surface_id) VALUES ($1,$2,$3,'anonymous',$4,to_timestamp($5),'S1')",
+      [minted.claims.sid, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID, ANONYMOUS_ACTOR, minted.claims.exp],
+    );
+    await tx.commit();
+  } catch (e) {
+    await tx.rollback().catch(() => {});
+    throw e;
+  }
+  const expiresAt = new Date(minted.claims.exp * 1000);
+  res.setHeader("set-cookie", sessionCookie(minted.token, expiresAt, SESSION));
+  return { token: minted.token, expiresAt: expiresAt.toISOString() };
+};
+
 type Handler<K extends OperationId> = (req: IncomingMessage, input: OperationIO[K]["input"], res: ServerResponse) => Promise<unknown>;
 
 const handlers: { readonly [K in OperationId]: Handler<K> } = {
@@ -424,6 +485,41 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
     const host = url.searchParams.get("host") ?? req.headers.host;
     const tx = await beginTx(pool, "ac_gateway");
     try { return await brandStylesheetFor(tx, host ?? undefined); } finally { await tx.rollback().catch(() => {}); }
+  },
+
+  // ---- item 8: S1's anonymous door ----
+  "auth.anonymousSession": (_req, _input, res) => anonymousSession(res),
+  "leads.submit": (req, input) => withUow(req, "leads.submit", (uow) => submitLead(uow, input, randomUUID)),
+  "callRecords.record": (req, input) => withUow(req, "callRecords.record", (uow) => recordCall(uow, input, randomUUID, () => new Date())),
+
+  /**
+   * The coverage map, with no session behind it — the same shape as
+   * `brand.theme` above and for the same kind of reason: a marketing page is
+   * read before anyone is anybody.
+   *
+   * Where it differs, deliberately: this transaction is BOUND, as the
+   * anonymous principal, before it reads. It does not need to be —
+   * `ac_public_coverage()` is SECURITY DEFINER and answers the same two
+   * columns either way — and it is bound anyway, because 0007's finding was a
+   * week of unbound sweeps reading zero rows and reporting green, and the
+   * habit that prevents that is binding every transaction whether or not this
+   * one's correctness depends on it.
+   */
+  "coverage.list": async () => {
+    const tx = await beginTx(pool, "ac_gateway");
+    try {
+      await tx.setLocal(scopeBinding(
+        {
+          namespace: "anonymous", subjectId: ANONYMOUS_ACTOR, orgId: PROSPECT_ORG_ID, regionId: UNASSIGNED_REGION_ID,
+          scopeTier: "parent", scopeId: PROSPECT_ORG_ID, roles: [], firmId: null, deviceId: null, shiftId: null,
+          tierClaim: null, sessionId: ANONYMOUS_ACTOR,
+        },
+        "S1",
+      ));
+      return await listCoverage(tx);
+    } finally {
+      await tx.rollback().catch(() => {});
+    }
   },
 
   "system.health": async () => ({ ok: true, surfaces: Object.values(SURFACES).filter((s) => s.enabled).map((s) => s.id) }),
