@@ -370,7 +370,9 @@ tenant accent is admitted, and barred everywhere a state ramp renders.
 | Instrument — arc \`${SEMANTIC["color.action"]}\` | every surface that shows state | the default |
 
 A surface that forgets to declare renders in the neutral: the unsafe direction
-requires an explicit opt-in.
+requires an explicit opt-in. The arc is held to the same gate and clears it at
+${FIGURES.arcFromNearestState.measured.toFixed(2)}° from the nearest state hue — the house instrument accent passes the
+test the house brand red fails, which is what lets us hold a tenant to it.
 
 ## Light stock
 
@@ -381,7 +383,9 @@ ${(Object.keys(light) as (keyof typeof light)[]).map((k) => `| \`${k}\` | \`${li
 ## Field ground
 
 Not a dark theme — a second substrate. The tablet is read on a roof at 2pm in
-July, so this ground does not follow the viewer's preference.
+July, so this ground does not follow the viewer's preference. State is carried
+by form first — outline, outline, solid — and the oxide fill is the system's
+only solid chip, with the frost word on it at ${FIGURES.frostOnOxide.measured.toFixed(2)}:1.
 
 | Role | Value |
 |---|---|

@@ -91,9 +91,10 @@ test("a press that moves the fill moves the ink with it", () => {
   }
 });
 
-test("copper never enters a state-bearing column — the invariant, not the comment", () => {
-  // The house accent is 16.3° from ochre. The system does not solve that with a
-  // better orange; it solves it by keeping the action roles out of the two
+test("the action role never paints a state-bearing column — the invariant, not the comment", () => {
+  // The arc clears the gate at 38.41° from jade, and the rule did not relax
+  // when the accent changed: the system never solved a hue collision with a
+  // better orange, it solves it by keeping the action roles out of the two
   // selectors that render state. STATE_BEARING_SELECTORS said a test held this
   // line and no test read the list.
   let checked = 0;

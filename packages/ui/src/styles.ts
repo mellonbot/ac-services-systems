@@ -73,11 +73,12 @@ main#mount{padding:var(--gutter);background:var(--color-surface)}
 .ac-pill[data-status="breached"]{--status-color:var(--color-status-breached);--status-fill:var(--color-status-breached-fill)}
 .ac-pill[data-status="blocked"]{--status-color:var(--color-status-blocked)}
 
-/* ---- PrimaryAction: a copper fill, sized by the density ----
-   The label is --color-action-ink at 4.63:1 on the fill, NOT --color-surface:
-   copper is 3.31:1 and is large-type-only, so the ink that sits on it is its
-   own role. The rule carries the control's shape on the field ground, where the
-   fill alone is 3.61:1 and the press state is darker still. */
+/* ---- PrimaryAction: an arc fill, sized by the density ----
+   The label is --color-action-ink at 6.40:1 on the fill, NOT --color-surface:
+   the arc fill is 2.09:1 on the header ground and is never a word, so the ink
+   that sits on it is its own role. The rule carries the control's shape, which
+   is what licenses the fill to be an arc; on the field ground the fill reads
+   6.07:1 and the press state is brighter still. */
 .ac-action-wrap{display:inline-flex;flex-direction:column;gap:var(--space-1);align-items:flex-start}
 .ac-action{min-height:var(--control-height);min-width:var(--control-height);padding:0 var(--space-4);border-radius:var(--radius-none);border:1px solid var(--color-action-text);background:var(--color-action);color:var(--color-action-ink);font-family:var(--font-display);font-size:var(--text-md);font-weight:800;letter-spacing:var(--track-wide);text-transform:uppercase;cursor:pointer}
 .ac-action[data-kind="quiet"]{background:transparent;color:var(--color-action-text)}
@@ -90,9 +91,9 @@ main#mount{padding:var(--gutter);background:var(--color-surface)}
    1.24:1. A variant that sets a resting colour keeps it unless the press sets
    one too; ON_FILL measures both pairs now. */
 .ac-action:active{background:var(--color-action-pressed);border-color:var(--color-action-pressed);color:var(--color-action-ink)}
-/* Danger inverts rather than filling with copper: a destructive control does not
-   borrow the primary's ink to say "pressed". 7.33:1 on the light stock, 15.02:1
-   on the plate. */
+/* Danger inverts rather than filling with the arc: a destructive control does
+   not borrow the primary's ink to say "pressed". 6.23:1 on the light stock,
+   16.34:1 on the plate. */
 .ac-action[data-kind="danger"]:active{background:var(--color-status-breached);border-color:var(--color-status-breached);color:var(--color-page)}
 .ac-action[aria-disabled="true"]{opacity:0.55;cursor:not-allowed}
 .ac-action__reason{color:var(--color-text-muted);font-size:var(--text-sm)}
@@ -167,13 +168,16 @@ export const cssVariablesDefined = (css: string): readonly string[] =>
   [...new Set([...css.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]!))].sort();
 
 /**
- * The selectors that render the state ramp. The house accent sits 16.3° from
- * ochre — the bulletin says so on Plate 3 — and the system does not solve that
- * with a better orange. It solves it structurally: every state carries a word,
- * and COPPER NEVER ENTERS A STATE-BEARING COLUMN. That second half is an
- * invariant, so the test reads this list and fails any rule here that paints an
- * action role — which it did not do until styles.test.ts grew the check; the
- * comment was the enforcement.
+ * The selectors that render the state ramp. Bulletin 1's copper sat 16.3° from
+ * its warning ink and the system did not solve that with a better orange; the
+ * arc clears the same gate at 38.41° from jade, and the invariant did not
+ * relax when the accent changed. It is structural, not a hue budget: every
+ * state carries a word, and THE ACTION ROLE NEVER PAINTS A STATE-BEARING
+ * COLUMN — because colour on one artefact is state or category and never both,
+ * which an accent that clears the gate would break just as quietly. So the
+ * test reads this list and fails any rule here that paints an action role —
+ * which it did not do until styles.test.ts grew the check; the comment was the
+ * enforcement.
  */
 export const STATE_BEARING_SELECTORS = Object.freeze([".ac-pill", ".ac-badge"]);
 

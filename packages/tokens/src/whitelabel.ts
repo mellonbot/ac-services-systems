@@ -84,7 +84,14 @@ export const ACCENT_GATE = Object.freeze({
   darkGround: P.plate.ground,
   /** The accent as a WORD. */
   textContrast: 4.5,
-  /** The accent as a FILL, a rule or a mark — WCAG 1.4.11. The threshold our own copper is admitted at. */
+  /**
+   * The accent as a FILL, a rule or a mark — WCAG 1.4.11. Bulletin 1's copper
+   * cleared this at 3.31:1; the arc does NOT, at 2.67:1 on the light ground.
+   * That is the decomposition working as intended and not a regression: the
+   * arc's shape is carried by the envelope at 6.52:1 and its word by `onFill`
+   * at 6.40:1, so the fill is free to be a fill. A TENANT accent gets no such
+   * decomposition, which is why it is still held to 3:1 here.
+   */
   nonTextContrast: 3.0,
 });
 
@@ -164,7 +171,7 @@ export const admitAccent = (accent: string): AccentAdmission => {
   if (!stateSurfaces)
     notes.push(`${minSeparation.toFixed(1)}° from ${nearestState}, needs ${ACCENT_GATE.minHueSeparation}° — admitted for logo, masthead and marketing only; falls back to Ink Black wherever a state ramp renders.`);
   if (!light.text && light.fill)
-    notes.push(`${onLight.toFixed(2)}:1 on the light ground — a fill, a rule or a mark in the console and comfort tiers, never a word. Our own copper sits here.`);
+    notes.push(`${onLight.toFixed(2)}:1 on the light ground — a fill, a rule or a mark in the console and comfort tiers, never a word.`);
   if (!light.fill)
     notes.push(`${onLight.toFixed(2)}:1 on the light ground, needs ${ACCENT_GATE.nonTextContrast} — it cannot carry shape there either; the light tiers fall back to Ink Black.`);
   if (!dark.text && dark.fill)

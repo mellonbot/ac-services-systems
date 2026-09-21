@@ -203,7 +203,7 @@ export const BULLETIN_ERRATA = Object.freeze([
   {
     code: "E-11", subject: "color.action-pressed", status: "closed",
     finding: "It is color.action-text by value, and :active repainted the fill without the ink. A variant carrying its own resting colour kept it: a quiet button pressed its own label to 1.00:1 and danger to 1.24:1 — every secondary route on a RefusalCard.",
-    resolution: "The ink moves with the fill. Danger inverts onto color.page (7.33:1 light, 15.02:1 plate) rather than borrowing the primary's copper. ON_FILL measures both pairs; the test fails any :active that moves a background and not a colour.",
+    resolution: "The ink moves with the fill. Danger inverts onto color.page (6.23:1 light, 16.34:1 plate) rather than borrowing the primary's fill. ON_FILL measures both pairs; the test fails any :active that moves a background and not a colour.",
   },
   {
     code: "E-12", subject: "the type scale", status: "closed",
@@ -244,6 +244,11 @@ export const BULLETIN_ERRATA = Object.freeze([
     code: "E-20", subject: "the struck treatment's letter", status: "accepted",
     finding: "Graphite on the brand red measures 3.67:1 — it clears the 3:1 a mark needs and not the 4.5:1 a word needs.",
     resolution: "Accepted: the badge letter is a mark, not a word. It carries no meaning a reader has to decode, it is never set below its own size, and the brand layer is the one place red is admitted at all. The number is written down so the next person does not re-derive it.",
+  },
+  {
+    code: "E-23", subject: "rule-hard, on the field ground", status: "closed",
+    finding: "E-08 measured the heavy rule on the light stock at 2.22:1 and fenced the role. Nobody measured its twin: on the plate the same role is 2.85:1 against the ground, also under the 3:1 a shape needs, and no errata row said so either way. A rule that is decorative on one substrate and undeclared on the other is decided by whoever reads it next — on the tier read in sunlight, where a missed chip rule costs most.",
+    resolution: "Same sentence as E-08, now stated for both grounds: color.border* is decorative on every substrate and a chip's rule is drawn in the state's own ink — 6.89:1 light, 14.74:1 on the plate. css.test.ts measures both border roles on both grounds; figures.ts carries the number so it cannot drift back to inference.",
   },
   {
     code: "E-19", subject: "the badge ink box", status: "closed",

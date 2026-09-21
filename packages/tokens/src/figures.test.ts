@@ -43,6 +43,24 @@ test("docs/BRAND.md quotes the corrected figures and none of the superseded ones
     assert.ok(!brand.includes(stale), `docs/BRAND.md still quotes the superseded ${stale}`);
 });
 
+/**
+ * E-22. `cited` named the files a figure is quoted in, and nothing read it.
+ * arcFromNearestState cited packages/ui/src/styles.ts for 38.41° while that
+ * file said "16.3° from ochre" — Bulletin 1's copper, three accents ago. The
+ * drift test compares a figure to the TOKENS; this one compares it to the
+ * PROSE, which is where a stale number actually does its damage.
+ */
+test("every file a figure cites actually quotes it", () => {
+  const broken: string[] = [];
+  for (const [name, f] of Object.entries(FIGURES) as [FigureName, typeof FIGURES[FigureName]][])
+    for (const c of f.cited) {
+      const path = c.split(" ")[0]!;
+      if (!repo(path).includes(format(f)))
+        broken.push(`${name}: ${path} does not quote ${format(f)} — ${f.claim}`);
+    }
+  assert.deepEqual(broken, []);
+});
+
 test("the errata rows carry the measurement, not a remembered one", () => {
   const brandTs = repo("packages/tokens/src/brand.ts");
   assert.ok(brandTs.includes(format(FIGURES.borderHard)), `brand.ts E-08 does not quote ${format(FIGURES.borderHard)}`);

@@ -112,7 +112,7 @@ test("THE HOUSE INSTRUMENT ACCENT PASSES THE GATE IT ENFORCES — copper needed 
 
 test("THE HOUSE BRAND RED FAILS THAT GATE, and is fenced instead of exempted", () => {
   const red = admitAccent(SEMANTIC["color.brand"]);
-  assert.equal(red.stateSurfaces, false, "1.2° from the fault ink — it cannot go where state renders");
+  assert.equal(red.stateSurfaces, false, "0.55° from the fault ink — it cannot go where state renders");
   assert.ok(red.notes.some((n) => /marketing/.test(n)));
   // What it is fenced BY is the surface flag, resolved in css.ts. No memo.
   assert.equal(HOUSE_BRAND_IS_GATED, true);

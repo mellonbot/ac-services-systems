@@ -211,7 +211,7 @@ export const ON_FILL = Object.freeze([
   ["color.action-ink", "color.action-pressed"],
   ["color.brand-ink", "color.brand"],
   ["color.status-breached", "color.status-breached-fill"],
-  // The danger variant inverts on press rather than filling with copper: a
+  // The danger variant inverts on press rather than filling with the arc: a
   // destructive control does not borrow the primary's ink to say "pressed".
   ["color.page", "color.status-breached"],
   // The plate number: the one place the page ground is used AS an ink.
