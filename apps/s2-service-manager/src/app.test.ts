@@ -29,10 +29,10 @@ const context: HierarchyContext = {
   parent: { tier: "parent", id: "org-internal", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: SOUTH,
 };
 const NODES: AccountWire[] = [
-  { id: N_SOUTH, tier: "region", name: "Amped / South", parentId: null, regionId: SOUTH, customerGroup: null, externalRef: null, timezone: null, active: true, path: [N_SOUTH] },
-  { id: N_WEST, tier: "region", name: "Amped / West", parentId: null, regionId: WEST, customerGroup: null, externalRef: null, timezone: null, active: true, path: [N_WEST] },
-  { id: ROOF, tier: "site", name: "Rooftop units", parentId: AUSTIN, regionId: SOUTH, customerGroup: null, externalRef: null, timezone: null, active: true, path: [N_SOUTH, AUSTIN, ROOF] },
-  { id: AUSTIN, tier: "location", name: "Amped Austin", parentId: N_SOUTH, regionId: SOUTH, customerGroup: "Texas", externalRef: null, timezone: null, active: true, path: [N_SOUTH, AUSTIN] },
+  { id: N_SOUTH, tier: "region", name: "Amped / South", parentId: null, regionId: SOUTH, customerGroup: null, externalRef: null, timezone: null, active: true, address: null, path: [N_SOUTH] },
+  { id: N_WEST, tier: "region", name: "Amped / West", parentId: null, regionId: WEST, customerGroup: null, externalRef: null, timezone: null, active: true, address: null, path: [N_WEST] },
+  { id: ROOF, tier: "site", name: "Rooftop units", parentId: AUSTIN, regionId: SOUTH, customerGroup: null, externalRef: null, timezone: null, active: true, address: null, path: [N_SOUTH, AUSTIN, ROOF] },
+  { id: AUSTIN, tier: "location", name: "Amped Austin", parentId: N_SOUTH, regionId: SOUTH, customerGroup: "Texas", externalRef: null, timezone: null, active: true, address: null, path: [N_SOUTH, AUSTIN] },
 ];
 
 /** A gateway that speaks the catalogue's paths. `session` flips when login succeeds — the cookie the browser would hold. */

@@ -32,6 +32,8 @@
 - `job`
 - `device`
 - `device_grant`
+- `equipment`
+- `account_contact`
 
 ## Degraded mode
 

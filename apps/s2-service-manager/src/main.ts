@@ -8,7 +8,7 @@ import type { Principal } from "../../../packages/contracts/src/index.ts";
  * Block OFC · Phase 1 · console density · enabled
  *
  * Auth: role-based, org-wide
- * Writes: account, contract, invoice, warranty_case, part, purchase_order, subcontractor_firm, crew, crew_credential, rate_card, brand_theme, job, device, device_grant
+ * Writes: account, contract, invoice, warranty_case, part, purchase_order, subcontractor_firm, crew, crew_credential, rate_card, brand_theme, job, device, device_grant, equipment, account_contact
  *
  * Degraded mode:
  *   Read-only from last server state. NO offline writes, ever — this is the only surface that authors hierarchy, contract and subcontractor-network truth, and a forked truth here is unrecoverable.

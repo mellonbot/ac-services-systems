@@ -26,6 +26,7 @@ export const ALL_TABLES: readonly Table[] = Object.freeze([
   // hierarchy
   hierarchy.accounts,
   hierarchy.equipment,
+  hierarchy.account_contacts,
   // network (crews before users, users before projects)
   network.subcontractor_firms,
   network.crews,
@@ -53,6 +54,7 @@ export const ALL_TABLES: readonly Table[] = Object.freeze([
   work.checklist_items,
   work.parts_used,
   work.warranty_cases,
+  hierarchy.job_equipment,
   intake.service_requests,
   // money
   billing.invoices,

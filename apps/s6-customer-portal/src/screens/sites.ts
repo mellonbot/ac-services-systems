@@ -13,7 +13,9 @@ import { slaStatus, isOpen } from "./work.ts";
  *
  * Each site carries its live work and its open requests, read from the same
  * two operations the Work screen reads, so a site's line and the work list
- * cannot disagree about what is happening there.
+ * cannot disagree about what is happening there. A site's name is the door
+ * to its card (item 9): where it is, what runs there, who is there, and
+ * everything that has happened to it.
  */
 export const sites: Screen = (ctx) => {
   const nodes = readNodes(ctx);
@@ -59,13 +61,14 @@ const nodeView = (ctx: ScreenContext, tree: Tree, n: AccountWire, jobs: readonly
   return html`<li class="s6-node" role="treeitem" aria-expanded=${kids.length ? "true" : undefined} data-tier=${n.tier} data-scope=${n.id === scopeId ? "true" : "false"}>
     <div class="s6-node__row">
       <span class="s6-node__tier">${TIER_WORD[n.tier]}</span>
-      <span class="s6-node__name">${n.name}</span>
+      ${isSite ? linkTo(ctx, "site", { siteId: n.id }, n.name, "s6-node__name s6-link") : html`<span class="s6-node__name">${n.name}</span>`}
       ${n.customerGroup ? html`<span class="s6-node__group" title="Your own grouping — reportable, never structure">${n.customerGroup}</span>` : null}
       ${isSite ? html`<span class="s6-node__facts">
         ${here.length ? StatusPill({ density: ctx.density, status: worst, label: `${here.length} open job${here.length === 1 ? "" : "s"}` }) : html`<span class="s6-muted">No open work</span>`}
         ${asked.length ? html`<span class="s6-muted">· ${asked.length} request${asked.length === 1 ? "" : "s"} waiting</span>` : null}
       </span>` : null}
       <span class="s6-node__actions">
+        ${isSite ? linkTo(ctx, "site", { siteId: n.id }, "Site card") : null}
         ${linkTo(ctx, "terms", { tier: n.tier, nodeId: n.id }, "Terms")}
         ${isSite ? linkTo(ctx, "request", { siteId: n.id }, "Request service") : null}
       </span>

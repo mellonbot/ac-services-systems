@@ -10,6 +10,7 @@ import { work } from "./screens/work.ts";
 import { agreements } from "./screens/agreements.ts";
 import { terms } from "./screens/terms.ts";
 import { request } from "./screens/request.ts";
+import { site } from "./screens/site.ts";
 import { S6_CSS } from "./styles.ts";
 
 /**
@@ -39,7 +40,7 @@ export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(
 };
 
 export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = {
-  sites, work, agreements, terms, request,
+  sites, work, agreements, terms, request, site,
 };
 
 type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
@@ -63,11 +64,16 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       store.invalidate("serviceRequests.list");
       store.invalidate("terms.resolved");
       store.invalidate("contracts.list");
+      // item 9: the site card's own facts.
+      store.invalidate("equipment.list");
+      store.invalidate("contacts.list");
+      store.invalidate("invoices.list");
     }, { topics: [
       "job.created", "job.assigned", "job.reassigned", "job.transitioned", "job.completed", "job.cancelled",
       "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",
       "service_request.created", "contract.created", "contract.amended", "contract.term_overridden", "contract.expired",
       "account.created", "account.updated", "account.deactivated",
+      "equipment.registered", "account_contact.set", "invoice.issued",
     ] });
   };
 
@@ -105,7 +111,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     p.shell.gateway.health().catch(() => {});
   };
 
-  const nav = (screen: Exclude<ScreenId, "login" | "terms" | "request">, label: string): VNode =>
+  const nav = (screen: Exclude<ScreenId, "login" | "terms" | "request" | "site">, label: string): VNode =>
     html`<a class="s6-link" href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
 
   const view = (): VNode => {
@@ -123,6 +129,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         ${nav("work", "Work")}
         ${nav("agreements", "Agreements")}
         <span class="s6-nav__who" id="who">${who}</span>
+        ${PrimaryAction({ density: DENSITY, label: "Request service", id: "nav-request", onClick: () => router.navigate("request", {}) })}
         <button type="button" class="s6-nav__logout" onClick=${logout}>Sign out</button>
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s6-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}

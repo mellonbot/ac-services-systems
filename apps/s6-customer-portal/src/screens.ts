@@ -18,6 +18,8 @@ export const SCREENS = {
   "login":      { path: "/login",                  uses: ["auth.login"] },
   "terms":      { path: "/terms/:tier/:nodeId/:asOf?", uses: ["terms.resolved", "terms.register", "accounts.list"] },
   "request":    { path: "/request/:siteId?",       uses: ["accounts.list", "serviceRequests.create", "serviceRequests.list"] },
+  // item 9: the site card — what a site IS. Seven reads; the rows are 0009's.
+  "site":       { path: "/site/:siteId",           uses: ["accounts.list", "equipment.list", "contacts.list", "invoices.list", "jobs.list", "serviceRequests.list", "sites.imagery"], title: "Site" },
   "work":       { path: "/work",                   uses: ["jobs.list", "accounts.list", "serviceRequests.list"], title: "Work" },
   "agreements": { path: "/agreements",             uses: ["contracts.list", "accounts.list"], title: "Agreements" },
   "sites":      { path: "/",                       uses: ["accounts.list", "jobs.list", "serviceRequests.list"], title: "Sites" },
