@@ -203,7 +203,7 @@ export const BULLETIN_ERRATA = Object.freeze([
   {
     code: "E-11", subject: "color.action-pressed", status: "closed",
     finding: "It is color.action-text by value, and :active repainted the fill without the ink. A variant carrying its own resting colour kept it: a quiet button pressed its own label to 1.00:1 and danger to 1.24:1 — every secondary route on a RefusalCard.",
-    resolution: "The ink moves with the fill. Danger inverts onto color.page (7.33:1 light, 15.02:1 plate) rather than borrowing the primary's copper. ON_FILL measures both pairs; the test fails any :active that moves a background and not a colour.",
+    resolution: "The ink moves with the fill. Danger inverts onto color.page (6.23:1 light, 16.34:1 plate) rather than borrowing the primary's fill. ON_FILL measures both pairs; the test fails any :active that moves a background and not a colour.",
   },
   {
     code: "E-12", subject: "the type scale", status: "closed",

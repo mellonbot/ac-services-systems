@@ -126,11 +126,46 @@ export const FIGURES = Object.freeze({
 
   /** Form R-4's word-on-fill, the half that makes the fill's licence legitimate. */
   arcOnFill: ratio(
-    ["packages/tokens/src/primitives.ts", "packages/tokens/src/semantic.ts"],
+    ["packages/tokens/src/primitives.ts", "packages/tokens/src/semantic.ts", "packages/ui/src/styles.ts"],
     "the ink on the arc fill — the word, measured against its own fill",
     6.40,
     P.arc.onFill,
     P.arc.fill,
+  ),
+
+  /**
+   * The arc fill on the field ground. The SAME ink as `arcFill`, three times
+   * the ratio, because the ground moved — which is the whole argument for the
+   * plate being a second substrate rather than a dark theme. PrimaryAction
+   * quotes it; it read 3.61:1 while the fill was copper.
+   */
+  arcFillOnPlate: ratio(
+    ["packages/ui/src/styles.ts"],
+    "the arc fill on the field ground — the fill the control's rule is drawn around",
+    6.07,
+    P.arc.fill,
+    PLATE,
+  ),
+
+  /**
+   * The danger variant's press, which INVERTS rather than borrowing the
+   * primary's ink. Both numbers were carried over from copper — 7.33:1 and
+   * 15.02:1 — and neither is this palette.
+   */
+  dangerInvertLight: ratio(
+    ["packages/ui/src/styles.ts", "packages/tokens/src/brand.ts"],
+    "the danger press on the light stock — the page ground used as an ink on the fault",
+    6.23,
+    SEMANTIC["color.page"],
+    SEMANTIC["color.status-breached"],
+  ),
+
+  dangerInvertPlate: ratio(
+    ["packages/ui/src/styles.ts", "packages/tokens/src/brand.ts"],
+    "the danger press on the field ground",
+    16.34,
+    SEMANTIC_DARK["color.page"],
+    SEMANTIC_DARK["color.status-breached"],
   ),
 
   /** The frost word on the one solid chip in the system. */
