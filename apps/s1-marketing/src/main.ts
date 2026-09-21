@@ -1,4 +1,4 @@
-import { createShell, connectShell, type ConnectConfig } from "../../../packages/shell/src/index.ts";
+import { createShell, openAnonymousShell, type AnonymousConfig } from "../../../packages/shell/src/index.ts";
 import { SURFACES } from "../../../packages/contracts/src/index.ts";
 import type { Principal } from "../../../packages/contracts/src/index.ts";
 
@@ -25,5 +25,5 @@ export const SURFACE = SURFACES.S1;
 /** Configuration-only shell — the registry checks, no transport. */
 export const boot = (principal: Principal) => createShell({ surfaceId: "S1", principal });
 
-/** Live shell — login, hierarchy context, generated client, event stream, degraded flag. */
-export const connect = (cfg: Omit<ConnectConfig, "surfaceId">) => connectShell({ ...cfg, surfaceId: "S1" });
+/** Live shell — no login. The principal is the shared constant; the session is minted on the first write. */
+export const open = (cfg: Omit<AnonymousConfig, "surfaceId">) => openAnonymousShell({ ...cfg, surfaceId: "S1" });

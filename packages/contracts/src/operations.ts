@@ -354,6 +354,62 @@ export const OPERATIONS = {
     surfaces: WHITE_LABEL_SURFACES, carrier: "query", sdkMethod: "brandTheme",
     summary: "The stored theme for a host, as the stylesheet the shell installs. Unauthenticated because a portal is branded on its sign-in screen, before a principal exists; an unknown host gets Rankine's own plate rather than a 404, so the route cannot be used to ask which tenants exist.",
   },
+  // ---- item 8: S1's anonymous door (00 §2.8 build order item 8) ----
+  /**
+   * THE COVERAGE CLAIM, AND ITS CEILING.
+   *
+   * 05 §S1: "coverage read from hierarchy, not hard-coded". This answers with
+   * the metros our `regions` rows name and NOTHING else — no crew density, no
+   * availability, no response window. That restraint is the product decision,
+   * not an oversight: D7a (the response obligation behind a named owner) and
+   * OQ6 (the single-site constraint) set the ceiling on what this surface may
+   * promise, neither is written down yet, and action plan F9 is where it gets
+   * written. Until it is, a page that says "we are in Dallas" is a statement
+   * of presence; a page that says how fast we answer is a commitment nobody at
+   * the gateway can enforce. `ac_public_coverage()` is the mechanism — a
+   * SECURITY DEFINER function that returns two columns, so widening the claim
+   * is a reviewed diff on a migration rather than a SELECT someone extends.
+   *
+   * `system` because it runs without a session, the way `brand.theme` does.
+   * It is still BOUND — as the anonymous principal — before it reads: 0007's
+   * lesson was a week of unbound sweeps reading zero rows and reporting green.
+   */
+  "coverage.list": {
+    id: "coverage.list", method: "GET", path: "/coverage", kind: "system", auth: "none",
+    surfaces: ["S1"], carrier: "none", sdkMethod: "coverage",
+    summary: "The metros we serve, read from the regions table — code and name, nothing else. No density, no availability, no response window: the ceiling on what S1 may promise is D7a/OQ6 and it is not written yet (F9).",
+  },
+  /**
+   * A visitor becomes a principal for as long as it takes to say who they are.
+   *
+   * Shaped like `auth.deviceLogin` rather than invented: it mints a token and
+   * a `sessions` row (`principal_kind = 'anonymous'`, which 0001 has admitted
+   * since the bootstrap), so an anonymous write arrives at the unit of work
+   * the same way every other write does — a verified token, a live session, a
+   * scope binding, an audit row with a real actor and a real session id. The
+   * alternative, an unauthenticated POST straight onto `leads`, would have
+   * been the one mutation in the system with no principal behind it.
+   *
+   * Minted LAZILY, on the first submit — not at page load. A session row per
+   * visitor is a write per page view, and the site has to stand up with the
+   * gateway unreachable (the registry's degraded line), which a boot-time
+   * round trip would quietly undo.
+   */
+  "auth.anonymousSession": {
+    id: "auth.anonymousSession", method: "POST", path: "/auth/anonymous", kind: "login", auth: "none",
+    surfaces: ["S1"], carrier: "none", sdkMethod: "anonymousSession",
+    summary: "Mint a short-lived anonymous token bound to PROSPECT/UNASSIGNED for S1's intake. Carries no roles and no scope below the prospect root; the only thing it can do is the two writes below.",
+  },
+  "leads.submit": {
+    id: "leads.submit", method: "POST", path: "/s1/leads", kind: "mutation", auth: "bearer",
+    surfaces: ["S1"], carrier: "body", sdkMethod: "submitLead",
+    summary: "A stranger asks us to call them. Lands in PROSPECT/UNASSIGNED — tenancy is total, so a lead is owned before an account exists (arc 1). The submitter can never read it back.",
+  },
+  "callRecords.record": {
+    id: "callRecords.record", method: "POST", path: "/s1/call-records", kind: "mutation", auth: "bearer",
+    surfaces: ["S1"], carrier: "body", sdkMethod: "recordCall",
+    summary: "A visitor used the call button. Recorded against the lead when there is one, and against nothing when there is not — an inbound call is a fact whether or not a form was filled.",
+  },
   "system.health": {
     id: "system.health", method: "GET", path: "/healthz", kind: "system", auth: "none",
     surfaces: ["S1", ...AUTHENTICATED], carrier: "none", sdkMethod: "health",
@@ -966,6 +1022,67 @@ export type BrandStylesheetOutput = {
 };
 
 /**
+ * ITEM 8 — S1's wire shapes.
+ *
+ * `CoverageMetro` is two fields on purpose. Every other read in this file
+ * widens as the surface needs it; this one is the public claim, and the
+ * narrowest thing that answers "are you in my city" is a name.
+ */
+export type CoverageMetro = { readonly code: string; readonly name: string };
+export type CoverageOutput = { readonly metros: readonly CoverageMetro[] };
+
+export type AnonymousSessionOutput = {
+  /** Also set as the httpOnly `ac_session` cookie. Short-lived; a visitor is not a session to resume. */
+  readonly token: string;
+  readonly expiresAt: string;
+};
+
+/**
+ * WHERE THE LEAD CAME FROM, as data. A source typed into a handler is a
+ * funnel nobody can count; adding one is a diff here and a diff on 0008's
+ * check constraint, which is exactly as hard as it should be.
+ */
+export const LEAD_SOURCES = ["web_form", "call_button", "referral"] as const;
+export type LeadSource = (typeof LEAD_SOURCES)[number];
+
+/**
+ * What a stranger hands us. No account, no site, no equipment — those are
+ * things a customer has, and this is the surface for people who are not one
+ * yet. `requestedMetro` is free text and stays free text: it is what they
+ * typed, not a resolved region, and resolving it is S2's job when the lead is
+ * worked (`converted_account_id`).
+ */
+export type LeadContact = {
+  readonly name: string;
+  readonly email?: string;
+  readonly phone?: string;
+  readonly note?: string;
+};
+export type SubmitLeadInput = {
+  /**
+   * Minted by the browser ONCE, when the visitor presses the button, and
+   * replayed unchanged until the gateway answers. The unique index behind it
+   * (migration 0008) is what makes S1's durable buffer safe to retry: a
+   * replay that already landed loses to the constraint and comes back as
+   * `leads_submission_id_key`, which the buffer reads as "done" rather than
+   * as a failure. Without it, "queue and replay" means phoning the same
+   * person once per reconnection.
+   */
+  readonly submissionId: string;
+  readonly source: LeadSource;
+  readonly contact: LeadContact;
+  readonly requestedMetro?: string;
+};
+export type SubmitLeadOutput = { readonly id: string; readonly eventId: string };
+
+export type RecordCallInput = {
+  readonly leadId?: string;
+  readonly direction: "inbound" | "outbound";
+  readonly occurredAt: string;
+};
+export type RecordCallOutput = { readonly id: string; readonly eventId: string };
+
+/**
  * One entry per operation, enforced by `satisfies`: add a row to OPERATIONS
  * without a shape here and the file does not type-check; the generator, which
  * writes these names as text, then emits a method whose type does not resolve.
@@ -1022,6 +1139,10 @@ export type OperationIO = {
   "brand.setTheme": { input: BrandThemeInput; output: BrandThemeOutput };
   "brand.theme": { input: BrandStylesheetInput; output: BrandStylesheetOutput };
   "events.stream": { input: void; output: never };
+  "coverage.list": { input: void; output: CoverageOutput };
+  "auth.anonymousSession": { input: void; output: AnonymousSessionOutput };
+  "leads.submit": { input: SubmitLeadInput; output: SubmitLeadOutput };
+  "callRecords.record": { input: RecordCallInput; output: RecordCallOutput };
   "system.health": { input: void; output: HealthOutput };
 };
 // Both directions: every operation has IO, and no IO names a missing operation.

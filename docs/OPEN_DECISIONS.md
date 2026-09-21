@@ -100,3 +100,56 @@ money path wearing a jsonb costume — silently lossy past 2^53 minor units. The
 code requires money and quantity terms to be **strings**, converted with
 `BigInt(String(x))`. Worth confirming this matches how the contract engine's UI
 will author terms.
+
+**OPEN-S1-CEILING — what is S1 allowed to promise? (D7a, OQ6, action plan F9)**
+
+`05` §S1 says availability and response-time language on the marketing surface
+is bounded by **OQ6** (the single-site constraint) and **D7a** (the response
+obligation behind a single named owner), and adds the sentence that made this
+an item rather than a copy review: *"neither of which is visible to whoever
+writes the copy"*. F9 is where the ceiling gets written down.
+
+Item 8 (2026-09-18) did not wait for it and did not guess at it. It set the
+ceiling to **zero** and made that a mechanism rather than an intention:
+
+- `apps/s1-marketing/src/app.test.ts` fails on a rendered page containing a
+  response window, a "24/7", a "same-day", a guarantee, an uptime figure or the
+  word SLA;
+- `tools/ci/drive-s1.ts` runs the same list against the **painted** page in a
+  real browser, so a claim that arrives through a stylesheet fails too.
+
+So a sentence promising a time fails in the commit that adds it, and nobody has
+to remember why. **When F9 lands, those two lists are what changes** — they are
+the ceiling, written in the only place that enforces it.
+
+The related half is the coverage map, and it is already closed: the metros are
+read from `regions` through `ac_public_coverage()` (migration 0008), never from
+a list in the bundle, so a map claiming a metro with no crews behind it is not
+expressible. `min_crew_density` — D14's rule — is deliberately not in that
+function's result, because a supply figure on a public page is a promise.
+
+**OPEN-S1-ABUSE — a public write with no credential in front of it.**
+
+`leads.submit` is the first mutation in the system a stranger can reach. It is
+bounded in every way the frame already provides — a session row per visit that
+an operator can revoke, a write allowlist of two entities, a tenancy that is a
+constant, field lengths, and a unique `submission_id` that makes a retry
+idempotent — but **none of those is a rate limit**, and the gateway has no rate
+limiter today.
+
+What that means concretely: a script can mint anonymous sessions and write
+leads as fast as it can open sockets. The blast radius is bounded (rows in
+PROSPECT/UNASSIGNED, and an office inbox full of noise — no customer data is
+reachable, and `test/integration/s1.test.ts` holds that), but the cost is real
+and it lands on whoever works the intake queue.
+
+This is an infrastructure decision more than a code one, and it should be taken
+deliberately rather than discovered:
+- at the edge (a WAF or CDN rule on `POST /auth/anonymous` and `POST /s1/leads`),
+  which is where rate limiting belongs and where it does not become a stateful
+  thing inside the gateway; or
+- in the gateway, which means a shared counter, which means another piece of
+  infrastructure.
+
+Until one is chosen, S1 should not be exposed on a public domain. Naming the
+owner is D7's; the choice is the infrastructure memo's (`02`).

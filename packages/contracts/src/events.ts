@@ -32,6 +32,12 @@ export const TOPICS = [
   "invoice.issued", "invoice.paid", "settlement.statement_issued",
   // item 7: the firm's position on a statement. The office subscribes to both.
   "settlement.acknowledged", "settlement.disputed",
+  // item 8 — S1's intake. Arc 1: a stranger becomes a signed account, and the
+  // first half of that arc is an event OFC subscribes to. A lead that lands in
+  // PROSPECT and is never looked at is the failure this topic exists to make
+  // visible: the row is in the database either way, but only the event reaches
+  // a board.
+  "lead.captured", "call_record.logged",
   // sync
   "sync.conflict_queued",
   // warranty
@@ -72,7 +78,7 @@ export type EventEnvelope = Pick<DomainEvent, "eventId" | "topic" | "entity" | "
 
 /** Block subscriptions declared, not discovered. */
 export const SUBSCRIBERS: Readonly<Record<"OFC" | "FLD" | "INV" | "WORKER", readonly Topic[]>> = {
-  OFC: ["service_request.created", "job.transitioned", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended",
+  OFC: ["lead.captured", "call_record.logged", "service_request.created", "job.transitioned", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended",
         // item 7: a firm's document arrived (to verify), a firm's position on a statement (to act on).
         "credential.recorded", "settlement.acknowledged", "settlement.disputed"],
   FLD: ["job.assigned", "job.reassigned", "job.cancelled", "contract.term_overridden"],

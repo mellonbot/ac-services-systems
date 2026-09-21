@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { generateKeypair, mintToken, verifyToken, principalFromClaims, AuthError, hashPassword, verifyPassword } from "./auth.ts";
+import { generateKeypair, mintToken, verifyToken, principalFromClaims, validateClaims, AuthError, hashPassword, verifyPassword } from "./auth.ts";
 import { buildContext, scopeBinding, ScopeResolutionError, type HierarchyReader } from "./context.ts";
-import { PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
-import type { Claims } from "../../../packages/contracts/src/scope.ts";
+import { PROSPECT_ORG_ID, UNASSIGNED_REGION_ID, INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
+import { ANONYMOUS_PRINCIPAL, ANONYMOUS_PRINCIPAL_IDS, type Claims } from "../../../packages/contracts/src/scope.ts";
 
 const kp = generateKeypair("k1");
 const keys = new Map([[kp.kid, kp.publicKey]]);
@@ -98,4 +98,33 @@ test("the scope binding is built from the principal alone and names every settin
   const p = principalFromClaims(verifyToken(mintToken(kp, base, T0, 60).token, keys, T0));
   const b = scopeBinding(p, "S3");
   assert.deepEqual(Object.keys(b).sort(), ["ac.actor_id", "ac.device_id", "ac.firm_id", "ac.namespace", "ac.org_id", "ac.region_id", "ac.scope_id", "ac.scope_tier", "ac.surface_id"]);
+});
+
+/**
+ * ITEM 8 — the two spellings of the anonymous principal, held together.
+ *
+ * `ANONYMOUS_PRINCIPAL_IDS` lives in packages/contracts because the shell
+ * needs it and the shell may not import packages/schema — dependencies point
+ * one way and the guard enforces it. So the ids are written twice, and this
+ * is the test that makes changing one and not the other a failure here rather
+ * than a lead that lands nowhere.
+ */
+test("the anonymous principal's ids are PROSPECT and UNASSIGNED, in both places that spell them", () => {
+  assert.equal(ANONYMOUS_PRINCIPAL_IDS.org, PROSPECT_ORG_ID);
+  assert.equal(ANONYMOUS_PRINCIPAL_IDS.region, UNASSIGNED_REGION_ID);
+  assert.equal(ANONYMOUS_PRINCIPAL.orgId, PROSPECT_ORG_ID);
+  assert.equal(ANONYMOUS_PRINCIPAL.regionId, UNASSIGNED_REGION_ID);
+  assert.equal(ANONYMOUS_PRINCIPAL.scopeId, PROSPECT_ORG_ID, "an anonymous principal is scoped to the prospect root and no further");
+  assert.deepEqual([...ANONYMOUS_PRINCIPAL.roles], [], "no roles: the write allowlist is the whole of what it may do");
+});
+
+test("claims validation is what actually holds the anonymous principal in PROSPECT/UNASSIGNED", () => {
+  const base = {
+    sub: ANONYMOUS_PRINCIPAL_IDS.actor, ns: "anonymous" as const, org: PROSPECT_ORG_ID, region: UNASSIGNED_REGION_ID,
+    scope_tier: "parent" as const, scope_id: PROSPECT_ORG_ID, roles: [] as string[],
+    iat: 0, exp: 1, sid: "00000000-0000-0000-0000-0000000000ff",
+  };
+  assert.doesNotThrow(() => validateClaims(base));
+  assert.throws(() => validateClaims({ ...base, org: INTERNAL_ORG_ID }), /PROSPECT\/UNASSIGNED/);
+  assert.throws(() => validateClaims({ ...base, ns: "customer", region: UNASSIGNED_REGION_ID }), /only anonymous/);
 });

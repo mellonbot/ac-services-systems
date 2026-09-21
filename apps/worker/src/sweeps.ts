@@ -69,7 +69,17 @@ export const sweepCredentialExpiry = async (tx: RelayTx, today: Date): Promise<n
       WHERE c.valid_to BETWEEN $1::date AND ($1::date + 30)
         AND NOT EXISTS (SELECT 1 FROM outbox o WHERE o.entity = 'crew_credential' AND o.entity_id = c.id
                           AND o.topic = CASE WHEN c.valid_to <= $1::date THEN 'credential.expired' ELSE 'credential.expiring' END
-                          AND o.occurred_at::date = $1::date)`,
+                          -- AT TIME ZONE 'UTC' below is load-bearing. The
+                          -- parameter is today.toISOString() cut to ten
+                          -- characters, which is a UTC date, while a bare
+                          -- occurred_at::date casts in the SESSION's timezone.
+                          -- On a server set to anything west of UTC the two
+                          -- disagree for the whole local evening: the guard
+                          -- never matches and this sweep re-warns on every run
+                          -- until midnight. Found 2026-09-18 running
+                          -- worker.test.ts against a cluster on
+                          -- America/Chicago; green in CI because CI is UTC.
+                          AND (o.occurred_at AT TIME ZONE 'UTC')::date = $1::date)`,
     [iso],
   );
   for (const r of rows) {

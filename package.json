@@ -24,6 +24,7 @@
     "test:ui": "node --test \"packages/ui/**/*.test.ts\" \"apps/s[0-9]*/**/*.test.ts\"",
     "build:surface": "node tools/ci/build-surface.ts",
     "surfaces:check": "node tools/ci/emit-surfaces.ts --check",
+    "drive:s1": "node tools/ci/drive-s1.ts",
     "drive:s6": "node tools/ci/drive-s6.ts",
     "drive:s8": "node tools/ci/drive-s8.ts"
   },

@@ -286,9 +286,11 @@ CREATE TABLE IF NOT EXISTS leads (
   source text NOT NULL,
   contact jsonb NOT NULL,
   requested_metro text,
+  submission_id uuid,
   converted_account_id uuid REFERENCES accounts(id),
   created_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (id)
+  PRIMARY KEY (id),
+  UNIQUE (submission_id)
 );
 CREATE INDEX IF NOT EXISTS leads_region_id_idx ON leads (region_id);
 CREATE INDEX IF NOT EXISTS leads_converted_account_id_idx ON leads (converted_account_id);
