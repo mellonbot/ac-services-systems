@@ -14,6 +14,8 @@ export const WRITE_ENTITIES = [
   // positioned to author it; reassigning that is a one-line diff on the
   // registry below, not a schema change.
   "job", "device", "device_grant",
+  // item 9: the site record — what a site is, recorded by the office.
+  "equipment", "account_contact",
   // S3 — dispatch
   "assignment", "job_state", "crew_release", "escalation",
   // S4 — commentary (see OPEN-S4 in docs/OPEN_DECISIONS.md; not granted)

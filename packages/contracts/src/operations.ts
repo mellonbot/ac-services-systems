@@ -135,6 +135,37 @@ export const OPERATIONS = {
     surfaces: ["S2"], carrier: "body", sdkMethod: "updateAccount",
     summary: "Attributes of a node — name, the customer's own grouping, external ref, address, timezone, active. Never parent_id or region_id; those are accounts.move.",
   },
+  // ---- item 9: the site record — what a site IS, not only what is happening there (S6 site card) ----
+  "equipment.list": {
+    id: "equipment.list", method: "GET", path: "/equipment", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "listEquipment",
+    summary: "The units at a site this principal may see — kind, label, make and model, serial, tonnage, installed — each with when it was last serviced, DERIVED from the completed jobs that named it (job_equipment). RLS (0009) decides the site; nothing here filters.",
+  },
+  "equipment.register": {
+    id: "equipment.register", method: "POST", path: "/s2/equipment", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "registerEquipment",
+    summary: "Record a unit at a site: the kind from the closed list, the customer's own label, make, model, serial. The manufacturer dictionary is global reference data and grows by name here. Tenancy derives from the site.",
+  },
+  "contacts.list": {
+    id: "contacts.list", method: "GET", path: "/contacts", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "listContacts",
+    summary: "The people at a node AND at its ancestors — a site with no manager of its own inherits the location's — each row saying which node it belongs to. Visible under the node's own rule (0009).",
+  },
+  "contacts.set": {
+    id: "contacts.set", method: "POST", path: "/s2/contacts", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "setContact",
+    summary: "Record or replace a contact at a node: role, name, phone, email, note, primary. The customer's own edit of its contacts is OPEN-S6-CONTACTS; until it closes the office keeps the record.",
+  },
+  "invoices.list": {
+    id: "invoices.list", method: "GET", path: "/invoices", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "listInvoices",
+    summary: "Invoices with lines at a site or location this principal may see, with THOSE lines and their subtotal — a consolidated parent invoice read from one location shows that location's lines and nothing beside (0009). Issuance is WS-E's; this is the read.",
+  },
+  "sites.imagery": {
+    id: "sites.imagery", method: "GET", path: "/s6/sites/imagery", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "siteImagery",
+    summary: "Overhead imagery of a site, fetched by the GATEWAY from the configured provider (AC_IMAGERY_URL) and returned inline — the customer's browser never reaches a third party with the customer's address, and there is no key in a bundle. Unavailable is an answer, not an error: not configured, no coordinates, provider unreachable.",
+  },
   // ---- C2: the agreements and term overrides S2 authors (09 §3.6) ----
   "contracts.list": {
     id: "contracts.list", method: "GET", path: "/s2/contracts", kind: "query", auth: "bearer",
@@ -535,6 +566,8 @@ export type AccountWire = {
   readonly customerGroup: string | null; readonly externalRef: string | null; readonly timezone: string | null; readonly active: boolean;
   /** Ancestor ids, region node first, this node last. */
   readonly path: readonly string[];
+  /** Item 9: the node's address as recorded, or null. See AddressWire. */
+  readonly address: AddressWire | null;
 };
 export type ListAccountsInput = { readonly orgId: string };
 export type ListAccountsOutput = { readonly nodes: readonly AccountWire[] };
@@ -567,6 +600,87 @@ export type UpdateAccountInput = {
   readonly address?: Readonly<Record<string, unknown>> | null; readonly timezone?: string | null; readonly active?: boolean;
 };
 export type UpdateAccountOutput = { readonly id: string; readonly eventId: string };
+
+// ---- item 9: the site record ----
+/**
+ * The shape `accounts.address` carries when it carries one. Every field is
+ * optional because an address arrives as a customer wrote it on a contract;
+ * `lat`/`lng` are what the imagery and any routing need, and are absent until
+ * someone records them (accounts.update takes the whole object).
+ */
+export type AddressWire = {
+  readonly line1?: string; readonly line2?: string; readonly city?: string; readonly state?: string; readonly postal?: string; readonly country?: string;
+  readonly lat?: number; readonly lng?: number;
+};
+export type EquipmentKind = "rtu" | "split" | "package" | "ahu" | "chiller" | "boiler" | "heat_pump" | "mini_split" | "vrf" | "exhaust" | "mau" | "controls" | "other";
+export type EquipmentWire = {
+  readonly id: string; readonly siteId: string; readonly kind: EquipmentKind; readonly label: string | null;
+  readonly manufacturer: string | null; readonly model: string; readonly serial: string | null;
+  readonly installedOn: string | null;
+  /** Integer thousandths of a ton, as a string on the wire — the rule every `*_milli` and `*_minor` column follows. Null when unknown. */
+  readonly tonnageMilli: string | null; readonly active: boolean;
+  /** The latest completed/invoiced job that named this unit, by its window end. Null when none has. Derived, never stored. */
+  readonly lastServicedAt: string | null; readonly lastServicedJobId: string | null; readonly lastServicedServiceCode: string | null;
+  /** How many jobs have named this unit, any state. */
+  readonly jobCount: number;
+};
+export type ListEquipmentInput = { readonly siteId: string };
+export type ListEquipmentOutput = { readonly equipment: readonly EquipmentWire[] };
+export type RegisterEquipmentInput = {
+  readonly siteId: string; readonly kind: EquipmentKind; readonly model: string;
+  readonly label?: string; readonly manufacturer?: string; readonly serial?: string; readonly installedOn?: string;
+  /** Integer thousandths of a ton, as a string ("7500" is 7.5 tons). */
+  readonly tonnageMilli?: string;
+};
+export type RegisterEquipmentOutput = { readonly id: string; readonly eventId: string };
+
+export type ContactRole = "site_manager" | "facilities" | "accounts_payable" | "security" | "other";
+export type ContactWire = {
+  readonly id: string;
+  /** The node the contact is recorded at — the site itself, or an ancestor it inherits from. */
+  readonly accountId: string; readonly accountName: string; readonly accountTier: AccountTierWire;
+  readonly role: ContactRole; readonly name: string; readonly phone: string | null; readonly email: string | null; readonly note: string | null;
+  readonly isPrimary: boolean; readonly active: boolean;
+};
+export type ListContactsInput = { readonly accountId: string };
+export type ListContactsOutput = { readonly contacts: readonly ContactWire[] };
+export type SetContactInput = {
+  readonly accountId: string; readonly role?: ContactRole; readonly name: string;
+  readonly phone?: string; readonly email?: string; readonly note?: string; readonly isPrimary?: boolean;
+  /** Replace this contact rather than add one. */
+  readonly contactId?: string; readonly active?: boolean;
+};
+export type SetContactOutput = { readonly id: string; readonly eventId: string };
+
+export type InvoiceLineWire = {
+  readonly id: string; readonly locationId: string; readonly jobId: string | null; readonly description: string;
+  /** Integer thousandths, as a string on the wire. */
+  readonly quantityMilli: string;
+  /** Integer minor units, as strings on the wire (money is never a float). */
+  readonly unitPriceMinor: string; readonly amountMinor: string;
+};
+export type InvoiceWire = {
+  readonly id: string; readonly billToTier: "parent" | "region" | "location" | "site"; readonly billToId: string; readonly contractId: string;
+  readonly billingPath: BillingPath; readonly periodStart: string | null; readonly periodEnd: string | null;
+  /** The whole invoice's total — the consolidated header — as minor units. */
+  readonly totalMinor: string; readonly currency: string; readonly issuedAt: string | null; readonly dueAt: string | null;
+  /** The lines this principal may see on it, at the node asked for. */
+  readonly lines: readonly InvoiceLineWire[];
+  /** Sum of `lines` — what the node asked for was billed on this invoice. */
+  readonly subtotalMinor: string;
+};
+export type ListInvoicesInput = { readonly siteId?: string; readonly locationId?: string };
+export type ListInvoicesOutput = { readonly invoices: readonly InvoiceWire[] };
+
+export type SiteImageryInput = { readonly siteId: string };
+export type SiteImageryOutput = {
+  readonly siteId: string;
+  readonly lat: number | null; readonly lng: number | null;
+  /** A data: URL the card can draw, or null with `unavailable` saying why. */
+  readonly image: string | null;
+  readonly attribution: string | null;
+  readonly unavailable: "not_configured" | "no_coordinates" | "provider_unreachable" | null;
+};
 
 // ---- C2 wire shapes ----
 export type ContractKind = "msa" | "amendment" | "location_agreement" | "project_sow" | "residential_membership" | "one_time";
@@ -842,6 +956,8 @@ export type CreateJobInput = {
   readonly serviceWindowEnd: string;
   readonly contractId?: string;
   readonly projectId?: string;
+  /** Item 9: the units at the site this job is about. Each must be equipment at `siteId`; the row lands in job_equipment in the same unit of work. */
+  readonly equipmentIds?: readonly string[];
 };
 export type CreateJobOutput = {
   readonly id: string; readonly orgId: string; readonly regionId: string;
@@ -1101,6 +1217,12 @@ export type OperationIO = {
   "accounts.create": { input: CreateAccountInput; output: CreateAccountOutput };
   "accounts.move": { input: MoveAccountInput; output: MoveAccountOutput };
   "accounts.update": { input: UpdateAccountInput; output: UpdateAccountOutput };
+  "equipment.list": { input: ListEquipmentInput; output: ListEquipmentOutput };
+  "equipment.register": { input: RegisterEquipmentInput; output: RegisterEquipmentOutput };
+  "contacts.list": { input: ListContactsInput; output: ListContactsOutput };
+  "contacts.set": { input: SetContactInput; output: SetContactOutput };
+  "invoices.list": { input: ListInvoicesInput; output: ListInvoicesOutput };
+  "sites.imagery": { input: SiteImageryInput; output: SiteImageryOutput };
   "contracts.list": { input: ListContractsInput; output: ListContractsOutput };
   "contracts.create": { input: CreateContractInput; output: CreateContractOutput };
   "contracts.transition": { input: TransitionContractInput; output: TransitionContractOutput };

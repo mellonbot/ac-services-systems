@@ -57,10 +57,10 @@ const toWire = (r: JobRow): JobWire => ({
 const JOB_SELECT = `
   SELECT j.id, j.site_id, s.name AS site_name, j.contract_id, j.project_id, j.service_code, j.priority, j.state,
          lower(j.service_window) AS ws, upper(j.service_window) AS we, j.version,
-         to_char(j.opened_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS opened_at, j.region_id, j.org_id,
+         to_char(j.opened_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS opened_at, j.region_id, j.org_id,
          a.crew_id AS current_crew_id, c.label AS current_crew_label, a.id AS current_assignment_id,
-         to_char(st.due_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_due_at, st.escalation_stage AS sla_escalation_stage,
-         to_char(st.satisfied_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_satisfied_at
+         to_char(st.due_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_due_at, st.escalation_stage AS sla_escalation_stage,
+         to_char(st.satisfied_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_satisfied_at
     FROM jobs j
     LEFT JOIN accounts s ON s.id = j.site_id
     LEFT JOIN assignments a ON a.job_id = j.id AND a.released_at IS NULL
@@ -77,12 +77,28 @@ export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: (
   if (windowEnd.getTime() <= windowStart.getTime()) throw new InputRefused("serviceWindowEnd must be after serviceWindowStart — an empty window is not a job", "bad_window");
   const contractId = input.contractId === undefined ? null : requireUuid(input.contractId, "contractId");
   const projectId = input.projectId === undefined ? null : requireUuid(input.projectId, "projectId");
+  if (input.equipmentIds !== undefined && !Array.isArray(input.equipmentIds)) throw new BadInput("equipmentIds must be a list of uuids");
+  const equipmentIds = [...new Set((input.equipmentIds ?? []).map((e, i) => requireUuid(e, `equipmentIds[${i}]`)))];
 
   const site = (await uow.tx.query<{ id: string; tier: string; org_id: string; region_id: string }>(
     `SELECT id, tier, org_id, region_id FROM accounts WHERE id = $1`, [siteId],
   ))[0];
   if (!site) throw new InputRefused(`no node ${siteId} visible in this scope`, "unknown_site");
   if (site.tier !== "site") throw new InputRefused(`"${siteId}" is a ${site.tier}, not a site — work happens at a site, the tier with no descendants`, "not_a_site");
+
+  // Item 9: the units this job is about must be units at THIS site. The
+  // trigger on job_equipment (0009) holds the same sentence for every other
+  // path; here it is a named refusal before anything is written.
+  if (equipmentIds.length > 0) {
+    const units = await uow.tx.query<{ id: string; site_id: string; active: boolean }>(
+      `SELECT id, site_id, active FROM equipment WHERE id = ANY($1::uuid[])`, [equipmentIds],
+    );
+    for (const id of equipmentIds) {
+      const u = units.find((x) => x.id === id);
+      if (!u) throw new InputRefused(`no equipment ${id} visible in this scope`, "unknown_equipment");
+      if (u.site_id !== site.id) throw new InputRefused(`equipment ${id} is not at site ${site.id} — a job names the units at the site it is opened for`, "equipment_not_at_site");
+    }
+  }
 
   // Derived, never typed in. A resolution refusal (no value anywhere on the
   // path, an authoring-tier or ratchet violation) surfaces as its own 422 —
@@ -100,7 +116,7 @@ export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: (
     {
       entity: "job", entityId: jobId, action: "job.create", topic: "job.created",
       before: null,
-      after: { id: jobId, siteId: site.id, serviceCode, priority, state: "created", serviceWindowStart: windowStart.toISOString(), serviceWindowEnd: windowEnd.toISOString() },
+      after: { id: jobId, siteId: site.id, serviceCode, priority, state: "created", serviceWindowStart: windowStart.toISOString(), serviceWindowEnd: windowEnd.toISOString(), equipmentIds },
       orgId: site.org_id, regionId: site.region_id,
       payload: { siteId: site.id, serviceCode, priority },
     },
@@ -110,6 +126,12 @@ export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: (
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, tstzrange($9::timestamptz, $10::timestamptz, '[)'))`,
         [jobId, site.org_id, site.region_id, site.id, contractId, projectId, serviceCode, priority, windowStart.toISOString(), windowEnd.toISOString()],
       );
+      for (const equipmentId of equipmentIds) {
+        await tx.query(
+          `INSERT INTO job_equipment (org_id, region_id, job_id, equipment_id) VALUES ($1, $2, $3, $4)`,
+          [site.org_id, site.region_id, jobId, equipmentId],
+        );
+      }
     },
   );
 

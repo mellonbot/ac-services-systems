@@ -51,7 +51,7 @@ export const work: Screen = (ctx) => {
       rows: [...out.jobs].sort((a, b) => Number(isOpen(b)) - Number(isOpen(a)) || b.openedAt.localeCompare(a.openedAt)),
       rowKey: (j) => j.id,
       columns: [
-        { key: "site", header: "Site", cell: (j) => siteName(j.siteId) },
+        { key: "site", header: "Site", cell: (j) => linkTo(ctx, "site", { siteId: j.siteId }, siteName(j.siteId)) },
         { key: "serviceCode", header: "Service" },
         { key: "state", header: "State", cell: (j) => STATE_WORD[j.state] },
         { key: "window", header: "Window", cell: (j) => `${when(j.serviceWindowStart)} – ${when(j.serviceWindowEnd)}` },

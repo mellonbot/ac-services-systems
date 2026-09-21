@@ -39,14 +39,15 @@ const requireText = (v: unknown, field: string): string => {
 };
 
 type RegionRow = { id: string; code: string; name: string; timezone: string; min_crew_density: number; active: boolean };
-type AccountRow = { id: string; tier: AccountWire["tier"]; name: string; parent_id: string | null; region_id: string; org_id: string; customer_group: string | null; external_ref: string | null; timezone: string | null; active: boolean; path: string[] };
+type AccountRow = { id: string; tier: AccountWire["tier"]; name: string; parent_id: string | null; region_id: string; org_id: string; customer_group: string | null; external_ref: string | null; timezone: string | null; active: boolean; path: string[]; address?: AccountWire["address"] };
 
 const toWire = (a: AccountRow): AccountWire => ({
   id: a.id, tier: a.tier, name: a.name, parentId: a.parent_id, regionId: a.region_id,
   customerGroup: a.customer_group, externalRef: a.external_ref, timezone: a.timezone, active: a.active, path: a.path,
+  address: a.address ?? null,
 });
 
-const ACCOUNT_COLUMNS = "id, tier, name, parent_id, region_id, org_id, customer_group, external_ref, timezone, active, path";
+const ACCOUNT_COLUMNS = "id, tier, name, parent_id, region_id, org_id, customer_group, external_ref, timezone, active, path, address";
 
 // ---------------------------------------------------------------------------
 // Reads

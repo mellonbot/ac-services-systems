@@ -107,7 +107,13 @@ const REGISTRY = {
              // same reason a crew's own record is: nobody else is positioned
              // to author it, and there is no S2 screen for it in this pass —
              // see claude/19_S3_S5_Dispatch_and_Field.md.
-             "job", "device", "device_grant"],
+             "job", "device", "device_grant",
+             // item 9 (2026-09-21): the site record. A unit on a roof and the
+             // person who lets a crew onto it are facts the office records
+             // when the site is signed in; the customer READS them on its
+             // site card. The customer's own edit of a contact is the
+             // `contact_update` on S6's list and is OPEN-S6-CONTACTS.
+             "equipment", "account_contact"],
     density: "console", realtime: false, offline: false,
     degraded: "Read-only from last server state. NO offline writes, ever — this is the only surface that authors hierarchy, contract and subcontractor-network truth, and a forked truth here is unrecoverable.",
     stateRamp: true,

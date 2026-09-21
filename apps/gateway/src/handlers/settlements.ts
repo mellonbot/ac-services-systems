@@ -46,9 +46,9 @@ const COLUMNS = `s.id, s.firm_id, s.region_id, s.org_id,
   to_char(lower(s.period), 'YYYY-MM-DD') AS period_from,
   to_char(upper(s.period) - 1, 'YYYY-MM-DD') AS period_to,
   s.total_minor::text AS total_minor, s.currency, s.state,
-  to_char(s.issued_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS issued_at,
-  to_char(s.acknowledged_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS acknowledged_at,
-  to_char(s.disputed_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS disputed_at,
+  to_char(s.issued_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS issued_at,
+  to_char(s.acknowledged_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS acknowledged_at,
+  to_char(s.disputed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS disputed_at,
   s.dispute_reason,
   (SELECT count(*) FROM settlement_lines l WHERE l.settlement_id = s.id)::text AS line_count`;
 

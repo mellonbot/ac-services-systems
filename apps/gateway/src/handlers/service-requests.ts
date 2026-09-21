@@ -82,7 +82,7 @@ export const listServiceRequests = async (uow: UnitOfWork, input: ListServiceReq
   const siteId = input.siteId === undefined ? null : requireUuid(input.siteId, "siteId");
   const rows = await uow.tx.query<Row>(
     `SELECT r.id, r.site_id, a.name AS site_name, r.priority, r.description, r.requested_by,
-            to_char(r.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
+            to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
             r.job_id, j.state AS job_state, r.org_id, r.region_id
        FROM service_requests r
        JOIN accounts a ON a.id = r.site_id

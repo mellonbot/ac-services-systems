@@ -19,6 +19,8 @@ import { createJob, listJobs, listMyJobs } from "./handlers/jobs.ts";
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
 import { createServiceRequest, listServiceRequests } from "./handlers/service-requests.ts";
 import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
+import { listEquipment, registerEquipment, listContacts, setContact, listInvoices } from "./handlers/site-record.ts";
+import { siteImagery, imageryConfigFromEnv } from "./handlers/imagery.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
 import { SURFACES, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
@@ -74,6 +76,9 @@ if (keypair.kid === "ephemeral") console.warn("gateway: AC_SIGNING_KEY_PEM not s
 const keys = new Map([[keypair.kid, keypair.publicKey]]);
 const pool = createPool(DATABASE_URL);
 const SESSION = sessionConfigFromEnv(process.env);
+// Item 9: the overhead-imagery provider, if one is configured. Unset → the
+// site card gets "not_configured" and draws the address alone (OPEN-S6-IMAGERY).
+const IMAGERY = imageryConfigFromEnv(process.env);
 const ORIGINS = allowedOrigins(SESSION);
 if (!SESSION.site) console.warn(`gateway: AC_SITE not set — development posture: cookies are not Secure and browser origins are ${ORIGINS.size ? [...ORIGINS].join(", ") : "NONE (bearer only)"}`);
 
@@ -420,6 +425,16 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   // item 4 — the job itself, created in Office & Dispatch.
   "jobs.create": (req, input) => withUow(req, "jobs.create", (uow) => createJob(uow, input, randomUUID, new Date())),
   "jobs.list": (req, input) => withRead(req, "jobs.list", (uow) => listJobs(uow, input.state)),
+
+  // item 9 — the site record: the units at a site, the people at a node, the
+  // invoices with lines there, and the roof from above. Reads served to S6
+  // and S2 alike; 0009 makes "its own" true. Writes are the office's.
+  "equipment.list": (req, input) => withRead(req, "equipment.list", (uow) => listEquipment(uow, input)),
+  "equipment.register": (req, input) => withUow(req, "equipment.register", (uow) => registerEquipment(uow, input, randomUUID)),
+  "contacts.list": (req, input) => withRead(req, "contacts.list", (uow) => listContacts(uow, input)),
+  "contacts.set": (req, input) => withUow(req, "contacts.set", (uow) => setContact(uow, input, randomUUID)),
+  "invoices.list": (req, input) => withRead(req, "invoices.list", (uow) => listInvoices(uow, input)),
+  "sites.imagery": (req, input) => withRead(req, "sites.imagery", (uow) => siteImagery(uow, input, IMAGERY, fetch)),
 
   // item 6 — S6's first write, and the office's read of it.
   "serviceRequests.create": (req, input) => withUow(req, "serviceRequests.create", (uow, p) => createServiceRequest(uow, p.subjectId, input, randomUUID)),

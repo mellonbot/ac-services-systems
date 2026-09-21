@@ -85,6 +85,8 @@ CREATE TABLE IF NOT EXISTS equipment (
   region_id uuid NOT NULL REFERENCES regions(id),
   site_id uuid NOT NULL REFERENCES accounts(id),
   manufacturer_id uuid REFERENCES part_manufacturers(id),
+  kind text NOT NULL DEFAULT 'other' CHECK (kind IN ('rtu','split','package','ahu','chiller','boiler','heat_pump','mini_split','vrf','exhaust','mau','controls','other')),
+  label text,
   model text NOT NULL,
   serial text,
   installed_on date,
@@ -96,6 +98,24 @@ CREATE TABLE IF NOT EXISTS equipment (
 CREATE INDEX IF NOT EXISTS equipment_region_id_idx ON equipment (region_id);
 CREATE INDEX IF NOT EXISTS equipment_site_id_idx ON equipment (site_id);
 CREATE INDEX IF NOT EXISTS equipment_serial_idx ON equipment (serial);
+
+CREATE TABLE IF NOT EXISTS account_contacts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  account_id uuid NOT NULL REFERENCES accounts(id),
+  role text NOT NULL DEFAULT 'site_manager' CHECK (role IN ('site_manager','facilities','accounts_payable','security','other')),
+  name text NOT NULL,
+  phone text,
+  email text,
+  note text,
+  is_primary boolean NOT NULL DEFAULT false,
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS account_contacts_region_id_idx ON account_contacts (region_id);
+CREATE INDEX IF NOT EXISTS account_contacts_account_id_idx ON account_contacts (account_id);
 
 CREATE TABLE IF NOT EXISTS subcontractor_firms (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -485,6 +505,19 @@ CREATE TABLE IF NOT EXISTS warranty_cases (
 CREATE INDEX IF NOT EXISTS warranty_cases_region_id_idx ON warranty_cases (region_id);
 CREATE INDEX IF NOT EXISTS warranty_cases_job_id_idx ON warranty_cases (job_id);
 CREATE INDEX IF NOT EXISTS warranty_cases_state_idx ON warranty_cases (state);
+
+CREATE TABLE IF NOT EXISTS job_equipment (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  job_id uuid NOT NULL REFERENCES jobs(id),
+  equipment_id uuid NOT NULL REFERENCES equipment(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (job_id, equipment_id)
+);
+CREATE INDEX IF NOT EXISTS job_equipment_region_id_idx ON job_equipment (region_id);
+CREATE INDEX IF NOT EXISTS job_equipment_equipment_id_idx ON job_equipment (equipment_id);
 
 CREATE TABLE IF NOT EXISTS service_requests (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

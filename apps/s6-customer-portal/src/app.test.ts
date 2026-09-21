@@ -7,8 +7,9 @@ import { treeOf } from "./screens/common.ts";
 import { STATE_WORD, isOpen } from "./screens/work.ts";
 import { valueWord, wonWhere } from "./screens/terms.ts";
 import { resetRequestForm } from "./screens/request.ts";
+import { money, tons, addressLines, ledgerOf } from "./screens/site.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import type { Principal, JobWire, HierarchyContext, AccountWire, ContractWire, ServiceRequestWire, ResolutionWire } from "../../../packages/contracts/src/index.ts";
+import type { Principal, JobWire, HierarchyContext, AccountWire, ContractWire, ServiceRequestWire, ResolutionWire, EquipmentWire, ContactWire, InvoiceWire, SiteImageryOutput } from "../../../packages/contracts/src/index.ts";
 import { OPERATIONS, TERMS } from "../../../packages/contracts/src/index.ts";
 
 /**
@@ -32,11 +33,12 @@ const facility: Principal = {
 const executive: Principal = { ...facility, subjectId: U(15), scopeTier: "parent", scopeId: ORG };
 
 const node = (id: string, tier: AccountWire["tier"], name: string, parentId: string | null, regionId: string, path: string[]): AccountWire =>
-  ({ id, tier, name, parentId, regionId, customerGroup: tier === "location" ? "Southwest" : null, externalRef: null, timezone: null, active: true, path });
+  ({ id, tier, name, parentId, regionId, customerGroup: tier === "location" ? "Southwest" : null, externalRef: null, timezone: null, active: true, address: null, path });
 const southNode = node(SOUTH_NODE, "region", "Amped / South", null, SOUTH, [SOUTH_NODE]);
 const westNode = node(WEST_NODE, "region", "Amped / West", null, WEST, [WEST_NODE]);
 const austin = node(AUSTIN, "location", "Austin", SOUTH_NODE, SOUTH, [SOUTH_NODE, AUSTIN]);
-const austinRoof = node(AUSTIN_ROOF, "site", "Austin — Roof", AUSTIN, SOUTH, [SOUTH_NODE, AUSTIN, AUSTIN_ROOF]);
+const austinRoof: AccountWire = { ...node(AUSTIN_ROOF, "site", "Austin — Roof", AUSTIN, SOUTH, [SOUTH_NODE, AUSTIN, AUSTIN_ROOF]), externalRef: "ATX-01", timezone: "America/Chicago",
+  address: { line1: "4500 Burnet Rd", city: "Austin", state: "TX", postal: "78756", lat: 30.3145, lng: -97.7392 } };
 const austinAhu = node(AUSTIN_AHU, "site", "Austin — Basement AHU", AUSTIN, SOUTH, [SOUTH_NODE, AUSTIN, AUSTIN_AHU]);
 const reno = node(RENO, "location", "Reno", WEST_NODE, WEST, [WEST_NODE, RENO]);
 const renoRoof = node(RENO_ROOF, "site", "Reno — Roof", RENO, WEST, [WEST_NODE, RENO, RENO_ROOF]);
@@ -74,6 +76,26 @@ const resolved: Record<string, ResolutionWire> = {
   pm_visits_per_year: { termKey: "pm_visits_per_year", value: 4, wonAt: { tier: "location", id: AUSTIN }, policy: TERMS.pm_visits_per_year!, trace: [], asOf: "2026-09-17" },
 };
 
+// ---- item 9: the site card's rows, as 0009 hands them to the facility manager ----
+const UNIT_1 = U(20), UNIT_2 = U(21), UNIT_3 = U(22), INVOICE = U(23);
+const units: EquipmentWire[] = [
+  { id: UNIT_1, siteId: AUSTIN_ROOF, kind: "rtu", label: "RTU-1", manufacturer: "Carrier", model: "48TC-D08", serial: "4819U12345", installedOn: "2019-05-14", tonnageMilli: "7500", active: true, lastServicedAt: "2026-06-12T20:00:00.000Z", lastServicedJobId: U(30), lastServicedServiceCode: "PM-Q2", jobCount: 3 },
+  { id: UNIT_2, siteId: AUSTIN_ROOF, kind: "rtu", label: "RTU-2", manufacturer: "Carrier", model: "48TC-D08", serial: "4819U12346", installedOn: "2019-05-14", tonnageMilli: "7500", active: true, lastServicedAt: null, lastServicedJobId: null, lastServicedServiceCode: null, jobCount: 1 },
+  { id: UNIT_3, siteId: AUSTIN_ROOF, kind: "exhaust", label: "EF-1", manufacturer: null, model: "Greenheck G-120", serial: null, installedOn: null, tonnageMilli: null, active: true, lastServicedAt: null, lastServicedJobId: null, lastServicedServiceCode: null, jobCount: 0 },
+];
+const contacts: ContactWire[] = [
+  { id: U(24), accountId: AUSTIN_ROOF, accountName: "Austin — Roof", accountTier: "site", role: "site_manager", name: "Dana Ortiz", phone: "(512) 555-0100", email: "dana.ortiz@amped.test", note: "On site 6a–3p", isPrimary: true, active: true },
+  { id: U(25), accountId: AUSTIN, accountName: "Austin", accountTier: "location", role: "security", name: "Front desk", phone: "(512) 555-0199", email: null, note: null, isPrimary: false, active: true },
+];
+const invoice: InvoiceWire = {
+  id: INVOICE, billToTier: "parent", billToId: ORG, contractId: MSA, billingPath: "enterprise_sla", periodStart: "2026-06-01", periodEnd: "2026-06-30",
+  totalMinor: "1284500", currency: "USD", issuedAt: "2026-07-03T15:00:00.000Z", dueAt: "2026-08-17T00:00:00.000Z",
+  lines: [{ id: U(26), locationId: AUSTIN, jobId: U(30), description: "Quarterly PM — RTU-1", quantityMilli: "1000", unitPriceMinor: "42500", amountMinor: "42500" }],
+  subtotalMinor: "42500",
+};
+const imageryOff: SiteImageryOutput = { siteId: AUSTIN_ROOF, lat: 30.3145, lng: -97.7392, image: null, attribution: null, unavailable: "not_configured" };
+const imageryOn: SiteImageryOutput = { ...imageryOff, image: "data:image/png;base64,iVBORw0KGgo=", attribution: "© Provider", unavailable: null };
+
 type Reply = { status: number; body: unknown };
 const fakeGateway = (p: Principal, nodes: readonly AccountWire[], overrides: Partial<Record<string, Reply | ((init: Parameters<FetchLike>[1]) => Reply)>> = {}) => {
   let session = false;
@@ -95,6 +117,10 @@ const fakeGateway = (p: Principal, nodes: readonly AccountWire[], overrides: Par
     if (path === OPERATIONS["terms.register"].path) return reply(200, { terms: Object.values(TERMS) });
     if (path === OPERATIONS["terms.resolved"].path) return reply(200, { resolved, refused: {} });
     if (path === OPERATIONS["serviceRequests.create"].path) return reply(200, { id: U(99), orgId: ORG, regionId: SOUTH, eventId: U(98) });
+    if (path === OPERATIONS["equipment.list"].path) return reply(200, { equipment: units });
+    if (path === OPERATIONS["contacts.list"].path) return reply(200, { contacts });
+    if (path === OPERATIONS["invoices.list"].path) return reply(200, { invoices: [invoice] });
+    if (path === OPERATIONS["sites.imagery"].path) return reply(200, imageryOff);
     if (path === OPERATIONS["events.stream"].path) return { status: 200, ok: true, json: async () => ({}), text: async () => "", body: null };
     return reply(404, { error: "NoRoute", message: `no route ${path}` });
   };
@@ -155,6 +181,76 @@ test("SITES, executive: the SAME screen over more rows — every region, every l
   assert.match(out, /Amped \/ West/);
   assert.match(out, /Reno — Roof/);
   assert.match(out, /Austin — Roof/);
+});
+
+test("HEADER: the request-service button is on every signed-in screen and goes to the form", async () => {
+  const { app } = await ready();
+  const out = render(app.view());
+  assert.match(out, /id="nav-request"[^>]*>Request service</, "a button, in the masthead, not a link buried in a screen");
+  app.router.navigate("work", {});
+  assert.match(render(app.view()), /id="nav-request"/);
+});
+
+test("SITE CARD: where, who, what runs there, and one ledger — every row the gateway returned and nothing it withheld", async () => {
+  const { app, gateway } = await ready();
+  app.router.navigate("site", { siteId: AUSTIN_ROOF });
+  render(app.view()); await settle();
+  const out = render(app.view());
+  // the head: the site, its breadcrumb, its codes, and the button
+  assert.match(out, /id="site-name"[^>]*>Austin — Roof</);
+  assert.match(out, /id="site-crumbs".*Amped \/ South.*Austin/s);
+  assert.match(out, /ATX-01/, "the customer's own site code");
+  assert.match(out, /id="site-request"[^>]*>Request service here</);
+  // where: the address as recorded, the maps handoff by geo: (no third-party host), imagery honestly unavailable
+  assert.match(out, /4500 Burnet Rd/); assert.match(out, /Austin, TX 78756/);
+  assert.match(out, /href="geo:30\.3145,-97\.7392"/);
+  assert.match(out, /data-unavailable="not_configured"/);
+  assert.match(out, /Overhead imagery is not enabled for this portal\./);
+  assert.doesNotMatch(out, /<img/, "no picture is drawn when the gateway has none");
+  // who: the site's own manager first, the location's desk marked as inherited
+  assert.match(out, /Dana Ortiz/); assert.match(out, /href="tel:\+?5125550100"/); assert.match(out, /mailto:dana\.ortiz@amped\.test/);
+  assert.match(out, /data-inherited="true"[^>]*data-primary="false".*Security desk.*Location: Austin/s);
+  // what runs there: the count line and the grid with derived last-serviced
+  assert.match(out, /id="site-units-count".*2<\/span> RTU.*1<\/span> Exhaust/s);
+  assert.match(out, /RTU-1/); assert.match(out, /4819U12345/); assert.match(out, /Carrier 48TC-D08/); assert.match(out, /PM-Q2/);
+  assert.match(out, /Work open, none complete/, "a unit with an open job and no completed one says so");
+  assert.match(out, /Not yet serviced by us/);
+  assert.match(out, /<td[^>]*>7\.5</, "tons from integer thousandths");
+  // the ledger: request, job and invoice in one list, newest first, money from minor units
+  const ledger = /id="site-history"(.*)<\/ol>/s.exec(out)![1]!;
+  const order = [...ledger.matchAll(/data-kind="(request|job|invoice)"/g)].map((m) => m[1]);
+  assert.deepEqual(order, ["job", "request", "invoice"], "the 09-18 visit, the 09-17 request, the 07-03 invoice — newest first, a job on the day of its visit");
+  assert.match(ledger, /Service requested — urgent/); assert.match(ledger, /Waiting for the office/);
+  assert.match(ledger, /HVAC-REPAIR — Crew en route/); assert.match(ledger, /Responded/);
+  assert.match(ledger, /Invoice issued — 2026-06-01 to 2026-06-30/); assert.match(ledger, /Quarterly PM — RTU-1/); assert.match(ledger, /\$425\.00/);
+  assert.doesNotMatch(out, /1284500|12,845/, "the consolidated header total is not what this site was billed");
+  // right now
+  assert.match(out, /Open jobs<\/dt><dd[^>]*>1</); assert.match(out, /Units on record<\/dt><dd[^>]*>3</); assert.match(out, /America\/Chicago/);
+  // and no filter was sent: the reads name the site, the gateway decided the rows
+  const paths = gateway.calls.map((c) => c.path);
+  for (const op of ["equipment.list", "contacts.list", "invoices.list", "sites.imagery"] as const) assert.ok(paths.includes(OPERATIONS[op].path), `${op} was read`);
+});
+
+test("SITE CARD with imagery: the gateway's picture is drawn with its credit; a site not in view is said so, not guessed at", async () => {
+  const { app } = await ready(facility, FACILITY_NODES, { [OPERATIONS["sites.imagery"].path]: { status: 200, body: imageryOn } });
+  app.router.navigate("site", { siteId: AUSTIN_ROOF });
+  render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, /<img[^>]*src="data:image\/png;base64,iVBORw0KGgo="[^>]*alt="Overhead view of Austin — Roof"/);
+  assert.match(out, /© Provider/);
+  app.router.navigate("site", { siteId: RENO_ROOF });
+  const missing = render(app.view());
+  assert.match(missing, /id="site-missing"/, "Reno is not in the facility manager's rows, so there is no card to draw");
+});
+
+test("site card helpers: money is bigint string arithmetic, an address renders as written, the ledger sorts newest first", () => {
+  assert.equal(tons("7500"), "7.5"); assert.equal(tons("20000"), "20"); assert.equal(tons("12250"), "12.25"); assert.equal(tons(null), "—");
+  assert.equal(money("42500"), "$425.00"); assert.equal(money("1284500"), "$12,845.00"); assert.equal(money("-5"), "−$0.05"); assert.equal(money("7", "EUR"), "EUR 0.07");
+  assert.deepEqual(addressLines({ line1: "1 Main", city: "Reno", state: "NV" }), ["1 Main", "Reno, NV"]);
+  assert.deepEqual(addressLines(null), []);
+  const entries = ledgerOf([job], [request], [invoice], Date.parse("2026-09-18T00:00:00Z"), "comfort");
+  assert.deepEqual(entries.map((e) => e.kind), ["job", "request", "invoice"]);
+  assert.equal(entries[2]!.amount, "$425.00");
 });
 
 test("WORK: jobs in the customer's words, the SLA pill from the same numbers the dispatcher reads, and NO crew column", async () => {

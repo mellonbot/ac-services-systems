@@ -32,8 +32,8 @@ const context: HierarchyContext = {
   parent: { tier: "parent", id: "org-internal", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: SOUTH,
 };
 const NODES: AccountWire[] = [
-  { id: N_SOUTH, tier: "region", name: "Amped / South", parentId: null, regionId: SOUTH, customerGroup: null, externalRef: null, timezone: null, active: true, path: [N_SOUTH] },
-  { id: AUSTIN, tier: "location", name: "Amped Austin", parentId: N_SOUTH, regionId: SOUTH, customerGroup: "Texas", externalRef: null, timezone: null, active: true, path: [N_SOUTH, AUSTIN] },
+  { id: N_SOUTH, tier: "region", name: "Amped / South", parentId: null, regionId: SOUTH, customerGroup: null, externalRef: null, timezone: null, active: true, address: null, path: [N_SOUTH] },
+  { id: AUSTIN, tier: "location", name: "Amped Austin", parentId: N_SOUTH, regionId: SOUTH, customerGroup: "Texas", externalRef: null, timezone: null, active: true, address: null, path: [N_SOUTH, AUSTIN] },
 ];
 const CONTRACTS: ContractWire[] = [
   { id: MSA, scopeTier: "parent", scopeId: ORG, kind: "msa", parentContractId: null, billingPath: "enterprise_sla", regionId: SOUTH, signedAt: "2026-01-01T00:00:00+00", effectiveFrom: "2026-01-01", effectiveTo: null, diagnosticDataRightsReserved: true, documentKey: null, state: "active" },

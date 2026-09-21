@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 56 today. There is no
+ * One method per operation in the catalogue — 62 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -85,6 +85,20 @@ export const createGatewayClient = (transport: Transport) => ({
    * A visitor used the call button. Recorded against the lead when there is one, and against nothing when there is not — an inbound call is a fact whether or not a form was filled. */
   recordCall(input: OperationIO["callRecords.record"]["input"]): Promise<OperationIO["callRecords.record"]["output"]> {
     return transport.request(OPERATIONS["callRecords.record"], input) as Promise<OperationIO["callRecords.record"]["output"]>;
+  },
+
+  /** `GET /contacts` · query · bearer · surfaces: S2, S6
+   *
+   * The people at a node AND at its ancestors — a site with no manager of its own inherits the location's — each row saying which node it belongs to. Visible under the node's own rule (0009). */
+  listContacts(input: OperationIO["contacts.list"]["input"]): Promise<OperationIO["contacts.list"]["output"]> {
+    return transport.request(OPERATIONS["contacts.list"], input) as Promise<OperationIO["contacts.list"]["output"]>;
+  },
+
+  /** `POST /s2/contacts` · mutation · bearer · surfaces: S2
+   *
+   * Record or replace a contact at a node: role, name, phone, email, note, primary. The customer's own edit of its contacts is OPEN-S6-CONTACTS; until it closes the office keeps the record. */
+  setContact(input: OperationIO["contacts.set"]["input"]): Promise<OperationIO["contacts.set"]["output"]> {
+    return transport.request(OPERATIONS["contacts.set"], input) as Promise<OperationIO["contacts.set"]["output"]>;
   },
 
   /** `POST /s2/contracts` · mutation · bearer · surfaces: S2
@@ -220,6 +234,20 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["dispatch.release"], input) as Promise<OperationIO["dispatch.release"]["output"]>;
   },
 
+  /** `GET /equipment` · query · bearer · surfaces: S2, S6
+   *
+   * The units at a site this principal may see — kind, label, make and model, serial, tonnage, installed — each with when it was last serviced, DERIVED from the completed jobs that named it (job_equipment). RLS (0009) decides the site; nothing here filters. */
+  listEquipment(input: OperationIO["equipment.list"]["input"]): Promise<OperationIO["equipment.list"]["output"]> {
+    return transport.request(OPERATIONS["equipment.list"], input) as Promise<OperationIO["equipment.list"]["output"]>;
+  },
+
+  /** `POST /s2/equipment` · mutation · bearer · surfaces: S2
+   *
+   * Record a unit at a site: the kind from the closed list, the customer's own label, make, model, serial. The manufacturer dictionary is global reference data and grows by name here. Tenancy derives from the site. */
+  registerEquipment(input: OperationIO["equipment.register"]["input"]): Promise<OperationIO["equipment.register"]["output"]> {
+    return transport.request(OPERATIONS["equipment.register"], input) as Promise<OperationIO["equipment.register"]["output"]>;
+  },
+
   /** `GET /events` · stream · bearer · surfaces: S2, S3, S4, S5, S6, S7, S8
    *
    * Server-sent domain events, filtered to the subscriber's region. At-least-once; dedupe on eventId. */
@@ -246,6 +274,13 @@ export const createGatewayClient = (transport: Transport) => ({
    * Attributes and the status ladder: onboarding → active ⇄ suspended → terminated. Activation needs a signed MSA; a step off the ladder is refused by name. */
   updateFirm(input: OperationIO["firms.update"]["input"]): Promise<OperationIO["firms.update"]["output"]> {
     return transport.request(OPERATIONS["firms.update"], input) as Promise<OperationIO["firms.update"]["output"]>;
+  },
+
+  /** `GET /invoices` · query · bearer · surfaces: S2, S6
+   *
+   * Invoices with lines at a site or location this principal may see, with THOSE lines and their subtotal — a consolidated parent invoice read from one location shows that location's lines and nothing beside (0009). Issuance is WS-E's; this is the read. */
+  listInvoices(input: OperationIO["invoices.list"]["input"]): Promise<OperationIO["invoices.list"]["output"]> {
+    return transport.request(OPERATIONS["invoices.list"], input) as Promise<OperationIO["invoices.list"]["output"]>;
   },
 
   /** `POST /s2/jobs` · mutation · bearer · surfaces: S2
@@ -360,6 +395,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["settlements.list"], input) as Promise<OperationIO["settlements.list"]["output"]>;
   },
 
+  /** `GET /s6/sites/imagery` · query · bearer · surfaces: S2, S6
+   *
+   * Overhead imagery of a site, fetched by the GATEWAY from the configured provider (AC_IMAGERY_URL) and returned inline — the customer's browser never reaches a third party with the customer's address, and there is no key in a bundle. Unavailable is an answer, not an error: not configured, no coordinates, provider unreachable. */
+  siteImagery(input: OperationIO["sites.imagery"]["input"]): Promise<OperationIO["sites.imagery"]["output"]> {
+    return transport.request(OPERATIONS["sites.imagery"], input) as Promise<OperationIO["sites.imagery"]["output"]>;
+  },
+
   /** `POST /s5/sync` · mutation · bearer · surfaces: S5
    *
    * Replay a device's offline log in device order. The device is the source of intent; the server is the source of truth. */
@@ -406,4 +448,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "events", "createFirm", "listFirms", "updateFirm", "createJob", "listJobs", "myJobs", "submitLead", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "createServiceRequest", "listServiceRequests", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "listInvoices", "createJob", "listJobs", "myJobs", "submitLead", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "createServiceRequest", "listServiceRequests", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "siteImagery", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);
