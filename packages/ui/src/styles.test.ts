@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { UI_CSS, cssVariablesRead, cssVariablesDefined, STATE_BEARING_SELECTORS, ACCENT_ROLES } from "./styles.ts";
+import { UI_CSS, cssVariablesRead, cssVariablesDefined, STATE_BEARING_SELECTORS, ACCENT_ROLES, LIVERY_ROLES, LIVERY_SELECTORS } from "./styles.ts";
 import { tokenCss } from "../../tokens/src/index.ts";
 import { DENSITY, type Density } from "../../tokens/src/index.ts";
 
@@ -30,7 +30,8 @@ test("every component class family has a rule", () => {
 test("NO ACCENT INK ENTERS A STATE-BEARING COLUMN — neither the house red nor the arc", () => {
   // The bulletin solves hue proximity structurally rather than with a better
   // colour: every state carries a word, and the accent never decorates a chip.
-  // The house red is 1.2° from the fault ink, so this is the rule that makes
+  // The house red is 0.55° from the fault ink — Rev. E's measurement, not Rev. D's
+  // 1.2° — so this is the rule that makes
   // shipping it at all defensible. It is enforced here rather than remembered.
   for (const rule of UI_CSS.split("}")) {
     const selector = rule.split("{")[0] ?? "";
@@ -38,6 +39,35 @@ test("NO ACCENT INK ENTERS A STATE-BEARING COLUMN — neither the house red nor 
     for (const role of ACCENT_ROLES)
       assert.ok(!rule.includes(role), `${selector.trim()} paints ${role} — a dispatcher reads the column, not the palette`);
   }
+});
+
+test("the livery roles are confined to the lockup — the element fence, checked", () => {
+  // tokenCss never neutralises these, so nothing downstream catches an escape. This is
+  // the fence. A lockup red on anything but the masthead is a red control by another name.
+  for (const rule of UI_CSS.split("}")) {
+    const selector = (rule.split("{")[0] ?? "").trim();
+    if (!LIVERY_ROLES.some((role) => rule.includes(role))) continue;
+    assert.ok(
+      LIVERY_SELECTORS.some((sel) => selector.includes(sel)),
+      `${selector} paints a livery role outside the lockup`,
+    );
+  }
+});
+
+test("the lockup renders as ONE mark — the wordmark and the rule take the same role", () => {
+  // The defect this closes: the badge read P.brand.fill directly while the wordmark read a
+  // role that tokenCss had resolved to Ink Black, so the two halves of one lockup rendered
+  // in different identities on every state-bearing surface.
+  const wordmark = UI_CSS.split("}").find((r) => r.split("{")[0]?.includes(".ac-wordmark{") || /\.ac-wordmark\{/.test(r + "{"));
+  const rules = UI_CSS.split("}");
+  const find = (sel: string) => rules.find((r) => (r.split("{")[0] ?? "").trim().endsWith(sel));
+  for (const sel of [".ac-wordmark", ".ac-mast__rule"]) {
+    const rule = find(sel);
+    assert.ok(rule, `${sel} has no rule`);
+    assert.match(rule!, /var\(--color-livery\)/, `${sel} must take the livery role, not the surface-fenced brand role`);
+    assert.doesNotMatch(rule!, /var\(--color-brand/, `${sel} still reads a neutralised brand role`);
+  }
+  void wordmark;
 });
 
 test("the wordmark script is confined to the masthead, and never sets an interface", () => {

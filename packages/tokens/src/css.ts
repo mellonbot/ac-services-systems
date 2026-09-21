@@ -56,6 +56,10 @@ export const SEMANTIC_DARK = Object.freeze({
   "color.brand": P.brand.fill,
   "color.brand-ink": P.brand.onFill,
   "color.brand-text": P.brand.bright,
+  // Identical on this ground. The lockup is one mark, not two calibrations of one —
+  // see the livery note in semantic.ts. 3.48:1 on the plate ground, its worst case.
+  "color.livery": P.brand.fill,
+  "color.livery-ink": P.ink.black,
   "color.status-ok": P.plate.jade,
   "color.status-at-risk": P.plate.amber,
   "color.status-breached": P.plate.frost,
@@ -75,6 +79,9 @@ export const semanticFor = (density: Density): Readonly<Record<SemanticToken, st
  * back to Ink Black everywhere a state renders. In the field tier "Ink Black"
  * is frost — the plate ground's own ink.
  */
+// `color.livery` and `color.livery-ink` are deliberately absent from what follows. They
+// are fenced by ELEMENT — the masthead lockup only — so the badge and the wordmark beside
+// it render as one mark on every surface. See LIVERY_ROLES in semantic.ts.
 export const neutralBrand = (density: Density): Readonly<Record<string, string>> => {
   const sem = semanticFor(density);
   return {
