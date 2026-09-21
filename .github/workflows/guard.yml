@@ -1,6 +1,6 @@
 name: guard
 
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 
 # The workflow reads the repository and nothing else. Stated rather than
 # inherited, because the default token permissions are a repository setting
