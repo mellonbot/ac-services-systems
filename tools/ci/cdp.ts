@@ -41,6 +41,59 @@ export const findChrome = (): string | null => {
   return null;
 };
 
+/**
+ * THE COLD START IS THE FIRST DRIVE'S BILL, and it is not small.
+ *
+ * The first browser launch in a job pays for a page-cache miss on the binary
+ * and a profile that does not exist yet; every later launch in the same job is
+ * warm. Measured on ubuntu-latest, same commit, same `/usr/bin/chromium-browser`:
+ * 9.9s and 15.5s cold on two green runs, over 20s on a red one — against 2.6s
+ * warm for the three drives that follow.
+ *
+ * C4 runs first, so C4 always pays it, which is why C4 is the step that flaked
+ * and the other three never did. The old budget was 20s: inside that spread,
+ * not above it.
+ */
+export const COLD_START_OBSERVED_MS = 20_000;
+
+/**
+ * How long a cold Chrome may take to advertise its endpoint. Three times the
+ * worst cold start we have measured — a deadline is for a browser that is
+ * WEDGED, and it earns nothing by sitting close to one that is merely slow.
+ * AC_CHROME_BOOT_MS raises it for a runner that is slower still.
+ */
+export const bootBudgetMs = (): number => {
+  const raw = process.env.AC_CHROME_BOOT_MS?.trim();
+  if (!raw) return 3 * COLD_START_OBSERVED_MS;
+  const n = Number(raw);
+  // Defaulting past a value somebody typed on purpose is the same quiet
+  // failure as findChrome falling back from a pinned AC_CHROME.
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`AC_CHROME_BOOT_MS must be a positive number of milliseconds, got ${JSON.stringify(raw)}`);
+  }
+  return n;
+};
+
+/**
+ * Resolve the ws:// endpoint Chrome prints to stderr once it is listening.
+ * Exits reject at once rather than waiting the budget out: a browser that died
+ * at one second should not cost a minute of CI before it says so.
+ */
+export const awaitEndpoint = (proc: ChildProcess, budgetMs: number = bootBudgetMs()): Promise<string> =>
+  new Promise<string>((resolve, reject) => {
+    let buf = "";
+    const to = setTimeout(
+      () => reject(new Error(`chrome did not print a debugger endpoint in ${budgetMs}ms\n${buf}`)),
+      budgetMs,
+    );
+    proc.stderr!.on("data", (d) => {
+      buf += String(d);
+      const m = buf.match(/ws:\/\/[^\s]+/);
+      if (m) { clearTimeout(to); resolve(m[0]); }
+    });
+    proc.on("exit", (code) => { clearTimeout(to); reject(new Error(`chrome exited ${code}\n${buf}`)); });
+  });
+
 type Msg = { id?: number; method?: string; params?: Record<string, unknown>; result?: Record<string, unknown>; error?: { message: string }; sessionId?: string };
 
 export class Cdp {
@@ -59,16 +112,7 @@ export class Cdp {
       "--remote-debugging-port=0", `--user-data-dir=${c.profile}`, "about:blank",
     ], { stdio: ["ignore", "pipe", "pipe"] });
 
-    const endpoint = await new Promise<string>((resolve, reject) => {
-      let buf = "";
-      const to = setTimeout(() => reject(new Error(`chrome did not print a debugger endpoint\n${buf}`)), 20_000);
-      c.proc.stderr!.on("data", (d) => {
-        buf += String(d);
-        const m = buf.match(/ws:\/\/[^\s]+/);
-        if (m) { clearTimeout(to); resolve(m[0]); }
-      });
-      c.proc.on("exit", (code) => { clearTimeout(to); reject(new Error(`chrome exited ${code}\n${buf}`)); });
-    });
+    const endpoint = await awaitEndpoint(c.proc);
 
     c.ws = new WebSocket(endpoint);
     await new Promise<void>((res, rej) => { c.ws.onopen = () => res(); c.ws.onerror = () => rej(new Error("cdp socket failed")); });
