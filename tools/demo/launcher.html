@@ -160,6 +160,17 @@ const GUIDE = {
       "Switch to the <b>West dispatcher</b>. Only San Jose's work is visible; region scoping is the gateway's, not the page's.",
     ],
   },
+  S4: {
+    about: "The HQ view for Rankine's leadership: every region and the whole company at once, in four areas. It is read only. There is no write operation for S4, and the database refuses the gateway any write on the figures. In the product, the worker recomputes the figures every 15 minutes; here they are recomputed from the demo's data each time the page reads them.",
+    steps: [
+      "<b>Company</b>: four areas, company figure first. Pills appear only where a number is a state: at risk, breached, past terms, unverified.",
+      "In the region grid, <b>West</b> is below its D14 density rule (1 crew against 2). Open it for every figure in that region.",
+      "Open <b>Service &amp; SLA → By region</b>. There's a company total row, and you can pick any figure to chart its 30-day trend per region.",
+      "Go to S3 and dispatch the Austin emergency, then come back and press <b>Reload surface</b>. Unassigned and At risk drop, and Answered in time moves.",
+      "In S8, dispute Lone Star's August statement. Back here, <b>Statements in dispute</b> shows 1 with a pill.",
+      "Submit a lead in S1. <b>Leads</b> under Growth goes up. Leads are counted company-wide because they have no region until the office works them, and <b>Customers</b> counts Amped once even though it is served in three regions.",
+    ],
+  },
   S5: {
     about: "The technician's web fallback. It signs in with the technician's credential plus the device in hand, and works offline: actions queue on the device and replay in order.",
     steps: [
@@ -302,5 +313,5 @@ $("outage").addEventListener("click", () => {
 });
 
 const start = location.hash.slice(1);
-select(byId[start]?.built ? start : "S2");
+select(byId[start]?.built ? start : "S4");
 </script>

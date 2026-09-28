@@ -4,7 +4,7 @@
  *
  *   node tools/demo/build.ts        → tools/demo/dist/index.html
  *
- * Each surface is bundled from its own src/app.ts exactly as
+ * Each surface (all but S7) is bundled from its own src/app.ts exactly as
  * tools/ci/build-surface.ts bundles it, with two substitutions and nothing
  * else:
  *   - the History API behind `browserHistory` is swapped for an in-memory path,
@@ -24,7 +24,7 @@ import { UI_CSS } from "../../packages/ui/src/styles.ts";
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const HERE = fileURLToPath(new URL("./", import.meta.url));
 const OUT = join(HERE, "dist");
-const BUILT: SurfaceId[] = ["S1", "S2", "S3", "S5", "S6", "S8"];
+const BUILT: SurfaceId[] = ["S1", "S2", "S3", "S4", "S5", "S6", "S8"];
 const FONTS = `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Yellowtail&display=swap">`;
 
 const memoryHistory: Plugin = {
