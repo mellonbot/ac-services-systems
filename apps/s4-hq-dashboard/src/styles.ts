@@ -56,4 +56,15 @@ export const S4_CSS = `
 .s4-refusal__heading{margin:0 0 var(--space-2);font-size:var(--text-md)}
 .s4-refusal__message{margin:0 0 var(--space-2)}
 @media (max-width:760px){.s4-nav__who{order:2;width:100%;margin-inline-start:0}.s4-tiles{grid-template-columns:1fr}}
+
+/* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */
+.s4-nav{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px;margin:0 0 var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-card);background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface))}
+.s4-nav__link{display:inline-flex;align-items:center;padding:var(--space-2) var(--space-4);border-radius:var(--radius-control);color:var(--color-text-muted);font-weight:600;text-decoration:none;box-shadow:none}
+.s4-nav__link[data-current="true"]{background:var(--color-surface);color:var(--color-action-text);box-shadow:var(--elevation-raised)}
+.s4-nav__who{padding:0 var(--space-2)}
+.s4-nav__logout{padding:var(--space-2) var(--space-3);border-radius:var(--radius-control)}
+.s4-input{border-radius:var(--radius-control)}
+.s4-area,.s4-metric,.s4-refusal,.s4-trend{border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.s4-h1{font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);text-transform:none;line-height:1.15}
+.s4-h2{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-tight);text-transform:none}
 `;

@@ -1,4 +1,4 @@
-import { html, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, ContractWire, ContractState, OrganizationWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { signal } from "../../../../packages/ui/src/index.ts";
 import { keyOf } from "../state.ts";
@@ -113,7 +113,7 @@ export const contractsList: Screen = (ctx, params) => {
   const contracts = store.read(keyOf("contracts.list", { orgId }), () => shell.gateway.listContracts({ orgId }));
   const tree = store.read(keyOf("accounts.list", { orgId }), () => shell.gateway.listAccounts({ orgId }));
 
-  return html`<div class="s2-two-col">
+  return html`${pageHead("Agreements", "The signed agreements for each customer and where each one stands. Terms set in an agreement flow down its tree unless a closer node overrides them.")}<div class="s2-two-col">
     <aside class="s2-col--orgs">${whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations))}</aside>
     ${whenReady(ctx, contracts.value, (c) =>
       whenReady(ctx, tree.value, (t) =>

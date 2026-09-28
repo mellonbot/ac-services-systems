@@ -1,4 +1,4 @@
-import { html, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, statStrip, pageHead, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { PurchaseOrderWire, PoLineWire, VendorInvoiceWire, RmaWire, PurchaseOrderDetailOutput } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import {
@@ -16,8 +16,13 @@ const REFRESH = ["pos.", "vendorInvoices.list", "rmas.list"];
 export const orders: Screen = (ctx) => {
   const list = ctx.store.read(keyOf("pos.list", {}), () => ctx.shell.gateway.listPurchaseOrders({}));
   return html`<section class="s7-orders">
-    <h1 class="s7-h1">Orders</h1>
-    <p class="s7-lede">Purchase orders from Rankine. Acknowledge each with the day it will ship, record shipments as they leave, and invoice what Rankine has received.</p>
+    ${pageHead("Orders", "Purchase orders from Rankine. Acknowledge each with the day it will ship, record shipments as they leave, and invoice what Rankine has received.")}
+    ${whenReady(ctx, list.value, (o) => statStrip([
+      { n: o.orders.filter((x) => x.state === "issued").length, label: "Need your acknowledgement", ...(o.orders.some((x) => x.state === "issued") ? { tone: "at_risk" as const } : {}) },
+      { n: o.orders.filter((x) => x.state === "acknowledged").length, label: "Open", tone: "info" },
+      { n: o.orders.filter((x) => x.state === "received").length, label: "Received in full", tone: "ok" },
+      { n: o.orders.length, label: "All orders" },
+    ], "order-stats"))}
     ${whenReady(ctx, list.value, (o) => html`<div class="s7-scroll">${DataGrid({
       density: ctx.density, caption: "Newest first", rows: o.orders, rowKey: (r: PurchaseOrderWire) => r.id,
       emptyText: "No orders yet. An order appears here when Rankine issues it.",

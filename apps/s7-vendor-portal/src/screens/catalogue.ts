@@ -1,4 +1,4 @@
-import { html, DataGrid, StatusPill } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, DataGrid, StatusPill } from "../../../../packages/ui/src/index.ts";
 import type { CatalogItemWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, act, outcomeSignal, outcomeView, submitAction, formValues, money, toMinor, today, type Screen } from "./common.ts";
@@ -27,8 +27,7 @@ export const catalogue: Screen = (ctx) => {
   }, ["catalog.list"]);
 
   return html`<section class="s7-catalogue">
-    <h1 class="s7-h1">Catalogue</h1>
-    <p class="s7-lede">Your items as Rankine orders them. Propose a new price from a day; it applies once Rankine accepts it, and orders already raised keep their price.</p>
+    ${pageHead("Catalogue", "Your items as Rankine orders them. Propose a new price from a day; it applies once Rankine accepts it, and orders already raised keep their price.")}
     ${whenReady(ctx, list.value, (c) => html`
       <div class="s7-scroll">${DataGrid({
         density: ctx.density, caption: "Items", rows: c.items, rowKey: (r: CatalogItemWire) => r.id, emptyText: "Rankine has not added any of your items yet.",

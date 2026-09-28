@@ -105,7 +105,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   };
 
   const nav = (screen: "firm" | "crews" | "work" | "statements", label: string): VNode =>
-    html`<a class="s8-link" href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
+    html`<a class="s8-nav__link" data-current=${router.current.value?.screen === screen || (screen === "statements" && router.current.value?.screen === "statement") || (screen === "crews" && router.current.value?.screen === "documents") ? "true" : "false"} href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
 
   const view = (): VNode => {
     const p = phase.value;

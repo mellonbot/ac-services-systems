@@ -1,4 +1,4 @@
-import { html, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { FirmWire, FirmStatus, CrewWire, CrewDocumentSummary, RegionWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, linkTo, type Screen, type ScreenContext } from "./common.ts";
@@ -165,7 +165,7 @@ export const network: Screen = (ctx, params) => {
     </section>`;
   };
 
-  return html`<div class="s2-two-col">
+  return html`${pageHead("Network", "The subcontractor firms we dispatch, their crews, and whether each crew's documents clear the gate today.")}<div class="s2-two-col">
     <aside class="s2-col--orgs">${whenReady(ctx, firms.value, (f) => firmGrid(f.firms))}</aside>
     ${whenReady(ctx, regions.value, (r) =>
       firmId

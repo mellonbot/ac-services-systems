@@ -97,7 +97,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const notice = p.store.notice.value;
     return html`<div class="s5-app">
       <nav class="s5-nav" aria-label="Screens">
-        <a class="s5-link" href=${router.href("jobs", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>My jobs</a>
+        <a class="s5-nav__link" data-current=${loc?.screen === "jobs" ? "true" : "false"} href=${router.href("jobs", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>My jobs</a>
         <span class="s5-nav__who">${p.crew.label}</span>
         <button type="button" class="s5-nav__logout" onClick=${logout}>Sign out</button>
       </nav>

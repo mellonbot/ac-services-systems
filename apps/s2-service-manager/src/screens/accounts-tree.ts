@@ -1,4 +1,4 @@
-import { html, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, OrganizationWire, RegionWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, linkTo, type Screen } from "./common.ts";
@@ -75,7 +75,7 @@ export const accountsTree: Screen = (ctx, params) => {
     </section>`;
   };
 
-  return html`<div class="s2-two-col">
+  return html`${pageHead("Accounts", "Every customer and its tree of regions, locations and sites, against the regions we serve them from. Pick a customer to see its tree.")}<div class="s2-two-col">
     <aside class="s2-col s2-col--orgs">
       ${whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations), () => store.invalidate("organizations.list"))}
       <p class="s2-aside-actions">${linkTo(ctx, "organizations.new", {}, "+ New customer", "ac-action s2-link--action")}</p>

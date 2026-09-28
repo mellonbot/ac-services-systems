@@ -46,4 +46,14 @@ export const S1_CSS = `
 .s1-refusal__routes{display:flex;gap:var(--space-3)}
 .s1-call{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);color:var(--color-action);text-decoration:none;font-weight:600}
 .s1-foot{margin-top:var(--space-6);padding-top:var(--space-3);border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size:var(--text-sm)}
+
+/* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */
+.s1-input,.s1-textarea{border-radius:var(--radius-control)}
+.s1-queued,.s1-refusal,.s1-sent{border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.s1-h1{font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);text-transform:none;line-height:1.15}
+.s1-h2{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-tight);text-transform:none}
+.s1-metros li{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-3) var(--space-4)}
+.s1-cta,.s1-form button{border-radius:var(--radius-control)}
+.s1-form{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-4)}
+.s1-nav{border-bottom:0}
 `;

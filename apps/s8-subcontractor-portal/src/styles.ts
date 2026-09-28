@@ -40,4 +40,18 @@ export const S8_CSS = `
 .s8-sent{padding:var(--space-2) var(--space-3);border:1px solid var(--color-status-ok);background:var(--color-surface);max-width:64ch}
 .s8-position{display:grid;grid-template-columns:repeat(auto-fit,minmax(28ch,1fr));gap:var(--space-6);margin-top:var(--space-4)}
 @media (max-width:760px){.s8-nav{align-items:stretch;flex-wrap:wrap}.s8-nav__who{order:2;width:100%;margin-inline-start:0}.s8-field--pair{flex-direction:column}}
+
+/* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */
+.s8-nav{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px;margin:0 0 var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-card);background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface))}
+.s8-nav__link{display:inline-flex;align-items:center;padding:var(--space-2) var(--space-4);border-radius:var(--radius-control);color:var(--color-text-muted);font-weight:600;text-decoration:none;box-shadow:none}
+.s8-nav__link[data-current="true"]{background:var(--color-surface);color:var(--color-action-text);box-shadow:var(--elevation-raised)}
+.s8-nav__who{padding:0 var(--space-2)}
+.s8-nav__logout{padding:var(--space-2) var(--space-3);border-radius:var(--radius-control)}
+.s8-input,.s8-textarea{border-radius:var(--radius-control)}
+.s8-refusal,.s8-sent{border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.s8-h1{font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);text-transform:none;line-height:1.15}
+.s8-h2{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-tight);text-transform:none}
+.s8-facts>div{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.s8-summary{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-3) var(--space-4)}
+.s8-form{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-4)}
 `;

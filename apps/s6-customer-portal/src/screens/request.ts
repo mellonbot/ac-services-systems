@@ -1,4 +1,4 @@
-import { html, signal, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { Refusal, ServiceRequestPriority } from "../../../../packages/contracts/src/index.ts";
 import { whenReady, readNodes, treeOf, submitAction, refusalView, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
@@ -55,7 +55,7 @@ export const request: Screen = (ctx, params) => {
 
   const o = outcome.value;
   return html`<section class="s6-request">
-    <h1 class="s6-h1">Request service</h1>
+    ${pageHead("Request service", "Tell us which site and what is wrong. It goes straight to the office for that region, and you can follow it under Work.")}
     ${whenReady(ctx, nodes.value, (out) => {
       const tree = treeOf(out.nodes);
       const sites = tree.ofTier("site");

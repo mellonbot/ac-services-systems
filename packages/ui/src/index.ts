@@ -18,4 +18,5 @@ export * from "./components/compliance-badge.ts";
 export * from "./components/refusal-card.ts";
 export * from "./components/degraded-banner.ts";
 export * from "./router.ts";
+export * from "./layout.ts";
 export { UI_CSS } from "./styles.ts";

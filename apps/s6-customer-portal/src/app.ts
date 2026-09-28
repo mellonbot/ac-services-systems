@@ -112,7 +112,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   };
 
   const nav = (screen: Exclude<ScreenId, "login" | "terms" | "request" | "site">, label: string): VNode =>
-    html`<a class="s6-link" href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
+    html`<a class="s6-nav__link" data-current=${router.current.value?.screen === screen ? "true" : "false"} href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
 
   const view = (): VNode => {
     const p = phase.value;

@@ -133,10 +133,19 @@ export const tokenCss = (density: Density, opts: FrameOptions = {}): string => {
   );
   for (const [role, f] of Object.entries(FACES)) lines.push(`--font-${role}:${f.stack}`);
   for (const [k, v] of Object.entries(P.space)) lines.push(`--space-${k}:${v}`);
-  // `none` only. `radius.icon` and `radius.app` are artwork primitives with their
-  // own substrate rules (an OS icon, an embroidered patch); a surface that could
-  // read them is a surface that could round a corner.
-  lines.push(`--radius-none:${P.radius.none}`);
+  // Rev A: the three drawn radii and `none`. `radius.icon` and `radius.app` are
+  // artwork primitives with their own substrate rules (an OS icon, an
+  // embroidered patch) and stay out of a surface's reach.
+  lines.push(`--radius-none:${P.radius.none}`, `--radius-control:${P.radius.control}`, `--radius-card:${P.radius.card}`, `--radius-pill:${P.radius.pill}`);
+  // Rev A elevation. No new ink: a shadow is the tier's darkest role mixed to a
+  // few per cent — Ink Black on the light stock, the sunken well on the field
+  // ground (where an ink-coloured shadow would be a cream glow).
+  const shade = d.surface === "dark" ? "var(--color-surface-sunken)" : "var(--color-text)";
+  const [soft, spread] = d.surface === "dark" ? [40, 32] : [7, 6];
+  lines.push(
+    `--elevation-card:0 1px 2px color-mix(in srgb,${shade} ${soft}%,transparent),0 4px 14px color-mix(in srgb,${shade} ${spread}%,transparent)`,
+    `--elevation-raised:0 1px 3px color-mix(in srgb,${shade} ${soft + 4}%,transparent),0 2px 6px color-mix(in srgb,${shade} ${spread}%,transparent)`,
+  );
   // The type scale is the DENSITY's, not a shared constant — see TYPE_SCALE.
   for (const [k, v] of Object.entries(TYPE_SCALE[density])) lines.push(`--text-${k}:${v}`);
   for (const [k, v] of Object.entries(P.track)) lines.push(`--track-${k}:${v}`);

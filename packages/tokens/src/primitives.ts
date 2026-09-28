@@ -62,8 +62,14 @@ export const PRIMITIVES = Object.freeze({
   },
 
   space: { 0: "0px", 1: "4px", 2: "8px", 3: "12px", 4: "16px", 6: "24px", 8: "32px", 12: "48px" },
-  /** No rounded corner anywhere the system draws. The other two exist because an OS app icon has its own substrate rules. */
-  radius: { none: "0px", icon: "8px", app: "16px" },
+  /**
+   * Bulletin No. 2 Rev A (2026-09-27): the system draws rounded corners at three
+   * steps — a control, a card, and a pill (a chip or a segmented tab). `none`
+   * stays for the rules and plates that are straight on purpose (the masthead
+   * rule, a table's head). `icon` and `app` remain artwork primitives with their
+   * own substrate rules and are not emitted to a surface.
+   */
+  radius: { none: "0px", control: "8px", card: "12px", pill: "999px", icon: "8px", app: "16px" },
   text: { xs: "11px", sm: "13px", md: "15px", lg: "18px", xl: "22px", display: "28px", mast: "40px" },
   /** Tracking is load-bearing: a typed label is +0.14em and up; the script wordmark takes none at all. */
   track: { tight: "0.02em", normal: "0.05em", mark: "0.07em", wide: "0.14em", wider: "0.24em", widest: "0.34em" },

@@ -1,4 +1,4 @@
-import { html, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
 import type { ContractWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, type Screen } from "./common.ts";
@@ -32,7 +32,7 @@ export const agreements: Screen = (ctx) => {
     return (nodes.value.state === "ready" ? treeOf(nodes.value.value.nodes).byId.get(c.scopeId)?.name : undefined) ?? "A node outside your view";
   };
   return html`<section class="s6-agreements">
-    <h1 class="s6-h1">Agreements</h1>
+    ${pageHead("Agreements", "The agreements your account is served under, where each applies, and whether it is in force.")}
     ${whenReady(ctx, contracts.value, (out) => DataGrid<ContractWire>({
       density: ctx.density,
       caption: "Agreements recorded for this account",

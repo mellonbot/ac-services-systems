@@ -263,7 +263,8 @@ test("WORK: jobs in the customer's words, the SLA pill from the same numbers the
   assert.match(out, /Responded/, "a satisfied timer reads as responded");
   assert.doesNotMatch(out, /Crew<\/th>|Unassigned|currentCrew/, "no crew, by construction");
   assert.match(out, /Short-cycling\./);
-  assert.match(out, /Waiting for the office/);
+  assert.match(out, /It is with the office/, "a request with no job yet reads as with the office, in the customer's words");
+  assert.match(out, /data-state="current" aria-current="step"><span class="s6-step__dot" aria-hidden="true"><\/span><span class="s6-step__label">Requested/, "the stepper stands on Requested");
   assert.equal(STATE_WORD.awaiting_parts, "Awaiting parts");
   assert.equal(isOpen({ state: "complete" }), false);
   assert.equal(isOpen({ state: "created" }), true);
@@ -343,4 +344,16 @@ test("a refused read renders the heading, the message and a retry route; sign ou
   assert.match(out, /Try again/);
   await app.logout();
   assert.match(render(app.view()), /id="login-form"/);
+});
+
+test("the request stepper: the customer's five steps, from our job states, and a cancelled job stops rather than lying", async () => {
+  const { stepOf, STEPS } = await import("./screens/work.ts");
+  assert.deepEqual([...STEPS], ["Requested", "Scheduled", "In progress", "Completed", "Invoiced"]);
+  assert.equal(stepOf({ jobState: null }), 0);
+  assert.equal(stepOf({ jobState: "created" }), 0);
+  assert.equal(stepOf({ jobState: "en_route" }), 1);
+  assert.equal(stepOf({ jobState: "awaiting_parts" }), 2);
+  assert.equal(stepOf({ jobState: "complete" }), 3);
+  assert.equal(stepOf({ jobState: "invoiced" }), 4);
+  assert.equal(stepOf({ jobState: "cancelled" }), -1);
 });

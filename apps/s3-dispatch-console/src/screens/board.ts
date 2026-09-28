@@ -28,6 +28,22 @@ export const isReleasable = (job: JobWire): boolean => job.state === "assigned" 
 /** A job is dispatchable when nobody currently holds it and it has not moved past the point dispatch.assign accepts (see assignCrew's own WHERE). */
 export const isDispatchable = (job: JobWire): boolean => job.currentCrewId === null && (job.state === "created" || job.state === "reassigned");
 
+const CLOSED = ["complete", "invoiced", "cancelled", "aborted"];
+/** The strip above the board: what a dispatcher reads before the rows. Counts of the rows the gateway returned — no filter of its own. */
+export const boardStats = (jobs: readonly JobWire[], now: number) => {
+  const open = jobs.filter((j) => !CLOSED.includes(j.state));
+  const unassigned = open.filter((j) => !j.currentCrewId).length;
+  const atRisk = open.filter((j) => j.slaDueAt && !j.slaSatisfiedAt && ((j.slaEscalationStage ?? 0) > 0 || Date.parse(j.slaDueAt) - now <= 60 * 60_000)).length;
+  const crews = new Set(open.map((j) => j.currentCrewId).filter(Boolean)).size;
+  const tile = (n: number, label: string, tone?: string) => html`<div class="ac-stat" data-tone=${tone}><span class="ac-stat__n">${n}</span><span class="ac-stat__l">${label}</span></div>`;
+  return html`<div class="ac-stats" id="board-stats">
+    ${tile(open.length, "Open jobs")}
+    ${tile(unassigned, "Unassigned", unassigned ? "at_risk" : undefined)}
+    ${tile(atRisk, "At risk now", atRisk ? "breached" : undefined)}
+    ${tile(crews, "Crews out", "info")}
+  </div>`;
+};
+
 export const board: Screen = (ctx) => {
   const jobsKey = keyOf("jobs.list", {});
   const jobs = ctx.store.read(jobsKey, () => ctx.shell.gateway.listJobs({}));
@@ -45,7 +61,11 @@ export const board: Screen = (ctx) => {
   };
 
   return html`<section class="s3-board">
-    <h1 class="s3-h1">Dispatch board</h1>
+    <header class="ac-page-head">
+      <div><h1 class="ac-page-head__title">Dispatch board</h1>
+        <p class="ac-page-head__lede">Every job in your region with its response clock. Dispatch runs through the compliance gate; a crew that does not clear the whole service window is refused in plain words.</p></div>
+    </header>
+    ${whenReady(ctx, jobs.value, (out) => boardStats(out.jobs, now))}
     ${whenReady(ctx, jobs.value, (out) => DataGrid<JobWire>({
       density: ctx.density,
       caption: "Jobs visible to this region",
@@ -53,6 +73,7 @@ export const board: Screen = (ctx) => {
       rows: out.jobs,
       rowKey: (j) => j.id,
       columns: [
+        { key: "site", header: "Site", cell: (j) => j.siteName ?? html`<span class="s3-muted">—</span>` },
         { key: "serviceCode", header: "Service" },
         { key: "priority", header: "Priority" },
         { key: "state", header: "State" },

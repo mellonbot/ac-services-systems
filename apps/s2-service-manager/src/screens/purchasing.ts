@@ -1,4 +1,4 @@
-import { html, signal, DataGrid, StatusPill, type VNode, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, signal, DataGrid, StatusPill, type VNode, type Status } from "../../../../packages/ui/src/index.ts";
 import type {
   Refusal, VendorWire, ReceivingPointWire, CatalogItemWire, PurchaseOrderWire, PoLineWire, PoState, VendorInvoiceWire, RmaWire, RegionWire,
 } from "../../../../packages/contracts/src/index.ts";
@@ -101,7 +101,7 @@ export const purchasing: Screen = (ctx) => {
   const regionOptions = (rs: readonly RegionWire[]) => rs.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.name}</option>`);
 
   return html`<section class="s2-purchasing">
-    <h1 class="s2-h1">Purchasing</h1>
+    ${pageHead("Purchasing", "Orders to vendors, the vendors themselves, and where they deliver. A vendor sees an order once it is issued.")}
     <h2 class="s2-h2">Purchase orders</h2>
     ${whenReady(ctx, orders.value, (o) => DataGrid({
       density: ctx.density, caption: "Every order, newest first",

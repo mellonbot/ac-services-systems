@@ -160,13 +160,16 @@ test("every step of the type scale moves with the density, and nothing is set be
   assert.deepEqual(TYPE_SCALE.comfort, P.text);
 });
 
-test("the frame carries its own density's scale, and no artwork radius a surface could round a corner with", () => {
+test("the frame carries its own density's scale, Rev A's three radii and its elevation, and no artwork radius", () => {
   for (const d of DENSITIES) {
     const css = tokenCss(d);
     for (const [step, v] of Object.entries(TYPE_SCALE[d])) assert.ok(css.includes(`--text-${step}:${v}`), `${d} lacks --text-${step}:${v}`);
-    assert.ok(css.includes("--radius-none:0px"));
+    for (const r of ["--radius-none:0px", "--radius-control:8px", "--radius-card:12px", "--radius-pill:999px"]) assert.ok(css.includes(r), `${d} lacks ${r}`);
     assert.doesNotMatch(css, /--radius-(icon|app)/, "an icon and a patch are artwork with their own substrate rules");
+    assert.match(css, /--elevation-card:[^;]*color-mix\(in srgb,var\(--color-(text|surface-sunken)\)/, "a shadow is an existing role, mixed — never a new ink");
+    assert.doesNotMatch(css.match(/--elevation-card:[^;]+/)![0], /#|\brgba?\(/i);
   }
+  assert.match(tokenCss("field"), /--elevation-card:[^;]*--color-surface-sunken/, "the field ground's shadow is its well, not a cream glow");
   assert.notEqual(tokenCss("field").match(/--text-xs:[^;]+/)?.[0], tokenCss("console").match(/--text-xs:[^;]+/)?.[0]);
 });
 
