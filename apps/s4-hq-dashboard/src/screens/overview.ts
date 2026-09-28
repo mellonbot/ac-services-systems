@@ -33,7 +33,7 @@ export const headline = (f: Figures): Readonly<Record<HqArea, readonly Tile[]>> 
     growth: [
       { label: "Leads, 30 days", figure: count(f.of("leads_30d")), sub: `${count(f.of("leads_web_form_30d"))} web form · ${count(f.of("leads_call_button_30d"))} call button · ${count(f.of("leads_referral_30d"))} referral` },
       { label: "Service requests, 30 days", figure: count(f.of("service_requests_30d")) },
-      { label: "Customers served", figure: count(f.of("customers_active")), sub: `${count(f.of("customers_new_30d"))} new in 30 days` },
+      { label: "Customers", figure: count(f.of("customers_total")), sub: `${count(f.of("customers_new_total_30d"))} new in 30 days` },
       { label: "Sites", figure: count(f.of("sites_active")) },
     ],
   };

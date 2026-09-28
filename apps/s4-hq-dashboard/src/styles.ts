@@ -18,7 +18,9 @@ export const S4_CSS = `
 .s4-loading,.s4-empty,.s4-muted{color:var(--color-text-muted)}
 .s4-link{color:var(--color-action-text);text-decoration:none}
 .s4-link:hover{text-decoration:underline}
-.s4-areas{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,42ch),1fr));gap:var(--space-4)}
+.s4-areas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}
+@media (min-width:1360px){.s4-areas{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:640px){.s4-areas{grid-template-columns:1fr}}
 .s4-area{border:1px solid var(--color-border);background:var(--color-surface);padding:var(--space-3) var(--space-4);display:flex;flex-direction:column;gap:var(--space-3)}
 .s4-area__head{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-2)}
 .s4-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3);margin:0}

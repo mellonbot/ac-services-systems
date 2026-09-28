@@ -15,7 +15,7 @@ demonstrably run without it"). The enablement is recorded under OPEN-S4 in
 
 | Layer | Where | What |
 |---|---|---|
-| Register | `packages/contracts/src/hq.ts` | 34 figures in four areas (service & SLA, revenue & money, network & compliance, growth & web), each with its unit, window and one sentence of meaning. Every figure is additive across regions. |
+| Register | `packages/contracts/src/hq.ts` | 36 figures in four areas (service & SLA, revenue & money, network & compliance, growth & web), each with its unit, window and one sentence of meaning. Every figure is additive across regions. |
 | Table | `packages/schema/src/tables/hq.ts`, 0001 regenerated | `hq_metrics`: one row per (UTC day, region, metric), `as_of` the refresh that wrote it. |
 | Migration | `0010_hq_rollup.sql` | RLS: the internal namespace reads every row, everyone else none; INSERT/UPDATE only when bound as the worker; the gateway and read-only roles hold SELECT and nothing else. |
 | Worker | `apps/worker/src/rollup.ts`, `main.ts` | One SQL expression per figure, evaluated for every region in one upsert per figure, every 15 minutes, from the unregioned worker. The gate's required document kinds come from `domain/compliance`. |
@@ -27,6 +27,10 @@ demonstrably run without it"). The enablement is recorded under OPEN-S4 in
 - **Rates are divided on the screen, never stored.** "Answered in time" is
   `sla_met_30d / sla_closed_30d`; the company rate is the sum over the sum, not
   the mean of regional rates. Nothing closed shows "—", not 0%.
+- **A distinct count is not additive.** A customer served in three regions is one
+  customer, so `customers_total` and `customers_new_total_30d` are written on the
+  UNASSIGNED row alone and zero on every region; the sum over regions is then
+  still right. The per-region figures are labelled "in region".
 - **Leads have no region** until the office works them, so they roll up under
   UNASSIGNED and appear only in the Growth area as "Not yet placed".
 - **Payments are not recorded yet**, so "Past due date" is an upper bound on

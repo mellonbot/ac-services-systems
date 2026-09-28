@@ -9,7 +9,10 @@
  *
  * Every value is ADDITIVE across regions — a count or an integer sum of minor
  * units — so the company figure is the sum of the region rows and no screen
- * ever averages an average. A rate (SLA met %) is derived on the screen from
+ * ever averages an average. A DISTINCT count is not additive (a customer served
+ * in three regions is one customer), so a company-wide distinct figure is its
+ * own key, written on the UNASSIGNED row alone and zero elsewhere: summing the
+ * regions still gives the right answer. A rate (SLA met %) is derived on the screen from
  * two counts that are both here.
  *
  * `window` says what the number covers: `now` is the state at the rollup's
@@ -76,14 +79,19 @@ export const HQ_METRICS = {
   leads_referral_30d: { area: "growth", label: "Referrals", unit: "count", window: "30d", means: "Leads recorded as referrals." },
   calls_inbound_30d: { area: "growth", label: "Inbound calls", unit: "count", window: "30d", means: "Calls recorded from the website's call button." },
   service_requests_30d: { area: "growth", label: "Service requests", unit: "count", window: "30d", means: "Requests customers raised in their portal (S6)." },
-  customers_active: { area: "growth", label: "Customers served", unit: "count", window: "now", means: "Customer organizations with an active node in the region." },
-  customers_new_30d: { area: "growth", label: "New customers", unit: "count", window: "30d", means: "Customer organizations recorded in the thirty days with a node in the region." },
+  customers_active: { area: "growth", label: "Customers in region", unit: "count", window: "now", means: "Customer organizations with an active node in the region. A customer served in three regions counts in each." },
+  customers_new_30d: { area: "growth", label: "New in region", unit: "count", window: "30d", means: "Customer organizations recorded in the thirty days with a node in the region." },
+  customers_total: { area: "growth", label: "Customers", unit: "count", window: "now", means: "Customer organizations with an active node anywhere, each counted once. Held on the unplaced row so the company figure is not a sum of regions." },
+  customers_new_total_30d: { area: "growth", label: "New customers", unit: "count", window: "30d", means: "Customer organizations recorded in the thirty days, each counted once." },
   sites_active: { area: "growth", label: "Sites", unit: "count", window: "now", means: "Active customer sites in the region." },
 } as const satisfies Record<string, HqMetric>;
 
 export type HqMetricKey = keyof typeof HQ_METRICS;
 export const HQ_METRIC_KEYS = Object.freeze(Object.keys(HQ_METRICS)) as readonly HqMetricKey[];
 export const isHqMetricKey = (s: string): s is HqMetricKey => Object.hasOwn(HQ_METRICS, s);
+
+/** Company-wide distinct figures: written on UNASSIGNED only, so a per-region view leaves them out. */
+export const HQ_COMPANY_ONLY: readonly HqMetricKey[] = ["customers_total", "customers_new_total_30d"];
 
 /** How often the worker refreshes. S4 calls a rollup older than twice this stale. */
 export const HQ_REFRESH_MINUTES = 15;

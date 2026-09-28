@@ -181,6 +181,8 @@ test("bound as the worker, one refresh writes every figure for every region, and
   assert.equal(await figure("min_crew_density", REGION_SOUTH), 2);
   assert.equal(await figure("locations_active", REGION_SOUTH), 1);
   assert.equal(await figure("customers_active", REGION_SOUTH), 1);
+  assert.equal(await figure("customers_total", UNASSIGNED_REGION_ID), 1, "distinct across the company, on the unplaced row");
+  assert.equal(await figure("customers_total", REGION_SOUTH), 0);
   assert.equal(await figure("firms_active", REGION_SOUTH), 1);
   assert.equal(await figure("invoiced_minor_30d", REGION_SOUTH), 250000);
   assert.equal(await figure("invoices_past_due_minor", REGION_SOUTH), 250000);

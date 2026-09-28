@@ -1,7 +1,7 @@
 import type { RelayTx } from "./relay.ts";
 import { HQ_METRIC_KEYS, type HqMetricKey } from "../../../packages/contracts/src/hq.ts";
 import { REQUIRED } from "../../../packages/domain/src/compliance/gate.ts";
-import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
+import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
 
 /**
  * ITEM 10 — THE HQ ROLLUP. What S4 reads, computed here and nowhere else.
@@ -27,6 +27,8 @@ const latestPosition = (col: string) =>
 
 /** The gate's required kinds per employment shape, as SQL — read from domain/compliance, not restated. */
 const requiredKinds = `CASE c.employment_type ${Object.entries(REQUIRED).map(([t, kinds]) => `WHEN '${t}' THEN ARRAY[${kinds.map((k) => `'${k}'`).join(",")}]`).join(" ")} END`;
+
+const onUnassigned = (sql: string) => `SELECT CASE WHEN r.id = '${UNASSIGNED_REGION_ID}'::uuid THEN (${sql}) ELSE 0 END`;
 
 const SLA_CLOSED = `(t.satisfied_at IS NOT NULL OR t.due_at < $1::timestamptz)`;
 const SLA_MET = `(t.satisfied_at IS NOT NULL AND t.satisfied_at <= t.due_at)`;
@@ -82,6 +84,11 @@ export const HQ_ROLLUP_SQL: Readonly<Record<HqMetricKey, string>> = {
   customers_new_30d: `SELECT count(DISTINCT a.org_id) FROM accounts a JOIN organizations o ON o.id = a.org_id
                        WHERE a.region_id = r.id AND o.kind = 'customer' AND ${WINDOW("o.created_at")}`,
   sites_active: count("accounts a", `a.region_id = r.id AND a.tier = 'site' AND a.active`),
+  // Distinct across the company: counted once, on the unplaced row, zero on every region (hq.ts).
+  customers_total: onUnassigned(`SELECT count(DISTINCT a.org_id) FROM accounts a JOIN organizations o ON o.id = a.org_id
+                                  WHERE a.active AND o.kind = 'customer' AND o.active`),
+  customers_new_total_30d: onUnassigned(`SELECT count(*) FROM organizations o
+                                          WHERE o.kind = 'customer' AND ${WINDOW("o.created_at")} AND EXISTS (SELECT 1 FROM accounts a WHERE a.org_id = o.id)`),
 };
 
 export const rollupStatement = (metric: HqMetricKey): string =>

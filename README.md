@@ -127,7 +127,7 @@ jobs, devices, service requests and settlements, with a regression that
 compares a typed ISO instant to the one that comes back. Detail:
 `claude/24_S6_Site_Card_Built.md`. **Item 10 is built (2026-09-27): S4 HQ
 Ops Dashboard, enabled** — Rankine's leadership reading the whole company,
-read only. Thirty-four figures in four areas (service & SLA, revenue & money,
+read only. Thirty-six figures in four areas (service & SLA, revenue & money,
 network & compliance, growth & web) are a register in
 `packages/contracts/src/hq.ts`; the worker computes each one per region every
 15 minutes into **`hq_metrics` (migration 0010)**, and S4 reads that table and

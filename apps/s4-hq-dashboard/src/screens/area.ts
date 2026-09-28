@@ -1,5 +1,5 @@
 import { html, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
-import { HQ_AREAS, HQ_AREA_TITLES, HQ_METRICS, HQ_METRIC_KEYS, type HqArea, type HqMetricKey, type HqHistoryOutput, type HqRegionWire } from "../../../../packages/contracts/src/index.ts";
+import { HQ_AREAS, HQ_AREA_TITLES, HQ_METRICS, HQ_METRIC_KEYS, HQ_COMPANY_ONLY, type HqArea, type HqMetricKey, type HqHistoryOutput, type HqRegionWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readMetrics, figures, show, asOfLine, linkTo, regionName, type Screen, type ScreenContext, type Figures } from "./common.ts";
 
@@ -14,7 +14,8 @@ const COMPANY: HqRegionWire = { id: "company", code: "ALL", name: "Company", act
 const chosen = signal<Partial<Record<HqArea, HqMetricKey>>>({});
 
 export const areaGrid = (ctx: ScreenContext, area: HqArea, f: Figures): VNode => {
-  const keys = metricsOf(area);
+  // A company-wide distinct figure has no per-region value to tabulate; it is on the trend and in the list below.
+  const keys = metricsOf(area).filter((k) => !HQ_COMPANY_ONLY.includes(k));
   const rows = [...rowsFor(area, f.regions), COMPANY];
   return html`<div class="s4-scroll">${DataGrid<HqRegionWire>({
     density: ctx.density,

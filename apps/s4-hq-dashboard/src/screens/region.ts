@@ -1,5 +1,5 @@
 import { html, StatusPill } from "../../../../packages/ui/src/index.ts";
-import { HQ_AREAS, HQ_AREA_TITLES, HQ_METRICS } from "../../../../packages/contracts/src/index.ts";
+import { HQ_AREAS, HQ_AREA_TITLES, HQ_METRICS, HQ_COMPANY_ONLY } from "../../../../packages/contracts/src/index.ts";
 import { whenReady, readMetrics, figures, show, asOfLine, linkTo, regionName, densityStatus, metShare, pct, type Screen } from "./common.ts";
 import { metricsOf } from "./area.ts";
 
@@ -24,7 +24,7 @@ export const region: Screen = (ctx, params) => {
         <div class="s4-areas">
           ${HQ_AREAS.map((a) => html`<section class="s4-area">
             <div class="s4-area__head"><h2 class="s4-h2">${HQ_AREA_TITLES[a]}</h2>${linkTo(ctx, "area", { area: a }, "Compare regions")}</div>
-            <dl class="s4-tiles">${metricsOf(a).map((k) => html`<div class="s4-tile">
+            <dl class="s4-tiles">${metricsOf(a).filter((k) => !r.placed || !HQ_COMPANY_ONLY.includes(k)).map((k) => html`<div class="s4-tile">
               <dt>${HQ_METRICS[k].label}${HQ_METRICS[k].window === "30d" ? ", 30 d" : ""}</dt>
               <dd><span class="s4-num">${show(k, f.of(k, r.id))}</span></dd>
             </div>`)}</dl>

@@ -50,7 +50,7 @@ const metrics: HqMetricsOutput = {
     v(SOUTH, "crews_active", 5), v(SOUTH, "crews_cleared_now", 4), v(SOUTH, "min_crew_density", 3),
     v(WEST, "crews_active", 1), v(WEST, "crews_cleared_now", 1), v(WEST, "min_crew_density", 2),
     v(UNASSIGNED, "leads_30d", 9), v(UNASSIGNED, "leads_web_form_30d", 7), v(UNASSIGNED, "leads_call_button_30d", 2),
-    v(SOUTH, "service_requests_30d", 6), v(SOUTH, "customers_active", 2), v(WEST, "customers_active", 1),
+    v(SOUTH, "service_requests_30d", 6), v(SOUTH, "customers_active", 2), v(WEST, "customers_active", 2), v(UNASSIGNED, "customers_total", 3),
   ],
 };
 const history: HqHistoryOutput = {
@@ -114,6 +114,8 @@ test("company figures are sums of the region rows; a rate is two sums divided, a
   assert.equal(metShare(figures({ ...metrics, values: [] })), null);
   assert.equal(money(1_734_500n), "17,345 USD");
   assert.equal(money(-5_049n), "−50 USD");
+  assert.equal(f.of("customers_total"), 3n, "a customer in two regions is one customer: the distinct figure is its own key, not a sum");
+  assert.equal(headline(f).growth.find((t) => t.label === "Customers")?.figure, "3");
 });
 
 test("the D14 column is a state: at or above the rule is ok, below it is at risk", () => {
