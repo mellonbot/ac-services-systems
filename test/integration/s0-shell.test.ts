@@ -320,7 +320,7 @@ test("preflight: a registry origin gets 204 with the credentialed allow-headers;
   assert.equal(yes.headers.get("access-control-allow-origin"), S2_ORIGIN);
   assert.match(yes.headers.get("access-control-allow-headers") ?? "", /x-ac-surface/);
 
-  for (const origin of ["https://evil.test", "https://s4-hq-dashboard.ac.test", "http://s2-service-manager.ac.test"]) {
+  for (const origin of ["https://evil.test", "https://s7-vendor-portal.ac.test", "http://s2-service-manager.ac.test"]) {
     const no = await fetch(`${BASE}/s2/terms/override`, { method: "OPTIONS", headers: { origin, "access-control-request-method": "POST" } });
     assert.equal(no.status, 403, origin);
     assert.equal(no.headers.get("access-control-allow-origin"), null, origin);
