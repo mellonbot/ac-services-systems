@@ -55,6 +55,7 @@ export const S2_CSS = `
 .s2-terms dd{margin:0}
 .s2-firm{display:flex;flex-direction:column;gap:var(--space-3)}
 .s2-muted{color:var(--color-text-muted)}
+.s2-link--button{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;font:inherit}
 .s2-oq5{display:flex;flex-direction:column;gap:var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-none);padding:var(--space-3)}
 .s2-oq5 legend{padding-inline:var(--space-2);font-weight:600}
 .s2-oq5__unset{color:var(--color-status-at-risk)}
@@ -62,6 +63,8 @@ export const S2_CSS = `
 .s2-policy{margin:0;color:var(--color-text-muted);font-size:var(--text-sm)}
 .s2-policy[data-combine="ratchet"]{color:var(--color-text)}
 .s2-rationale{margin:0 0 var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm)}
+.s2-purchasing{display:flex;flex-direction:column;gap:var(--space-3)}
+.s2-list{margin:0;padding-inline-start:1.2em}
 .s2-form--inline{display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:end}
 .s2-trace{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
 .s2-trace__step{display:grid;grid-template-columns:10rem 6rem 8rem 1fr;gap:var(--space-3);align-items:baseline}

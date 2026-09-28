@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createUnitOfWork, SurfaceWriteDenied, TenancyMismatch, SurfaceDisabled, type Tx } from "./unit-of-work.ts";
+import { createUnitOfWork, isOrgScoped, SurfaceWriteDenied, TenancyMismatch, SurfaceDisabled, type Tx } from "./unit-of-work.ts";
 import type { Principal, ScopeBinding } from "../../../packages/contracts/src/scope.ts";
 
 const fakeTx = () => {
@@ -142,4 +142,14 @@ test("the interface has no skipAudit, no force, no unscoped write", async () => 
   const f = fakeTx();
   const uow = await createUnitOfWork(ctx("S3"), f.tx);
   assert.deepEqual(Object.keys(uow).sort(), ["apply", "commit", "pending", "rollback", "tx"]);
+});
+
+test("org-scoped writers: parent-tier internal, customer and vendor; a region-bound dispatcher and a firm are not", () => {
+  const p = (namespace: Principal["namespace"], scopeTier: Principal["scopeTier"]) => ({ namespace, scopeTier });
+  assert.equal(isOrgScoped(p("vendor", "parent")), true, "a vendor ships to receiving points in any region");
+  assert.equal(isOrgScoped(p("customer", "parent")), true);
+  assert.equal(isOrgScoped(p("internal", "parent")), true);
+  assert.equal(isOrgScoped(p("internal", "region")), false);
+  assert.equal(isOrgScoped(p("customer", "location")), false);
+  assert.equal(isOrgScoped(p("subcontractor", "parent")), false, "a firm writes in the region it is dispatched from");
 });

@@ -184,7 +184,7 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
  * and S1 has no session and no sign-in. Every other surface still gets the
  * first cut until its own product-specific workflow is built.
  */
-const HAND_WRITTEN_APPS: readonly SurfaceId[] = ["S1", "S2", "S3", "S4", "S5", "S6", "S8"];
+const HAND_WRITTEN_APPS: readonly SurfaceId[] = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"];
 const GENERATED_STATUS_APPS: readonly SurfaceId[] = SURFACE_IDS.filter((id) => !HAND_WRITTEN_APPS.includes(id));
 
 /**

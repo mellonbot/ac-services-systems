@@ -66,7 +66,7 @@ const AUTHENTICATED: readonly SurfaceId[] = ["S2", "S3", "S4", "S5", "S6", "S7",
  * needs a customer's IdP to test against, which is a conversation with
  * Amped's IT, not a diff here; docs/OPEN_DECISIONS.md carries it as OPEN-S6-IDP.
  */
-const PASSWORD_LOGIN: readonly SurfaceId[] = ["S2", "S3", "S4", "S6", "S8"];
+const PASSWORD_LOGIN: readonly SurfaceId[] = ["S2", "S3", "S4", "S6", "S7", "S8"];
 
 export const OPERATIONS = {
   "auth.login": {
@@ -453,6 +453,119 @@ export const OPERATIONS = {
     id: "hq.history", method: "GET", path: "/s4/metrics/history", kind: "query", auth: "bearer",
     surfaces: ["S4"], carrier: "query", sdkMethod: "hqHistory",
     summary: "One figure's daily closing values per region over the last N days (default 30, at most 90) — the trend behind a number on the dashboard.",
+  },
+  // ---- item 11: PROCUREMENT. The office's purchasing (S2) and the vendor's
+  // side of the same rows (S7). Reads are served to both; what each may see
+  // and change is 0011's.
+  "vendors.list": {
+    id: "vendors.list", method: "GET", path: "/procurement/vendors", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S7"], carrier: "none", sdkMethod: "listVendors",
+    summary: "Vendors — the office sees every one; a vendor sees its own row. RLS (0011), not a WHERE.",
+  },
+  "vendors.create": {
+    id: "vendors.create", method: "POST", path: "/s2/procurement/vendors", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createVendor",
+    summary: "Record a vendor WITH its tenant root in one unit of work: the organizations row and the vendors row share an id, in the region it is administered from.",
+  },
+  "receivingPoints.list": {
+    id: "receivingPoints.list", method: "GET", path: "/procurement/receiving-points", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S7"], carrier: "none", sdkMethod: "listReceivingPoints",
+    summary: "Our receiving points. A vendor sees the ones its issued orders ship to — code, tier, address — and never a customer's name, because the row carries none.",
+  },
+  "receivingPoints.create": {
+    id: "receivingPoints.create", method: "POST", path: "/s2/procurement/receiving-points", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createReceivingPoint",
+    summary: "Record a receiving point: a code, a tier (location stock, regional hub, national), the region and the address.",
+  },
+  "catalog.list": {
+    id: "catalog.list", method: "GET", path: "/procurement/catalog", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S7"], carrier: "query", sdkMethod: "listCatalog",
+    summary: "A vendor's catalogue: each item with the price in effect today (accepted) and any proposal waiting on the office.",
+  },
+  "catalog.addItem": {
+    id: "catalog.addItem", method: "POST", path: "/s2/procurement/catalog", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "addCatalogItem",
+    summary: "Add an item to a vendor's catalogue — the vendor's SKU, a description, the unit. It has no price until the vendor proposes one and the office accepts it.",
+  },
+  "prices.propose": {
+    id: "prices.propose", method: "POST", path: "/s7/procurement/prices", kind: "mutation", auth: "bearer",
+    surfaces: ["S7"], carrier: "body", sdkMethod: "proposePrice",
+    summary: "A vendor proposes a price for one of its items from a day. Arrives proposed whatever the request says (0011); applies only once the office accepts it.",
+  },
+  "prices.withdraw": {
+    id: "prices.withdraw", method: "POST", path: "/s7/procurement/prices/withdraw", kind: "mutation", auth: "bearer",
+    surfaces: ["S7"], carrier: "body", sdkMethod: "withdrawPrice",
+    summary: "A vendor withdraws its own proposal before the office decides it: proposed → withdrawn, nothing else.",
+  },
+  "prices.decide": {
+    id: "prices.decide", method: "POST", path: "/s2/procurement/prices/decide", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "decidePrice",
+    summary: "The office accepts or rejects a proposed price. Accepting closes the price in effect at the proposal's first day; two accepted prices at once are refused by the EXCLUDE constraint.",
+  },
+  "pos.list": {
+    id: "pos.list", method: "GET", path: "/procurement/pos", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S7"], carrier: "query", sdkMethod: "listPurchaseOrders",
+    summary: "Purchase orders — every one for the office; a vendor's own once issued (a draft is ours).",
+  },
+  "pos.detail": {
+    id: "pos.detail", method: "GET", path: "/procurement/pos/detail", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S7"], carrier: "query", sdkMethod: "purchaseOrder",
+    summary: "One purchase order: its lines with ordered, shipped, received and invoiced quantities, the receiving point, and every shipment, receipt, invoice and return against it.",
+  },
+  "pos.create": {
+    id: "pos.create", method: "POST", path: "/s2/procurement/pos", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createPurchaseOrder",
+    summary: "Raise a draft purchase order to a vendor for a receiving point. Each line takes the item's ACCEPTED price today and keeps it; an item with none is refused by name.",
+  },
+  "pos.issue": {
+    id: "pos.issue", method: "POST", path: "/s2/procurement/pos/issue", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "issuePurchaseOrder",
+    summary: "Send a draft to the vendor: draft → issued. From here the vendor can see it.",
+  },
+  "pos.cancel": {
+    id: "pos.cancel", method: "POST", path: "/s2/procurement/pos/cancel", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "cancelPurchaseOrder",
+    summary: "Cancel an order nothing has shipped against yet.",
+  },
+  "pos.acknowledge": {
+    id: "pos.acknowledge", method: "POST", path: "/s7/procurement/pos/acknowledge", kind: "mutation", auth: "bearer",
+    surfaces: ["S7"], carrier: "body", sdkMethod: "acknowledgePurchaseOrder",
+    summary: "The vendor accepts an issued order and says when it will ship: issued → acknowledged with a promised ship date. The one change a vendor makes to an order (0011).",
+  },
+  "shipments.record": {
+    id: "shipments.record", method: "POST", path: "/s7/procurement/shipments", kind: "mutation", auth: "bearer",
+    surfaces: ["S7"], carrier: "body", sdkMethod: "recordShipment",
+    summary: "The vendor records a shipment against an acknowledged order — the day, the carrier, the tracking, and quantities per line, never more than ordered.",
+  },
+  "receipts.record": {
+    id: "receipts.record", method: "POST", path: "/s2/procurement/receipts", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "recordReceipt",
+    summary: "The office records what arrived, per line, never more than ordered. The order is received when every line is.",
+  },
+  "vendorInvoices.submit": {
+    id: "vendorInvoices.submit", method: "POST", path: "/s7/procurement/invoices", kind: "mutation", auth: "bearer",
+    surfaces: ["S7"], carrier: "body", sdkMethod: "submitVendorInvoice",
+    summary: "The vendor submits an invoice against an order. The gateway matches it three ways — price against the order, quantity against the receipt — and records matched or held with every reason.",
+  },
+  "vendorInvoices.list": {
+    id: "vendorInvoices.list", method: "GET", path: "/procurement/invoices", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S7"], carrier: "query", sdkMethod: "listVendorInvoices",
+    summary: "Vendor invoices with their lines and their match verdict — every one for the office, its own for a vendor.",
+  },
+  "rmas.request": {
+    id: "rmas.request", method: "POST", path: "/s2/procurement/rmas", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "requestReturn",
+    summary: "The office asks to return part of a received line, with the reason. Never more than was received.",
+  },
+  "rmas.respond": {
+    id: "rmas.respond", method: "POST", path: "/s7/procurement/rmas/respond", kind: "mutation", auth: "bearer",
+    surfaces: ["S7"], carrier: "body", sdkMethod: "respondToReturn",
+    summary: "The vendor answers a requested return once: authorized with its RMA number, or rejected with a reason.",
+  },
+  "rmas.list": {
+    id: "rmas.list", method: "GET", path: "/procurement/rmas", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S7"], carrier: "query", sdkMethod: "listReturns",
+    summary: "Returns — every one for the office, its own for a vendor.",
   },
   "system.health": {
     id: "system.health", method: "GET", path: "/healthz", kind: "system", auth: "none",
@@ -1121,6 +1234,100 @@ export type HqHistoryInput = { readonly metric: string; readonly days?: number }
 export type HqHistoryPointWire = { readonly day: string; readonly regionId: string; readonly value: string };
 export type HqHistoryOutput = { readonly metric: string; readonly days: number; readonly points: readonly HqHistoryPointWire[] };
 
+// ---- item 11 wire shapes: procurement ----
+export type VendorStatus = "active" | "suspended" | "terminated";
+export type VendorWire = { readonly id: string; readonly legalName: string; readonly status: VendorStatus; readonly regionId: string; readonly paymentTermsDays: number; readonly contactEmail: string | null };
+export type ListVendorsOutput = { readonly vendors: readonly VendorWire[] };
+export type CreateVendorInput = { readonly legalName: string; readonly regionId: string; readonly paymentTermsDays?: number; readonly contactEmail?: string };
+export type CreateVendorOutput = { readonly id: string; readonly eventId: string };
+
+export type ReceivingTier = "location_stock" | "regional_hub" | "national";
+export type ReceivingPointWire = { readonly id: string; readonly code: string; readonly tier: ReceivingTier; readonly regionId: string; readonly address: AddressWire; readonly active: boolean };
+export type ListReceivingPointsOutput = { readonly receivingPoints: readonly ReceivingPointWire[] };
+export type CreateReceivingPointInput = { readonly code: string; readonly tier: ReceivingTier; readonly regionId: string; readonly address: AddressWire };
+export type CreateReceivingPointOutput = { readonly id: string; readonly eventId: string };
+
+export type PriceState = "proposed" | "accepted" | "rejected" | "withdrawn";
+export type CatalogPriceWire = {
+  readonly id: string; readonly itemId: string; readonly vendorId: string;
+  /** Integer minor units as a string. */
+  readonly priceMinor: string; readonly currency: string;
+  readonly effectiveFrom: string; readonly effectiveTo: string | null;
+  readonly state: PriceState; readonly proposedAt: string; readonly decidedAt: string | null; readonly decisionNote: string | null;
+};
+export type CatalogItemWire = {
+  readonly id: string; readonly vendorId: string; readonly vendorSku: string; readonly description: string; readonly uom: string; readonly active: boolean;
+  /** The accepted price whose window includes today, or null. What a new purchase order line takes. */
+  readonly current: CatalogPriceWire | null;
+  /** Every proposal waiting on the office, oldest first. */
+  readonly proposals: readonly CatalogPriceWire[];
+};
+export type ListCatalogInput = { readonly vendorId?: string };
+export type ListCatalogOutput = { readonly items: readonly CatalogItemWire[] };
+export type AddCatalogItemInput = { readonly vendorId: string; readonly vendorSku: string; readonly description: string; readonly uom?: string };
+export type AddCatalogItemOutput = { readonly id: string; readonly eventId: string };
+export type ProposePriceInput = { readonly itemId: string; readonly priceMinor: string; readonly currency: string; readonly effectiveFrom: string };
+export type ProposePriceOutput = { readonly id: string; readonly eventId: string };
+export type WithdrawPriceInput = { readonly priceId: string };
+export type WithdrawPriceOutput = { readonly id: string; readonly eventId: string };
+export type DecidePriceInput = { readonly priceId: string; readonly decision: "accepted" | "rejected"; readonly note?: string };
+export type DecidePriceOutput = { readonly id: string; readonly state: PriceState; readonly closedId: string | null; readonly eventId: string };
+
+export type PoState = "draft" | "issued" | "acknowledged" | "received" | "cancelled";
+export type PurchaseOrderWire = {
+  readonly id: string; readonly number: string; readonly vendorId: string; readonly vendorName: string | null;
+  readonly receivingPointId: string; readonly receivingPointCode: string | null; readonly receivingTier: ReceivingTier | null; readonly regionId: string;
+  readonly state: PoState; readonly currency: string; readonly totalMinor: string;
+  readonly issuedAt: string | null; readonly acknowledgedAt: string | null; readonly promisedShipOn: string | null; readonly createdAt: string;
+};
+export type ListPurchaseOrdersInput = { readonly state?: PoState };
+export type ListPurchaseOrdersOutput = { readonly orders: readonly PurchaseOrderWire[] };
+export type PoLineWire = {
+  readonly id: string; readonly lineNo: number; readonly itemId: string; readonly vendorSku: string; readonly description: string; readonly uom: string;
+  /** Integer thousandths as strings. */
+  /** invoicedMilli counts MATCHED invoices only — a held invoice does not use up the receipt. */
+  readonly quantityMilli: string; readonly shippedMilli: string; readonly receivedMilli: string; readonly invoicedMilli: string; readonly returnedMilli: string;
+  readonly unitPriceMinor: string; readonly amountMinor: string;
+};
+export type ShipmentWire = { readonly id: string; readonly shippedOn: string; readonly carrier: string; readonly tracking: string | null; readonly lines: readonly { readonly poLineId: string; readonly quantityMilli: string }[] };
+export type ReceiptWire = { readonly id: string; readonly poLineId: string; readonly quantityMilli: string; readonly receivedAt: string };
+export type MatchNoteWire = { readonly poLineId: string | null; readonly code: string; readonly message: string };
+export type VendorInvoiceWire = {
+  readonly id: string; readonly poId: string; readonly poNumber: string | null; readonly vendorId: string; readonly invoiceNumber: string; readonly invoiceDate: string;
+  readonly totalMinor: string; readonly currency: string; readonly matchState: "matched" | "held"; readonly matchNotes: readonly MatchNoteWire[]; readonly createdAt: string;
+  readonly lines: readonly { readonly poLineId: string; readonly quantityMilli: string; readonly unitPriceMinor: string; readonly amountMinor: string }[];
+};
+export type RmaState = "requested" | "authorized" | "rejected";
+export type RmaWire = {
+  readonly id: string; readonly poId: string; readonly poNumber: string | null; readonly poLineId: string; readonly vendorId: string; readonly quantityMilli: string; readonly reason: string;
+  readonly state: RmaState; readonly rmaNumber: string | null; readonly vendorNote: string | null; readonly createdAt: string; readonly respondedAt: string | null;
+};
+export type PurchaseOrderDetailInput = { readonly poId: string };
+export type PurchaseOrderDetailOutput = {
+  readonly order: PurchaseOrderWire; readonly receivingPoint: ReceivingPointWire | null; readonly lines: readonly PoLineWire[];
+  readonly shipments: readonly ShipmentWire[]; readonly receipts: readonly ReceiptWire[]; readonly invoices: readonly VendorInvoiceWire[]; readonly returns: readonly RmaWire[];
+};
+export type CreatePurchaseOrderInput = { readonly vendorId: string; readonly receivingPointId: string; readonly lines: readonly { readonly itemId: string; readonly quantityMilli: string }[] };
+export type CreatePurchaseOrderOutput = { readonly id: string; readonly number: string; readonly totalMinor: string; readonly eventId: string };
+export type PoIdInput = { readonly poId: string };
+export type CancelPurchaseOrderInput = { readonly poId: string; readonly reason?: string };
+export type PoTransitionOutput = { readonly id: string; readonly state: PoState; readonly eventId: string };
+export type AcknowledgePurchaseOrderInput = { readonly poId: string; readonly promisedShipOn: string };
+export type RecordShipmentInput = { readonly poId: string; readonly shippedOn: string; readonly carrier: string; readonly tracking?: string; readonly lines: readonly { readonly poLineId: string; readonly quantityMilli: string }[] };
+export type RecordShipmentOutput = { readonly id: string; readonly eventId: string };
+export type RecordReceiptInput = { readonly poId: string; readonly lines: readonly { readonly poLineId: string; readonly quantityMilli: string }[] };
+export type RecordReceiptOutput = { readonly ids: readonly string[]; readonly state: PoState; readonly eventId: string };
+export type SubmitVendorInvoiceInput = { readonly poId: string; readonly invoiceNumber: string; readonly invoiceDate: string; readonly documentKey?: string; readonly lines: readonly { readonly poLineId: string; readonly quantityMilli: string; readonly unitPriceMinor: string }[] };
+export type SubmitVendorInvoiceOutput = { readonly id: string; readonly matchState: "matched" | "held"; readonly matchNotes: readonly MatchNoteWire[]; readonly totalMinor: string; readonly eventId: string };
+export type ListVendorInvoicesInput = { readonly poId?: string };
+export type ListVendorInvoicesOutput = { readonly invoices: readonly VendorInvoiceWire[] };
+export type RequestReturnInput = { readonly poId: string; readonly poLineId: string; readonly quantityMilli: string; readonly reason: string };
+export type RequestReturnOutput = { readonly id: string; readonly eventId: string };
+export type RespondToReturnInput = { readonly rmaId: string; readonly decision: "authorized" | "rejected"; readonly rmaNumber?: string; readonly note?: string };
+export type RespondToReturnOutput = { readonly id: string; readonly state: RmaState; readonly eventId: string };
+export type ListReturnsInput = { readonly poId?: string };
+export type ListReturnsOutput = { readonly returns: readonly RmaWire[] };
+
 export type HealthOutput = { readonly ok: true; readonly surfaces: readonly SurfaceId[] };
 
 /**
@@ -1305,6 +1512,28 @@ export type OperationIO = {
   "callRecords.record": { input: RecordCallInput; output: RecordCallOutput };
   "hq.metrics": { input: HqMetricsInput; output: HqMetricsOutput };
   "hq.history": { input: HqHistoryInput; output: HqHistoryOutput };
+  "vendors.list": { input: void; output: ListVendorsOutput };
+  "vendors.create": { input: CreateVendorInput; output: CreateVendorOutput };
+  "receivingPoints.list": { input: void; output: ListReceivingPointsOutput };
+  "receivingPoints.create": { input: CreateReceivingPointInput; output: CreateReceivingPointOutput };
+  "catalog.list": { input: ListCatalogInput; output: ListCatalogOutput };
+  "catalog.addItem": { input: AddCatalogItemInput; output: AddCatalogItemOutput };
+  "prices.propose": { input: ProposePriceInput; output: ProposePriceOutput };
+  "prices.withdraw": { input: WithdrawPriceInput; output: WithdrawPriceOutput };
+  "prices.decide": { input: DecidePriceInput; output: DecidePriceOutput };
+  "pos.list": { input: ListPurchaseOrdersInput; output: ListPurchaseOrdersOutput };
+  "pos.detail": { input: PurchaseOrderDetailInput; output: PurchaseOrderDetailOutput };
+  "pos.create": { input: CreatePurchaseOrderInput; output: CreatePurchaseOrderOutput };
+  "pos.issue": { input: PoIdInput; output: PoTransitionOutput };
+  "pos.cancel": { input: CancelPurchaseOrderInput; output: PoTransitionOutput };
+  "pos.acknowledge": { input: AcknowledgePurchaseOrderInput; output: PoTransitionOutput };
+  "shipments.record": { input: RecordShipmentInput; output: RecordShipmentOutput };
+  "receipts.record": { input: RecordReceiptInput; output: RecordReceiptOutput };
+  "vendorInvoices.submit": { input: SubmitVendorInvoiceInput; output: SubmitVendorInvoiceOutput };
+  "vendorInvoices.list": { input: ListVendorInvoicesInput; output: ListVendorInvoicesOutput };
+  "rmas.request": { input: RequestReturnInput; output: RequestReturnOutput };
+  "rmas.respond": { input: RespondToReturnInput; output: RespondToReturnOutput };
+  "rmas.list": { input: ListReturnsInput; output: ListReturnsOutput };
   "system.health": { input: void; output: HealthOutput };
 };
 // Both directions: every operation has IO, and no IO names a missing operation.

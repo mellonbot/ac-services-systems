@@ -9,6 +9,7 @@ import * as intake from "./intake.ts";
 import * as sync from "./sync.ts";
 import * as platform from "./platform.ts";
 import * as hq from "./hq.ts";
+import * as procurement from "./procurement.ts";
 import type { Table } from "../tenancy.ts";
 
 /**
@@ -75,6 +76,19 @@ export const ALL_TABLES: readonly Table[] = Object.freeze([
   platform.sla_timers,
   // item 10: S4's rollup
   hq.hq_metrics,
+  // item 11: procurement — the office's purchasing and the vendor's side of it (S7)
+  procurement.vendors,
+  procurement.receiving_points,
+  procurement.vendor_catalog_items,
+  procurement.vendor_catalog_prices,
+  procurement.purchase_orders,
+  procurement.purchase_order_lines,
+  procurement.shipments,
+  procurement.shipment_lines,
+  procurement.po_receipts,
+  procurement.vendor_invoices,
+  procurement.vendor_invoice_lines,
+  procurement.rmas,
 ]);
 
-export { roots, hierarchy, identity, contracts, network, work, billing, intake, sync, platform, hq };
+export { roots, hierarchy, identity, contracts, network, work, billing, intake, sync, platform, hq, procurement };

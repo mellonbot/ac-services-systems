@@ -4,7 +4,7 @@
  *
  *   node tools/demo/build.ts        → tools/demo/dist/index.html
  *
- * Each surface (all but S7) is bundled from its own src/app.ts exactly as
+ * Each surface is bundled from its own src/app.ts exactly as
  * tools/ci/build-surface.ts bundles it, with two substitutions and nothing
  * else:
  *   - the History API behind `browserHistory` is swapped for an in-memory path,
@@ -24,8 +24,32 @@ import { UI_CSS } from "../../packages/ui/src/styles.ts";
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const HERE = fileURLToPath(new URL("./", import.meta.url));
 const OUT = join(HERE, "dist");
-const BUILT: SurfaceId[] = ["S1", "S2", "S3", "S4", "S5", "S6", "S8"];
+const BUILT: SurfaceId[] = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"];
+/**
+ * Surfaces the DEMO switches on although the product registry has them off.
+ * S7 is Phase 4 (enabled: false); the partners asked to show it in the demo
+ * for a few days. This flips the flag inside the demo's bundles only — the
+ * product registry, gateway and database are untouched. Remove the id to take
+ * it back out.
+ */
+const DEMO_ONLY_ENABLED: readonly SurfaceId[] = ["S7"];
 const FONTS = `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Yellowtail&display=swap">`;
+
+const demoEnabled: Plugin = {
+  name: "demo-only-enabled",
+  setup(b) {
+    b.onLoad({ filter: /packages[\\/]contracts[\\/]src[\\/]surfaces\.ts$/ }, (args) => {
+      let src = readFileSync(args.path, "utf8");
+      for (const id of DEMO_ONLY_ENABLED) {
+        const at = src.indexOf(`  ${id}: {`);
+        const flag = src.indexOf("enabled: false", at);
+        if (at < 0 || flag < 0 || flag - at > 400) throw new Error(`${id}: the registry no longer has "enabled: false" where the demo expects it`);
+        src = src.slice(0, flag) + "enabled: true" + src.slice(flag + "enabled: false".length);
+      }
+      return { contents: src, loader: "ts" };
+    });
+  },
+};
 
 const memoryHistory: Plugin = {
   name: "demo-memory-history",
@@ -92,14 +116,16 @@ const bundleSurface = async (id: SurfaceId): Promise<string> => {
   const appDir = join(ROOT, "apps", s.app);
   const r = await build({
     entryPoints: [join(appDir, "src/app.ts")], bundle: true, write: false, format: "iife", platform: "browser", target: "es2022",
-    minify: true, legalComments: "none", logLevel: "silent", plugins: [memoryHistory],
+    minify: true, legalComments: "none", logLevel: "silent", plugins: [memoryHistory, demoEnabled],
     define: { "process.env.NODE_ENV": JSON.stringify("production") },
   });
   const js = r.outputFiles[0]!.text;
   const frame = readFileSync(join(appDir, "frame.html"), "utf8")
-    .replace('<meta name="ac-gateway" content="">', '<meta name="ac-gateway" content="https://api.rankine.demo">')
-    .replace('<link rel="stylesheet" href="/ui.css">', `${FONTS}<style>${UI_CSS}</style>`)
-    .replace('<script type="module" src="/bundle.js"></script>', `<script>${inlineScript(prelude(id))}</script><script>${inlineScript(js)}</script>`);
+    // Replacements are functions, never strings: a string replacement expands $&, $' and $` — and a
+    // minified bundle contains them. S7's did, and spliced page text into its own script.
+    .replace('<meta name="ac-gateway" content="">', () => '<meta name="ac-gateway" content="https://api.rankine.demo">')
+    .replace('<link rel="stylesheet" href="/ui.css">', () => `${FONTS}<style>${UI_CSS}</style>`)
+    .replace('<script type="module" src="/bundle.js"></script>', () => `<script>${inlineScript(prelude(id))}</script><script>${inlineScript(js)}</script>`);
   if (!frame.includes("__acNavigated")) throw new Error(`${id}: frame.html no longer has the slots the demo fills`);
   return frame;
 };
@@ -114,7 +140,7 @@ const bundleGateway = async (): Promise<string> => {
 
 const frames: Record<string, string> = {};
 for (const id of BUILT) frames[id] = await bundleSurface(id);
-const surfaces = (Object.keys(SURFACES) as SurfaceId[]).map((id) => ({ id, name: SURFACES[id].name, phase: SURFACES[id].phase, block: SURFACES[id].block, built: BUILT.includes(id), density: SURFACES[id].density, authScope: SURFACES[id].authScope }));
+const surfaces = (Object.keys(SURFACES) as SurfaceId[]).map((id) => ({ id, name: SURFACES[id].name, phase: SURFACES[id].phase, demoOnly: DEMO_ONLY_ENABLED.includes(id), block: SURFACES[id].block, built: BUILT.includes(id), density: SURFACES[id].density, authScope: SURFACES[id].authScope }));
 const tokens = /<style>(:root\{[^<]*\})<\/style>/.exec(readFileSync(join(ROOT, "apps/s2-service-manager/frame.html"), "utf8"))![1]!;
 const badge = /<svg class="ac-badge-mark__svg"[\s\S]*?<\/svg>/.exec(readFileSync(join(ROOT, "apps/s2-service-manager/frame.html"), "utf8"))![0].replace('width="40" height="40"', 'width="36" height="36" aria-hidden="true"');
 const json = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c");

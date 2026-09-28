@@ -1,6 +1,28 @@
-import { html, mount, signal, effect, applyDegraded, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, refusalHeading, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
+import { densityOf, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
+import { SCREENS, type ScreenId } from "./screens.ts";
+import { createStore, type Store } from "./state.ts";
+import type { Screen, ScreenContext } from "./screens/common.ts";
+import { orders, order } from "./screens/orders.ts";
+import { catalogue } from "./screens/catalogue.ts";
+import { invoices, returns } from "./screens/invoices.ts";
+import { S7_CSS } from "./styles.ts";
+
+/**
+ * S7 — THE BROWSER ENTRY (item 11). Same boot shape as S2, S3, S6 and S8:
+ * resume the cookie session with `session.me`; on a gone token, show login;
+ * login posts through the shell in cookie mode.
+ *
+ * S7 is Phase 4 and `enabled: false` in the registry, so in the product this
+ * bundle stops at the shell ("S7 is Phase 4 and not enabled") and the gateway
+ * refuses every S7 request at the phase gate. The screens are built so that
+ * enabling it is the registry line and nothing else. What a vendor sees is
+ * what 0011 lets it read — its own orders once issued, its own catalogue,
+ * invoices and returns — and no filter here adds to or subtracts from that.
+ */
+export const DENSITY = densityOf("S7");
 
 export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string } }): string => {
   const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
@@ -10,52 +32,130 @@ export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(
   return `${doc.location.protocol}//api.${site}`;
 };
 
-type Phase = { kind: "connecting" } | { kind: "ready"; shell: ConnectedShell } | { kind: "sign-in" };
+export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = { orders, order, catalogue, invoices, returns };
 
-export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number }) => {
+type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
+
+export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window }) => {
   const now = opts.now ?? (() => Date.now());
-  const phase = signal<Phase>(SURFACE.enabled ? { kind: "connecting" } : { kind: "sign-in" });
+  const phase = signal<Phase>({ kind: "booting" });
   const degraded = signal(false);
-  let lastOkAt: number | null = null;
+  const router = createRouter(SCREENS, opts.window ? browserHistory(opts.window) : { path: () => "/", push: () => {}, onPop: () => () => {} });
+
+  const become = (shell: ConnectedShell) => {
+    const store = createStore(shell, now);
+    phase.value = { kind: "ready", shell, store };
+    const at = router.current.value;
+    if (!at || at.screen === "login") router.navigate("orders", {});
+    // Envelopes carry no payload; refetch what the office touched (09 §3.5).
+    shell.subscribe(() => {
+      for (const k of ["pos.", "catalog.list", "vendorInvoices.list", "rmas.list"]) store.invalidate(k);
+    }, { topics: ["po.issued", "po.cancelled", "po.received", "vendor_price.decided", "rma.requested"] });
+  };
+
+  const login = async (email: string, password: string) => {
+    phase.value = { kind: "login", refusal: null, busy: true };
+    try { become(await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { email, password, session: "cookie" } })); }
+    catch (e) { phase.value = { kind: "login", refusal: refusalOf(e), busy: false }; }
+  };
 
   const boot = async () => {
-    if (!SURFACE.enabled) return;
-    try {
-      const shell = await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { session: "cookie" } });
-      lastOkAt = now();
-      phase.value = { kind: "ready", shell };
-    } catch {
-      phase.value = { kind: "sign-in" };
+    try { become(await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { session: "cookie" } })); }
+    catch (e) {
+      const r = refusalOf(e);
+      phase.value = { kind: "login", refusal: r.kind === "token" ? null : r, busy: false };
     }
   };
 
-  const tick = () => {
-    if (phase.value.kind !== "ready") return;
-    degraded.value = phase.value.shell.isDegraded();
-    if (!degraded.value) lastOkAt = now();
+  const logout = async () => {
+    const p = phase.value;
+    if (p.kind !== "ready") return;
+    try { await p.shell.logout(); } finally { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("orders", {}); }
   };
+
+  const tick = () => {
+    const p = phase.value;
+    if (p.kind !== "ready") return;
+    degraded.value = p.shell.isDegraded();
+  };
+  let lastProbe = 0;
+  const probe = () => {
+    const p = phase.value;
+    if (p.kind !== "ready" || !degraded.value) return;
+    if (now() - lastProbe < 15_000) return;
+    lastProbe = now();
+    p.shell.gateway.health().catch(() => {});
+  };
+
+  const nav = (screen: "orders" | "catalogue" | "invoices" | "returns", label: string, current: boolean): VNode =>
+    html`<a class="s7-nav__link" data-current=${current ? "true" : "false"} href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
 
   const view = (): VNode => {
-    if (!SURFACE.enabled) return html`<section class="ac-status"><h1>${SURFACE.name}</h1><p>This surface is scheduled for Phase ${SURFACE.phase} and is not available yet.</p></section>`;
-    if (phase.value.kind === "connecting") return html`<section class="ac-status" aria-busy="true"><h1>${SURFACE.name}</h1><p role="status">Connecting to your workspace…</p></section>`;
-    if (phase.value.kind === "sign-in") return html`<section class="ac-status"><h1>${SURFACE.name}</h1><p>Your organization account is required to open this workspace.</p><p class="ac-status__scope">Access scope: ${SURFACE.authScope}.</p></section>`;
-    return html`<section class="ac-status"><h1>${SURFACE.name}</h1><p>Workspace session is ready for ${phase.value.shell.principal.roles.join(", ")}.</p><p class="ac-status__scope">Access scope: ${SURFACE.authScope}.</p></section>`;
+    const p = phase.value;
+    if (p.kind === "booting") return html`<p class="s7-loading" role="status">Connecting…</p>`;
+    if (p.kind === "login") return loginView(p, login);
+    const ctx: ScreenContext = { shell: p.shell, store: p.store, router, density: DENSITY, degraded: degraded.value };
+    void p.store.version.value;
+    const loc = router.current.value;
+    const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
+    const who = p.shell.context?.parent.name ?? "";
+    return html`<div class="s7-app">
+      <nav class="s7-nav" aria-label="Screens">
+        ${nav("orders", "Orders", loc?.screen === "orders" || loc?.screen === "order")}
+        ${nav("catalogue", "Catalogue", loc?.screen === "catalogue")}
+        ${nav("invoices", "Invoices", loc?.screen === "invoices")}
+        ${nav("returns", "Returns", loc?.screen === "returns")}
+        <span class="s7-nav__who" id="who">${who}</span>
+        <button type="button" class="s7-nav__logout" onClick=${logout}>Sign out</button>
+      </nav>
+      ${screen ? screen(ctx, loc!.params) : html`<p class="s7-empty">Nothing at this address.</p>`}
+    </div>`;
   };
 
-  return { phase, degraded, boot, tick, view, lastOkAt: () => lastOkAt };
+  return { phase, degraded, router, view, boot, login, logout, tick, probe };
 };
 
+const refusalOf = (e: unknown): Refusal =>
+  (e as { refusal?: Refusal })?.refusal ?? { kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) };
+
+export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: (email: string, password: string) => void): VNode => {
+  const submit = (e: Event) => {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget as HTMLFormElement);
+    login(String(f.get("email") ?? ""), String(f.get("password") ?? ""));
+  };
+  return html`<section class="s7-login">
+    <h1 class="s7-h1">${SURFACE.name}</h1>
+    <form class="s7-form" onSubmit=${submit} id="login-form">
+      <label class="s7-field"><span>Email</span><input class="s7-input" name="email" type="email" required autocomplete="username" /></label>
+      <label class="s7-field"><span>Password</span><input class="s7-input" name="password" type="password" required autocomplete="current-password" /></label>
+      ${PrimaryAction({ density: DENSITY, label: p.busy ? "Signing in…" : "Sign in", type: "submit", id: "sign-in" })}
+    </form>
+    ${p.refusal ? html`<section class="s7-refusal" role="alert" data-kind=${p.refusal.kind}><h2 class="s7-refusal__heading">${refusalHeading(p.refusal)}</h2><p class="s7-refusal__message">${p.refusal.message}</p></section>` : null}
+  </section>`;
+};
+
+// ---------------------------------------------------------------------------
+// Browser entry. Guarded so the module is importable under node --test.
+// ---------------------------------------------------------------------------
 if (typeof document !== "undefined" && document.getElementById("mount")) {
   const style = document.createElement("style");
-  style.textContent = ".ac-status{max-width:65ch;padding-block:var(--space-6)}.ac-status h1{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-xl);letter-spacing:var(--track-normal);text-transform:uppercase}.ac-status p{margin:0 0 var(--space-2)}.ac-status__scope{color:var(--color-text-muted);font-size:var(--text-sm)}";
+  style.textContent = S7_CSS;
   document.head.appendChild(style);
-  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis) });
-  const slot = document.querySelector("ac-degraded") as HTMLElement | null;
+
+  const baseUrl = gatewayOrigin(document);
+  const app = createApp({ baseUrl, fetch: globalThis.fetch.bind(globalThis), window });
+  const el = document.getElementById("mount")!;
+  const slot = document.querySelector("ac-degraded") as (HTMLElement | null);
   const Root = () => app.view();
-  mount(html`<${Root} />`, document.getElementById("mount")!);
+  mount(html`<${Root} />`, el);
   effect(() => {
-    if (slot) applyDegraded(slot, { degraded: app.degraded.value, text: SURFACE.degraded, lastOkAt: app.lastOkAt(), now: Date.now() });
+    if (!slot) return;
+    const p = app.phase.value;
+    const lastOkAt = p.kind === "ready" ? p.store.lastOkAt.value : null;
+    applyDegraded(slot, { degraded: app.degraded.value, text: SURFACE.degraded, lastOkAt, now: Date.now() });
   });
-  setInterval(() => app.tick(), 1_000);
+  app.router.start();
+  setInterval(() => { app.tick(); app.probe(); }, 1000);
   void app.boot();
 }
