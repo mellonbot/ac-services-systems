@@ -130,7 +130,7 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:1400px
    darkest ground in the stock, which is why every ink is measured against it. */
 .ac-grid{border-collapse:separate;border-spacing:0;width:100%;font-size:var(--body-text);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);overflow:hidden}
 .ac-grid__caption{text-align:start;font-family:var(--font-display);font-size:var(--text-md);font-weight:700;color:var(--color-text);padding:0 0 var(--space-2)}
-.ac-grid__th,.ac-grid__td{height:var(--row-height);padding:var(--space-2) var(--space-4);border-bottom:1px solid var(--color-border);text-align:start;vertical-align:middle}
+.ac-grid__th,.ac-grid__td{height:var(--row-height);padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--color-border);text-align:start;vertical-align:middle}
 .ac-grid tbody tr:last-child .ac-grid__td{border-bottom:0}
 .ac-grid__th[data-align="end"],.ac-grid__td[data-align="end"]{text-align:end}
 /* A numeric column is the instrument face, declared once per column rather than
