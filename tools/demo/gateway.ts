@@ -22,7 +22,8 @@ import { resolveAll, type Override, type ScopePath } from "../../packages/domain
 import { admitOverride, AdmissionRefused } from "../../packages/domain/src/inheritance/admit.ts";
 import { evaluate, REQUIRED, isRefusal } from "../../packages/domain/src/compliance/gate.ts";
 import { buildContext, type HierarchyReader } from "../../apps/gateway/src/context.ts";
-import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
+import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
+import { HQ_METRICS, HQ_METRIC_KEYS, HQ_REFRESH_MINUTES, isHqMetricKey, type HqMetricKey } from "../../packages/contracts/src/hq.ts";
 import {
   ORG as AMPED, REGION_WEST, REGION_MOUNTAIN, REGION_SOUTH, N,
   MSA, AMEND_SJ, AMEND_AUSTIN_JULY, BOULDER_WARRANTY, OVERRIDES,
@@ -57,7 +58,7 @@ const input422 = (message: string, code: string) => new Refused(422, "InputRefus
 /** The demo's rows are mutable; the wire types they are shaped from are not. */
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 type Region = W.RegionWire;
-type Org = { id: string; name: string; kind: "customer" | "subcontractor" | "internal"; externalRef: string | null; active: boolean };
+type Org = { id: string; name: string; kind: "customer" | "subcontractor" | "internal"; externalRef: string | null; active: boolean; createdAt?: string };
 type Account = { id: string; orgId: string; tier: W.AccountTierWire; name: string; parentId: string | null; regionId: string; customerGroup: string | null; externalRef: string | null; timezone: string | null; active: boolean; address: W.AddressWire | null };
 type Firm = Mutable<Omit<W.FirmWire, "crewCount" | "activeCrewCount">>;
 type Crew = Mutable<Omit<W.CrewWire, "documents">>;
@@ -295,6 +296,20 @@ const invoices: W.InvoiceWire[] = [
   },
 ];
 
+// A month of billing across the regions, so leadership's money figures read like a working company.
+const bill = (id: string, orgId: string, contractId: string, issuedDaysAgo: number, dueInDays: number, lines: [string, string, number][]): W.InvoiceWire => {
+  const ls = lines.map(([locationId, description, amount]) => ({ id: uid("n"), locationId, jobId: null, description, quantityMilli: "1000", unitPriceMinor: String(amount), amountMinor: String(amount) }));
+  const total = String(ls.reduce((t, l) => t + Number(l.amountMinor), 0));
+  return { id, billToTier: "parent", billToId: orgId, contractId, billingPath: "enterprise_sla", periodStart: month(-1).from, periodEnd: month(-1).to, totalMinor: total, currency: "USD", issuedAt: at(-issuedDaysAgo * DAY), dueAt: at((dueInDays - issuedDaysAgo) * DAY), lines: ls, subtotalMinor: total };
+};
+invoices.push(
+  bill("i0000000-0000-0000-0000-000000000002", AMPED, MSA, 6, 45, [[N.sanJose, "Enterprise SLA — San Jose, monthly", 1840000], [N.reno, "Enterprise SLA — Reno, monthly", 1215000], [N.sanJose, "Compressor replacement, RTU-North", 2960000]]),
+  bill("i0000000-0000-0000-0000-000000000003", AMPED, MSA, 12, 45, [[N.boulder, "Enterprise SLA — Boulder, monthly", 1390000], [N.boulder, "PM visit x2, roof units", 780000]]),
+  bill("i0000000-0000-0000-0000-000000000004", AMPED, MSA, 9, 45, [[N.austin, "Enterprise SLA — Austin, monthly", 2410000], [N.elPaso, "Enterprise SLA — El Paso, monthly", 1650000]]),
+  bill("i0000000-0000-0000-0000-000000000005", CEDAR, CEDAR_MSA, 38, 30, [[S.cedarHouston, "Clinic HVAC program, monthly", 985000], [S.cedarHouston, "Emergency call-out, after hours", 312000]]),
+  bill("i0000000-0000-0000-0000-000000000006", CEDAR, CEDAR_MSA, 8, 30, [[S.cedarHouston, "Clinic HVAC program, monthly", 985000]]),
+);
+
 const devices: W.DeviceWire[] = [
   { id: "v0000000-0000-0000-0000-000000000001", hardwareId: "RK-TAB-0042", kind: "web_fallback", firmId: null, active: true, orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH },
 ];
@@ -305,8 +320,16 @@ const serviceRequests: Mutable<W.ServiceRequestWire>[] = [
   { id: uid("q"), siteId: S.austinPool, siteName: "Austin — Pool Hall Dehumidifier", priority: "routine", description: "Condensation on the pool hall windows most mornings. Could the next PM check the dehumidifier setpoint?", requestedBy: "Priya Castellanos", createdAt: at(-3 * DAY), jobId: null, jobState: null, orgId: AMPED, regionId: REGION_SOUTH },
 ];
 
-const leads: { id: string; submissionId: string; name: string; metro: string | null; source: string; at: string }[] = [];
-const callRecords: { id: string; leadId: string | null; at: string }[] = [];
+// Leads and calls from the past month, so S4's growth figures have a history before anyone uses S1.
+const leads: { id: string; submissionId: string; name: string; metro: string | null; source: string; at: string }[] =
+  ([[-2, "web_form", "Austin"], [-4, "web_form", "Dallas"], [-6, "call_button", "Houston"], [-9, "web_form", "Reno"], [-11, "referral", "Boulder"],
+    [-15, "web_form", "San Antonio"], [-18, "call_button", "El Paso"], [-22, "web_form", "Austin"], [-27, "web_form", "Denver"]] as const)
+    .map(([d, source, metro], i) => ({ id: uid("L"), submissionId: uid("S"), name: `Prospect ${i + 1}`, metro, source, at: at(d * DAY) }));
+const callRecords: { id: string; leadId: string | null; at: string }[] = [-1, -3, -6, -8, -13, -18, -24].map((d) => ({ id: uid("R"), leadId: null, at: at(d * DAY) }));
+// The latest working-capital position per region, minor units.
+const workingCapital: Record<string, { receivable: number; payable: number }> = {
+  [REGION_SOUTH]: { receivable: 14460000, payable: 1974000 }, [REGION_WEST]: { receivable: 6210000, payable: 0 }, [REGION_MOUNTAIN]: { receivable: 2385000, payable: 0 },
+};
 
 // ---------------------------------------------------------------------------
 // People. One password for everyone, printed on the demo's own sign-in help.
@@ -317,6 +340,10 @@ const P = (p: Partial<Omit<Principal, "sessionId">> & Pick<Principal, "namespace
 const users: User[] = [
   { id: verifiedBy, email: "office@rankine.demo", password: DEMO_PASSWORD, name: "Office manager", surfaces: ["S2"],
     principal: P({ namespace: "internal", subjectId: verifiedBy, orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: INTERNAL_ORG_ID, roles: ["office_manager", "account_owner"] }) },
+  { id: "u0000000-0000-0000-0000-00000000000a", email: "ceo@rankine.demo", password: DEMO_PASSWORD, name: "Chief executive", surfaces: ["S4"],
+    principal: P({ namespace: "internal", subjectId: "u0000000-0000-0000-0000-00000000000a", orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: INTERNAL_ORG_ID, roles: ["principal"] }) },
+  { id: "u0000000-0000-0000-0000-00000000000b", email: "cfo@rankine.demo", password: DEMO_PASSWORD, name: "Finance lead (read only)", surfaces: ["S4"],
+    principal: P({ namespace: "internal", subjectId: "u0000000-0000-0000-0000-00000000000b", orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: INTERNAL_ORG_ID, roles: ["readonly"] }) },
   { id: "u0000000-0000-0000-0000-000000000002", email: "dispatch.south@rankine.demo", password: DEMO_PASSWORD, name: "South dispatcher", surfaces: ["S3"],
     principal: P({ namespace: "internal", subjectId: "u0000000-0000-0000-0000-000000000002", orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH, scopeTier: "region", scopeId: REGION_SOUTH, roles: ["dispatcher"] }) },
   { id: "u0000000-0000-0000-0000-000000000003", email: "dispatch.west@rankine.demo", password: DEMO_PASSWORD, name: "West dispatcher", surfaces: ["S3"],
@@ -346,7 +373,7 @@ const cookieSessions = new Map<SurfaceId, Session>();
 const bearerSessions = new Map<string, Session>();
 const principalOf = (s: Session): Principal => ({ ...s.user.principal, sessionId: s.id });
 const mint = (user: User): Session => ({ id: uid("z"), user, token: `demo.${uid("t")}` });
-for (const sid of ["S2", "S3", "S6", "S8"] as SurfaceId[]) cookieSessions.set(sid, mint(users.find((u) => u.surfaces.includes(sid))!));
+for (const sid of ["S2", "S3", "S4", "S6", "S8"] as SurfaceId[]) cookieSessions.set(sid, mint(users.find((u) => u.surfaces.includes(sid))!));
 
 const reader: HierarchyReader = {
   organization: async (id) => { const o = orgs.find((x) => x.id === id); return o ? { id: o.id, name: o.name } : null; },
@@ -485,11 +512,105 @@ const bad = (message: string) => new Refused(400, "BadInput", message);
 // ---------------------------------------------------------------------------
 // Handlers — one per operation the surfaces call. `p` is null for S1.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// S4 — the rollup's figures, the same definitions as apps/worker/src/rollup.ts,
+// evaluated over this gateway's rows. Past days are not stored in the demo, so
+// the trend behind a figure is a steady synthetic history ending at today's value.
+// ---------------------------------------------------------------------------
+const hqRegions = (): W.HqRegionWire[] => [
+  ...REGIONS.map((r) => ({ id: r.id, code: r.code, name: r.name, active: r.active, placed: true })),
+  { id: UNASSIGNED_REGION_ID, code: "UNASSIGNED", name: "Unassigned (pre-account)", active: true, placed: false },
+];
+const CLOSED = ["complete", "invoiced", "cancelled", "aborted"];
+const hqFigures = (regionId: string, now: number): Record<HqMetricKey, number> => {
+  const in30 = (iso: string | null | undefined) => !!iso && Date.parse(iso) > now - 30 * DAY && Date.parse(iso) <= now;
+  const t = new Date(now).toISOString().slice(0, 10);
+  const rj = jobs.filter((j) => j.regionId === regionId);
+  const open = rj.filter((j) => !CLOSED.includes(j.state));
+  const clocks = rj.filter((j) => j.slaDueAt && in30(j.openedAt));
+  const closed = clocks.filter((j) => j.slaSatisfiedAt || Date.parse(j.slaDueAt!) < now);
+  const met = clocks.filter((j) => j.slaSatisfiedAt && j.slaSatisfiedAt <= j.slaDueAt!);
+  const rc = crews.filter((c) => c.homeRegionId === regionId && c.active);
+  const rcIds = new Set(rc.map((c) => c.id));
+  const rcreds = credentials.filter((c) => rcIds.has(c.crewId));
+  const rs = settlements.filter((s) => s.regionId === regionId && ["issued", "acknowledged", "disputed"].includes(s.state));
+  const locIds = new Set(accounts.filter((a) => a.regionId === regionId && a.tier === "location").map((a) => a.id));
+  const inv = regionId === UNASSIGNED_REGION_ID ? [] : invoices.flatMap((i) => i.lines.filter((l) => locIds.has(l.locationId)).map((l) => ({ ...i, amount: Number(l.amountMinor) })));
+  const customerOrgs = new Set(accounts.filter((a) => a.regionId === regionId && a.active && orgs.find((o) => o.id === a.orgId)?.kind === "customer").map((a) => a.orgId));
+  const rl = regionId === UNASSIGNED_REGION_ID ? leads.filter((l) => in30(l.at)) : [];
+  const wc = workingCapital[regionId];
+  return {
+    jobs_opened_30d: rj.filter((j) => in30(j.openedAt)).length,
+    jobs_completed_30d: rj.filter((j) => in30(j.openedAt) && ["complete", "invoiced"].includes(j.state)).length,
+    jobs_open_now: open.length,
+    jobs_unassigned_now: open.filter((j) => !liveAssignment(j.id)).length,
+    jobs_at_risk_now: open.filter((j) => j.slaDueAt && !j.slaSatisfiedAt && ((j.slaEscalationStage ?? 0) > 0 || Date.parse(j.slaDueAt) <= now + HOUR)).length,
+    sla_closed_30d: closed.length,
+    sla_met_30d: met.length,
+    sla_breached_30d: closed.length - met.length,
+    sla_escalated_30d: clocks.filter((j) => (j.slaEscalationStage ?? 0) > 0).length,
+    invoiced_minor_30d: inv.filter((i) => in30(i.issuedAt)).reduce((s, i) => s + i.amount, 0),
+    invoices_past_due_minor: inv.filter((i) => i.issuedAt && i.dueAt && Date.parse(i.dueAt) < now).reduce((s, i) => s + i.amount, 0),
+    receivable_minor: wc?.receivable ?? 0,
+    subcontractor_payable_minor: wc?.payable ?? 0,
+    settlements_open_minor: rs.reduce((s, x) => s + Number(x.totalMinor), 0),
+    settlements_overdue: rs.filter((x) => x.issuedAt && Date.parse(x.issuedAt) + (firms.find((f) => f.id === x.firmId)?.settlementTermsDays ?? 30) * DAY < now).length,
+    settlements_disputed: rs.filter((x) => x.state === "disputed").length,
+    crews_active: rc.length,
+    crews_subcontracted_active: rc.filter((c) => c.employmentType === "subcontracted").length,
+    crews_cleared_now: rc.filter((c) => { const d = docSummary(c); return d.satisfied.length === d.required.length; }).length,
+    min_crew_density: REGIONS.find((r) => r.id === regionId)?.minCrewDensity ?? 0,
+    locations_active: accounts.filter((a) => a.regionId === regionId && a.tier === "location" && a.active).length,
+    firms_active: firms.filter((f) => f.regionId === regionId && f.status === "active").length,
+    firms_onboarding: firms.filter((f) => f.regionId === regionId && f.status === "onboarding").length,
+    credentials_unverified: rcreds.filter((c) => !c.verifiedAt).length,
+    credentials_expiring_30d: rcreds.filter((c) => c.verifiedAt && c.validTo >= t && c.validTo <= day(30)).length,
+    leads_30d: rl.length,
+    leads_web_form_30d: rl.filter((l) => l.source === "web_form").length,
+    leads_call_button_30d: rl.filter((l) => l.source === "call_button").length,
+    leads_referral_30d: rl.filter((l) => l.source === "referral").length,
+    calls_inbound_30d: regionId === UNASSIGNED_REGION_ID ? callRecords.filter((c) => in30(c.at)).length : 0,
+    service_requests_30d: serviceRequests.filter((r) => r.regionId === regionId && in30(r.createdAt)).length,
+    customers_active: customerOrgs.size,
+    customers_new_30d: [...customerOrgs].filter((id) => in30(orgs.find((o) => o.id === id)?.createdAt)).length,
+    sites_active: accounts.filter((a) => a.regionId === regionId && a.tier === "site" && a.active).length,
+    // Company-wide distinct figures live on the unplaced row alone, as in the rollup.
+    customers_total: regionId === UNASSIGNED_REGION_ID ? new Set(accounts.filter((a) => a.active && orgs.find((o) => o.id === a.orgId)?.kind === "customer").map((a) => a.orgId)).size : 0,
+    customers_new_total_30d: regionId === UNASSIGNED_REGION_ID ? orgs.filter((o) => o.kind === "customer" && in30(o.createdAt)).length : 0,
+  };
+};
+/** A deterministic wobble around today's value, older days a little lower for flows (30d) and near-flat for states (now). */
+const pastValue = (metric: HqMetricKey, regionId: string, today: number, daysAgo: number): number => {
+  let h = 0;
+  for (const ch of metric + regionId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const wave = Math.sin(daysAgo / 3.5 + (h % 17)) * 0.12 + Math.sin(daysAgo / 1.3 + (h % 5)) * 0.05;
+  const drift = HQ_METRICS[metric].window === "30d" ? -daysAgo * 0.006 : 0;
+  return Math.max(0, Math.round(today * (1 + wave + drift)));
+};
+
 type Ctx = { surface: SurfaceId; p: Principal; session: Session | null };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each handler names its own wire input type
 type Handler = (input: any, ctx: Ctx) => unknown | Promise<unknown>;
 
 const H: Partial<Record<OperationId, Handler>> = {
+  // ---- S4: the HQ rollup, computed from this gateway's own rows at the moment of the read ----
+  "hq.metrics": () => {
+    const asOf = new Date().toISOString();
+    const values: W.HqValueWire[] = [];
+    for (const r of hqRegions()) { const f = hqFigures(r.id, Date.now()); for (const k of HQ_METRIC_KEYS) values.push({ regionId: r.id, metric: k, value: String(f[k]) }); }
+    return { day: asOf.slice(0, 10), asOf, refreshMinutes: HQ_REFRESH_MINUTES, regions: hqRegions(), values };
+  },
+  "hq.history": (i: W.HqHistoryInput) => {
+    if (!i.metric || !isHqMetricKey(i.metric)) throw bad("metric must be a key in the HQ register (packages/contracts/src/hq.ts)");
+    const days = i.days === undefined ? 30 : Number(i.days);
+    if (!Number.isInteger(days) || days < 1 || days > 90) throw bad("days must be a whole number from 1 to 90");
+    const points: W.HqHistoryPointWire[] = [];
+    for (const r of hqRegions()) {
+      const today = hqFigures(r.id, Date.now())[i.metric];
+      for (let d = days - 1; d >= 0; d--) points.push({ day: day(-d), regionId: r.id, value: String(d === 0 ? today : pastValue(i.metric, r.id, today, d)) });
+    }
+    return { metric: i.metric, days, points };
+  },
   "system.health": () => ({ ok: true, surfaces: Object.values(SURFACES).filter((s) => s.enabled).map((s) => s.id) }),
   "session.me": async (_i, { p }) => buildContext(p, reader),
   "brand.theme": () => ({ tenant: false, css: "", admission: null }),
@@ -523,7 +644,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     need(i.name?.trim(), "name is empty", "empty_name");
     need(REGIONS.some((r) => r.id === i.firstRegionNode?.regionId), `no service region ${i.firstRegionNode?.regionId}`, "unknown_region");
     const orgId = uid("o"), regionNodeId = uid("a");
-    orgs.push({ id: orgId, name: i.name.trim(), kind: i.kind ?? "customer", externalRef: i.externalRef ?? null, active: true });
+    orgs.push({ id: orgId, name: i.name.trim(), kind: i.kind ?? "customer", externalRef: i.externalRef ?? null, active: true, createdAt: new Date().toISOString() });
     accounts.push({ id: regionNodeId, orgId, tier: "region", name: i.firstRegionNode.name, parentId: null, regionId: i.firstRegionNode.regionId, customerGroup: null, externalRef: null, timezone: null, active: true, address: null });
     return { orgId, regionNodeId, eventId: publish(surface, "account.created", "account", regionNodeId, orgId, i.firstRegionNode.regionId) };
   },
@@ -914,6 +1035,8 @@ const sessionFor = (req: WireRequest): Session | null => {
 const noteOf = (id: OperationId, input: any, out: any): string => {
   if (id === "auth.login" || id === "auth.deviceLogin") return `as ${input?.email ?? "?"}`;
   if (id === "session.me") return "who is signed in, and where they sit in the hierarchy";
+  if (id === "hq.metrics") return `${out.values.length} figures across ${out.regions.length} regions`;
+  if (id === "hq.history") return `${input?.metric}: ${out.points.length} daily points`;
   if (out && typeof out === "object") {
     for (const k of ["nodes", "jobs", "crews", "firms", "contracts", "settlements", "credentials", "requests", "candidates", "rateCards", "regions", "organizations", "metros", "equipment", "contacts", "invoices", "lines", "outcomes"]) {
       if (Array.isArray(out[k])) return `${out[k].length} row${out[k].length === 1 ? "" : "s"}`;
