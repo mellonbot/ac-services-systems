@@ -1,0 +1,306 @@
+<title>Rankine Surface Demo</title>
+<!--__FONTS__-->
+<style>
+/*__TOKENS__*/
+:root{color-scheme:light}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--color-page);color:var(--color-text);font:15px/1.45 var(--font-text);display:flex;flex-direction:column;min-height:100%}
+button,select{font:inherit}
+:focus-visible{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}
+
+.bar{display:flex;align-items:center;gap:var(--space-4);padding:var(--space-3) var(--space-4);background:var(--color-surface);border-bottom:2px solid var(--color-text);flex-wrap:wrap}
+.lockup{display:flex;align-items:center;gap:var(--space-2);text-decoration:none;color:var(--color-text)}
+.lockup svg{display:block}
+.wordmark{font-family:var(--font-wordmark);font-size:30px;line-height:1;letter-spacing:var(--track-tight)}
+.wordmark-co{font-family:var(--font-display);font-size:var(--text-xs);letter-spacing:var(--track-wider);text-transform:uppercase;color:var(--color-text-muted);margin-top:6px}
+.bar h1{margin:0;padding-inline-start:var(--space-4);border-inline-start:1px solid var(--color-border-hard);font-family:var(--font-display);font-size:var(--text-lg);letter-spacing:var(--track-normal);text-transform:uppercase;font-weight:600}
+.bar .sub{color:var(--color-text-muted);font-size:var(--text-sm)}
+.bar .spacer{flex:1}
+.outage{display:flex;align-items:center;gap:var(--space-2);border:1px solid var(--color-border-hard);background:var(--color-surface);padding:0 var(--space-3);height:36px;cursor:pointer;color:var(--color-text);font-weight:600;font-size:var(--text-sm)}
+.outage .dot{width:10px;height:10px;border-radius:50%;background:var(--color-status-ok)}
+.outage[aria-pressed="true"]{border-color:var(--color-status-breached);color:var(--color-status-breached)}
+.outage[aria-pressed="true"] .dot{background:transparent;border:2px solid var(--color-status-breached);border-radius:0}
+
+.tabs{display:flex;gap:0;background:var(--color-surface-sunken);border-bottom:1px solid var(--color-border-hard);overflow-x:auto;padding-inline:var(--space-4)}
+.tab{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;padding:var(--space-2) var(--space-4);border:0;border-bottom:3px solid transparent;background:transparent;color:var(--color-text);cursor:pointer;text-align:left;white-space:nowrap}
+.tab .id{font-family:var(--font-instrument);font-size:var(--text-xs);color:var(--color-text-muted);letter-spacing:var(--track-normal)}
+.tab .nm{font-weight:600;font-size:var(--text-sm)}
+.tab:hover:not([disabled]){background:var(--color-surface)}
+.tab[aria-selected="true"]{background:var(--color-surface);border-bottom-color:var(--color-action)}
+.tab[aria-selected="true"] .id{color:var(--color-action-text)}
+.tab[disabled]{cursor:not-allowed;color:var(--color-text-muted)}
+.tab[disabled] .nm{font-weight:500}
+
+.main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 360px;min-height:0}
+.stage{display:flex;flex-direction:column;min-width:0;min-height:0}
+.ctx{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;padding:var(--space-2) var(--space-4);background:var(--color-surface);border-bottom:1px solid var(--color-border)}
+.ctx label{font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted);font-weight:600}
+.ctx select{height:32px;border:1px solid var(--color-border-hard);background:var(--color-surface);color:var(--color-text);padding:0 var(--space-2);max-width:100%}
+.ctx .who{font-weight:600}
+.ctx .path{font-family:var(--font-instrument);font-size:var(--text-sm);color:var(--color-text-muted);background:var(--color-page);padding:2px var(--space-2);border:1px solid var(--color-border)}
+.ctx .spacer{flex:1}
+.ctx button{height:32px;border:1px solid var(--color-border-hard);background:var(--color-surface);color:var(--color-text);padding:0 var(--space-3);cursor:pointer}
+.ctx button:hover{background:var(--color-page)}
+.ctx .hint{font-size:var(--text-sm);color:var(--color-text-muted)}
+.frames{flex:1;position:relative;min-height:560px;background:var(--color-page)}
+.frames iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--color-page)}
+.frames .tablet{position:absolute;inset:var(--space-4);display:flex;justify-content:center}
+.frames .tablet iframe{position:static;width:min(100%,880px);height:100%;border:12px solid var(--color-text);border-radius:18px}
+.phase{padding:var(--space-8);max-width:62ch}
+.phase h2{font-family:var(--font-display);text-transform:uppercase;letter-spacing:var(--track-normal);margin:0 0 var(--space-2)}
+
+aside{border-inline-start:1px solid var(--color-border-hard);background:var(--color-surface);display:flex;flex-direction:column;min-height:0}
+aside section{padding:var(--space-4);border-bottom:1px solid var(--color-border)}
+aside h2{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-sm);letter-spacing:var(--track-wide);text-transform:uppercase;font-weight:600;color:var(--color-text-muted)}
+.about{font-size:var(--text-sm);color:var(--color-text-muted);margin:0 0 var(--space-3)}
+.about strong{color:var(--color-text)}
+.steps{margin:0;padding-inline-start:1.4em;display:grid;gap:var(--space-2);font-size:var(--text-sm)}
+.steps li::marker{font-family:var(--font-instrument);color:var(--color-action-text);font-weight:600}
+.steps b{font-weight:600}
+.steps code,.about code{font-family:var(--font-instrument);font-size:12px;background:var(--color-page);padding:0 4px;border:1px solid var(--color-border)}
+.log-wrap{flex:1;display:flex;flex-direction:column;min-height:220px}
+.log-head{display:flex;align-items:center;justify-content:space-between}
+.log-head button{border:0;background:transparent;color:var(--color-action-text);cursor:pointer;font-size:var(--text-sm);text-decoration:underline}
+.log{flex:1;overflow:auto;margin:0;padding:0;list-style:none;font-family:var(--font-instrument);font-size:12px;border:1px solid var(--color-border);background:var(--color-page);max-height:100%}
+.log li{display:grid;grid-template-columns:auto auto 1fr;gap:0 var(--space-2);padding:6px var(--space-2);border-bottom:1px solid var(--color-border);align-items:baseline}
+.log .t{color:var(--color-text-muted);font-variant-numeric:tabular-nums}
+.log .s{font-weight:600}
+.log .op{overflow-wrap:anywhere}
+.log .note{grid-column:1/-1;color:var(--color-text-muted);overflow-wrap:anywhere}
+.log .k{display:inline-block;margin-inline-end:6px;padding:0 4px;border:1px solid currentColor;font-size:10px;letter-spacing:var(--track-normal);text-transform:uppercase}
+.log .k.read{color:var(--color-text-muted)}
+.log .k.write{color:var(--color-action-text)}
+.log .k.event{color:var(--color-status-ok)}
+.log .k.refused{color:var(--color-status-at-risk)}
+.log .k.offline{color:var(--color-status-breached)}
+.log .empty{display:block;color:var(--color-text-muted);padding:var(--space-3)}
+
+@media (max-width: 960px){
+  .main{grid-template-columns:1fr}
+  .frames{min-height:78vh}
+  aside{border-inline-start:0;border-top:1px solid var(--color-border-hard)}
+  .log{max-height:360px}
+  .bar h1{border:0;padding:0}
+}
+@media (prefers-reduced-motion: no-preference){ .tab{transition:background .12s} }
+</style>
+
+<header class="bar">
+  <a class="lockup" href="#S1" aria-label="Rankine Operating Company">
+    <!--__BADGE__-->
+    <span><span class="wordmark">Rankine</span><br><span class="wordmark-co">Operating Company</span></span>
+  </a>
+  <h1>Surface demo</h1>
+  <span class="sub">Every built surface, running the real code on a simulated gateway</span>
+  <span class="spacer"></span>
+  <button class="outage" id="outage" type="button" aria-pressed="false"><span class="dot" aria-hidden="true"></span><span id="outage-label">Gateway up</span></button>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Surfaces" id="tabs"></nav>
+
+<div class="main">
+  <div class="stage">
+    <div class="ctx" id="ctx">
+      <label for="persona">Viewing as</label>
+      <select id="persona"></select>
+      <span class="path" id="path" title="The surface's own route">/</span>
+      <span class="spacer"></span>
+      <span class="hint">Password for every account: <b>demo</b></span>
+      <button type="button" id="reload">Reload surface</button>
+    </div>
+    <div class="frames" id="frames"></div>
+  </div>
+  <aside>
+    <section>
+      <h2 id="about-h">About this surface</h2>
+      <p class="about" id="about"></p>
+      <h2>Try this</h2>
+      <ol class="steps" id="steps"></ol>
+    </section>
+    <section class="log-wrap">
+      <div class="log-head"><h2>Gateway activity</h2><button type="button" id="clear">Clear</button></div>
+      <ul class="log" id="log" aria-live="polite"><li class="empty">Requests, refusals and events appear here as you click.</li></ul>
+    </section>
+  </aside>
+</div>
+
+<script>/*__GATEWAY__*/</script>
+<script>
+/*__DATA__*/
+const G = ACDemo;
+
+const GUIDE = {
+  S1: {
+    about: "The public site. Visitors never sign in and the page never waits for the server. It renders with the gateway down, and the metros it lists come from the regions table.",
+    steps: [
+      "Open <b>Where we work</b>. West, Mountain and South come from our <code>regions</code> rows, not from the page.",
+      "Open <b>Ask us to call</b> and submit the form. The log shows one write, <code>leads.submit</code>, and nothing reads it back.",
+      "Switch <b>Gateway up</b> to down, then submit again. The form queues in the browser and the degraded banner appears.",
+      "Switch the gateway back up. The queued lead sends once. Its submission ID means a retry can't create a duplicate.",
+    ],
+  },
+  S2: {
+    about: "The office. Customer hierarchy, agreements, contract terms and the subcontractor network, authored in one place and admitted or refused by the same rules the database enforces.",
+    steps: [
+      "<b>Accounts</b> → Amped Fitness: three region nodes over our West, Mountain and South, with the locations and sites beneath them.",
+      "Open the resolved terms for <b>Amped San Jose</b>. The SLA is <code>4_hour</code>, won at the location over the MSA's <code>same_day</code>. The trace shows every rung.",
+      "Author an override that loosens <b>Amped Reno</b> to <code>48_hour</code>. It's refused (<code>ratchet_loosened</code>): a location can tighten an SLA, never relax it.",
+      "<b>Network</b> → Lone Star Mechanical → <b>Lone Star — Crew B</b> documents. Their insurance was filed from S8 and isn't verified. Verify it, then try dispatching them in S3.",
+    ],
+  },
+  S3: {
+    about: "Dispatch, locked to one region. Every assignment goes through the compliance gate: a crew that doesn't cover the whole service window is refused in plain words, and nothing is written.",
+    steps: [
+      "The <b>Board</b>: the <code>EMERG-CALL</code> at Austin's rooftop is unassigned, and its SLA clock is at risk (▲).",
+      "<b>Dispatch</b> it. <b>Lone Star — Crew B</b> shows <i>not cleared: unverified</i> until the office verifies their insurance in S2.",
+      "Assign <b>South Crew 1</b>. The SLA timer is satisfied and the job lands on that crew's tablet in S5.",
+      "Dispatch the <b>routine REPAIR-HVAC</b> (Houston clinic, tomorrow). <b>Gulf Coast — Crew 1</b> is refused: their insurance expires tonight, inside the service window.",
+      "Switch to the <b>West dispatcher</b>. Only San Jose's work is visible; region scoping is the gateway's, not the page's.",
+    ],
+  },
+  S5: {
+    about: "The technician's web fallback. It signs in with the technician's credential plus the device in hand, and works offline: actions queue on the device and replay in order.",
+    steps: [
+      "Press <b>Sign in</b>. The device (RK-TAB-0042), email and password are prefilled.",
+      "Open the <b>PM-RTU</b> job that's en route and move it forward: on site, checklist, labor timer.",
+      "Switch the gateway down and keep working. Each action queues on the device.",
+      "Switch the gateway back up. The queue replays and the log shows <code>sync.replay</code> with every outcome.",
+      "Assign a job to South Crew 1 in S3, then reload the list here.",
+    ],
+  },
+  S6: {
+    about: "The customer portal. One codebase serves every customer and every tier; which rows appear is decided at the gateway, never by filtering in the page. Customers never see crews.",
+    steps: [
+      "As the <b>Amped VP Facilities</b> you see every Amped site in three regions. No crew is named anywhere.",
+      "Open a <b>Site</b> card: equipment with last-serviced dates, contacts inherited from the location, and invoice lines for that site only.",
+      "<b>Request service</b> at an Austin site. It lands in the Austin site's tenancy (see the log).",
+      "Switch to the <b>Austin manager</b>: only Austin's two sites. Then <b>Cedar Lane</b>: only the Houston clinic, none of Amped's.",
+    ],
+  },
+  S8: {
+    about: "The subcontractor portal. A firm sees its own crews, its own jobs, its own compliance and its own statements. It never sees another firm's rates or work.",
+    steps: [
+      "<b>Your firm</b>: Lone Star's roster, the Austin and El Paso work its crews were sent to, and its statements. The September draft stays hidden until it's issued.",
+      "Open the August <b>statement</b>. Acknowledge it, or dispute it with a reason.",
+      "<b>Crews</b> → enroll a new crew. It appears in S2's Network straight away (the event reaches the office).",
+      "Try retiring <b>Crew A</b>. It's refused (<code>crew_assigned</code>) because it's on the Austin PM.",
+      "Switch to <b>Gulf Coast</b>. One Houston job and one statement, none of Lone Star's.",
+    ],
+  },
+};
+
+const $ = (id) => document.getElementById(id);
+const byId = Object.fromEntries(SURFACE_LIST.map((s) => [s.id, s]));
+const iframes = {};
+let current = null;
+const paths = {};
+
+const S5_FILL = () => {
+  const p = G.PERSONAS.find((x) => x.surface === "S5");
+  return { hardwareId: p.hardwareId, email: p.email, password: "demo" };
+};
+
+const makeFrame = (id) => {
+  const f = document.createElement("iframe");
+  f.title = `${id} · ${byId[id].name}`;
+  f.srcdoc = FRAMES[id];
+  f.addEventListener("load", () => { if (id === "S5") setTimeout(() => f.contentWindow.postMessage({ ac: "demo", type: "fill", values: S5_FILL() }, "*"), 150); });
+  paths[id] = "/";
+  if (id === "S5") { const w = document.createElement("div"); w.className = "tablet"; w.appendChild(f); $("frames").appendChild(w); iframes[id] = { el: w, frame: f }; }
+  else { $("frames").appendChild(f); iframes[id] = { el: f, frame: f }; }
+  return iframes[id];
+};
+
+const renderTabs = () => {
+  $("tabs").innerHTML = "";
+  for (const s of SURFACE_LIST) {
+    const b = document.createElement("button");
+    b.className = "tab"; b.type = "button"; b.role = "tab"; b.dataset.id = s.id;
+    b.setAttribute("aria-selected", String(s.id === current));
+    b.innerHTML = `<span class="id">${s.id} · ${s.block}${s.built ? "" : ` · Phase ${s.phase}`}</span><span class="nm">${s.name}</span>`;
+    if (!s.built) { b.disabled = true; b.title = `Not built yet: Phase ${s.phase}`; }
+    b.addEventListener("click", () => select(s.id));
+    $("tabs").appendChild(b);
+  }
+};
+
+const renderPersona = () => {
+  const sel = $("persona");
+  sel.innerHTML = "";
+  const list = G.PERSONAS.filter((p) => p.surface === current);
+  if (current === "S1") { sel.innerHTML = `<option>Anonymous visitor</option>`; sel.disabled = true; return; }
+  sel.disabled = false;
+  const active = current === "S5" ? list[0].email : G.signedInAs(current);
+  for (const p of list) {
+    const o = document.createElement("option");
+    o.value = p.email; o.textContent = `${p.name} (${p.email})`;
+    if (p.email === active) o.selected = true;
+    sel.appendChild(o);
+  }
+  if (current !== "S5" && !active) { const o = document.createElement("option"); o.textContent = "Signed out"; o.selected = true; o.disabled = true; sel.prepend(o); }
+};
+
+const select = (id) => {
+  if (!byId[id]?.built) return;
+  current = id;
+  try { history.replaceState(null, "", `#${id}`); } catch {}
+  const f = iframes[id] ?? makeFrame(id);
+  for (const [k, v] of Object.entries(iframes)) v.el.hidden = k !== id;
+  renderTabs(); renderPersona();
+  $("path").textContent = paths[id] ?? "/";
+  $("about-h").textContent = `${id} · ${byId[id].name}`;
+  $("about").innerHTML = `${GUIDE[id].about} <br><strong>Access:</strong> ${byId[id].authScope}. <strong>Density:</strong> ${byId[id].density}.`;
+  $("steps").innerHTML = GUIDE[id].steps.map((s) => `<li>${s}</li>`).join("");
+};
+
+const reloadFrame = (id) => { const f = iframes[id]; if (!f) return; paths[id] = "/"; f.frame.srcdoc = FRAMES[id]; if (id === current) $("path").textContent = "/"; };
+
+$("persona").addEventListener("change", (e) => {
+  const email = e.target.value;
+  if (current === "S5") { iframes.S5.frame.contentWindow.postMessage({ ac: "demo", type: "fill", values: { ...S5_FILL(), email } }, "*"); return; }
+  G.signInAs(current, email);
+  reloadFrame(current);
+});
+$("reload").addEventListener("click", () => reloadFrame(current));
+
+// The wire between the surface frames and the demo gateway.
+addEventListener("message", async (ev) => {
+  const m = ev.data;
+  if (!m || m.ac !== "demo" || !byId[m.surface]) return;
+  if (m.type === "path") { paths[m.surface] = m.path; if (m.surface === current) $("path").textContent = m.path; return; }
+  if (m.type === "error") { (window.__demoErrors ||= []).push(`${m.surface}: ${m.message}`); console.warn(`${m.surface}:`, m.message); return; }
+  if (m.type !== "req") return;
+  await new Promise((r) => setTimeout(r, 40 + Math.random() * 90));
+  const r = await G.handle({ surface: m.surface, url: m.url, method: m.method, headers: m.headers, body: m.body });
+  ev.source.postMessage(r === "offline" ? { ac: "demo", type: "res", id: m.id, offline: true } : { ac: "demo", type: "res", id: m.id, status: r.status, body: r.body }, "*");
+});
+G.subscribe("S2", (env) => { for (const f of Object.values(iframes)) f.frame.contentWindow?.postMessage({ ac: "demo", type: "event", env }, "*"); });
+
+// The log.
+const fmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+G.onActivity((a) => {
+  const log = $("log");
+  log.querySelector(".empty")?.remove();
+  const li = document.createElement("li");
+  const label = { read: "read", write: "write", refused: a.status ? `${a.status}` : "refused", event: "event", offline: "down" }[a.kind];
+  li.innerHTML = `<span class="t">${fmt.format(new Date(a.at))}</span><span class="s">${a.surface}</span><span class="op"><span class="k ${a.kind}">${label}</span>${esc(a.op)}</span>${a.note ? `<span class="note">${esc(a.note)}</span>` : ""}`;
+  log.prepend(li);
+  while (log.children.length > 250) log.lastChild.remove();
+  if ((a.op === "auth.login" || a.op === "auth.logout") && a.surface === current) renderPersona();
+});
+$("clear").addEventListener("click", () => { $("log").innerHTML = `<li class="empty">Requests, refusals and events appear here as you click.</li>`; });
+
+$("outage").addEventListener("click", () => {
+  const down = !G.isOffline();
+  G.setOffline(down);
+  $("outage").setAttribute("aria-pressed", String(down));
+  $("outage-label").textContent = down ? "Gateway down" : "Gateway up";
+  if (!down) for (const f of Object.values(iframes)) f.frame.contentWindow?.postMessage({ ac: "demo", type: "online" }, "*");
+});
+
+const start = location.hash.slice(1);
+select(byId[start]?.built ? start : "S2");
+</script>
