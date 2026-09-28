@@ -43,6 +43,11 @@ export const TOPICS = [
   "lead.captured", "call_record.logged",
   // sync
   "sync.conflict_queued",
+  // item 11 — purchasing. OFC hears the vendor; INV (S7) hears the office.
+  "vendor.created", "vendor.updated", "receiving_point.set", "catalog_item.set",
+  "vendor_price.proposed", "vendor_price.withdrawn", "vendor_price.decided",
+  "po.created", "po.issued", "po.cancelled", "po.acknowledged", "po.shipped", "po.received",
+  "vendor_invoice.submitted", "rma.requested", "rma.responded",
   // warranty
   "warranty_case.opened", "warranty_case.decided",
 ] as const;
@@ -83,11 +88,15 @@ export type EventEnvelope = Pick<DomainEvent, "eventId" | "topic" | "entity" | "
 export const SUBSCRIBERS: Readonly<Record<"OFC" | "FLD" | "INV" | "WORKER", readonly Topic[]>> = {
   OFC: ["lead.captured", "call_record.logged", "service_request.created", "job.transitioned", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended",
         // item 7: a firm's document arrived (to verify), a firm's position on a statement (to act on).
-        "credential.recorded", "settlement.acknowledged", "settlement.disputed"],
+        "credential.recorded", "settlement.acknowledged", "settlement.disputed",
+        // item 11: the vendor's side — a proposed price, an acknowledgement, a shipment, an invoice, an answer on a return.
+        "vendor_price.proposed", "po.acknowledged", "po.shipped", "vendor_invoice.submitted", "rma.responded"],
   FLD: ["job.assigned", "job.reassigned", "job.cancelled", "contract.term_overridden"],
   // S8 learns of its own verification and its own price the same way S2 does — by refetch.
   INV: ["job.completed", "contract.amended", "contract.term_overridden", "sla.breached", "settlement.statement_issued", "firm.status_changed", "credential.verified", "rate_card.changed", "brand.theme_set",
         // item 9: the site card's own facts.
-        "equipment.registered", "account_contact.set", "invoice.issued"],
+        "equipment.registered", "account_contact.set", "invoice.issued",
+        // item 11: what S7 refetches on — the office issued, cancelled, received, decided a price, asked for a return.
+        "po.issued", "po.cancelled", "po.received", "vendor_price.decided", "rma.requested"],
   WORKER: ["job.created", "job.assigned", "sla.timer_opened", "credential.verified"],
 };

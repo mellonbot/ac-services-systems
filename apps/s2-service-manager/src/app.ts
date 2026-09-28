@@ -17,6 +17,7 @@ import { network } from "./screens/network.ts";
 import { networkFirmNew, networkCrewNew } from "./screens/network-new.ts";
 import { networkCrewDocuments } from "./screens/network-documents.ts";
 import { networkRates } from "./screens/network-rates.ts";
+import { purchasing, purchasingVendor, purchasingPo, refreshProcurement } from "./screens/purchasing.ts";
 import { S2_CSS } from "./styles.ts";
 
 /**
@@ -57,6 +58,9 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "network.crew.new": networkCrewNew,
   "network.crew.documents": networkCrewDocuments,
   "network.rates": networkRates,
+  "purchasing": purchasing,
+  "purchasing.vendor": purchasingVendor,
+  "purchasing.po": purchasingPo,
 };
 
 type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
@@ -94,6 +98,9 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     }, { topics: ["account.created", "account.updated", "account.deactivated", "contract.created", "contract.amended", "contract.expired", "contract.term_overridden",
                   "firm.created", "firm.updated", "firm.status_changed", "crew.created", "crew.updated",
                   "credential.recorded", "credential.verified", "credential.expiring", "credential.expired", "rate_card.changed"] });
+    // Item 11: the vendor's side of an order lands here as a refetch — a proposed
+    // price, an acknowledgement, a shipment, an invoice, an answer on a return.
+    shell.subscribe(() => refreshProcurement(store), { topics: ["vendor_price.proposed", "vendor_price.withdrawn", "po.acknowledged", "po.shipped", "vendor_invoice.submitted", "rma.responded"] });
   };
 
   const login = async (email: string, password: string) => {

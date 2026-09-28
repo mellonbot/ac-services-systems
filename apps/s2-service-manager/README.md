@@ -34,6 +34,11 @@
 - `device_grant`
 - `equipment`
 - `account_contact`
+- `vendor`
+- `receiving_point`
+- `price_decision`
+- `po_receipt`
+- `rma_request`
 
 ## Degraded mode
 

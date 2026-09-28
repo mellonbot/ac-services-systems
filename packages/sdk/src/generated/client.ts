@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 64 today. There is no
+ * One method per operation in the catalogue — 86 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -52,7 +52,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["auth.deviceLogin"], input) as Promise<OperationIO["auth.deviceLogin"]["output"]>;
   },
 
-  /** `POST /auth/login` · login · none · surfaces: S2, S3, S4, S6, S8
+  /** `POST /auth/login` · login · none · surfaces: S2, S3, S4, S6, S7, S8
    *
    * Mint a token and resolve the hierarchy context once. The surface named in the body must serve the user's namespace. */
   login(input: OperationIO["auth.login"]["input"]): Promise<OperationIO["auth.login"]["output"]> {
@@ -85,6 +85,20 @@ export const createGatewayClient = (transport: Transport) => ({
    * A visitor used the call button. Recorded against the lead when there is one, and against nothing when there is not — an inbound call is a fact whether or not a form was filled. */
   recordCall(input: OperationIO["callRecords.record"]["input"]): Promise<OperationIO["callRecords.record"]["output"]> {
     return transport.request(OPERATIONS["callRecords.record"], input) as Promise<OperationIO["callRecords.record"]["output"]>;
+  },
+
+  /** `POST /s2/procurement/catalog` · mutation · bearer · surfaces: S2
+   *
+   * Add an item to a vendor's catalogue — the vendor's SKU, a description, the unit. It has no price until the vendor proposes one and the office accepts it. */
+  addCatalogItem(input: OperationIO["catalog.addItem"]["input"]): Promise<OperationIO["catalog.addItem"]["output"]> {
+    return transport.request(OPERATIONS["catalog.addItem"], input) as Promise<OperationIO["catalog.addItem"]["output"]>;
+  },
+
+  /** `GET /procurement/catalog` · query · bearer · surfaces: S2, S7
+   *
+   * A vendor's catalogue: each item with the price in effect today (accepted) and any proposal waiting on the office. */
+  listCatalog(input: OperationIO["catalog.list"]["input"]): Promise<OperationIO["catalog.list"]["output"]> {
+    return transport.request(OPERATIONS["catalog.list"], input) as Promise<OperationIO["catalog.list"]["output"]>;
   },
 
   /** `GET /contacts` · query · bearer · surfaces: S2, S6
@@ -339,6 +353,69 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["organizations.list"], input) as Promise<OperationIO["organizations.list"]["output"]>;
   },
 
+  /** `POST /s7/procurement/pos/acknowledge` · mutation · bearer · surfaces: S7
+   *
+   * The vendor accepts an issued order and says when it will ship: issued → acknowledged with a promised ship date. The one change a vendor makes to an order (0011). */
+  acknowledgePurchaseOrder(input: OperationIO["pos.acknowledge"]["input"]): Promise<OperationIO["pos.acknowledge"]["output"]> {
+    return transport.request(OPERATIONS["pos.acknowledge"], input) as Promise<OperationIO["pos.acknowledge"]["output"]>;
+  },
+
+  /** `POST /s2/procurement/pos/cancel` · mutation · bearer · surfaces: S2
+   *
+   * Cancel an order nothing has shipped against yet. */
+  cancelPurchaseOrder(input: OperationIO["pos.cancel"]["input"]): Promise<OperationIO["pos.cancel"]["output"]> {
+    return transport.request(OPERATIONS["pos.cancel"], input) as Promise<OperationIO["pos.cancel"]["output"]>;
+  },
+
+  /** `POST /s2/procurement/pos` · mutation · bearer · surfaces: S2
+   *
+   * Raise a draft purchase order to a vendor for a receiving point. Each line takes the item's ACCEPTED price today and keeps it; an item with none is refused by name. */
+  createPurchaseOrder(input: OperationIO["pos.create"]["input"]): Promise<OperationIO["pos.create"]["output"]> {
+    return transport.request(OPERATIONS["pos.create"], input) as Promise<OperationIO["pos.create"]["output"]>;
+  },
+
+  /** `GET /procurement/pos/detail` · query · bearer · surfaces: S2, S7
+   *
+   * One purchase order: its lines with ordered, shipped, received and invoiced quantities, the receiving point, and every shipment, receipt, invoice and return against it. */
+  purchaseOrder(input: OperationIO["pos.detail"]["input"]): Promise<OperationIO["pos.detail"]["output"]> {
+    return transport.request(OPERATIONS["pos.detail"], input) as Promise<OperationIO["pos.detail"]["output"]>;
+  },
+
+  /** `POST /s2/procurement/pos/issue` · mutation · bearer · surfaces: S2
+   *
+   * Send a draft to the vendor: draft → issued. From here the vendor can see it. */
+  issuePurchaseOrder(input: OperationIO["pos.issue"]["input"]): Promise<OperationIO["pos.issue"]["output"]> {
+    return transport.request(OPERATIONS["pos.issue"], input) as Promise<OperationIO["pos.issue"]["output"]>;
+  },
+
+  /** `GET /procurement/pos` · query · bearer · surfaces: S2, S7
+   *
+   * Purchase orders — every one for the office; a vendor's own once issued (a draft is ours). */
+  listPurchaseOrders(input: OperationIO["pos.list"]["input"]): Promise<OperationIO["pos.list"]["output"]> {
+    return transport.request(OPERATIONS["pos.list"], input) as Promise<OperationIO["pos.list"]["output"]>;
+  },
+
+  /** `POST /s2/procurement/prices/decide` · mutation · bearer · surfaces: S2
+   *
+   * The office accepts or rejects a proposed price. Accepting closes the price in effect at the proposal's first day; two accepted prices at once are refused by the EXCLUDE constraint. */
+  decidePrice(input: OperationIO["prices.decide"]["input"]): Promise<OperationIO["prices.decide"]["output"]> {
+    return transport.request(OPERATIONS["prices.decide"], input) as Promise<OperationIO["prices.decide"]["output"]>;
+  },
+
+  /** `POST /s7/procurement/prices` · mutation · bearer · surfaces: S7
+   *
+   * A vendor proposes a price for one of its items from a day. Arrives proposed whatever the request says (0011); applies only once the office accepts it. */
+  proposePrice(input: OperationIO["prices.propose"]["input"]): Promise<OperationIO["prices.propose"]["output"]> {
+    return transport.request(OPERATIONS["prices.propose"], input) as Promise<OperationIO["prices.propose"]["output"]>;
+  },
+
+  /** `POST /s7/procurement/prices/withdraw` · mutation · bearer · surfaces: S7
+   *
+   * A vendor withdraws its own proposal before the office decides it: proposed → withdrawn, nothing else. */
+  withdrawPrice(input: OperationIO["prices.withdraw"]["input"]): Promise<OperationIO["prices.withdraw"]["output"]> {
+    return transport.request(OPERATIONS["prices.withdraw"], input) as Promise<OperationIO["prices.withdraw"]["output"]>;
+  },
+
   /** `GET /network/rate-cards` · query · bearer · surfaces: S2, S8
    *
    * A firm's rates by service code over time. A firm sees its own and no other's — RLS, not a WHERE clause. */
@@ -353,11 +430,53 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["rateCards.set"], input) as Promise<OperationIO["rateCards.set"]["output"]>;
   },
 
+  /** `POST /s2/procurement/receipts` · mutation · bearer · surfaces: S2
+   *
+   * The office records what arrived, per line, never more than ordered. The order is received when every line is. */
+  recordReceipt(input: OperationIO["receipts.record"]["input"]): Promise<OperationIO["receipts.record"]["output"]> {
+    return transport.request(OPERATIONS["receipts.record"], input) as Promise<OperationIO["receipts.record"]["output"]>;
+  },
+
+  /** `POST /s2/procurement/receiving-points` · mutation · bearer · surfaces: S2
+   *
+   * Record a receiving point: a code, a tier (location stock, regional hub, national), the region and the address. */
+  createReceivingPoint(input: OperationIO["receivingPoints.create"]["input"]): Promise<OperationIO["receivingPoints.create"]["output"]> {
+    return transport.request(OPERATIONS["receivingPoints.create"], input) as Promise<OperationIO["receivingPoints.create"]["output"]>;
+  },
+
+  /** `GET /procurement/receiving-points` · query · bearer · surfaces: S2, S7
+   *
+   * Our receiving points. A vendor sees the ones its issued orders ship to — code, tier, address — and never a customer's name, because the row carries none. */
+  listReceivingPoints(): Promise<OperationIO["receivingPoints.list"]["output"]> {
+    return transport.request(OPERATIONS["receivingPoints.list"], undefined) as Promise<OperationIO["receivingPoints.list"]["output"]>;
+  },
+
   /** `GET /regions` · query · bearer · surfaces: S2, S3
    *
    * OUR service regions — the shard boundary. What a region node binds to; what D14's density rule is set on. */
   listRegions(): Promise<OperationIO["regions.list"]["output"]> {
     return transport.request(OPERATIONS["regions.list"], undefined) as Promise<OperationIO["regions.list"]["output"]>;
+  },
+
+  /** `GET /procurement/rmas` · query · bearer · surfaces: S2, S7
+   *
+   * Returns — every one for the office, its own for a vendor. */
+  listReturns(input: OperationIO["rmas.list"]["input"]): Promise<OperationIO["rmas.list"]["output"]> {
+    return transport.request(OPERATIONS["rmas.list"], input) as Promise<OperationIO["rmas.list"]["output"]>;
+  },
+
+  /** `POST /s2/procurement/rmas` · mutation · bearer · surfaces: S2
+   *
+   * The office asks to return part of a received line, with the reason. Never more than was received. */
+  requestReturn(input: OperationIO["rmas.request"]["input"]): Promise<OperationIO["rmas.request"]["output"]> {
+    return transport.request(OPERATIONS["rmas.request"], input) as Promise<OperationIO["rmas.request"]["output"]>;
+  },
+
+  /** `POST /s7/procurement/rmas/respond` · mutation · bearer · surfaces: S7
+   *
+   * The vendor answers a requested return once: authorized with its RMA number, or rejected with a reason. */
+  respondToReturn(input: OperationIO["rmas.respond"]["input"]): Promise<OperationIO["rmas.respond"]["output"]> {
+    return transport.request(OPERATIONS["rmas.respond"], input) as Promise<OperationIO["rmas.respond"]["output"]>;
   },
 
   /** `POST /s6/service-requests` · mutation · bearer · surfaces: S6
@@ -409,6 +528,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["settlements.list"], input) as Promise<OperationIO["settlements.list"]["output"]>;
   },
 
+  /** `POST /s7/procurement/shipments` · mutation · bearer · surfaces: S7
+   *
+   * The vendor records a shipment against an acknowledged order — the day, the carrier, the tracking, and quantities per line, never more than ordered. */
+  recordShipment(input: OperationIO["shipments.record"]["input"]): Promise<OperationIO["shipments.record"]["output"]> {
+    return transport.request(OPERATIONS["shipments.record"], input) as Promise<OperationIO["shipments.record"]["output"]>;
+  },
+
   /** `GET /s6/sites/imagery` · query · bearer · surfaces: S2, S6
    *
    * Overhead imagery of a site, fetched by the GATEWAY from the configured provider (AC_IMAGERY_URL) and returned inline — the customer's browser never reaches a third party with the customer's address, and there is no key in a bundle. Unavailable is an answer, not an error: not configured, no coordinates, provider unreachable. */
@@ -457,9 +583,37 @@ export const createGatewayClient = (transport: Transport) => ({
   resolvedTerms(input: OperationIO["terms.resolved"]["input"]): Promise<OperationIO["terms.resolved"]["output"]> {
     return transport.request(OPERATIONS["terms.resolved"], input) as Promise<OperationIO["terms.resolved"]["output"]>;
   },
+
+  /** `GET /procurement/invoices` · query · bearer · surfaces: S2, S7
+   *
+   * Vendor invoices with their lines and their match verdict — every one for the office, its own for a vendor. */
+  listVendorInvoices(input: OperationIO["vendorInvoices.list"]["input"]): Promise<OperationIO["vendorInvoices.list"]["output"]> {
+    return transport.request(OPERATIONS["vendorInvoices.list"], input) as Promise<OperationIO["vendorInvoices.list"]["output"]>;
+  },
+
+  /** `POST /s7/procurement/invoices` · mutation · bearer · surfaces: S7
+   *
+   * The vendor submits an invoice against an order. The gateway matches it three ways — price against the order, quantity against the receipt — and records matched or held with every reason. */
+  submitVendorInvoice(input: OperationIO["vendorInvoices.submit"]["input"]): Promise<OperationIO["vendorInvoices.submit"]["output"]> {
+    return transport.request(OPERATIONS["vendorInvoices.submit"], input) as Promise<OperationIO["vendorInvoices.submit"]["output"]>;
+  },
+
+  /** `POST /s2/procurement/vendors` · mutation · bearer · surfaces: S2
+   *
+   * Record a vendor WITH its tenant root in one unit of work: the organizations row and the vendors row share an id, in the region it is administered from. */
+  createVendor(input: OperationIO["vendors.create"]["input"]): Promise<OperationIO["vendors.create"]["output"]> {
+    return transport.request(OPERATIONS["vendors.create"], input) as Promise<OperationIO["vendors.create"]["output"]>;
+  },
+
+  /** `GET /procurement/vendors` · query · bearer · surfaces: S2, S7
+   *
+   * Vendors — the office sees every one; a vendor sees its own row. RLS (0011), not a WHERE. */
+  listVendors(): Promise<OperationIO["vendors.list"]["output"]> {
+    return transport.request(OPERATIONS["vendors.list"], undefined) as Promise<OperationIO["vendors.list"]["output"]>;
+  },
 });
 
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "createJob", "listJobs", "myJobs", "submitLead", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "createServiceRequest", "listServiceRequests", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "siteImagery", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "createJob", "listJobs", "myJobs", "submitLead", "createOrganization", "listOrganizations", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "createServiceRequest", "listServiceRequests", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);

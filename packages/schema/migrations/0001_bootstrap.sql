@@ -799,6 +799,221 @@ CREATE INDEX IF NOT EXISTS hq_metrics_region_id_idx ON hq_metrics (region_id);
 CREATE INDEX IF NOT EXISTS hq_metrics_day_idx ON hq_metrics (day);
 CREATE INDEX IF NOT EXISTS hq_metrics_metric_day_idx ON hq_metrics (metric, day);
 
+CREATE TABLE IF NOT EXISTS vendors (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  legal_name text NOT NULL,
+  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','terminated')),
+  payment_terms_days integer NOT NULL DEFAULT 30,
+  contact_email text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS vendors_region_id_idx ON vendors (region_id);
+
+-- Where OUR goods are received: a regional hub, the national warehouse, or a location stock room. Named by code — a vendor reads this row, so it never carries a customer's name.
+CREATE TABLE IF NOT EXISTS receiving_points (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  code text NOT NULL,
+  tier text NOT NULL CHECK (tier IN ('location_stock','regional_hub','national')),
+  address jsonb NOT NULL,
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (code)
+);
+CREATE INDEX IF NOT EXISTS receiving_points_region_id_idx ON receiving_points (region_id);
+
+CREATE TABLE IF NOT EXISTS vendor_catalog_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  vendor_id uuid NOT NULL REFERENCES vendors(id),
+  vendor_sku text NOT NULL,
+  description text NOT NULL,
+  manufacturer_id uuid REFERENCES part_manufacturers(id),
+  uom text NOT NULL DEFAULT 'each',
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (vendor_id, vendor_sku)
+);
+CREATE INDEX IF NOT EXISTS vendor_catalog_items_region_id_idx ON vendor_catalog_items (region_id);
+CREATE INDEX IF NOT EXISTS vendor_catalog_items_vendor_id_idx ON vendor_catalog_items (vendor_id);
+
+-- A vendor PROPOSES a price from a day; it applies to a purchase order only once the office has accepted it. Two accepted prices for one item at once are unrepresentable (the EXCLUDE below).
+CREATE TABLE IF NOT EXISTS vendor_catalog_prices (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  item_id uuid NOT NULL REFERENCES vendor_catalog_items(id),
+  vendor_id uuid NOT NULL REFERENCES vendors(id),
+  price_minor bigint NOT NULL,
+  currency text NOT NULL REFERENCES currencies(code),
+  effective daterange NOT NULL,
+  state text NOT NULL DEFAULT 'proposed' CHECK (state IN ('proposed','accepted','rejected','withdrawn')),
+  proposed_at timestamptz NOT NULL DEFAULT now(),
+  decided_at timestamptz,
+  decided_by uuid,
+  decision_note text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  CONSTRAINT vendor_catalog_prices_no_overlap EXCLUDE USING gist (item_id WITH =, effective WITH &&) WHERE (state = 'accepted')
+);
+CREATE INDEX IF NOT EXISTS vendor_catalog_prices_region_id_idx ON vendor_catalog_prices (region_id);
+CREATE INDEX IF NOT EXISTS vendor_catalog_prices_item_id_idx ON vendor_catalog_prices (item_id);
+CREATE INDEX IF NOT EXISTS vendor_catalog_prices_vendor_id_idx ON vendor_catalog_prices (vendor_id);
+
+CREATE TABLE IF NOT EXISTS purchase_orders (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  vendor_id uuid NOT NULL REFERENCES vendors(id),
+  number text NOT NULL,
+  receiving_point_id uuid NOT NULL REFERENCES receiving_points(id),
+  state text NOT NULL DEFAULT 'draft' CHECK (state IN ('draft','issued','acknowledged','received','cancelled')),
+  currency text NOT NULL REFERENCES currencies(code),
+  total_minor bigint NOT NULL DEFAULT 0,
+  raised_by uuid NOT NULL,
+  issued_at timestamptz,
+  acknowledged_at timestamptz,
+  promised_ship_on date,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (number)
+);
+CREATE INDEX IF NOT EXISTS purchase_orders_region_id_idx ON purchase_orders (region_id);
+CREATE INDEX IF NOT EXISTS purchase_orders_vendor_id_idx ON purchase_orders (vendor_id);
+CREATE INDEX IF NOT EXISTS purchase_orders_receiving_point_id_idx ON purchase_orders (receiving_point_id);
+
+CREATE TABLE IF NOT EXISTS purchase_order_lines (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  po_id uuid NOT NULL REFERENCES purchase_orders(id),
+  vendor_id uuid NOT NULL REFERENCES vendors(id),
+  line_no integer NOT NULL,
+  item_id uuid NOT NULL REFERENCES vendor_catalog_items(id),
+  price_id uuid NOT NULL REFERENCES vendor_catalog_prices(id),
+  quantity_milli bigint NOT NULL,
+  unit_price_minor bigint NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (po_id, line_no)
+);
+CREATE INDEX IF NOT EXISTS purchase_order_lines_region_id_idx ON purchase_order_lines (region_id);
+CREATE INDEX IF NOT EXISTS purchase_order_lines_po_id_idx ON purchase_order_lines (po_id);
+
+CREATE TABLE IF NOT EXISTS shipments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  po_id uuid NOT NULL REFERENCES purchase_orders(id),
+  vendor_id uuid NOT NULL REFERENCES vendors(id),
+  shipped_on date NOT NULL,
+  carrier text NOT NULL,
+  tracking text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS shipments_region_id_idx ON shipments (region_id);
+CREATE INDEX IF NOT EXISTS shipments_po_id_idx ON shipments (po_id);
+
+CREATE TABLE IF NOT EXISTS shipment_lines (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  shipment_id uuid NOT NULL REFERENCES shipments(id),
+  po_line_id uuid NOT NULL REFERENCES purchase_order_lines(id),
+  vendor_id uuid NOT NULL REFERENCES vendors(id),
+  quantity_milli bigint NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS shipment_lines_region_id_idx ON shipment_lines (region_id);
+CREATE INDEX IF NOT EXISTS shipment_lines_shipment_id_idx ON shipment_lines (shipment_id);
+CREATE INDEX IF NOT EXISTS shipment_lines_po_line_id_idx ON shipment_lines (po_line_id);
+
+CREATE TABLE IF NOT EXISTS po_receipts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  po_id uuid NOT NULL REFERENCES purchase_orders(id),
+  po_line_id uuid NOT NULL REFERENCES purchase_order_lines(id),
+  vendor_id uuid NOT NULL REFERENCES vendors(id),
+  quantity_milli bigint NOT NULL,
+  received_at timestamptz NOT NULL DEFAULT now(),
+  received_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS po_receipts_region_id_idx ON po_receipts (region_id);
+CREATE INDEX IF NOT EXISTS po_receipts_po_id_idx ON po_receipts (po_id);
+CREATE INDEX IF NOT EXISTS po_receipts_po_line_id_idx ON po_receipts (po_line_id);
+
+CREATE TABLE IF NOT EXISTS vendor_invoices (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  po_id uuid NOT NULL REFERENCES purchase_orders(id),
+  vendor_id uuid NOT NULL REFERENCES vendors(id),
+  invoice_number text NOT NULL,
+  invoice_date date NOT NULL,
+  total_minor bigint NOT NULL,
+  currency text NOT NULL REFERENCES currencies(code),
+  match_state text NOT NULL CHECK (match_state IN ('matched','held')),
+  match_notes jsonb NOT NULL DEFAULT '[]',
+  document_key text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (vendor_id, invoice_number)
+);
+CREATE INDEX IF NOT EXISTS vendor_invoices_region_id_idx ON vendor_invoices (region_id);
+CREATE INDEX IF NOT EXISTS vendor_invoices_po_id_idx ON vendor_invoices (po_id);
+CREATE INDEX IF NOT EXISTS vendor_invoices_vendor_id_idx ON vendor_invoices (vendor_id);
+
+CREATE TABLE IF NOT EXISTS vendor_invoice_lines (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  invoice_id uuid NOT NULL REFERENCES vendor_invoices(id),
+  po_line_id uuid NOT NULL REFERENCES purchase_order_lines(id),
+  vendor_id uuid NOT NULL REFERENCES vendors(id),
+  quantity_milli bigint NOT NULL,
+  unit_price_minor bigint NOT NULL,
+  amount_minor bigint NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS vendor_invoice_lines_region_id_idx ON vendor_invoice_lines (region_id);
+CREATE INDEX IF NOT EXISTS vendor_invoice_lines_invoice_id_idx ON vendor_invoice_lines (invoice_id);
+CREATE INDEX IF NOT EXISTS vendor_invoice_lines_po_line_id_idx ON vendor_invoice_lines (po_line_id);
+
+-- A return. The office requests it against a received line; the vendor authorizes it (with its RMA number) or rejects it (with a reason).
+CREATE TABLE IF NOT EXISTS rmas (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  po_id uuid NOT NULL REFERENCES purchase_orders(id),
+  po_line_id uuid NOT NULL REFERENCES purchase_order_lines(id),
+  vendor_id uuid NOT NULL REFERENCES vendors(id),
+  quantity_milli bigint NOT NULL,
+  reason text NOT NULL,
+  state text NOT NULL DEFAULT 'requested' CHECK (state IN ('requested','authorized','rejected')),
+  requested_by uuid NOT NULL,
+  rma_number text,
+  vendor_note text,
+  responded_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS rmas_region_id_idx ON rmas (region_id);
+CREATE INDEX IF NOT EXISTS rmas_po_id_idx ON rmas (po_id);
+CREATE INDEX IF NOT EXISTS rmas_vendor_id_idx ON rmas (vendor_id);
+
 -- The designed home for pre-account rows. A real organization and a real
 -- region, so region_id never needs to be nullable and the shard key stays total.
 INSERT INTO organizations (id, name, kind) VALUES

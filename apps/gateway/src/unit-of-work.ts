@@ -44,6 +44,18 @@ export type Tx = {
   rollback(): Promise<void>;
 };
 
+/**
+ * Which principals may write a row in a region other than the one on their
+ * token: a parent-tier internal principal (ours, org-wide), a parent-tier
+ * customer (item 6 — its org is served from several of our regions), and a
+ * vendor (item 11 — it ships to OUR receiving points in any region, and a
+ * purchase order's region is the receiving point's, derived by trigger in
+ * 0011, never the one the vendor was bound to). The org check still holds for
+ * every external principal.
+ */
+export const isOrgScoped = (p: Pick<Principal, "namespace" | "scopeTier">): boolean =>
+  (p.namespace === "internal" || p.namespace === "customer" || p.namespace === "vendor") && p.scopeTier === "parent";
+
 export type UnitOfWorkContext = {
   readonly surfaceId: SurfaceId;
   readonly principal: Principal;
@@ -120,7 +132,7 @@ export const createUnitOfWork = async (ctx: UnitOfWorkContext, tx: Tx) => {
     //    with the site's by derivation.
     const p = ctx.principal;
     const ours = p.namespace === "internal" || p.namespace === "device";
-    const orgScoped = (p.namespace === "internal" || p.namespace === "customer") && p.scopeTier === "parent";
+    const orgScoped = isOrgScoped(p);
     if (!ours && m.orgId !== p.orgId) throw new TenancyMismatch(`row org ${m.orgId} is not principal org ${p.orgId}`);
     if (!orgScoped && m.regionId !== p.regionId) throw new TenancyMismatch(`row region ${m.regionId} is not principal region ${p.regionId}`);
     if (!isTopic(m.topic)) throw new Error(`"${m.topic}" is not in the event catalogue (packages/contracts/src/events.ts)`);

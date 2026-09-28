@@ -21,6 +21,7 @@ import { TERMS, TERM_KEYS } from "../../packages/contracts/src/terms.ts";
 import { resolveAll, type Override, type ScopePath } from "../../packages/domain/src/inheritance/resolve.ts";
 import { admitOverride, AdmissionRefused } from "../../packages/domain/src/inheritance/admit.ts";
 import { evaluate, REQUIRED, isRefusal } from "../../packages/domain/src/compliance/gate.ts";
+import { threeWayMatch } from "../../packages/domain/src/procurement/match.ts";
 import { buildContext, type HierarchyReader } from "../../apps/gateway/src/context.ts";
 import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 import { HQ_METRICS, HQ_METRIC_KEYS, HQ_REFRESH_MINUTES, isHqMetricKey, type HqMetricKey } from "../../packages/contracts/src/hq.ts";
@@ -58,7 +59,7 @@ const input422 = (message: string, code: string) => new Refused(422, "InputRefus
 /** The demo's rows are mutable; the wire types they are shaped from are not. */
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 type Region = W.RegionWire;
-type Org = { id: string; name: string; kind: "customer" | "subcontractor" | "internal"; externalRef: string | null; active: boolean; createdAt?: string };
+type Org = { id: string; name: string; kind: "customer" | "subcontractor" | "internal" | "vendor"; externalRef: string | null; active: boolean; createdAt?: string };
 type Account = { id: string; orgId: string; tier: W.AccountTierWire; name: string; parentId: string | null; regionId: string; customerGroup: string | null; externalRef: string | null; timezone: string | null; active: boolean; address: W.AddressWire | null };
 type Firm = Mutable<Omit<W.FirmWire, "crewCount" | "activeCrewCount">>;
 type Crew = Mutable<Omit<W.CrewWire, "documents">>;
@@ -344,6 +345,10 @@ const users: User[] = [
     principal: P({ namespace: "internal", subjectId: "u0000000-0000-0000-0000-00000000000a", orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: INTERNAL_ORG_ID, roles: ["principal"] }) },
   { id: "u0000000-0000-0000-0000-00000000000b", email: "cfo@rankine.demo", password: DEMO_PASSWORD, name: "Finance lead (read only)", surfaces: ["S4"],
     principal: P({ namespace: "internal", subjectId: "u0000000-0000-0000-0000-00000000000b", orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: INTERNAL_ORG_ID, roles: ["readonly"] }) },
+  { id: "u0000000-0000-0000-0000-0000000000c1", email: "orders@coolair.demo", password: DEMO_PASSWORD, name: "Coolair Supply order desk", surfaces: ["S7"],
+    principal: P({ namespace: "vendor", subjectId: "u0000000-0000-0000-0000-0000000000c1", orgId: "v0000000-0000-0000-0000-000000000001", regionId: REGION_SOUTH, scopeTier: "parent", scopeId: "v0000000-0000-0000-0000-000000000001", roles: [] }) },
+  { id: "u0000000-0000-0000-0000-0000000000c2", email: "sales@lonestarparts.demo", password: DEMO_PASSWORD, name: "Lone Star Parts Depot", surfaces: ["S7"],
+    principal: P({ namespace: "vendor", subjectId: "u0000000-0000-0000-0000-0000000000c2", orgId: "v0000000-0000-0000-0000-000000000002", regionId: REGION_SOUTH, scopeTier: "parent", scopeId: "v0000000-0000-0000-0000-000000000002", roles: [] }) },
   { id: "u0000000-0000-0000-0000-000000000002", email: "dispatch.south@rankine.demo", password: DEMO_PASSWORD, name: "South dispatcher", surfaces: ["S3"],
     principal: P({ namespace: "internal", subjectId: "u0000000-0000-0000-0000-000000000002", orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH, scopeTier: "region", scopeId: REGION_SOUTH, roles: ["dispatcher"] }) },
   { id: "u0000000-0000-0000-0000-000000000003", email: "dispatch.west@rankine.demo", password: DEMO_PASSWORD, name: "West dispatcher", surfaces: ["S3"],
@@ -373,7 +378,7 @@ const cookieSessions = new Map<SurfaceId, Session>();
 const bearerSessions = new Map<string, Session>();
 const principalOf = (s: Session): Principal => ({ ...s.user.principal, sessionId: s.id });
 const mint = (user: User): Session => ({ id: uid("z"), user, token: `demo.${uid("t")}` });
-for (const sid of ["S2", "S3", "S4", "S6", "S8"] as SurfaceId[]) cookieSessions.set(sid, mint(users.find((u) => u.surfaces.includes(sid))!));
+for (const sid of ["S2", "S3", "S4", "S6", "S7", "S8"] as SurfaceId[]) cookieSessions.set(sid, mint(users.find((u) => u.surfaces.includes(sid))!));
 
 const reader: HierarchyReader = {
   organization: async (id) => { const o = orgs.find((x) => x.id === id); return o ? { id: o.id, name: o.name } : null; },
@@ -1002,6 +1007,247 @@ const H: Partial<Record<OperationId, Handler>> = {
     return { outcomes };
   },
 };
+
+// ---------------------------------------------------------------------------
+// Item 11 — procurement: the office's purchasing (S2) and the vendor's side
+// (S7). Same wire shapes as apps/gateway/src/handlers/procurement.ts; the
+// three-way match is the real domain function. A vendor sees its own rows,
+// and an order only once issued — 0011's rules, imitated here by hand.
+// ---------------------------------------------------------------------------
+const VND = { coolair: "v0000000-0000-0000-0000-000000000001", lonestar: "v0000000-0000-0000-0000-000000000002" } as const;
+type Vendor = Mutable<W.VendorWire>;
+const vendorRows: Vendor[] = [
+  { id: VND.coolair, legalName: "Coolair Supply Co.", status: "active", regionId: REGION_SOUTH, paymentTermsDays: 30, contactEmail: "orders@coolair.demo" },
+  { id: VND.lonestar, legalName: "Lone Star Parts Depot", status: "active", regionId: REGION_SOUTH, paymentTermsDays: 45, contactEmail: "sales@lonestarparts.demo" },
+];
+for (const v of vendorRows) orgs.push({ id: v.id, name: v.legalName, kind: "vendor", externalRef: null, active: true });
+const RP = { south: "w0000000-0000-0000-0000-000000000001", west: "w0000000-0000-0000-0000-000000000002", mtn: "w0000000-0000-0000-0000-000000000003", dc: "w0000000-0000-0000-0000-000000000004" } as const;
+const receivingPointRows: W.ReceivingPointWire[] = [
+  { id: RP.south, code: "SOUTH-HUB", tier: "regional_hub", regionId: REGION_SOUTH, address: { line1: "4410 Industrial Oaks Blvd", city: "Austin", state: "TX", postal: "78735" }, active: true },
+  { id: RP.west, code: "WEST-HUB", tier: "regional_hub", regionId: REGION_WEST, address: { line1: "955 Spice Islands Dr", city: "Sparks", state: "NV", postal: "89431" }, active: true },
+  { id: RP.mtn, code: "MTN-LS-02", tier: "location_stock", regionId: REGION_MOUNTAIN, address: { line1: "6100 Longbow Dr, Unit 4", city: "Boulder", state: "CO", postal: "80301" }, active: true },
+  { id: RP.dc, code: "NATIONAL-DC", tier: "national", regionId: REGION_SOUTH, address: { line1: "2201 Great Southwest Pkwy", city: "Grand Prairie", state: "TX", postal: "75050" }, active: true },
+];
+type Item = Omit<W.CatalogItemWire, "current" | "proposals">;
+const itemRows: Item[] = [];
+const priceRows: Mutable<W.CatalogPriceWire>[] = [];
+const addItem = (vendorId: string, sku: string, description: string, priceMinor: string, uom = "each"): string => {
+  const id = uid("ci");
+  itemRows.push({ id, vendorId, vendorSku: sku, description, uom, active: true });
+  priceRows.push({ id: uid("cp"), itemId: id, vendorId, priceMinor, currency: "USD", effectiveFrom: day(-120), effectiveTo: null, state: "accepted", proposedAt: at(-125 * DAY), decidedAt: at(-121 * DAY), decisionNote: null });
+  return id;
+};
+const IT = {
+  cap: addItem(VND.coolair, "CAP-45-5-440", "Run capacitor 45/5 µF 440V", "1850"),
+  contactor: addItem(VND.coolair, "CNT-2P-40A", "Contactor, 2-pole 40A 24V coil", "3275"),
+  motor: addItem(VND.coolair, "MTR-CF-1/4", "Condenser fan motor 1/4 HP 1075 RPM", "14900"),
+  filter: addItem(VND.coolair, "FLT-20x25x2-M8", "Pleated filter 20x25x2 MERV 8", "640"),
+  r410: addItem(VND.lonestar, "R410A-25", "Refrigerant R-410A, 25 lb cylinder", "18900", "cylinder"),
+  belt: addItem(VND.lonestar, "BLT-A42", "V-belt A42", "1125"),
+  tstat: addItem(VND.lonestar, "TST-PRO-7", "Programmable thermostat, commercial", "11600"),
+};
+priceRows.push({ id: uid("cp"), itemId: IT.motor, vendorId: VND.coolair, priceMinor: "15650", currency: "USD", effectiveFrom: day(10), effectiveTo: null, state: "proposed", proposedAt: at(-2 * DAY), decidedAt: null, decisionNote: null });
+type Po = Mutable<Omit<W.PurchaseOrderWire, "vendorName" | "receivingPointCode" | "receivingTier">> & { lines: { id: string; lineNo: number; itemId: string; quantityMilli: string; unitPriceMinor: string }[] };
+const poRows: Po[] = [];
+const shipmentRows: (W.ShipmentWire & { poId: string })[] = [];
+const receiptRows: (W.ReceiptWire & { poId: string })[] = [];
+const vinvRows: W.VendorInvoiceWire[] = [];
+const rmaRows: Mutable<W.RmaWire>[] = [];
+const accepted = (itemId: string) => priceRows.find((p) => p.itemId === itemId && p.state === "accepted" && p.effectiveFrom <= day(0) && (p.effectiveTo === null || p.effectiveTo > day(0)));
+const amount = (q: bigint, p: bigint) => (q * p + 500n) / 1000n;
+const seedPo = (vendorId: string, rp: string, state: W.PoState, daysAgo: number, lines: [string, number][]): Po => {
+  const id = uid("po");
+  const ls = lines.map(([itemId, q], i) => ({ id: uid("pl"), lineNo: i + 1, itemId, quantityMilli: String(q * 1000), unitPriceMinor: accepted(itemId)!.priceMinor }));
+  const total = ls.reduce((t, l) => t + amount(BigInt(l.quantityMilli), BigInt(l.unitPriceMinor)), 0n);
+  const po: Po = { id, number: `PO-${day(-daysAgo).replace(/-/g, "")}-${4100 + poRows.length}`, vendorId, receivingPointId: rp, regionId: receivingPointRows.find((r) => r.id === rp)!.regionId, state, currency: "USD", totalMinor: total.toString(),
+    issuedAt: state === "draft" ? null : at(-daysAgo * DAY + HOUR), acknowledgedAt: ["acknowledged", "received"].includes(state) ? at(-daysAgo * DAY + 5 * HOUR) : null, promisedShipOn: ["acknowledged", "received"].includes(state) ? day(-daysAgo + 3) : null, createdAt: at(-daysAgo * DAY), lines: ls };
+  poRows.push(po);
+  return po;
+};
+{
+  const done = seedPo(VND.coolair, RP.south, "received", 21, [[IT.cap, 24], [IT.contactor, 10], [IT.filter, 48]]);
+  shipmentRows.push({ id: uid("sh"), poId: done.id, shippedOn: day(-18), carrier: "UPS Freight", tracking: "1Z9W4R870312", lines: done.lines.map((l) => ({ poLineId: l.id, quantityMilli: l.quantityMilli })) });
+  for (const l of done.lines) receiptRows.push({ id: uid("rc"), poId: done.id, poLineId: l.id, quantityMilli: l.quantityMilli, receivedAt: at(-16 * DAY) });
+  vinvRows.push({ id: uid("vi"), poId: done.id, poNumber: done.number, vendorId: VND.coolair, invoiceNumber: "CS-100482", invoiceDate: day(-15), totalMinor: done.totalMinor, currency: "USD", matchState: "matched", matchNotes: [], createdAt: at(-15 * DAY),
+    lines: done.lines.map((l) => ({ poLineId: l.id, quantityMilli: l.quantityMilli, unitPriceMinor: l.unitPriceMinor, amountMinor: amount(BigInt(l.quantityMilli), BigInt(l.unitPriceMinor)).toString() })) });
+  rmaRows.push({ id: uid("rm"), poId: done.id, poNumber: done.number, poLineId: done.lines[0]!.id, vendorId: VND.coolair, quantityMilli: "2000", reason: "Two capacitors arrived with bulged casings.", state: "requested", rmaNumber: null, vendorNote: null, createdAt: at(-3 * DAY), respondedAt: null });
+  const part = seedPo(VND.coolair, RP.west, "acknowledged", 6, [[IT.motor, 6], [IT.cap, 12]]);
+  shipmentRows.push({ id: uid("sh"), poId: part.id, shippedOn: day(-3), carrier: "FedEx Ground", tracking: "7749 0012 4431", lines: [{ poLineId: part.lines[0]!.id, quantityMilli: "4000" }, { poLineId: part.lines[1]!.id, quantityMilli: "12000" }] });
+  receiptRows.push({ id: uid("rc"), poId: part.id, poLineId: part.lines[0]!.id, quantityMilli: "4000", receivedAt: at(-1 * DAY) }, { id: uid("rc"), poId: part.id, poLineId: part.lines[1]!.id, quantityMilli: "12000", receivedAt: at(-1 * DAY) });
+  vinvRows.push({ id: uid("vi"), poId: part.id, poNumber: part.number, vendorId: VND.coolair, invoiceNumber: "CS-100511", invoiceDate: day(-1), totalMinor: "111600", currency: "USD", matchState: "held", createdAt: at(-1 * DAY),
+    matchNotes: [{ poLineId: part.lines[0]!.id, code: "over_received", message: "line 1: 6 billed in all, 4 received" }],
+    lines: [{ poLineId: part.lines[0]!.id, quantityMilli: "6000", unitPriceMinor: "14900", amountMinor: "89400" }, { poLineId: part.lines[1]!.id, quantityMilli: "12000", unitPriceMinor: "1850", amountMinor: "22200" }] });
+  seedPo(VND.coolair, RP.mtn, "issued", 1, [[IT.filter, 96], [IT.contactor, 4]]);
+  seedPo(VND.lonestar, RP.south, "issued", 0, [[IT.r410, 8], [IT.belt, 20]]);
+  seedPo(VND.lonestar, RP.dc, "acknowledged", 9, [[IT.tstat, 15]]);
+  seedPo(VND.coolair, RP.south, "draft", 0, [[IT.motor, 2]]);
+}
+const vendorOf = (p: Principal) => (p.namespace === "vendor" ? p.orgId : null);
+const seesPo = (p: Principal, po: Po) => p.namespace === "internal" || (po.vendorId === vendorOf(p) && po.state !== "draft");
+const poWire = (po: Po): W.PurchaseOrderWire => {
+  const rp = receivingPointRows.find((r) => r.id === po.receivingPointId);
+  const { lines: _l, ...rest } = po; void _l;
+  return { ...rest, vendorName: vendorRows.find((v) => v.id === po.vendorId)?.legalName ?? null, receivingPointCode: rp?.code ?? null, receivingTier: rp?.tier ?? null };
+};
+const sumBy = <T extends { quantityMilli: string }>(rows: readonly T[]) => rows.reduce((t, r) => t + BigInt(r.quantityMilli), 0n);
+const lineStats = (po: Po) => po.lines.map((l) => {
+  const item = itemRows.find((i) => i.id === l.itemId)!;
+  const shipped = sumBy(shipmentRows.filter((s) => s.poId === po.id).flatMap((s) => s.lines.filter((x) => x.poLineId === l.id)));
+  const received = sumBy(receiptRows.filter((r) => r.poLineId === l.id));
+  const invoiced = sumBy(vinvRows.filter((v) => v.poId === po.id && v.matchState === "matched").flatMap((v) => v.lines.filter((x) => x.poLineId === l.id)));
+  const returned = sumBy(rmaRows.filter((r) => r.poLineId === l.id && r.state !== "rejected"));
+  return { id: l.id, lineNo: l.lineNo, itemId: l.itemId, vendorSku: item.vendorSku, description: item.description, uom: item.uom, quantityMilli: l.quantityMilli, shippedMilli: shipped.toString(), receivedMilli: received.toString(),
+    invoicedMilli: invoiced.toString(), returnedMilli: returned.toString(), unitPriceMinor: l.unitPriceMinor, amountMinor: amount(BigInt(l.quantityMilli), BigInt(l.unitPriceMinor)).toString() } satisfies W.PoLineWire;
+});
+const findPo = (p: Principal, id: string): Po => { const po = poRows.find((x) => x.id === id && seesPo(p, x)); need(po, `no purchase order ${id} visible in this scope`, "unknown_po"); return po!; };
+const digits = (v: unknown, field: string, positive = false): bigint => { if (typeof v !== "string" || !/^\d+$/.test(v)) throw bad(`${field} must be a string of digits`); const n = BigInt(v); if (positive && n === 0n) throw bad(`${field} must be more than zero`); return n; };
+const proc: Partial<Record<OperationId, Handler>> = {
+  "vendors.list": (_i, { p }) => ({ vendors: vendorRows.filter((v) => p.namespace === "internal" || v.id === vendorOf(p)) }),
+  "vendors.create": (i: W.CreateVendorInput, { surface }) => {
+    need((i.legalName ?? "").trim(), "legalName is required", "empty_legal_name");
+    const id = uid("v"); const regionId = i.regionId;
+    vendorRows.push({ id, legalName: i.legalName.trim(), status: "active", regionId, paymentTermsDays: i.paymentTermsDays ?? 30, contactEmail: i.contactEmail ?? null });
+    orgs.push({ id, name: i.legalName.trim(), kind: "vendor", externalRef: null, active: true });
+    return { id, eventId: publish(surface, "vendor.created", "vendor", id, id, regionId) };
+  },
+  "receivingPoints.list": (_i, { p }) => ({ receivingPoints: receivingPointRows.filter((r) => p.namespace === "internal" || poRows.some((po) => po.receivingPointId === r.id && seesPo(p, po))) }),
+  "receivingPoints.create": (i: W.CreateReceivingPointInput, { surface }) => {
+    need((i.code ?? "").trim(), "code is required", "empty_code");
+    need(!receivingPointRows.some((r) => r.code === i.code.trim().toUpperCase()), `receiving point ${i.code} already exists`, "receiving_points_code_key");
+    const id = uid("w"); receivingPointRows.push({ id, code: i.code.trim().toUpperCase(), tier: i.tier, regionId: i.regionId, address: i.address, active: true });
+    return { id, eventId: publish(surface, "receiving_point.set", "receiving_point", id, INTERNAL_ORG_ID, i.regionId) };
+  },
+  "catalog.list": (i: W.ListCatalogInput, { p }) => ({
+    items: itemRows.filter((it) => (p.namespace === "internal" || it.vendorId === vendorOf(p)) && (!i.vendorId || it.vendorId === i.vendorId)).map((it) => ({
+      ...it, current: accepted(it.id) ?? null, proposals: priceRows.filter((x) => x.itemId === it.id && x.state === "proposed"),
+    })),
+  }),
+  "catalog.addItem": (i: W.AddCatalogItemInput, { surface }) => {
+    need((i.vendorSku ?? "").trim() && (i.description ?? "").trim(), "vendorSku and description are required", "empty_item");
+    const id = uid("ci"); itemRows.push({ id, vendorId: i.vendorId, vendorSku: i.vendorSku.trim(), description: i.description.trim(), uom: i.uom ?? "each", active: true });
+    return { id, eventId: publish(surface, "catalog_item.set", "part", id, i.vendorId, REGION_SOUTH) };
+  },
+  "prices.propose": (i: W.ProposePriceInput, { p, surface }) => {
+    const it = itemRows.find((x) => x.id === i.itemId && x.vendorId === vendorOf(p)); need(it, `no catalogue item ${i.itemId} visible in this scope`, "unknown_item");
+    const price = digits(i.priceMinor, "priceMinor");
+    need(i.effectiveFrom >= day(0), `a price is proposed from today or later; ${i.effectiveFrom} has passed`, "backdated_price");
+    const id = uid("cp"); priceRows.push({ id, itemId: it!.id, vendorId: it!.vendorId, priceMinor: price.toString(), currency: "USD", effectiveFrom: i.effectiveFrom, effectiveTo: null, state: "proposed", proposedAt: new Date().toISOString(), decidedAt: null, decisionNote: null });
+    return { id, eventId: publish(surface, "vendor_price.proposed", "catalog_price", id, it!.vendorId, REGION_SOUTH) };
+  },
+  "prices.withdraw": (i: W.WithdrawPriceInput, { p, surface }) => {
+    const x = priceRows.find((r) => r.id === i.priceId && r.vendorId === vendorOf(p)); need(x, `no price ${i.priceId} visible in this scope`, "unknown_price");
+    need(x!.state === "proposed", `this price is ${x!.state}; only a proposal waiting on the office is withdrawn`, "not_proposed");
+    x!.state = "withdrawn";
+    return { id: x!.id, eventId: publish(surface, "vendor_price.withdrawn", "catalog_price", x!.id, x!.vendorId, REGION_SOUTH) };
+  },
+  "prices.decide": (i: W.DecidePriceInput, { surface }) => {
+    const x = priceRows.find((r) => r.id === i.priceId); need(x, `no price ${i.priceId} visible in this scope`, "unknown_price");
+    need(x!.state === "proposed", `this price is ${x!.state}; the office decides a proposal once`, "not_proposed");
+    let closedId: string | null = null;
+    if (i.decision === "accepted") {
+      const open = priceRows.find((r) => r.itemId === x!.itemId && r.state === "accepted" && r.effectiveFrom <= x!.effectiveFrom && (r.effectiveTo === null || r.effectiveTo > x!.effectiveFrom));
+      need(!open || open.effectiveFrom !== x!.effectiveFrom, `an accepted price already starts on ${x!.effectiveFrom}`, "price_same_day");
+      if (open) { open.effectiveTo = x!.effectiveFrom; closedId = open.id; }
+    }
+    x!.state = i.decision; x!.decidedAt = new Date().toISOString(); x!.decisionNote = i.note ?? null;
+    return { id: x!.id, state: x!.state, closedId, eventId: publish(surface, "vendor_price.decided", "price_decision", x!.id, x!.vendorId, REGION_SOUTH) };
+  },
+  "pos.list": (i: W.ListPurchaseOrdersInput, { p }) => ({ orders: poRows.filter((po) => seesPo(p, po) && (!i.state || po.state === i.state)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(poWire) }),
+  "pos.detail": (i: W.PurchaseOrderDetailInput, { p }) => {
+    const po = findPo(p, i.poId);
+    return {
+      order: poWire(po), receivingPoint: receivingPointRows.find((r) => r.id === po.receivingPointId) ?? null, lines: lineStats(po),
+      shipments: shipmentRows.filter((s) => s.poId === po.id).map(({ poId: _p, ...s }) => { void _p; return s; }),
+      receipts: receiptRows.filter((r) => r.poId === po.id).map(({ poId: _p, ...r }) => { void _p; return r; }),
+      invoices: vinvRows.filter((v) => v.poId === po.id), returns: rmaRows.filter((r) => r.poId === po.id),
+    };
+  },
+  "pos.create": (i: W.CreatePurchaseOrderInput, { surface }) => {
+    const v = vendorRows.find((x) => x.id === i.vendorId); need(v, `no vendor ${i.vendorId}`, "unknown_vendor");
+    const rp = receivingPointRows.find((r) => r.id === i.receivingPointId); need(rp, `no receiving point ${i.receivingPointId}`, "unknown_receiving_point");
+    need(Array.isArray(i.lines) && i.lines.length > 0, "lines needs at least one line", "no_lines");
+    const lines = i.lines.map((l, n) => {
+      const it = itemRows.find((x) => x.id === l.itemId); need(it && it.vendorId === v!.id, `item ${l.itemId} is another vendor's — an order goes to one vendor`, "item_not_vendors");
+      const price = accepted(it!.id); need(price, `${it!.vendorSku} has no accepted price today — accept the vendor's proposal first`, "no_accepted_price");
+      return { id: uid("pl"), lineNo: n + 1, itemId: it!.id, quantityMilli: digits(l.quantityMilli, "quantityMilli", true).toString(), unitPriceMinor: price!.priceMinor };
+    });
+    const id = uid("po"); const total = lines.reduce((t, l) => t + amount(BigInt(l.quantityMilli), BigInt(l.unitPriceMinor)), 0n);
+    const po: Po = { id, number: `PO-${day(0).replace(/-/g, "")}-${4100 + poRows.length}`, vendorId: v!.id, receivingPointId: rp!.id, regionId: rp!.regionId, state: "draft", currency: "USD", totalMinor: total.toString(), issuedAt: null, acknowledgedAt: null, promisedShipOn: null, createdAt: new Date().toISOString(), lines };
+    poRows.push(po);
+    return { id, number: po.number, totalMinor: po.totalMinor, eventId: publish(surface, "po.created", "purchase_order", id, v!.id, rp!.regionId) };
+  },
+  "pos.issue": (i: W.PoIdInput, { p, surface }) => {
+    const po = findPo(p, i.poId); need(po.state === "draft", `order ${po.number} is ${po.state}; only a draft is issued`, "not_draft");
+    po.state = "issued"; po.issuedAt = new Date().toISOString();
+    return { id: po.id, state: po.state, eventId: publish(surface, "po.issued", "purchase_order", po.id, po.vendorId, po.regionId) };
+  },
+  "pos.cancel": (i: W.CancelPurchaseOrderInput, { p, surface }) => {
+    const po = findPo(p, i.poId); need(["draft", "issued", "acknowledged"].includes(po.state), `order ${po.number} is ${po.state} and cannot be cancelled`, "not_cancellable");
+    need(!shipmentRows.some((s) => s.poId === po.id), `order ${po.number} has shipments recorded; receive it and return what is not wanted`, "already_shipped");
+    po.state = "cancelled";
+    return { id: po.id, state: po.state, eventId: publish(surface, "po.cancelled", "purchase_order", po.id, po.vendorId, po.regionId) };
+  },
+  "pos.acknowledge": (i: W.AcknowledgePurchaseOrderInput, { p, surface }) => {
+    const po = findPo(p, i.poId); need(po.state === "issued", `order ${po.number} is ${po.state}; an issued order is acknowledged, once`, "not_issued");
+    need(i.promisedShipOn >= day(0), `a promised ship date is today or later; ${i.promisedShipOn} has passed`, "ship_date_passed");
+    po.state = "acknowledged"; po.acknowledgedAt = new Date().toISOString(); po.promisedShipOn = i.promisedShipOn;
+    return { id: po.id, state: po.state, eventId: publish(surface, "po.acknowledged", "po_ack", po.id, po.vendorId, po.regionId) };
+  },
+  "shipments.record": (i: W.RecordShipmentInput, { p, surface }) => {
+    const po = findPo(p, i.poId); need(po.state === "acknowledged", `order ${po.number} is ${po.state}; a shipment is recorded against an acknowledged order`, "not_acknowledged");
+    need((i.carrier ?? "").trim(), "carrier is required", "empty_carrier");
+    const stats = lineStats(po);
+    for (const l of i.lines) {
+      const st = stats.find((x) => x.id === l.poLineId); need(st, `line ${l.poLineId} is not on this purchase order`, "unknown_line");
+      need(BigInt(st!.shippedMilli) + digits(l.quantityMilli, "quantityMilli", true) <= BigInt(st!.quantityMilli), `line ${st!.lineNo}: that would ship more than the ${st!.quantityMilli.slice(0, -3) || "0"} ordered`, "shipment_lines_within_order");
+    }
+    const id = uid("sh"); shipmentRows.push({ id, poId: po.id, shippedOn: i.shippedOn, carrier: i.carrier.trim(), tracking: i.tracking ?? null, lines: i.lines.map((l) => ({ poLineId: l.poLineId, quantityMilli: l.quantityMilli })) });
+    return { id, eventId: publish(surface, "po.shipped", "ship_date", id, po.vendorId, po.regionId) };
+  },
+  "receipts.record": (i: W.RecordReceiptInput, { p, surface }) => {
+    const po = findPo(p, i.poId); need(po.state === "acknowledged", `order ${po.number} is ${po.state}; goods are received against an acknowledged order`, "not_acknowledged");
+    const stats = lineStats(po); const ids: string[] = [];
+    for (const l of i.lines) {
+      const st = stats.find((x) => x.id === l.poLineId); need(st, `line ${l.poLineId} is not on this purchase order`, "unknown_line");
+      need(BigInt(st!.receivedMilli) + digits(l.quantityMilli, "quantityMilli", true) <= BigInt(st!.quantityMilli), `line ${st!.lineNo}: that would receive more than was ordered`, "po_receipts_within_order");
+    }
+    for (const l of i.lines) { const id = uid("rc"); ids.push(id); receiptRows.push({ id, poId: po.id, poLineId: l.poLineId, quantityMilli: l.quantityMilli, receivedAt: new Date().toISOString() }); }
+    if (lineStats(po).every((l) => BigInt(l.receivedMilli) >= BigInt(l.quantityMilli))) po.state = "received";
+    return { ids, state: po.state, eventId: publish(surface, "po.received", "po_receipt", po.id, po.vendorId, po.regionId) };
+  },
+  "vendorInvoices.submit": (i: W.SubmitVendorInvoiceInput, { p, surface }) => {
+    const po = findPo(p, i.poId); need(["acknowledged", "received"].includes(po.state), `order ${po.number} is ${po.state}; an invoice is submitted against an acknowledged or received order`, "not_invoiceable");
+    need((i.invoiceNumber ?? "").trim(), "invoiceNumber is required", "empty_invoice_number");
+    need(!vinvRows.some((v) => v.vendorId === po.vendorId && v.invoiceNumber === i.invoiceNumber.trim()), `invoice ${i.invoiceNumber} was already submitted`, "vendor_invoices_vendor_id_invoice_number_key");
+    const stats = lineStats(po);
+    const lines = i.lines.map((l) => ({ poLineId: l.poLineId, quantityMilli: digits(l.quantityMilli, "quantityMilli", true), unitPriceMinor: digits(l.unitPriceMinor, "unitPriceMinor") }));
+    for (const l of lines) need(stats.some((s) => s.id === l.poLineId), `line ${l.poLineId} is not on order ${po.number}`, "unknown_line");
+    const verdict = threeWayMatch(stats.map((s) => ({ poLineId: s.id, lineNo: s.lineNo, unitPriceMinor: BigInt(s.unitPriceMinor), receivedMilli: BigInt(s.receivedMilli), invoicedMilli: BigInt(s.invoicedMilli) })), lines);
+    const wl = lines.map((l) => ({ poLineId: l.poLineId, quantityMilli: l.quantityMilli.toString(), unitPriceMinor: l.unitPriceMinor.toString(), amountMinor: amount(l.quantityMilli, l.unitPriceMinor).toString() }));
+    const total = wl.reduce((t, l) => t + BigInt(l.amountMinor), 0n).toString();
+    const id = uid("vi");
+    vinvRows.unshift({ id, poId: po.id, poNumber: po.number, vendorId: po.vendorId, invoiceNumber: i.invoiceNumber.trim(), invoiceDate: i.invoiceDate, totalMinor: total, currency: "USD", matchState: verdict.state, matchNotes: [...verdict.notes], createdAt: new Date().toISOString(), lines: wl });
+    return { id, matchState: verdict.state, matchNotes: verdict.notes, totalMinor: total, eventId: publish(surface, "vendor_invoice.submitted", "vendor_invoice", id, po.vendorId, po.regionId) };
+  },
+  "vendorInvoices.list": (i: W.ListVendorInvoicesInput, { p }) => ({ invoices: vinvRows.filter((v) => (p.namespace === "internal" || v.vendorId === vendorOf(p)) && (!i.poId || v.poId === i.poId)) }),
+  "rmas.request": (i: W.RequestReturnInput, { p, surface }) => {
+    const po = findPo(p, i.poId); const st = lineStats(po).find((l) => l.id === i.poLineId); need(st, `line ${i.poLineId} is not on order ${po.number}`, "unknown_line");
+    need((i.reason ?? "").trim(), "reason is required", "empty_reason");
+    need(BigInt(st!.returnedMilli) + digits(i.quantityMilli, "quantityMilli", true) <= BigInt(st!.receivedMilli), `line ${st!.lineNo}: more than was received`, "rmas_within_order");
+    const id = uid("rm"); rmaRows.unshift({ id, poId: po.id, poNumber: po.number, poLineId: i.poLineId, vendorId: po.vendorId, quantityMilli: i.quantityMilli, reason: i.reason.trim(), state: "requested", rmaNumber: null, vendorNote: null, createdAt: new Date().toISOString(), respondedAt: null });
+    return { id, eventId: publish(surface, "rma.requested", "rma_request", id, po.vendorId, po.regionId) };
+  },
+  "rmas.respond": (i: W.RespondToReturnInput, { p, surface }) => {
+    const r = rmaRows.find((x) => x.id === i.rmaId && x.vendorId === vendorOf(p)); need(r, `no return ${i.rmaId} visible in this scope`, "unknown_rma");
+    need(r!.state === "requested", `this return is already ${r!.state}; a vendor answers a request once`, "already_answered");
+    if (i.decision === "authorized") need((i.rmaNumber ?? "").trim(), "an authorized return carries your RMA number", "rma_number_required");
+    else need((i.note ?? "").trim(), "a rejected return says why", "note_required");
+    r!.state = i.decision; r!.rmaNumber = i.decision === "authorized" ? i.rmaNumber!.trim() : null; r!.vendorNote = i.note?.trim() || null; r!.respondedAt = new Date().toISOString();
+    return { id: r!.id, state: r!.state, eventId: publish(surface, "rma.responded", "rma", r!.id, r!.vendorId, REGION_SOUTH) };
+  },
+  "rmas.list": (i: W.ListReturnsInput, { p }) => ({ returns: rmaRows.filter((r) => (p.namespace === "internal" || r.vendorId === vendorOf(p)) && (!i.poId || r.poId === i.poId)) }),
+};
+Object.assign(H, proc);
 const replayed = new Set<string>();
 
 const recordCredential = (i: W.RecordCredentialInput, surface: SurfaceId) => {
@@ -1035,6 +1281,8 @@ const sessionFor = (req: WireRequest): Session | null => {
 const noteOf = (id: OperationId, input: any, out: any): string => {
   if (id === "auth.login" || id === "auth.deviceLogin") return `as ${input?.email ?? "?"}`;
   if (id === "session.me") return "who is signed in, and where they sit in the hierarchy";
+  if (id === "pos.detail") return `${out.order.number}: ${out.lines.length} line${out.lines.length === 1 ? "" : "s"}, ${out.order.state}`;
+  if (typeof out?.number === "string") return `→ ${out.number}`;
   if (id === "hq.metrics") return `${out.values.length} figures across ${out.regions.length} regions`;
   if (id === "hq.history") return `${input?.metric}: ${out.points.length} daily points`;
   if (out && typeof out === "object") {

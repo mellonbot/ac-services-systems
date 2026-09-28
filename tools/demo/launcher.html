@@ -148,6 +148,7 @@ const GUIDE = {
       "Open the resolved terms for <b>Amped San Jose</b>. The SLA is <code>4_hour</code>, won at the location over the MSA's <code>same_day</code>. The trace shows every rung.",
       "Author an override that loosens <b>Amped Reno</b> to <code>48_hour</code>. It's refused (<code>ratchet_loosened</code>): a location can tighten an SLA, never relax it.",
       "<b>Network</b> → Lone Star Mechanical → <b>Lone Star — Crew B</b> documents. Their insurance was filed from S8 and isn't verified. Verify it, then try dispatching them in S3.",
+      "<b>Purchasing</b>: orders to vendors, vendors and receiving points. Open <b>Coolair Supply</b> to accept its proposed fan-motor price or raise an order; open an order to issue it, receive goods, see a held invoice's reason, or request a return.",
     ],
   },
   S3: {
@@ -190,6 +191,17 @@ const GUIDE = {
       "Switch to the <b>Austin manager</b>: only Austin's two sites. Then <b>Cedar Lane</b>: only the Houston clinic, none of Amped's.",
     ],
   },
+  S7: {
+    about: "The vendor portal. A vendor sees its own purchase orders once Rankine issues them, delivered to Rankine's receiving points by code, and never a customer, a site or a job. S7 is Phase 4 and switched off in the product; it is switched on in this demo only.",
+    steps: [
+      "As <b>Coolair Supply</b>, the <b>Orders</b> list shows one order <i>needing your acknowledgement</i> (to MTN-LS-02). Open it and acknowledge it with a ship date.",
+      "Open the order to <b>WEST-HUB</b>. Record a shipment for the 2 fan motors still to ship.",
+      "On the same order, the invoice CS-100511 is <b>held</b>: it billed 6 motors when only 4 were received. Submit a new invoice for what arrived and it matches.",
+      "Open the order to <b>SOUTH-HUB</b>. Rankine has asked to return 2 capacitors: authorize it with an RMA number.",
+      "<b>Catalogue</b>: propose a new price. Then in S2 → Purchasing → Coolair Supply, accept it; open orders keep the price they were raised at.",
+      "Switch to <b>Lone Star Parts Depot</b>. It sees only its own two orders and nothing of Coolair's.",
+    ],
+  },
   S8: {
     about: "The subcontractor portal. A firm sees its own crews, its own jobs, its own compliance and its own statements. It never sees another firm's rates or work.",
     steps: [
@@ -230,7 +242,7 @@ const renderTabs = () => {
     const b = document.createElement("button");
     b.className = "tab"; b.type = "button"; b.role = "tab"; b.dataset.id = s.id;
     b.setAttribute("aria-selected", String(s.id === current));
-    b.innerHTML = `<span class="id">${s.id} · ${s.block}${s.built ? "" : ` · Phase ${s.phase}`}</span><span class="nm">${s.name}</span>`;
+    b.innerHTML = `<span class="id">${s.id} · ${s.block}${s.built ? (s.demoOnly ? " · demo only" : "") : ` · Phase ${s.phase}`}</span><span class="nm">${s.name}</span>`;
     if (!s.built) { b.disabled = true; b.title = `Not built yet: Phase ${s.phase}`; }
     b.addEventListener("click", () => select(s.id));
     $("tabs").appendChild(b);

@@ -113,7 +113,13 @@ const REGISTRY = {
              // when the site is signed in; the customer READS them on its
              // site card. The customer's own edit of a contact is the
              // `contact_update` on S6's list and is OPEN-S6-CONTACTS.
-             "equipment", "account_contact"],
+             "equipment", "account_contact",
+             // item 11 (2026-09-27): purchasing. The office records a vendor,
+             // our receiving points and the catalogue (`part`), raises and
+             // issues a `purchase_order`, decides a vendor's proposed price,
+             // receives goods and asks for a return. The vendor's four answers
+             // are S7's list.
+             "vendor", "receiving_point", "price_decision", "po_receipt", "rma_request"],
     density: "console", realtime: false, offline: false,
     degraded: "Read-only from last server state. NO offline writes, ever — this is the only surface that authors hierarchy, contract and subcontractor-network truth, and a forked truth here is unrecoverable.",
     stateRamp: true,

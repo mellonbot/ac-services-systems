@@ -29,6 +29,11 @@ import type { Claims, Namespace, Principal } from "../../../packages/contracts/s
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import { INTERNAL_ORG_ID, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
 import { hqMetrics, hqHistory } from "./handlers/hq.ts";
+import {
+  listVendors, createVendor, listReceivingPoints, createReceivingPoint, listCatalog, addCatalogItem, proposePrice, withdrawPrice, decidePrice,
+  listPurchaseOrders, purchaseOrder, createPurchaseOrder, issuePurchaseOrder, cancelPurchaseOrder, acknowledgePurchaseOrder,
+  recordShipment, recordReceipt, submitVendorInvoice, listVendorInvoices, requestReturn, respondToReturn, listReturns,
+} from "./handlers/procurement.ts";
 
 /**
  * THE GATEWAY — B3. The sole access path.
@@ -426,6 +431,31 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   // Item 10 — S4. Reads of the rollup; there is no S4 write to route.
   "hq.metrics": (req, input) => withRead(req, "hq.metrics", (uow) => hqMetrics(uow, input)),
   "hq.history": (req, input) => withRead(req, "hq.history", (uow) => hqHistory(uow, input)),
+
+  // Item 11 — procurement. The office's side (S2) and the vendor's (S7) over the
+  // same rows; what each may see and change is 0011's.
+  "vendors.list": (req) => withRead(req, "vendors.list", (uow) => listVendors(uow)),
+  "vendors.create": (req, input) => withUow(req, "vendors.create", (uow) => createVendor(uow, input, randomUUID)),
+  "receivingPoints.list": (req) => withRead(req, "receivingPoints.list", (uow) => listReceivingPoints(uow)),
+  "receivingPoints.create": (req, input) => withUow(req, "receivingPoints.create", (uow) => createReceivingPoint(uow, input, randomUUID)),
+  "catalog.list": (req, input) => withRead(req, "catalog.list", (uow) => listCatalog(uow, input)),
+  "catalog.addItem": (req, input) => withUow(req, "catalog.addItem", (uow) => addCatalogItem(uow, input, randomUUID)),
+  "prices.propose": (req, input) => withUow(req, "prices.propose", (uow) => proposePrice(uow, input, randomUUID)),
+  "prices.withdraw": (req, input) => withUow(req, "prices.withdraw", (uow) => withdrawPrice(uow, input)),
+  "prices.decide": (req, input) => withUow(req, "prices.decide", (uow, p) => decidePrice(uow, input, p.subjectId, new Date())),
+  "pos.list": (req, input) => withRead(req, "pos.list", (uow) => listPurchaseOrders(uow, input)),
+  "pos.detail": (req, input) => withRead(req, "pos.detail", (uow) => purchaseOrder(uow, input)),
+  "pos.create": (req, input) => withUow(req, "pos.create", (uow, p) => createPurchaseOrder(uow, input, p.subjectId, randomUUID, new Date())),
+  "pos.issue": (req, input) => withUow(req, "pos.issue", (uow) => issuePurchaseOrder(uow, input, new Date())),
+  "pos.cancel": (req, input) => withUow(req, "pos.cancel", (uow) => cancelPurchaseOrder(uow, input)),
+  "pos.acknowledge": (req, input) => withUow(req, "pos.acknowledge", (uow) => acknowledgePurchaseOrder(uow, input, new Date())),
+  "shipments.record": (req, input) => withUow(req, "shipments.record", (uow) => recordShipment(uow, input, randomUUID)),
+  "receipts.record": (req, input) => withUow(req, "receipts.record", (uow, p) => recordReceipt(uow, input, p.subjectId, randomUUID)),
+  "vendorInvoices.submit": (req, input) => withUow(req, "vendorInvoices.submit", (uow) => submitVendorInvoice(uow, input, randomUUID)),
+  "vendorInvoices.list": (req, input) => withRead(req, "vendorInvoices.list", (uow) => listVendorInvoices(uow, input)),
+  "rmas.request": (req, input) => withUow(req, "rmas.request", (uow, p) => requestReturn(uow, input, p.subjectId, randomUUID)),
+  "rmas.respond": (req, input) => withUow(req, "rmas.respond", (uow) => respondToReturn(uow, input, new Date())),
+  "rmas.list": (req, input) => withRead(req, "rmas.list", (uow) => listReturns(uow, input)),
 
   // item 4 — the job itself, created in Office & Dispatch.
   "jobs.create": (req, input) => withUow(req, "jobs.create", (uow) => createJob(uow, input, randomUUID, new Date())),

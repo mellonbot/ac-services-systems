@@ -199,3 +199,22 @@ deliberately rather than discovered:
 
 Until one is chosen, S1 should not be exposed on a public domain. Naming the
 owner is D7's; the choice is the infrastructure memo's (`02`).
+
+**OPEN-S7 — enable the vendor portal (D9).** *Item 11 (2026-09-27)* built
+procurement and S7 in full, with S7 left `enabled: false` (Phase 4). The
+partners asked to show it in the clickable demo for a few days: `tools/demo/build.ts`
+switches it on in the demo's bundles only (`DEMO_ONLY_ENABLED`); the product
+registry, gateway and database are unchanged. Enabling it for real is the one
+registry line, and the vendor-side wire tests then run as written.
+
+**OPEN-PAYMENTS.** "Matched" means ready to pay. Neither customer payments nor
+vendor payments are modelled, so S4's "Past due date" is an upper bound and a
+vendor's matched invoice has no paid state yet.
+
+**OPEN-RLS-REMAINDER.** Four tables still have row security off entirely:
+`brand_themes`, `storage_objects`, `subscriptions`, `sync_conflicts`. The 0011
+audit bound a vendor and found them empty on the test database, so nothing was
+read; but `sync_conflicts` can carry a job's payload once the field layer
+queues conflicts, and an empty table is not a policy. Each needs its own rule,
+decided with its own reader (S5 for sync conflicts), rather than a blanket one.
+

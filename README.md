@@ -135,7 +135,21 @@ nothing else, printing the age of the rollup as its degraded line promises.
 0010 lets the internal namespace read every row and nobody else any, and grants
 the gateway role no write at all — the database half of `writes: []`. Proven:
 `test/integration/s4.test.ts` (6, on a scratch database). Detail:
-`claude/25_S4_HQ_Dashboard_Built.md`. Next in-house item: S7 (Phase 4).
+`claude/25_S4_HQ_Dashboard_Built.md`. **Item 11 is built (2026-09-27): S7
+Vendor Portal and S2 Purchasing — S7 still disabled (Phase 4).** Procurement
+did not exist, so it is built from the table up in **migration 0011**: vendors
+as tenant roots, our receiving points, each vendor's catalogue with prices a
+vendor PROPOSES and the office ACCEPTS, purchase orders raised at the accepted
+price, shipments, receipts, vendor invoices matched three ways at submission
+(`packages/domain/src/procurement/match.ts`), and returns. S2 gains Purchasing;
+S7 is the vendor's side of the same rows — acknowledge, ship, propose a price,
+invoice, answer a return. Read as a vendor before 0011, the database answered
+with every South job, crew, document, clock and service request; 0011 closes
+that with a RESTRICTIVE policy per table, so no other namespace's rule changed.
+Proven: `test/integration/s7.test.ts` (11) — the office over the wire, the
+vendor's handlers bound as a vendor (S7 itself stays behind its phase gate).
+Detail: `claude/26_S7_Vendor_Portal_Built.md`. Next in-house item: none on the
+build order — S7 waits on the partners' D9 call.
 `docs/BACKBONE_CONTRACT.md` is the
 B2 deliverable — the interface every block codes against, ratified by the
 partners 2026-09-15 — and every statement in it names the mechanism that
@@ -177,7 +191,7 @@ npm run surfaces:check              # fail on drift (the guard runs this too)
 export DATABASE_URL=postgres://user:pass@host/db
 node tools/ci/migrate.ts            # versioned migrations + the repeatable term-register mirror
 node tools/ci/migrate.ts --assert   # region_id is total in the LIVE schema
-npm run test:integration            # 142 tests: the contract with RLS on (29) + the shell and the browser session over the wire (19) + C1 (12) + C2 (11) + C4 (8) + item 4, S3/S5: the gated door, the shift token, the offline replay (10) + item 6, S6: tier scoping as four customer principals see it (10) + item 7, S8: firm visibility as two firms and the office see it, and the four writes (10) + item 8, S1: what a stranger's binding reads (nothing) and its two writes (15) + item 9, the S6 site card: units, contacts, invoice lines and imagery as four customer principals see them (7) + the worker's sweeps bound under RLS and on the right calendar day, on a scratch database (5) + item 10, S4: the rollup's figures under RLS and over the wire, on a scratch database (6)
+npm run test:integration            # 153 tests: the contract with RLS on (29) + the shell and the browser session over the wire (19) + C1 (12) + C2 (11) + C4 (8) + item 4, S3/S5: the gated door, the shift token, the offline replay (10) + item 6, S6: tier scoping as four customer principals see it (10) + item 7, S8: firm visibility as two firms and the office see it, and the four writes (10) + item 8, S1: what a stranger's binding reads (nothing) and its two writes (15) + item 9, the S6 site card: units, contacts, invoice lines and imagery as four customer principals see them (7) + the worker's sweeps bound under RLS and on the right calendar day, on a scratch database (5) + item 10, S4: the rollup's figures under RLS and over the wire, on a scratch database (6) + item 11, procurement: the office's side over the wire and the vendor's bound as a vendor, the vendor wall on every job table (11)
 npm run drive:s2-c4                 # 13 checks through a REAL browser: the C4 screens end to end against the live gateway.
 npm run drive:s6                    # 15 checks through a REAL browser: a facility manager, their site card (roof, units, contacts, ledger, both request buttons) and then the executive, same bundle — AC_DRIVE_SHOTS=<dir> keeps a PNG per screen
 npm run drive:s8                    # 11 checks through a REAL browser: Firm A enrolls, files, acknowledges, disputes, is refused a retire; then Firm B, same bundle, sees none of it
@@ -236,6 +250,9 @@ apps/s1-marketing/src/        item 8: screens.ts (three screens, no login, no re
 apps/gateway/src/handlers/leads.ts  item 8: S1's two writes and one read — inputs the handler's, tenancy a constant, visibility 0008's. There is no read of a lead in this file, and that is its most important line
 apps/s4-hq-dashboard/src/     item 10: screens.ts (company, area, region — two reads and a login), app.ts (no events: re-reads the rollup every minute), screens/ (overview, area, region) — the company figure is the sum of the region rows
 apps/gateway/src/handlers/hq.ts  item 10: S4's two reads — hq_metrics and the region names, no operational table; visibility 0010's
+apps/gateway/src/handlers/procurement.ts  item 11: purchasing and the vendor's side — inputs the handler's; visibility, column rules and quantity limits 0011's; the three-way match the domain's
+apps/s7-vendor-portal/src/     item 11: screens.ts (orders, order, catalogue, invoices, returns), app.ts — disabled in the registry; the demo alone switches it on
+apps/s2-service-manager/src/screens/purchasing.ts  item 11: vendors, receiving points, a vendor's catalogue and price decisions, raising, issuing, receiving and returning an order
 test/integration/     backbone.test.ts — the contract against a live Postgres · s0-shell.test.ts — the shell against a spawned gateway · s2-c1 · s2-c2 · s2-c4 · s3-s5 (item 4) · s6 (item 6) · s6-site-card (item 9) · s8 (item 7) · s1 (item 8) · s4 (item 10: the rollup under RLS, on a scratch database) · worker (the sweeps under RLS and on the right calendar day, on a scratch database)
 docs/BACKBONE_CONTRACT.md   B2
 ```

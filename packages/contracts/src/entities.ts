@@ -7,6 +7,11 @@ export const WRITE_ENTITIES = [
   "lead", "call_record",
   // S2 — the only authoring surface
   "account", "contract", "invoice", "warranty_case", "part", "purchase_order",
+  // item 11: purchasing. A vendor and our receiving points are recorded by the
+  // office; a catalogue item is a `part`; accepting or rejecting a vendor's
+  // price, receiving goods and asking for a return are the office's side of
+  // the four vendor writes below.
+  "vendor", "receiving_point", "price_decision", "po_receipt", "rma_request",
   "subcontractor_firm", "crew", "crew_credential", "rate_card", "brand_theme",
   // item 4: a job is created in Office & Dispatch, same as everything above.
   // `device`/`device_grant` are D-2a's primitive ("this device, this crew,
