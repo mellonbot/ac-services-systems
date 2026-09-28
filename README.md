@@ -149,7 +149,10 @@ that with a RESTRICTIVE policy per table, so no other namespace's rule changed.
 Proven: `test/integration/s7.test.ts` (11) — the office over the wire, the
 vendor's handlers bound as a vendor (S7 itself stays behind its phase gate).
 Detail: `claude/26_S7_Vendor_Portal_Built.md`. Next in-house item: none on the
-build order — S7 waits on the partners' D9 call.
+build order — S7 waits on the partners' D9 call. **Rev A (2026-09-28):** every surface redesigned to the
+field-ops reference layout — page heads, stat strips, content in cards, a
+segmented nav, rounded corners and soft shadows as tokens, colours unchanged.
+Detail: `claude/27_Rev_A_Reference_Layout.md`.
 `docs/BACKBONE_CONTRACT.md` is the
 B2 deliverable — the interface every block codes against, ratified by the
 partners 2026-09-15 — and every statement in it names the mechanism that

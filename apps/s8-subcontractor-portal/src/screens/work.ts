@@ -1,4 +1,4 @@
-import { html, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
 import type { JobWire, JobStateWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, when, type Screen } from "./common.ts";
@@ -37,7 +37,7 @@ export const work: Screen = (ctx) => {
   const jobs = ctx.store.read(keyOf("jobs.list", {}), () => ctx.shell.gateway.listJobs({}));
   const now = Date.now();
   return html`<section class="s8-work">
-    <h1 class="s8-h1">Work</h1>
+    ${pageHead("Work", "The jobs your crews have been sent to, with the site and where each one stands.")}
     <p class="s8-scope">Jobs your crews have been sent to. The response commitment is the customer's term, timed by Rankine; your crew's arrival is what satisfies it.</p>
     ${whenReady(ctx, jobs.value, (out) => DataGrid<JobWire>({
       density: ctx.density,

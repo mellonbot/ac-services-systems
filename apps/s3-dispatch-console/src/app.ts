@@ -114,7 +114,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const notice = p.store.notice.value;
     return html`<div class="s3-app">
       <nav class="s3-nav" aria-label="Screens">
-        <a class="s3-link" href=${router.href("board", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("board", {}); }}>Board</a>
+        <a class="s3-nav__link" data-current="true" href=${router.href("board", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("board", {}); }}>Board</a>
         <span class="s3-nav__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
         <button type="button" class="s3-nav__logout" onClick=${logout}>Sign out</button>
       </nav>

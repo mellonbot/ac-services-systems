@@ -318,7 +318,7 @@ const devices: W.DeviceWire[] = [
 const serviceRequests: Mutable<W.ServiceRequestWire>[] = [
   { id: uid("q"), siteId: S.austinRoof, siteName: "Austin — Rooftop RTUs", priority: "emergency", description: "Water coming through the ceiling tiles under RTU-2 on the weights floor. Towels down, area coned off.", requestedBy: "Priya Castellanos", createdAt: at(-25 * MIN), jobId: J.austinLeak, jobState: "created", orgId: AMPED, regionId: REGION_SOUTH },
   { id: uid("q"), siteId: S.elPasoFloor, siteName: "El Paso — Main Floor", priority: "urgent", description: "Main floor is 81°F at 2pm and climbing. Split is running but blowing warm.", requestedBy: "Tomás Villareal", createdAt: at(-2 * HOUR), jobId: J.elPasoNoCool, jobState: "created", orgId: AMPED, regionId: REGION_SOUTH },
-  { id: uid("q"), siteId: S.austinPool, siteName: "Austin — Pool Hall Dehumidifier", priority: "routine", description: "Condensation on the pool hall windows most mornings. Could the next PM check the dehumidifier setpoint?", requestedBy: "Priya Castellanos", createdAt: at(-3 * DAY), jobId: null, jobState: null, orgId: AMPED, regionId: REGION_SOUTH },
+  { id: uid("q"), siteId: S.austinPool, siteName: "Austin — Pool Hall Dehumidifier", priority: "routine", description: "Condensation on the pool hall windows most mornings. Could the next PM check the dehumidifier setpoint?", requestedBy: "Priya Castellanos", createdAt: at(-3 * DAY), jobId: J.austinPoolPm, jobState: "en_route", orgId: AMPED, regionId: REGION_SOUTH },
 ];
 
 // Leads and calls from the past month, so S4's growth figures have a history before anyone uses S1.

@@ -1,4 +1,4 @@
-import { html, signal, DataGrid, StatusPill, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, signal, DataGrid, StatusPill, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { SettlementWire, SettlementLineWire, SettlementState, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, submitAction, refusalView, linkTo, when, money, type Screen, type ScreenContext } from "./common.ts";
@@ -26,7 +26,7 @@ const STATE: Readonly<Record<SettlementState, { status: Status; word: string }>>
 export const statements: Screen = (ctx) => {
   const list = ctx.store.read(keyOf("settlements.list", {}), () => ctx.shell.gateway.listSettlements({}));
   return html`<section class="s8-statements">
-    <h1 class="s8-h1">Statements</h1>
+    ${pageHead("Statements", "What Rankine owes your firm for work done, period by period. Acknowledge a statement that is right; dispute one that is not, and say why.")}
     <p class="s8-scope">What Rankine owes your firm for each period, by job and rate. Acknowledge a statement that is right; dispute one that is not, with the line and the reason.</p>
     ${whenReady(ctx, list.value, (out) => DataGrid<SettlementWire>({
       density: ctx.density,

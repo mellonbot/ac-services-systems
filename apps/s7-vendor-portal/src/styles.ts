@@ -42,4 +42,16 @@ export const S7_CSS = `
 @media (max-width:760px){.s7-nav__who{order:2;width:100%;margin-inline-start:0}.s7-row{display:flex;gap:var(--space-3);flex-wrap:wrap}
 .s7-row--end{align-items:end}
 .s7-form--row{flex-direction:column;align-items:stretch}}
+
+/* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */
+.s7-nav{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px;margin:0 0 var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-card);background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface))}
+.s7-nav__link{display:inline-flex;align-items:center;padding:var(--space-2) var(--space-4);border-radius:var(--radius-control);color:var(--color-text-muted);font-weight:600;text-decoration:none;box-shadow:none}
+.s7-nav__link[data-current="true"]{background:var(--color-surface);color:var(--color-action-text);box-shadow:var(--elevation-raised)}
+.s7-nav__who{padding:0 var(--space-2)}
+.s7-nav__logout{padding:var(--space-2) var(--space-3);border-radius:var(--radius-control)}
+.s7-input{border-radius:var(--radius-control)}
+.s7-form,.s7-refusal,.s7-sent{border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.s7-h1{font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);text-transform:none;line-height:1.15}
+.s7-h2{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-tight);text-transform:none}
+.s7-facts>div{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 `;

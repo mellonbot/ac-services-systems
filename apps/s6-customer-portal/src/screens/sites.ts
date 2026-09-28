@@ -1,4 +1,4 @@
-import { html, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, statStrip, pageHead, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, JobWire, ServiceRequestWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, TIER_WORD, type Screen, type ScreenContext, type Tree } from "./common.ts";
@@ -24,8 +24,17 @@ export const sites: Screen = (ctx) => {
   const scope = ctx.shell.principal;
 
   return html`<section class="s6-sites">
-    <h1 class="s6-h1">${ctx.shell.context?.parent.name ?? "Your sites"}</h1>
-    <p class="s6-scope">${scopeSentence(ctx)}</p>
+    ${pageHead(ctx.shell.context?.parent.name ?? "Your sites", scopeSentence(ctx))}
+    ${whenReady(ctx, nodes.value, (out) => {
+      const liveJobs = jobs.value.state === "ready" ? jobs.value.value.jobs.filter((j) => !["complete", "invoiced", "cancelled", "aborted"].includes(j.state)) : [];
+      const waiting = requests.value.state === "ready" ? requests.value.value.requests.filter((r) => r.jobId === null).length : 0;
+      return statStrip([
+        { n: out.nodes.filter((n) => n.tier === "site").length, label: "Sites" },
+        { n: liveJobs.length, label: "Open jobs", tone: "info" },
+        { n: liveJobs.filter((j) => j.slaDueAt && !j.slaSatisfiedAt).length, label: "Awaiting a technician", ...(liveJobs.some((j) => j.slaDueAt && !j.slaSatisfiedAt) ? { tone: "at_risk" as const } : {}) },
+        { n: waiting, label: "Requests with the office" },
+      ], "sites-stats");
+    })}
     ${whenReady(ctx, nodes.value, (out) => {
       const tree = treeOf(out.nodes);
       const roots = tree.children(null);

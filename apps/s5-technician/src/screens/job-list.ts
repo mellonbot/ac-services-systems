@@ -1,4 +1,4 @@
-import { html, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, statStrip, pageHead, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
 import type { JobPriority } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, linkTo, type Screen } from "./common.ts";
@@ -23,7 +23,12 @@ export const priorityStatus = (priority: JobPriority): Status => {
 export const jobList: Screen = (ctx) => {
   const jobs = ctx.store.read(keyOf("jobs.mine"), () => ctx.shell.gateway.myJobs());
   return html`<section class="s5-jobs">
-    <h1 class="s5-h1">My jobs — ${ctx.crew.label}</h1>
+    ${pageHead(`My jobs — ${ctx.crew.label}`, "This shift's work, in order. Everything you record is saved on this device first and sent when there is a connection.")}
+    ${whenReady(ctx, jobs.value, (out) => statStrip([
+      { n: out.jobs.length, label: "Assigned" },
+      { n: out.jobs.filter((j) => j.priority === "emergency").length, label: "Emergency", ...(out.jobs.some((j) => j.priority === "emergency") ? { tone: "breached" as const } : {}) },
+      { n: out.jobs.filter((j) => ["en_route", "on_site", "in_progress"].includes(j.state)).length, label: "Under way", tone: "info" },
+    ], "shift-stats"))}
     ${whenReady(ctx, jobs.value, (out) => out.jobs.length === 0
       ? html`<p class="s5-empty">Nothing assigned to this shift right now.</p>`
       : html`<ul class="s5-job-list">

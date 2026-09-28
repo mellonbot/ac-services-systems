@@ -317,7 +317,7 @@ async function main(): Promise<void> {
 
     // ── 6. the request appears under Work as waiting
     await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Work").click(); return true; })()`);
-    await cdp.waitFor(has("Waiting for the office"), "the request in the work list");
+    await cdp.waitFor(has("It is with the office"), "the request in the work list — a stepper card standing on Requested");
     check(6, "the request is listed under Work as waiting for the office");
 
     // ── 7. THE SITE CARD (item 9): from the tree, the site's name opens its card — where, who, what runs there, one ledger, the roof
@@ -359,7 +359,7 @@ async function main(): Promise<void> {
     await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Work").click(); return true; })()`);
     await cdp.waitFor(has("Crew assigned"), "Work");
     const navBtn = await cdp.eval<{ tag: string; text: string; y: number }>(`(() => { const b = document.getElementById("nav-request"); const r = b.getBoundingClientRect(); return { tag: b.tagName, text: b.innerText.trim(), y: r.top }; })()`);
-    must(navBtn.tag === "BUTTON" && navBtn.text === "REQUEST SERVICE", `a button in the masthead, got ${JSON.stringify(navBtn)}`);
+    must(navBtn.tag === "BUTTON" && navBtn.text === "Request service", `a button in the masthead, got ${JSON.stringify(navBtn)}`);
     must(navBtn.y < 300, `the header button sits near the top of the page, got y=${navBtn.y}`);
     await cdp.eval(`(() => { document.getElementById("nav-request").click(); return true; })()`);
     await cdp.waitFor(`document.getElementById("request-form")`, "the request form from the header");

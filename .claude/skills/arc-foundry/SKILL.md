@@ -194,10 +194,29 @@ floors at 15px — the smallest uppercase instrument label that survives a roof 
 field tier there is no cursor, so a hover-only affordance is an invisible control: press is
 `:active`.
 
-**Corners: none.** `--radius-none` is `0px` and the system draws no rounded corner anywhere.
-The other two radii exist only because an OS app icon has its own substrate rules —
-`icon` 8px, `app` 16px. Do not import a pill, a rounded card or a 5px control from another
-system.
+**Corners and elevation — Rev A (2026-09-27).** The partners adopted the field-ops
+reference layout (`Work/AC Services/artifacts/dispatch board visualuizer.html`) for its
+page structure and shape, with every colour unchanged. The system now draws rounded corners
+at exactly three steps and one soft elevation:
+
+| Token | Value | Where |
+|---|---|---|
+| `--radius-control` | 8px | inputs, buttons, a segmented tab, a stat tile's inner well |
+| `--radius-card` | 12px | a panel, a stat tile, a card, a table's container |
+| `--radius-pill` | 999px | a status chip, a filter chip, the segmented control's track |
+| `--radius-none` | 0px | rules and plates that are straight on purpose: the masthead rule, a table head |
+| `--elevation-card` | shadow | a panel or tile on the page ground |
+| `--elevation-raised` | shadow | the selected segment of a segmented control |
+
+A shadow is never a new ink: it is the tier's darkest role mixed to a few per cent
+(`color-mix(in srgb, var(--color-text) 7%, transparent)` on the light stock, the sunken well
+on the field ground). `icon` 8px and `app` 16px stay artwork primitives and are not emitted
+to a surface. Do not invent a fourth radius or a second shadow.
+
+The page structure that comes with Rev A: a **page head** (the screen's name and one plain
+sentence of what it is for), a **stat strip** of tiles where a screen has figures worth
+leading with, content in **panels**, tables inside a panel, and navigation as a
+**segmented control** (a pill track with the current screen raised).
 
 Accent rules are 3px and sit on the **top** edge; a coloured left border is not part of this
 system. No backdrop blur, no gradient meshes, no blurred blobs, no emoji. Motion
@@ -240,7 +259,7 @@ repo the tokens govern; these are the known deltas, and a fix belongs in
 | Field `border-hard` | `#5A6873` | `#55636F` |
 | A `rule-soft` `#CBD4DC` | present | no such primitive |
 | Label tracking | `+0.28em` | `--track-wide` `0.14em` and up |
-| Corners | 2 / 3 / 5 / 8px | **0px everywhere**; 8px and 16px are app-icon only |
+| Corners | 2 / 3 / 5 / 8px | **Rev A:** 8px control, 12px card, pill for chips and the segmented control; 0px for rules and plates |
 | Red ↔ fault separation | 1.2° | 0.55° — `1.2` was a hand-carried figure, corrected by E-21 (commit 157b0bb). The skill predates it. |
 | Field row height | 48px | 56px |
 | Variable names | `--stock`, `--panel`, `--arc`, `--ink` | `--color-*`, from `cssVar()` |

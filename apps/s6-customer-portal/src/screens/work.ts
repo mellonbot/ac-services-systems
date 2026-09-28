@@ -1,4 +1,4 @@
-import { html, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
 import type { JobWire, JobStateWire, ServiceRequestWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, when, type Screen } from "./common.ts";
@@ -34,6 +34,45 @@ export const STATE_WORD: Readonly<Record<JobStateWire, string>> = {
   cancelled: "Cancelled", aborted: "Stopped",
 };
 
+/**
+ * WHERE A REQUEST STANDS, in the customer's words. The five steps are the
+ * reference layout's stepper; the job state behind each is ours and never
+ * shown as the word it is on the board.
+ */
+export const STEPS = ["Requested", "Scheduled", "In progress", "Completed", "Invoiced"] as const;
+export const stepOf = (r: Pick<ServiceRequestWire, "jobState">): number => {
+  switch (r.jobState) {
+    case null: case "created": return 0;
+    case "assigned": case "reassigned": case "en_route": return 1;
+    case "on_site": case "in_progress": case "awaiting_parts": case "reopened": return 2;
+    case "complete": return 3;
+    case "invoiced": return 4;
+    default: return -1;
+  }
+};
+const STEP_SENTENCE = [
+  "It is with the office, who will open a job and match a technician.",
+  "A technician is booked for your site.",
+  "A technician is working on it.",
+  "The work is done.",
+  "The work is done and invoiced.",
+];
+export const requestCard = (ctx: Parameters<Screen>[0], r: ServiceRequestWire) => {
+  const at = stepOf(r);
+  const stopped = at < 0;
+  return html`<article class="s6-order" data-request=${r.id}>
+    <header class="s6-order__head">
+      <div><h3 class="s6-order__title">${r.description.length > 72 ? `${r.description.slice(0, 72)}…` : r.description}</h3>
+        <p class="s6-order__meta">${r.siteName} · asked ${when(r.createdAt)} · ${r.priority}</p></div>
+      ${StatusPill({ density: ctx.density, status: stopped ? "blocked" : at >= 3 ? "ok" : at === 0 ? "at_risk" : "ok", label: stopped ? "Cancelled" : STEPS[at]! })}
+    </header>
+    ${stopped ? null : html`<ol class="s6-steps" aria-label="Where this request stands">
+      ${STEPS.map((label, i) => html`<li class="s6-step" data-state=${i < at ? "done" : i === at ? "current" : "todo"} aria-current=${i === at ? "step" : undefined}><span class="s6-step__dot" aria-hidden="true"></span><span class="s6-step__label">${label}</span></li>`)}
+    </ol>`}
+    <p class="s6-order__note">${stopped ? "This request was closed without a visit." : STEP_SENTENCE[at]}</p>
+  </article>`;
+};
+
 export const work: Screen = (ctx) => {
   const nodes = readNodes(ctx);
   const jobs = ctx.store.read(keyOf("jobs.list", {}), () => ctx.shell.gateway.listJobs({}));
@@ -42,7 +81,11 @@ export const work: Screen = (ctx) => {
   const siteName = (id: string) => (nodes.value.state === "ready" ? treeOf(nodes.value.value.nodes).byId.get(id)?.name : undefined) ?? "—";
 
   return html`<section class="s6-work">
-    <h1 class="s6-h1">Work</h1>
+    ${pageHead("Work", "The requests you have made and the jobs at your sites, each shown by where it stands — in your words, not ours.")}
+    <h2 class="s6-h2">Your requests</h2>
+    ${whenReady(ctx, requests.value, (out) => out.requests.length === 0
+      ? html`<p class="s6-empty">No requests yet.</p>`
+      : html`<div class="s6-orders" id="request-cards">${out.requests.map((r) => requestCard(ctx, r))}</div>`, () => ctx.store.invalidate("serviceRequests.list"))}
     <h2 class="s6-h2">Jobs</h2>
     ${whenReady(ctx, jobs.value, (out) => DataGrid<JobWire>({
       density: ctx.density,
@@ -62,21 +105,6 @@ export const work: Screen = (ctx) => {
       ],
     }) ?? html``, () => ctx.store.invalidate("jobs.list"))}
 
-    <h2 class="s6-h2">Requests</h2>
-    ${whenReady(ctx, requests.value, (out) => DataGrid<ServiceRequestWire>({
-      density: ctx.density,
-      caption: "Service you have asked for",
-      emptyText: "No requests yet.",
-      rows: out.requests,
-      rowKey: (r) => r.id,
-      columns: [
-        { key: "siteName", header: "Site" },
-        { key: "priority", header: "Priority" },
-        { key: "description", header: "What is wrong" },
-        { key: "createdAt", header: "Asked", cell: (r) => when(r.createdAt) },
-        { key: "status", header: "Status", cell: (r) => (r.jobState ? `Job: ${STATE_WORD[r.jobState]}` : "Waiting for the office") },
-      ],
-    }) ?? html``, () => ctx.store.invalidate("serviceRequests.list"))}
     <p class="s6-actions">${linkTo(ctx, "request", {}, "Request service")}</p>
   </section>`;
 };

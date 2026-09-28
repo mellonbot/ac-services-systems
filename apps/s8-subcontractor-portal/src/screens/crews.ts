@@ -1,4 +1,4 @@
-import { html, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { CrewWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { whenReady, readCrews, readFirm, firmOf, readiness, submitAction, refusalView, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
@@ -58,8 +58,7 @@ export const crews: Screen = (ctx) => {
 
   const o = outcome.value;
   return html`<section class="s8-crews">
-    <h1 class="s8-h1">Crews</h1>
-    <p class="s8-scope">Your roster. A crew is dispatched when every document the gate requires is on file, verified by Rankine, and in date for the whole service window.</p>
+    ${pageHead("Crews", "Your roster. A crew is dispatched when every document the gate requires is on file, verified by Rankine, and in date for the whole service window.")}
     ${whenReady(ctx, list.value, (out) => DataGrid<CrewWire>({
       density: ctx.density,
       caption: "Crews on your roster",
