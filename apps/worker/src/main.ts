@@ -1,6 +1,8 @@
 import { createPool, beginTx } from "../../gateway/src/pg-tx.ts";
 import { relayOnce, notifyPublisher } from "./relay.ts";
 import { sweepCredentialExpiry, sweepSlaCascade, workerScope } from "./sweeps.ts";
+import { sweepHqRollup } from "./rollup.ts";
+import { HQ_REFRESH_MINUTES } from "../../../packages/contracts/src/hq.ts";
 
 /**
  * THE WORKER. Runs as ac_worker. Three loops, each its own transaction, each
@@ -45,6 +47,14 @@ every(60_000, "sla-cascade", async () => {
 every(3_600_000, "credential-expiry", async () => {
   const tx = await bound();
   try { return await sweepCredentialExpiry(tx, new Date()); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
+});
+
+// Item 10: S4 reads only what this writes. Company-wide, so it runs from the
+// unregioned worker alone — a regional worker would write every region's
+// figures from a scope that sees one.
+if (!REGION) every(HQ_REFRESH_MINUTES * 60_000, "hq-rollup", async () => {
+  const tx = await bound();
+  try { return await sweepHqRollup(tx, new Date()); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
 });
 
 console.log(`worker up${REGION ? ` (region ${REGION})` : ""}`);

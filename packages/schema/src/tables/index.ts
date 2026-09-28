@@ -8,6 +8,7 @@ import * as billing from "./billing.ts";
 import * as intake from "./intake.ts";
 import * as sync from "./sync.ts";
 import * as platform from "./platform.ts";
+import * as hq from "./hq.ts";
 import type { Table } from "../tenancy.ts";
 
 /**
@@ -72,6 +73,8 @@ export const ALL_TABLES: readonly Table[] = Object.freeze([
   platform.storage_objects,
   platform.brand_themes,
   platform.sla_timers,
+  // item 10: S4's rollup
+  hq.hq_metrics,
 ]);
 
-export { roots, hierarchy, identity, contracts, network, work, billing, intake, sync, platform };
+export { roots, hierarchy, identity, contracts, network, work, billing, intake, sync, platform, hq };

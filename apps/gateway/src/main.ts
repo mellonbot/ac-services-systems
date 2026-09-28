@@ -28,6 +28,7 @@ import { OPERATIONS, OPERATION_IDS, routeKey, surfacesFor, type OperationId, typ
 import type { Claims, Namespace, Principal } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import { INTERNAL_ORG_ID, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
+import { hqMetrics, hqHistory } from "./handlers/hq.ts";
 
 /**
  * THE GATEWAY — B3. The sole access path.
@@ -421,6 +422,10 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "settlements.lines": (req, input) => withRead(req, "settlements.lines", (uow) => listSettlementLines(uow, input)),
   "settlements.acknowledge": (req, input) => withUow(req, "settlements.acknowledge", (uow) => acknowledgeSettlement(uow, input, new Date())),
   "settlements.dispute": (req, input) => withUow(req, "settlements.dispute", (uow) => disputeSettlement(uow, input, new Date())),
+
+  // Item 10 — S4. Reads of the rollup; there is no S4 write to route.
+  "hq.metrics": (req, input) => withRead(req, "hq.metrics", (uow) => hqMetrics(uow, input)),
+  "hq.history": (req, input) => withRead(req, "hq.history", (uow) => hqHistory(uow, input)),
 
   // item 4 — the job itself, created in Office & Dispatch.
   "jobs.create": (req, input) => withUow(req, "jobs.create", (uow) => createJob(uow, input, randomUUID, new Date())),

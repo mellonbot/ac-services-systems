@@ -783,6 +783,22 @@ CREATE INDEX IF NOT EXISTS sla_timers_region_id_idx ON sla_timers (region_id);
 CREATE INDEX IF NOT EXISTS sla_timers_job_id_idx ON sla_timers (job_id);
 CREATE INDEX IF NOT EXISTS sla_timers_due_at_idx ON sla_timers (due_at);
 
+CREATE TABLE IF NOT EXISTS hq_metrics (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  day date NOT NULL,
+  metric text NOT NULL,
+  value bigint NOT NULL,
+  as_of timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (day, region_id, metric)
+);
+CREATE INDEX IF NOT EXISTS hq_metrics_region_id_idx ON hq_metrics (region_id);
+CREATE INDEX IF NOT EXISTS hq_metrics_day_idx ON hq_metrics (day);
+CREATE INDEX IF NOT EXISTS hq_metrics_metric_day_idx ON hq_metrics (metric, day);
+
 -- The designed home for pre-account rows. A real organization and a real
 -- region, so region_id never needs to be nullable and the shard key stays total.
 INSERT INTO organizations (id, name, kind) VALUES

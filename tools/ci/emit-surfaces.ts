@@ -175,15 +175,16 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
  * S3 (dispatch board + the one gated door) and S5 (offline-first field
  * screens), item 6's S6 (the customer's sites, work, agreements and
  * request intake, scoped by RLS), item 7's S8 (a firm's row, roster,
- * documents, work and statements — D12's four writes) and item 8's S1 (the
- * coverage map, the lead form and the durable buffer behind it).
+ * documents, work and statements — D12's four writes), item 8's S1 (the
+ * coverage map, the lead form and the durable buffer behind it) and item
+ * 10's S4 (the HQ view over the rollup — every region, no writes).
  *
  * S1 is the one whose shared first cut was actively WRONG rather than merely
  * thin: `renderStatusApp` resumes a browser session and offers to sign in,
  * and S1 has no session and no sign-in. Every other surface still gets the
  * first cut until its own product-specific workflow is built.
  */
-const HAND_WRITTEN_APPS: readonly SurfaceId[] = ["S1", "S2", "S3", "S5", "S6", "S8"];
+const HAND_WRITTEN_APPS: readonly SurfaceId[] = ["S1", "S2", "S3", "S4", "S5", "S6", "S8"];
 const GENERATED_STATUS_APPS: readonly SurfaceId[] = SURFACE_IDS.filter((id) => !HAND_WRITTEN_APPS.includes(id));
 
 /**

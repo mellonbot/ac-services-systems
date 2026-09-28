@@ -14,7 +14,8 @@ test("allowed origins are derived from the registry: one https origin per enable
     const expect = s.enabled && s.namespace !== "anonymous";
     assert.equal(o.has(`https://${s.app}.ac.example`), expect, `${id} (${s.app}) enabled=${s.enabled}`);
   }
-  assert.ok(!o.has("https://s4-hq-dashboard.ac.example"), "a phase-disabled surface is not an origin — deferring a surface (D9) also closes its door");
+  assert.ok(!o.has("https://s7-vendor-portal.ac.example"), "a phase-disabled surface is not an origin — deferring a surface (D9) also closes its door");
+  assert.ok(o.has("https://s4-hq-dashboard.ac.example"), "S4, enabled at item 10, holds a session like every console");
   assert.ok(!o.has("https://s1-marketing.ac.example"), "the anonymous marketing site never holds a session");
 });
 
@@ -60,7 +61,7 @@ test("cors: a registry origin gets the credentialed allow-headers echoing that o
   assert.match(ok.headers["access-control-allow-headers"]!, /x-ac-surface/);
   assert.equal(ok.headers.vary, "Origin");
 
-  for (const bad of ["https://evil.example", "https://s2-service-manager.ac.example.evil.example", "http://s2-service-manager.ac.example", "https://s4-hq-dashboard.ac.example", undefined]) {
+  for (const bad of ["https://evil.example", "https://s2-service-manager.ac.example.evil.example", "http://s2-service-manager.ac.example", "https://s7-vendor-portal.ac.example", undefined]) {
     const no = cors(req(bad), origins);
     assert.equal(no.allowed, false, String(bad));
     assert.deepEqual(no.headers, { vary: "Origin" }, String(bad));

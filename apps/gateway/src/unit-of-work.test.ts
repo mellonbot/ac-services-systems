@@ -53,8 +53,19 @@ test("audit row and outbox row land in the same transaction, share one event_id,
 test("S4 cannot write anything — the empty allowlist enforces itself", async () => {
   const hq: Principal = { ...dispatcher, scopeTier: "parent", scopeId: "org-internal", roles: ["ops_leadership"] };
   const f = fakeTx();
-  // S4 is Phase 2 and disabled; the first refusal is the phase gate.
-  await assert.rejects(createUnitOfWork(ctx("S4", hq), f.tx), SurfaceDisabled);
+  // Enabled at item 10, so the unit of work opens — S4 reads through it — and
+  // the allowlist, which is empty, refuses the first write of any entity.
+  const uow = await createUnitOfWork(ctx("S4", hq), f.tx);
+  await assert.rejects(
+    uow.apply({ entity: "assignment", entityId: "a-1", action: "reassign", topic: "job.reassigned", before: null, after: {}, orgId: "org-amped", regionId: "reg-south" }, async () => {}),
+    (e: unknown) => e instanceof SurfaceWriteDenied,
+  );
+  assert.equal(f.inserted.length, 0, "nothing was written");
+});
+
+test("a phase-disabled surface opens no unit of work at all", async () => {
+  const f = fakeTx();
+  await assert.rejects(createUnitOfWork(ctx("S7", { ...dispatcher, namespace: "vendor", roles: [] }), f.tx), SurfaceDisabled);
 });
 
 test("a surface writing outside its allowlist is refused with the registry named", async () => {

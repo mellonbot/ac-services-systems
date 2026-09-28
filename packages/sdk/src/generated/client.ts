@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 62 today. There is no
+ * One method per operation in the catalogue — 64 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -276,6 +276,20 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["firms.update"], input) as Promise<OperationIO["firms.update"]["output"]>;
   },
 
+  /** `GET /s4/metrics/history` · query · bearer · surfaces: S4
+   *
+   * One figure's daily closing values per region over the last N days (default 30, at most 90) — the trend behind a number on the dashboard. */
+  hqHistory(input: OperationIO["hq.history"]["input"]): Promise<OperationIO["hq.history"]["output"]> {
+    return transport.request(OPERATIONS["hq.history"], input) as Promise<OperationIO["hq.history"]["output"]>;
+  },
+
+  /** `GET /s4/metrics` · query · bearer · surfaces: S4
+   *
+   * Every figure in the HQ register for every region, as of the latest rollup (or the close of a given day), with the moment it was computed. Read from hq_metrics alone — the operational tables are the worker's to read. */
+  hqMetrics(input: OperationIO["hq.metrics"]["input"]): Promise<OperationIO["hq.metrics"]["output"]> {
+    return transport.request(OPERATIONS["hq.metrics"], input) as Promise<OperationIO["hq.metrics"]["output"]>;
+  },
+
   /** `GET /invoices` · query · bearer · surfaces: S2, S6
    *
    * Invoices with lines at a site or location this principal may see, with THOSE lines and their subtotal — a consolidated parent invoice read from one location shows that location's lines and nothing beside (0009). Issuance is WS-E's; this is the read. */
@@ -448,4 +462,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "listInvoices", "createJob", "listJobs", "myJobs", "submitLead", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "createServiceRequest", "listServiceRequests", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "siteImagery", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "createJob", "listJobs", "myJobs", "submitLead", "createOrganization", "listOrganizations", "listRateCards", "setRateCard", "listRegions", "createServiceRequest", "listServiceRequests", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "siteImagery", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms"] as const);
