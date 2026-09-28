@@ -132,7 +132,13 @@ The distinction is real, though: an annotation carries no region-scoped
 operational state — it is commentary on a rollup. If the partners want it, the
 clean mechanism is a second, separate list (`annotates`) rather than loosening
 `writes`, so that "S4 can comment" never becomes "S4 can act". That is a
-decision, not an implementation detail, and S4 is Phase 2 — so it is not blocking.
+decision, not an implementation detail, and it is not blocking.
+
+*Item 10 (2026-09-27):* S4 is built and **enabled** on the partners' instruction,
+ahead of the Phase 2 gate in 00 §5.5 ("ships only once regions demonstrably run
+without it"). The instruction was *see everything, change nothing*, so `writes`
+stays `[]`, the catalogue serves S4 two reads, and migration 0010 grants the
+gateway role no write on `hq_metrics`. Annotation remains open as above.
 
 **OPEN-MONEY-IN-JSONB.** Contract term values arrive from `jsonb`. A JSON number
 is an IEEE754 double, so a money amount stored as a JSON number is a float in the

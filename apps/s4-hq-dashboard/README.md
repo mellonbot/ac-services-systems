@@ -6,7 +6,7 @@
 | | |
 |---|---|
 | Block | OFC |
-| Phase | 2 — not enabled |
+| Phase | 2 |
 | Namespace | `internal` |
 | Auth scope | org-wide READ only |
 | Scope binding | `org` |

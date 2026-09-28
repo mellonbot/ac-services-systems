@@ -132,7 +132,10 @@ const REGISTRY = {
   },
   S4: {
     id: "S4", name: "HQ Ops Dashboard", app: "s4-hq-dashboard",
-    block: "OFC", phase: 2, enabled: false,
+    // Enabled 2026-09-27 (item 10) on the partners' instruction, ahead of the
+    // Phase 2 gate in 00 §5.5 ("ships only once regions demonstrably run
+    // without it"). Read-only is unchanged: writes stay [] below.
+    block: "OFC", phase: 2, enabled: true,
     namespace: "internal", authScope: "org-wide READ only", scopeBinding: "org",
     roles: ["principal", "ops_leadership", "account_owner", "readonly"],
     // Empty by construction. If HQ can reassign a crew from here, regional

@@ -5,7 +5,7 @@ import type { Principal } from "../../../packages/contracts/src/index.ts";
 /**
  * S4 — HQ Ops Dashboard
  *
- * Block OFC · Phase 2 · console density · NOT ENABLED (phase gate)
+ * Block OFC · Phase 2 · console density · enabled
  *
  * Auth: org-wide READ only
  * Writes: NOTHING — read-only by construction

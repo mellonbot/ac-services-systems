@@ -441,6 +441,19 @@ export const OPERATIONS = {
     surfaces: ["S1"], carrier: "body", sdkMethod: "recordCall",
     summary: "A visitor used the call button. Recorded against the lead when there is one, and against nothing when there is not — an inbound call is a fact whether or not a form was filled.",
   },
+  // ---- item 10: S4, the HQ view. Two reads of the rollup and nothing else:
+  // `SURFACES.S4.writes` is [] and 0010 grants the gateway no write on
+  // hq_metrics, so there is no request path here that changes anything.
+  "hq.metrics": {
+    id: "hq.metrics", method: "GET", path: "/s4/metrics", kind: "query", auth: "bearer",
+    surfaces: ["S4"], carrier: "query", sdkMethod: "hqMetrics",
+    summary: "Every figure in the HQ register for every region, as of the latest rollup (or the close of a given day), with the moment it was computed. Read from hq_metrics alone — the operational tables are the worker's to read.",
+  },
+  "hq.history": {
+    id: "hq.history", method: "GET", path: "/s4/metrics/history", kind: "query", auth: "bearer",
+    surfaces: ["S4"], carrier: "query", sdkMethod: "hqHistory",
+    summary: "One figure's daily closing values per region over the last N days (default 30, at most 90) — the trend behind a number on the dashboard.",
+  },
   "system.health": {
     id: "system.health", method: "GET", path: "/healthz", kind: "system", auth: "none",
     surfaces: ["S1", ...AUTHENTICATED], carrier: "none", sdkMethod: "health",
@@ -1083,6 +1096,31 @@ export type SyncOutcomeWire =
   | { readonly outcome: "rejected"; readonly mutationId: string; readonly note: string };
 export type SyncReplayOutput = { readonly outcomes: readonly SyncOutcomeWire[] };
 
+// ---- item 10 wire shapes: the HQ rollup ----
+export type HqMetricsInput = { readonly day?: string };
+export type HqRegionWire = {
+  readonly id: string; readonly code: string; readonly name: string; readonly active: boolean;
+  /** False for UNASSIGNED — where leads wait before the office places them. */
+  readonly placed: boolean;
+};
+export type HqValueWire = {
+  readonly regionId: string; readonly metric: string;
+  /** A count or integer minor units, as a string: bigint on the wire, like every *_minor. */
+  readonly value: string;
+};
+export type HqMetricsOutput = {
+  /** The UTC day the values close, or null when no rollup has ever run. */
+  readonly day: string | null;
+  /** When the worker computed them. The one thing S4's degraded line promises to show. */
+  readonly asOf: string | null;
+  readonly refreshMinutes: number;
+  readonly regions: readonly HqRegionWire[];
+  readonly values: readonly HqValueWire[];
+};
+export type HqHistoryInput = { readonly metric: string; readonly days?: number };
+export type HqHistoryPointWire = { readonly day: string; readonly regionId: string; readonly value: string };
+export type HqHistoryOutput = { readonly metric: string; readonly days: number; readonly points: readonly HqHistoryPointWire[] };
+
 export type HealthOutput = { readonly ok: true; readonly surfaces: readonly SurfaceId[] };
 
 /**
@@ -1265,6 +1303,8 @@ export type OperationIO = {
   "auth.anonymousSession": { input: void; output: AnonymousSessionOutput };
   "leads.submit": { input: SubmitLeadInput; output: SubmitLeadOutput };
   "callRecords.record": { input: RecordCallInput; output: RecordCallOutput };
+  "hq.metrics": { input: HqMetricsInput; output: HqMetricsOutput };
+  "hq.history": { input: HqHistoryInput; output: HqHistoryOutput };
   "system.health": { input: void; output: HealthOutput };
 };
 // Both directions: every operation has IO, and no IO names a missing operation.
