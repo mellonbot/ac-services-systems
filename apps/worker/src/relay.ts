@@ -78,11 +78,20 @@ export const relayOnce = async (tx: RelayTx, publisher: EventPublisher, batchSiz
 /** Phase 1 publisher: Postgres NOTIFY fanout (the gateway LISTENs and pushes SSE to surfaces) plus subscriber cursors. */
 export const notifyPublisher = (tx: RelayTx): EventPublisher => ({
   async publish(events) {
+    if (events.length === 0) return;
+    const channels: string[] = [];
+    const envelopes: string[] = [];
     for (const e of events) {
       // NOTIFY payload cap is 8000 bytes; send the envelope, subscribers fetch the payload by event_id if they need it.
       const envelope = JSON.stringify({ eventId: e.eventId, topic: e.topic, entity: e.entity, entityId: e.entityId, regionId: e.regionId, orgId: e.orgId, occurredAt: e.occurredAt });
-      await tx.query(`SELECT pg_notify($1, $2)`, [`ac_events_${e.regionId.replace(/-/g, "")}`, envelope]);
-      await tx.query(`SELECT pg_notify('ac_events', $1)`, [envelope]);
+      channels.push(`ac_events_${e.regionId.replace(/-/g, "")}`, "ac_events");
+      envelopes.push(envelope, envelope);
     }
+    await tx.query(
+      `SELECT pg_notify(n.channel, n.payload)
+         FROM unnest($1::text[], $2::text[]) WITH ORDINALITY AS n(channel, payload, ordinality)
+        ORDER BY n.ordinality`,
+      [channels, envelopes],
+    );
   },
 });
