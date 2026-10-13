@@ -145,6 +145,24 @@ jobs:
       contents: read
       deployments: write
     steps:
+      # Every value the deploy needs lives on the `production` environment, and an
+      # environment with a value missing fails late and obscurely: an empty
+      # `--project-name=` reaches wrangler, an empty token reaches Cloudflare. Eight
+      # red runs on main were this. Check up front and name what is missing.
+      - name: production environment is configured
+        env:
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=0
+          for name in CLOUDFLARE_PAGES_PROJECT CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set on the GitHub 'production' environment. See docs/CLOUDFLARE_PAGES.md, 'The site'."
+              missing=1
+            fi
+          done
+          exit $missing
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
@@ -154,9 +172,11 @@ jobs:
         run: pnpm build:pages
         env:
           AC_GATEWAY: ${{ vars.AC_GATEWAY || 'https://api.acservice.systems' }}
+      # wrangler is run directly rather than through cloudflare/wrangler-action: the
+      # action sees pnpm-lock.yaml and tries `pnpm add wrangler`, which pnpm refuses
+      # at a workspace root. `pnpm dlx` fetches the pinned major and adds nothing.
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist/pages --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm dlx wrangler@4 pages deploy dist/pages --project-name="${{ vars.CLOUDFLARE_PAGES_PROJECT }}" --branch=main
