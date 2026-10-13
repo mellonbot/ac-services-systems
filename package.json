@@ -19,6 +19,7 @@
     "sdk:check": "node tools/ci/emit-sdk.ts --check",
     "db:migrate": "node tools/ci/migrate.ts",
     "db:assert": "node tools/ci/migrate.ts --assert",
+    "db:seed-test-logins": "node tools/ci/seed-test-logins.ts",
     "gateway": "node apps/gateway/src/main.ts",
     "worker": "node apps/worker/src/main.ts",
     "test:ui": "node --test \"packages/ui/**/*.test.ts\" \"apps/s[0-9]*/**/*.test.ts\"",

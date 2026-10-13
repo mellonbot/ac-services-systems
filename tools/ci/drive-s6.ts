@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
 import { hashPassword } from "../../apps/gateway/src/auth.ts";
 import { connectShell } from "../../packages/shell/src/index.ts";
+import { SURFACE_PATHS } from "../../packages/contracts/src/surfaces.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 import { Cdp, findChrome } from "./cdp.ts";
@@ -37,6 +38,7 @@ const GATEWAY_PORT = 23600 + Math.floor(Math.random() * 400);
 const SITE_PORT = 24100 + Math.floor(Math.random() * 400);
 const GATEWAY = `http://127.0.0.1:${GATEWAY_PORT}`;
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
+const CUSTOMER = `${SITE}${SURFACE_PATHS.S6}`;
 const RUN = Date.now().toString(36).toUpperCase();
 const SCRATCH = process.env.AC_DRIVE_DB ?? `ac_drive6_${RUN.toLowerCase()}`;
 const PASSWORD = "correct horse battery staple";
@@ -364,13 +366,13 @@ async function main(): Promise<void> {
     await cdp.eval(`(() => { document.getElementById("nav-request").click(); return true; })()`);
     await cdp.waitFor(`document.getElementById("request-form")`, "the request form from the header");
     // A deep link to a site outside the manager's scope is a plain sentence, not a card and not an error.
-    await cdp.navigate(`${SITE}/site/${renoRoof}`);
+    await cdp.navigate(`${CUSTOMER}/site/${renoRoof}`);
     await cdp.waitFor(`document.getElementById("site-missing")`, "the out-of-scope site's page");
     must(!(await cdp.eval<boolean>(has("Reno"))), "REGRESSION: an out-of-scope site's name reached the manager's page");
     check(8, "the card's button preselects its site; the header's Request service button is a button, near the top, on every screen; a deep link outside scope says so");
 
     // ── 9. Terms at Austin — Roof: the parent's 4-hour, and where it came from
-    await cdp.navigate(`${SITE}/terms/site/${austinRoof}`);
+    await cdp.navigate(`${CUSTOMER}/terms/site/${austinRoof}`);
     await cdp.waitFor(has("Terms at Austin — Roof"), "the terms screen");
     await cdp.waitFor(has("Set in the master agreement"), "the resolution");
     const terms7 = await cdp.eval<string>(text);
@@ -381,7 +383,7 @@ async function main(): Promise<void> {
     check(9, "Terms at the manager's site: 4 hour, set in the master agreement, under the manager's own breadcrumb");
 
     // ── 10. a deep link to Reno's terms is not the manager's: the resolver says unknown_scope, in the customer's words
-    await cdp.navigate(`${SITE}/terms/site/${renoRoof}`);
+    await cdp.navigate(`${CUSTOMER}/terms/site/${renoRoof}`);
     await cdp.waitFor(`document.querySelector(".s6-refusal")`, "a refusal for a node outside the scope");
     const refused = await cdp.eval<string>(`document.querySelector(".s6-refusal").innerText`);
     must(/Refused/.test(refused) && /no site node/.test(refused), `the refusal is the gateway's sentence, got ${JSON.stringify(refused)}`);
@@ -401,14 +403,14 @@ async function main(): Promise<void> {
     check(11, "sign out, then the executive: the same bundle, the whole tree");
 
     // ── 12. Terms at Reno — Roof for the executive: the WEST region node's 2-hour wins, and the screen says so
-    await cdp.navigate(`${SITE}/terms/site/${renoRoof}`);
+    await cdp.navigate(`${CUSTOMER}/terms/site/${renoRoof}`);
     await cdp.waitFor(has("Set at Region: Amped / West"), "the region-tier resolution");
     must(await cdp.eval<boolean>(has("2 hour")), "2 hour at Reno");
     await shot("09-terms-reno-executive");
     check(12, "Terms at Reno for the executive: 2 hour, set at Region: Amped / West");
 
     // ── 13. Agreements: the paper, with the data-rights position
-    await cdp.navigate(`${SITE}/agreements`);
+    await cdp.navigate(`${CUSTOMER}/agreements`);
     await cdp.waitFor(has("Master agreement"), "the agreements list");
     must(await cdp.eval<boolean>(has("Rights reserved to Rankine")), "OQ5's position is shown to the customer that took it");
     must(await cdp.eval<boolean>(has("In force")), "the state in words");
@@ -416,13 +418,13 @@ async function main(): Promise<void> {
     check(13, "Agreements: the master agreement, in force, data rights reserved");
 
     // ── 14. the executive's Work spans both regions, though the token is bound to South
-    await cdp.navigate(`${SITE}/work`);
+    await cdp.navigate(`${CUSTOMER}/work`);
     await cdp.waitFor(has("PM-VISIT"), "Reno's job on the executive's board");
     must(await cdp.eval<boolean>(has("HVAC-REPAIR")), "and Austin's");
     check(14, "the executive's Work carries both regions' jobs");
 
     // ── 15. the executive's card for Reno: the same bundle over Reno's rows — no coordinates, no picture, no Austin
-    await cdp.navigate(`${SITE}/site/${renoRoof}`);
+    await cdp.navigate(`${CUSTOMER}/site/${renoRoof}`);
     await cdp.waitFor(`document.getElementById("site-card") && document.getElementById("site-units-count") && document.querySelector("#site-roof[data-unavailable]")`, "Reno's card for the executive");
     const renoCard = await cdp.eval<string>(text);
     must(/Reno — Roof/.test(renoCard) && /1 Casino Way/.test(renoCard), "Reno's own address");

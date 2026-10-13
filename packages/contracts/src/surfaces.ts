@@ -241,6 +241,21 @@ export const mayWrite = (id: SurfaceId, entity: WriteEntity): boolean =>
   SURFACES[id].writes.includes(entity);
 
 /**
+ * May a principal with this namespace and these roles open a session on this
+ * surface? The same two checks the unit of work makes before any handler runs
+ * — the namespace wall, then the registry's `roles` — asked once, at the door.
+ */
+export const admits = (id: SurfaceId, who: { readonly namespace: Namespace; readonly roles: readonly string[] }): boolean => {
+  const s = SURFACES[id];
+  if (s.namespace !== who.namespace) return false;
+  return !s.roles || s.roles.some((r) => who.roles.includes(r));
+};
+
+/** Every enabled surface a namespace + role set may open. Derived from the registry, never a second list. */
+export const surfacesAdmitting = (who: { readonly namespace: Namespace; readonly roles: readonly string[] }): readonly SurfaceId[] =>
+  SURFACE_IDS.filter((id) => SURFACES[id].enabled && admits(id, who));
+
+/**
  * The surfaces a tenant may repaint — derived, never a second list. The
  * operation catalogue serves `brand.theme` to exactly these, the frame emitter
  * gives exactly these a brand slot, and the shell asks for a theme on exactly
