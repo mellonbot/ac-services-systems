@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import { createPool, beginTx, type Pool } from "../../apps/gateway/src/pg-tx.ts";
 import { scopeBinding } from "../../apps/gateway/src/context.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
-import { GatewayRefusal, SURFACE_IDS, type SurfaceId } from "../../packages/contracts/src/index.ts";
+import { GatewayRefusal, SURFACE_IDS, SURFACES, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 import { seedTestLogins, resolveRegion, type SeededLogin } from "../../tools/ci/seed-test-logins.ts";
 import { TEST_LOGINS, type TestLogin } from "../../tools/ci/test-logins.ts";
@@ -92,7 +92,10 @@ test("each login opens exactly its own surfaces and is refused at the door on ev
         continue;
       }
       const before = await sessionsOf(t);
-      await assert.rejects(as(t, id), (e: unknown) => e instanceof GatewayRefusal && e.refusal.kind === "scope", `${t.login} must be refused ${id}`);
+      // A surface behind its phase gate (S7, D9) is refused as 404 SurfaceDisabled
+      // before roles are read; every enabled surface the login does not hold is a scope refusal.
+      const expected = SURFACES[id].enabled ? "scope" : "phase_disabled";
+      await assert.rejects(as(t, id), (e: unknown) => e instanceof GatewayRefusal && e.refusal.kind === expected, `${t.login} must be refused ${id} (${expected})`);
       assert.equal(await sessionsOf(t), before, `${t.login} on ${id}: a refused login leaves no session behind`);
     }
   }
