@@ -131,10 +131,115 @@ jobs:
       - name: S1 through a real browser
         run: npm run drive:s1
 
-  deploy:
+  # The gateway: apps/gateway and apps/worker as one container behind the Worker
+  # on api.acservice.systems (infra/cloudflare/). Migrate the production database,
+  # build and push the image, wait for /healthz on the domain. Everything it needs
+  # lives on the `production` environment like the Pages deploy below, plus
+  # DATABASE_URL — the one value the site does not need. Until that is set the
+  # job says so once and skips every step, so the site still publishes; a half-set
+  # environment (token without account, or the Worker missing a secret) fails
+  # here, named, before a several-minute image build and a five-minute wait.
+  deploy-gateway:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     needs: [full, migrate]
+    environment:
+      name: production
+      url: https://api.acservice.systems/healthz
+    concurrency:
+      group: cloudflare-gateway-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: production environment is configured for the gateway
+        id: configured
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::DATABASE_URL is not set on the GitHub 'production' environment, so the gateway is not deployed and the site publishes alone. See docs/CLOUDFLARE_PAGES.md, 'The gateway'."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          missing=0
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set on the GitHub 'production' environment. See docs/CLOUDFLARE_PAGES.md, 'The site'."
+              missing=1
+            fi
+          done
+          [ "$missing" = 0 ] && echo "ready=true" >> "$GITHUB_OUTPUT"
+          exit $missing
+      - if: steps.configured.outputs.ready == 'true'
+        uses: actions/checkout@v7
+      - if: steps.configured.outputs.ready == 'true'
+        uses: pnpm/action-setup@v6
+      - if: steps.configured.outputs.ready == 'true'
+        uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      # The Worker holds its own copy of DATABASE_URL and the signing key, set once
+      # from a laptop (docs/CLOUDFLARE_PAGES.md, 'The gateway'). Without the key the
+      # Worker refuses to start the container and the wait below would time out
+      # saying nothing. Ask the Worker what it holds, and name what it does not.
+      - name: the Worker holds its secrets
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if ! held=$(pnpm dlx wrangler@4 secret list -c infra/cloudflare/wrangler.jsonc 2>&1); then
+            echo "$held"
+            echo "::error::The Worker 'ac-gateway' has no secrets yet. Run the one-time setup in docs/CLOUDFLARE_PAGES.md, 'The gateway'."
+            exit 1
+          fi
+          missing=0
+          for name in AC_SIGNING_KEY_PEM DATABASE_URL; do
+            if ! grep -q "\"$name\"" <<< "$held"; then
+              echo "::error::$name is not set on the Worker: npx wrangler@4 secret put $name -c infra/cloudflare/wrangler.jsonc"
+              missing=1
+            fi
+          done
+          exit $missing
+      # psql is on the runner image, as it is on any machine that migrates a
+      # database; the runner is dependency-free on purpose (see `migrate`).
+      - name: Migrate the production database
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          node tools/ci/migrate.ts
+          node tools/ci/migrate.ts --assert
+      # Builds the image with the runner's Docker, pushes it to the account's
+      # registry, uploads the Worker, and creates the api.acservice.systems custom
+      # domain from the `routes` entry on the first run. Run directly for the same
+      # reason the Pages deploy is: cloudflare/wrangler-action cannot `pnpm add`
+      # at a workspace root.
+      - name: Deploy the gateway container
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm dlx wrangler@4 deploy -c infra/cloudflare/wrangler.jsonc
+      - name: The gateway answers on its domain
+        if: steps.configured.outputs.ready == 'true'
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 https://api.acservice.systems/healthz; then echo; exit 0; fi
+            sleep 10
+          done
+          echo "::error::api.acservice.systems/healthz did not answer within five minutes. \`npx wrangler@4 tail -c infra/cloudflare/wrangler.jsonc\` shows why the Worker would not start it."
+          exit 1
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    # After the gateway, because the build stamps the gateway origin into every
+    # frame. A skipped gateway (DATABASE_URL unset) still satisfies this.
+    needs: [full, migrate, deploy-gateway]
     environment:
       name: production
       url: https://acservice.systems

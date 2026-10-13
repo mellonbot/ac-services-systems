@@ -8,7 +8,11 @@ Production is two Cloudflare deployments from one `main` push, in this order:
    `https://api.acservice.systems`. The `deploy-gateway` job in
    `.github/workflows/guard.yml` migrates the production database, then runs
    `wrangler deploy -c infra/cloudflare/wrangler.jsonc`, which builds and
-   pushes the image, and waits for `/healthz` to answer on the domain.
+   pushes the image, and waits for `/healthz` to answer on the domain. Until
+   `DATABASE_URL` is set on the GitHub `production` environment the job
+   records a notice and skips, and the site publishes alone; once it is set,
+   a Worker missing either of its secrets fails the job by name before the
+   image is built.
 2. **The site** — S1 at `/` and each enabled portal under its own path, on
    Cloudflare Pages. The `deploy` job publishes it after the gateway is up,
    because the build stamps the gateway origin into every frame.
@@ -88,7 +92,7 @@ Create a GitHub Actions environment named `production` and configure:
 | `CLOUDFLARE_PAGES_PROJECT` | Variable | Exact name of the Pages project |
 | `CLOUDFLARE_API_TOKEN` | Secret | Cloudflare API token for the account: Workers Scripts **Edit**, Cloudflare Pages **Edit**, Containers **Edit**, Workers Routes/Custom Domains **Edit** on the zone, Account Settings **Read** |
 | `CLOUDFLARE_ACCOUNT_ID` | Secret | Cloudflare account ID |
-| `DATABASE_URL` | Secret | The production connection string, for migrations (the same value the Worker holds) |
+| `DATABASE_URL` | Secret | The production connection string, for migrations (the same value the Worker holds). Setting it is what turns the `deploy-gateway` job on |
 
 If set, `AC_GATEWAY` must be a valid HTTPS origin. Production deployments run
 automatically for successful pushes to `main`; use **Actions → guard → Run
