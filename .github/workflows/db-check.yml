@@ -1,0 +1,38 @@
+name: db-check
+
+# Manual only. Connects to the production database the way the gateway does —
+# node `pg`, not psql — and prints what pg sees. psql turns TLS on by itself;
+# pg only does what the connection string says, so a string that migrates
+# cleanly can still refuse the gateway. Prints no secret: host and sslmode only.
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  db-check:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile --prod
+      - name: connect with pg
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          node --input-type=module -e '
+            import pg from "pg";
+            const u = new URL(process.env.DATABASE_URL);
+            console.log("host", u.hostname, "port", u.port || "(default)", "db", u.pathname, "sslmode", u.searchParams.get("sslmode") ?? "(none)", "user", u.username);
+            const c = new pg.Client({ connectionString: process.env.DATABASE_URL, application_name: "ac-db-check" });
+            try {
+              await c.connect();
+              const r = await c.query("select version(), current_user, (select count(*) from pg_roles where rolname like $1) as ac_roles", ["ac_%"]);
+              console.log(r.rows[0]);
+              await c.query("LISTEN ac_db_check"); console.log("LISTEN ok");
+              await c.end();
+            } catch (e) { console.error("pg failed:", e.message, e.code ?? ""); process.exit(1); }
+          '
