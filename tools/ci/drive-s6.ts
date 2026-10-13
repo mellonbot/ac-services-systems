@@ -240,7 +240,7 @@ async function main(): Promise<void> {
 
     site = serveDist(join(ROOT, "apps/s6-customer-portal/dist"));
     cdp = await Cdp.launch(chrome);
-    await cdp.openTab(`${SITE}/login`);
+    await cdp.openTab(`${CUSTOMER}/login`);
     // AC_DRIVE_SHOTS=<dir> keeps a PNG of each screen the drive read — for a
     // person to look at what the checks below only assert.
     const shots = process.env.AC_DRIVE_SHOTS;
