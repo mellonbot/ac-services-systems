@@ -3,6 +3,7 @@ import type { ScopeBinding } from "../../../packages/contracts/src/scope.ts";
 import type { Tx } from "./unit-of-work.ts";
 import type { HierarchyReader } from "./context.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
+import { forNodePg } from "./pg-url.ts";
 
 /**
  * THE ONLY FILE IN THE REPOSITORY THAT IMPORTS A DATABASE DRIVER.
@@ -19,7 +20,7 @@ import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 export type Pool = pg.Pool;
 
 export const createPool = (connectionString: string, applicationName = "ac-gateway"): Pool =>
-  new pg.Pool({ connectionString, application_name: applicationName, max: 10 });
+  new pg.Pool({ connectionString: forNodePg(connectionString), application_name: applicationName, max: 10 });
 
 const ident = (s: string): string => {
   if (!/^[a-z_][a-z0-9_]*$/.test(s)) throw new Error(`unsafe identifier "${s}"`);
@@ -124,7 +125,7 @@ export const hierarchyReader = (tx: Tx): HierarchyReader => ({
  * used to fan the relay's NOTIFY out to SSE subscribers. Also behind the door.
  */
 export const listenEvents = async (connectionString: string, onEnvelope: (payload: string) => void): Promise<() => Promise<void>> => {
-  const client = new pg.Client({ connectionString, application_name: "ac-gateway-listen" });
+  const client = new pg.Client({ connectionString: forNodePg(connectionString), application_name: "ac-gateway-listen" });
   await client.connect();
   await client.query("LISTEN ac_events");
   client.on("notification", (n) => { if (n.payload) onEnvelope(n.payload); });

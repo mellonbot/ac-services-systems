@@ -65,6 +65,13 @@ npx wrangler@4 secret put DATABASE_URL       -c infra/cloudflare/wrangler.jsonc 
 rm /tmp/ac-signing.pem
 ```
 
+Paste the connection string exactly as the provider shows it for psql.
+PlanetScale's ends in `sslmode=verify-full&sslrootcert=system`; the gateway
+reads libpq's `sslrootcert=system` as what node `pg` does by default and
+drops it (`apps/gateway/src/pg-url.ts`). If the gateway container starts
+and exits, **Actions → db-check → Run workflow** connects to the production
+database with the same library and prints what it sees, naming no secret.
+
 Without `AC_SIGNING_KEY_PEM` the gateway mints an ephemeral key and every
 session dies with the container; the Worker refuses to start it. The custom
 domain `api.acservice.systems` is created by the first deploy from the
