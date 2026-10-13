@@ -125,7 +125,7 @@ export const termsOverride: Screen = (ctx, params) => {
 
   const scopeOptions = (policy: TermPolicy, nodes: readonly AccountWire[], tier: Tier): VNode =>
     tier === "parent"
-      ? html`<input type="hidden" name="scopeId" value=${orgId} /><p class="s2-parent">At the organization. ${policy.rationale}</p>`
+      ? html`<input type="hidden" name="scopeId" value=${orgId} /><p class="s2-parent">At the organization.</p>`
       : html`<label class="s2-field">
           <span>Which ${tier}</span>
           <select name="scopeId" required class="s2-input">
@@ -145,8 +145,8 @@ export const termsOverride: Screen = (ctx, params) => {
           <option value="">Choose…</option>
           ${list.map((c) => html`<option value=${c.id} selected=${c.id === f.contractId}>${c.kind} · ${c.scopeTier} · ${c.state}</option>`)}
         </select>
-        <small>The override is written into this agreement's region — the document decides where it lives.</small>
       </label>
+      <details class="s2-help"><summary>Where this override is recorded</summary><p>The override is written into this agreement's region — the document decides where it lives.</p></details>
       <label class="s2-field">
         <span>Term</span>
         <select name="termKey" required class="s2-input" onChange=${(e: Event) => { form.value = { ...form.value, termKey: (e.currentTarget as HTMLSelectElement).value, scopeTier: "" }; }}>
@@ -160,7 +160,7 @@ export const termsOverride: Screen = (ctx, params) => {
             <strong>${policy.combine.kind === "ratchet" ? `ratchet — stricter is ${policy.combine.stricter}` : policy.combine.kind}</strong>
             · authored at ${tiers.join(", ")} · ${policy.valueKind}
           </p>
-          <p class="s2-rationale">${policy.rationale}</p>
+          <details class="s2-help"><summary>Why this term works this way</summary><p class="s2-rationale">${policy.rationale}</p></details>
           <label class="s2-field">
             <span>At which tier</span>
             <select name="scopeTier" required class="s2-input" onChange=${(e: Event) => { form.value = { ...form.value, scopeTier: (e.currentTarget as HTMLSelectElement).value as Tier }; }}>
@@ -171,7 +171,8 @@ export const termsOverride: Screen = (ctx, params) => {
           ${tier ? scopeOptions(policy, nodes, tier as Tier) : null}
           <label class="s2-field"><span>Value</span>${valueControl(policy)}</label>
           <label class="s2-field"><span>Effective from</span><input class="s2-input" type="date" name="effectiveFrom" required /></label>
-          <label class="s2-field"><span>Effective to</span><input class="s2-input" type="date" name="effectiveTo" /><small>Leave empty for open-ended. Two rows in effect at once are refused — there is no tie-break that produces an invoice anyone can check.</small></label>
+          <label class="s2-field"><span>Effective to</span><input class="s2-input" type="date" name="effectiveTo" /><small>Leave empty for open-ended.</small></label>
+          <details class="s2-help"><summary>Why overlapping dates are refused</summary><p>Two rows in effect at once are refused — there is no tie-break that produces an invoice anyone can check.</p></details>
           <div class="s2-form__actions">
             ${submitAction(ctx, f.busy ? "Recording…" : "Record override", "author")}
             ${linkTo(ctx, "contracts.list", { orgId }, "Back to agreements")}

@@ -4,7 +4,7 @@ import type {
 } from "../../../../packages/contracts/src/index.ts";
 import type { Store } from "../state.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, refusalView, submitAction, formValues, linkTo, confirmPanel, type Screen, type ScreenContext } from "./common.ts";
 
 /**
  * ITEM 11 — PURCHASING, the office's side of procurement. Three screens over
@@ -15,7 +15,12 @@ import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen, 
  * Nothing here computes a price or a match: the gateway does, and the screen
  * shows what came back.
  */
-const outcome = signal<{ readonly refusal: Refusal | null; readonly busy: boolean }>({ refusal: null, busy: false });
+type PendingConfirmation =
+  | { readonly kind: "price"; readonly owner: string; readonly priceId: string; readonly sku: string; readonly amount: string; readonly currency: string; readonly effectiveFrom: string; readonly decision: "accepted" | "rejected"; readonly replacesCurrent: boolean }
+  | { readonly kind: "order"; readonly owner: string; readonly action: "issue" | "cancel"; readonly number: string }
+  | { readonly kind: "return"; readonly owner: string; readonly lineId: string; readonly lineNo: number; readonly sku: string; readonly quantity: string; readonly quantityMilli: string; readonly reason: string };
+
+const outcome = signal<{ readonly refusal: Refusal | null; readonly busy: boolean; readonly pending: PendingConfirmation | null }>({ refusal: null, busy: false, pending: null });
 
 export const refreshProcurement = (store: Store): void => {
   for (const k of ["vendors.list", "receivingPoints.list", "catalog.list", "pos.", "vendorInvoices.list", "rmas.list"]) store.invalidate(k);
@@ -55,20 +60,20 @@ const TIER_WORD = { location_stock: "Location stock", regional_hub: "Regional hu
 
 const act = async (ctx: ScreenContext, fn: () => Promise<string>): Promise<boolean> => {
   if (ctx.degraded || outcome.value.busy) return false;
-  outcome.value = { refusal: null, busy: true };
+  outcome.value = { ...outcome.value, refusal: null, busy: true };
   try {
     const msg = await fn();
     refreshProcurement(ctx.store);
     ctx.store.notice.value = [msg];
-    outcome.value = { refusal: null, busy: false };
+    outcome.value = { refusal: null, busy: false, pending: null };
     return true;
   } catch (err) {
-    outcome.value = { refusal: ctx.shell.refusalOf(err) ?? { kind: "bad_request", message: err instanceof Error ? err.message : String(err) }, busy: false };
+    outcome.value = { refusal: ctx.shell.refusalOf(err) ?? { kind: "bad_request", message: err instanceof Error ? err.message : String(err) }, busy: false, pending: null };
     return false;
   }
 };
 const refusal = (ctx: ScreenContext): VNode | null =>
-  outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: false }; } }]) : null;
+  outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: false, pending: null }; } }]) : null;
 const pill = (ctx: ScreenContext, s: PoState): VNode => StatusPill({ density: ctx.density, status: PO_STATE[s].status, label: PO_STATE[s].word }) ?? html``;
 
 // ---------------------------------------------------------------------------
@@ -204,11 +209,33 @@ export const purchasingVendor: Screen = (ctx, params) => {
           { key: "sku", header: "SKU", cell: (r: CatalogItemWire) => r.vendorSku },
           { key: "description", header: "Item", cell: (r: CatalogItemWire) => `${r.description} (${r.uom})` },
           { key: "current", header: "Price today", align: "end", numeric: true, cell: (r: CatalogItemWire) => r.current ? money(r.current.priceMinor, r.current.currency) : html`<span class="s2-muted">none accepted</span>` },
-          { key: "proposals", header: "Proposed", cell: (r: CatalogItemWire) => r.proposals.length === 0 ? html`<span class="s2-muted">—</span>` : html`${r.proposals.map((p) => html`<div class="s2-row-actions">
-              <span>${money(p.priceMinor, p.currency)} from ${p.effectiveFrom}</span>
-              <button type="button" class="s2-link s2-link--button" onClick=${() => decide(p.id, "accepted")}>Accept</button>
-              <button type="button" class="s2-link s2-link--button" onClick=${() => decide(p.id, "rejected")}>Reject</button>
-            </div>`)}` },
+          { key: "proposals", header: "Proposed", cell: (r: CatalogItemWire) => r.proposals.length === 0 ? html`<span class="s2-muted">—</span>` : html`${r.proposals.map((p) => {
+            const pending = outcome.value.pending;
+            const isPending = pending?.kind === "price" && pending.owner === vendorId && pending.priceId === p.id;
+            const choose = (decision: "accepted" | "rejected") => {
+              outcome.value = { ...outcome.value, pending: { kind: "price", owner: vendorId, priceId: p.id, sku: r.vendorSku, amount: p.priceMinor, currency: p.currency, effectiveFrom: p.effectiveFrom, decision, replacesCurrent: r.current !== null } };
+            };
+            return html`<div class="s2-proposal">
+              <div class="s2-row-actions">
+                <span>${money(p.priceMinor, p.currency)} from ${p.effectiveFrom}</span>
+                <button type="button" class="s2-mutation" aria-expanded=${isPending && pending.decision === "accepted"} aria-controls=${isPending ? `confirm-price-${p.id}` : undefined} disabled=${ctx.degraded || outcome.value.busy || Boolean(pending && pending.owner === vendorId)} onClick=${() => choose("accepted")}>Accept</button>
+                <button type="button" class="s2-mutation s2-mutation--danger" aria-expanded=${isPending && pending.decision === "rejected"} aria-controls=${isPending ? `confirm-price-${p.id}` : undefined} disabled=${ctx.degraded || outcome.value.busy || Boolean(pending && pending.owner === vendorId)} onClick=${() => choose("rejected")}>Reject</button>
+              </div>
+              ${isPending ? confirmPanel({
+                id: `confirm-price-${p.id}`,
+                title: pending.decision === "accepted" ? `Accept the proposed price for ${pending.sku}?` : `Reject the proposed price for ${pending.sku}?`,
+                detail: pending.decision === "accepted"
+                  ? `${money(pending.amount, pending.currency)} from ${pending.effectiveFrom}. ${pending.replacesCurrent ? "The current accepted price will end the day before; new orders use this price from its first day." : "New orders use this price from its first day."}`
+                  : `${money(pending.amount, pending.currency)} from ${pending.effectiveFrom}. The vendor will see the rejection.`,
+                confirmLabel: pending.decision === "accepted" ? "Accept proposed price" : "Reject proposed price",
+                danger: pending.decision === "rejected",
+                busy: outcome.value.busy,
+                disabled: ctx.degraded,
+                onConfirm: () => { void decide(p.id, pending.decision); },
+                onCancel: () => { outcome.value = { ...outcome.value, pending: null }; },
+              }) : null}
+            </div>`;
+          })}` },
         ],
       })}
       <h2 class="s2-h2">Raise a purchase order</h2>
@@ -250,13 +277,18 @@ export const purchasingPo: Screen = (ctx, params) => {
       return out.state === "received" ? "Received in full. The order is closed for receiving." : "Receipt recorded. The rest is still to come.";
     });
   };
-  const requestReturn = (e: Event) => {
+  const requestReturn = (e: Event, lines: readonly PoLineWire[]) => {
     e.preventDefault();
+    if (ctx.degraded || outcome.value.busy || outcome.value.pending) return;
     const v = formValues(e.currentTarget as HTMLFormElement);
-    void act(ctx, async () => {
-      await shell.gateway.requestReturn({ poId, poLineId: v.poLineId ?? "", quantityMilli: toMilli(v.quantity ?? ""), reason: v.reason ?? "" });
-      return "Return requested. The vendor answers with an RMA number or a reason.";
-    });
+    const line = lines.find((item) => item.id === v.poLineId);
+    if (!line) return;
+    try {
+      const quantityMilli = toMilli(v.quantity ?? "");
+      outcome.value = { ...outcome.value, pending: { kind: "return", owner: poId, lineId: line.id, lineNo: line.lineNo, sku: line.vendorSku, quantity: qty(quantityMilli), quantityMilli, reason: v.reason ?? "" } };
+    } catch (err) {
+      outcome.value = { refusal: { kind: "bad_request", message: err instanceof Error ? err.message : String(err) }, busy: false, pending: null };
+    }
   };
 
   return html`<section class="s2-purchasing">
@@ -268,8 +300,32 @@ export const purchasingPo: Screen = (ctx, params) => {
         <p class="s2-muted">${o.vendorName} → ${d.receivingPoint ? `${d.receivingPoint.code} (${TIER_WORD[d.receivingPoint.tier]}), ${d.receivingPoint.address.line1}, ${d.receivingPoint.address.city}` : "—"}
           · ${money(o.totalMinor, o.currency)}${o.promisedShipOn ? ` · ships by ${o.promisedShipOn}` : ""}</p>
         <div class="s2-form__actions">
-          ${o.state === "draft" ? html`<button type="button" class="ac-action" data-kind="primary" data-density=${ctx.density} id="issue-po" onClick=${() => void act(ctx, async () => { await shell.gateway.issuePurchaseOrder({ poId }); return `${o.number} issued. The vendor can see it now.`; })}>Issue to vendor</button>` : null}
-          ${["draft", "issued", "acknowledged"].includes(o.state) && d.shipments.length === 0 ? html`<button type="button" class="ac-action" data-kind="quiet" data-density=${ctx.density} onClick=${() => void act(ctx, async () => { await shell.gateway.cancelPurchaseOrder({ poId }); return `${o.number} cancelled.`; })}>Cancel order</button>` : null}
+          ${o.state === "draft" ? html`<button type="button" class="ac-action" data-kind="primary" data-density=${ctx.density} id="issue-po" aria-expanded=${outcome.value.pending?.kind === "order" && outcome.value.pending.owner === poId && outcome.value.pending.action === "issue"} aria-controls=${outcome.value.pending?.kind === "order" && outcome.value.pending.owner === poId ? `confirm-order-${poId}` : undefined} disabled=${ctx.degraded || outcome.value.busy || outcome.value.pending !== null} onClick=${() => { outcome.value = { ...outcome.value, pending: { kind: "order", owner: poId, action: "issue", number: o.number } }; }}>Issue to vendor</button>` : null}
+          ${["draft", "issued", "acknowledged"].includes(o.state) && d.shipments.length === 0 ? html`<button type="button" class="s2-mutation s2-mutation--danger" aria-expanded=${outcome.value.pending?.kind === "order" && outcome.value.pending.owner === poId && outcome.value.pending.action === "cancel"} aria-controls=${outcome.value.pending?.kind === "order" && outcome.value.pending.owner === poId ? `confirm-order-${poId}` : undefined} disabled=${ctx.degraded || outcome.value.busy || outcome.value.pending !== null} onClick=${() => { outcome.value = { ...outcome.value, pending: { kind: "order", owner: poId, action: "cancel", number: o.number } }; }}>Cancel order</button>` : null}
+          ${outcome.value.pending?.kind === "order" && outcome.value.pending.owner === poId ? confirmPanel({
+            id: `confirm-order-${poId}`,
+            title: outcome.value.pending.action === "issue" ? `Issue ${o.number} to the vendor?` : `Cancel ${o.number}?`,
+            detail: outcome.value.pending.action === "issue"
+              ? "The vendor will be able to see this order."
+              : `Current state: ${o.state}. Confirm that this order should no longer proceed.`,
+            confirmLabel: outcome.value.pending.action === "issue" ? "Issue order" : "Cancel order",
+            danger: outcome.value.pending.action === "cancel",
+            busy: outcome.value.busy,
+            disabled: ctx.degraded,
+            onConfirm: () => {
+              const action = outcome.value.pending;
+              if (action?.kind !== "order" || action.owner !== poId) return;
+              void act(ctx, async () => {
+                if (action.action === "issue") {
+                  await shell.gateway.issuePurchaseOrder({ poId });
+                  return `${o.number} issued. The vendor can see it now.`;
+                }
+                await shell.gateway.cancelPurchaseOrder({ poId });
+                return `${o.number} cancelled.`;
+              });
+            },
+            onCancel: () => { outcome.value = { ...outcome.value, pending: null }; },
+          }) : null}
         </div>
         ${DataGrid({
           density: ctx.density, caption: "Lines", rows: d.lines, rowKey: (l: PoLineWire) => l.id,
@@ -309,12 +365,29 @@ export const purchasingPo: Screen = (ctx, params) => {
             { key: "state", header: "Vendor's answer", cell: (r: RmaWire) => r.state === "authorized" ? `Authorized · ${r.rmaNumber}` : r.state === "rejected" ? `Rejected · ${r.vendorNote ?? ""}` : "Waiting" },
           ],
         })}
-        ${d.lines.some((l) => BigInt(l.receivedMilli) > BigInt(l.returnedMilli)) ? html`<form class="s2-form s2-form--inline" onSubmit=${requestReturn} id="return-form">
+        ${d.lines.some((l) => BigInt(l.receivedMilli) > BigInt(l.returnedMilli)) ? html`<form class="s2-form s2-form--inline" onSubmit=${(e: Event) => requestReturn(e, d.lines)} id="return-form">
           <label class="s2-field"><span>Line</span><select class="s2-input" name="poLineId">${d.lines.filter((l) => BigInt(l.receivedMilli) > BigInt(l.returnedMilli)).map((l) => html`<option value=${l.id}>${l.lineNo} — ${l.vendorSku}</option>`)}</select></label>
-          <label class="s2-field"><span>Quantity</span><input class="s2-input" name="quantity" inputmode="decimal" required /></label>
+          <label class="s2-field"><span>Quantity</span><input class="s2-input" name="quantity" inputmode="decimal" pattern="[0-9]+(\\.[0-9]{1,3})?" required /></label>
           <label class="s2-field"><span>Reason</span><input class="s2-input" name="reason" required /></label>
           <div class="s2-form__actions">${submitAction(ctx, "Request return", "request-return")}</div>
-        </form>` : null}`;
+        </form>` : null}
+        ${outcome.value.pending?.kind === "return" && outcome.value.pending.owner === poId ? confirmPanel({
+          id: `confirm-return-${poId}`,
+          title: `Request a return for line ${outcome.value.pending.lineNo}?`,
+          detail: `${outcome.value.pending.quantity} ${outcome.value.pending.sku} · ${outcome.value.pending.reason}. The vendor will review this request and respond with an RMA number or a reason.`,
+          confirmLabel: "Send return request",
+          busy: outcome.value.busy,
+          disabled: ctx.degraded,
+          onConfirm: () => {
+            const request = outcome.value.pending;
+            if (request?.kind !== "return" || request.owner !== poId) return;
+            void act(ctx, async () => {
+              await shell.gateway.requestReturn({ poId, poLineId: request.lineId, quantityMilli: request.quantityMilli, reason: request.reason });
+              return "Return requested. The vendor answers with an RMA number or a reason.";
+            });
+          },
+          onCancel: () => { outcome.value = { ...outcome.value, pending: null }; },
+        }) : null}`;
     })}
     ${refusal(ctx)}
   </section>`;

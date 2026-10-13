@@ -64,7 +64,7 @@ export const termsResolved: Screen = (ctx, params) => {
           <span class="s2-trace__note">${t.note ?? OUTCOME_SENTENCE[t.outcome]}</span>
         </li>`)}
       </ol>
-      <p class="s2-rationale">${r.policy.rationale}</p>
+      <details class="s2-help"><summary>Why this term resolves this way</summary><p class="s2-rationale">${r.policy.rationale}</p></details>
     </td>
   </tr>`;
 

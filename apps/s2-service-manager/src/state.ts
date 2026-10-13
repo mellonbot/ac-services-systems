@@ -20,6 +20,8 @@ export type Resource<T> =
 export type Store = {
   /** Read (and fetch on first read) a resource by key. Re-reading returns the same signal until invalidated. */
   readonly read: <T>(key: string, fetcher: () => Promise<T>) => Signal<Resource<T>>;
+  /** Return a resource already loaded by a screen without starting another request. */
+  readonly peek: <T>(key: string) => Resource<T> | null;
   /** Forget every resource whose key starts with the prefix; mounted readers refetch on their next render. */
   readonly invalidate: (prefix: string) => void;
   /** Epoch ms of the last answered request (any status: a refusal is a gateway that is up). Null until one answers. */
@@ -57,7 +59,9 @@ export const createStore = (shell: Pick<Shell, "refusalOf">, now: () => number):
     version.value++;
   };
 
-  return { read, invalidate, lastOkAt, notice, version };
+  const peek = <T>(key: string): Resource<T> | null => cache.get(key)?.value as Resource<T> | undefined ?? null;
+
+  return { read, peek, invalidate, lastOkAt, notice, version };
 };
 
 /** Stable key for a query: the operation id plus its input, in key order. */

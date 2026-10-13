@@ -1,7 +1,7 @@
 import { html, pageHead, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { FirmWire, FirmStatus, CrewWire, CrewDocumentSummary, RegionWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, linkTo, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, refusalView, linkTo, confirmPanel, type Screen, type ScreenContext } from "./common.ts";
 
 /**
  * C4 — the network. Left: every subcontractor firm, where it stands on the
@@ -49,7 +49,7 @@ export const documentStatus = (d: CrewDocumentSummary, today: string): { status:
 };
 const daysBetween = (a: string, b: string): number => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
 
-const outcome = signal<{ readonly refusal: Refusal | null; readonly busy: string }>({ refusal: null, busy: "" });
+const outcome = signal<{ readonly refusal: Refusal | null; readonly busy: string; readonly pending: { readonly id: string; readonly to: Exclude<FirmStatus, "onboarding"> } | null }>({ refusal: null, busy: "", pending: null });
 
 export const network: Screen = (ctx, params) => {
   const { store, shell } = ctx;
@@ -79,27 +79,27 @@ export const network: Screen = (ctx, params) => {
 
   const step = async (f: FirmWire, to: Exclude<FirmStatus, "onboarding">) => {
     if (ctx.degraded || outcome.value.busy) return;
-    outcome.value = { refusal: null, busy: f.id };
+    outcome.value = { refusal: null, busy: f.id, pending: { id: f.id, to } };
     try {
       const out = await shell.gateway.updateFirm({ firmId: f.id, status: to });
       store.invalidate("firms.list");
       store.notice.value = [`${f.legalName} is now ${out.status}.`];
-      outcome.value = { refusal: null, busy: "" };
+      outcome.value = { refusal: null, busy: "", pending: null };
     } catch (err) {
-      outcome.value = { refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: "" };
+      outcome.value = { refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: "", pending: null };
     }
   };
 
   const signMsa = async (f: FirmWire, date: string) => {
     if (ctx.degraded || outcome.value.busy || !date) return;
-    outcome.value = { refusal: null, busy: f.id };
+    outcome.value = { refusal: null, busy: f.id, pending: null };
     try {
       await shell.gateway.updateFirm({ firmId: f.id, msaSignedAt: date });
       store.invalidate("firms.list");
       store.notice.value = [`MSA recorded as signed ${date}.`];
-      outcome.value = { refusal: null, busy: "" };
+      outcome.value = { refusal: null, busy: "", pending: null };
     } catch (err) {
-      outcome.value = { refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: "" };
+      outcome.value = { refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: "", pending: null };
     }
   };
 
@@ -127,7 +127,22 @@ export const network: Screen = (ctx, params) => {
       <header class="s2-tree__head">
         <h2 class="s2-h2">${f.legalName} ${stateMark(f.status)}</h2>
         <span class="s2-row-actions">
-          ${NEXT_FIRM[f.status].map((to) => html`<button type="button" class="s2-link" id=${`step-${to}`} disabled=${busy} onClick=${() => step(f, to)}>${STEP_LABEL[to]}</button>`)}
+          ${NEXT_FIRM[f.status].map((to) => {
+            const pending = outcome.value.pending?.id === f.id && outcome.value.pending.to === to;
+            const destructive = to === "terminated" || to === "suspended";
+            return html`<button type="button" class=${`s2-mutation${destructive ? " s2-mutation--danger" : ""}`} id=${`step-${to}`} aria-expanded=${pending} aria-controls=${pending ? `confirm-firm-${f.id}` : undefined} disabled=${busy || outcome.value.pending !== null} onClick=${() => { outcome.value = { ...outcome.value, pending: { id: f.id, to } }; }}>${STEP_LABEL[to]}</button>
+              ${pending ? confirmPanel({
+                id: `confirm-firm-${f.id}`,
+                title: `${STEP_LABEL[to]} this firm?`,
+                detail: `${f.legalName} · currently ${f.status}. This changes the firm's recorded operating state.`,
+                confirmLabel: `${STEP_LABEL[to]} firm`,
+                danger: destructive,
+                busy: outcome.value.busy === f.id,
+                disabled: ctx.degraded,
+                onConfirm: () => { void step(f, to); },
+                onCancel: () => { outcome.value = { ...outcome.value, pending: null }; },
+              }) : null}`;
+          })}
           ${linkTo(ctx, "network.rates", { firmId: f.id }, "Rate card")}
         </span>
       </header>
@@ -139,7 +154,7 @@ export const network: Screen = (ctx, params) => {
           : html`<form class="s2-form--inline" onSubmit=${(e: Event) => { e.preventDefault(); const d = new FormData(e.currentTarget as HTMLFormElement).get("msaSignedAt"); signMsa(f, String(d ?? "")); }}>
               <span class="s2-muted">not signed — a firm is not activated without one</span>
               <input class="s2-input" type="date" name="msaSignedAt" required aria-label="MSA signed on" />
-              <button type="submit" class="s2-link" disabled=${busy}>Record signature</button>
+              <button type="submit" class="s2-mutation" disabled=${busy}>Record signature</button>
             </form>`}</dd>
         <dt>Data rights (OQ5)</dt><dd>${StatusPill({ density: ctx.density, status: f.diagnosticDataRightsReserved ? "ok" : "at_risk", label: f.diagnosticDataRightsReserved ? "Reserved" : "Not reserved" })}</dd>
         <dt>W-9</dt><dd>${f.w9DocumentKey ?? html`<span class="s2-muted">not on file</span>`}</dd>
@@ -179,8 +194,8 @@ export const stateMark = (status: FirmStatus): VNode => html`<span class="s2-sta
 const refusalRoutes = (ctx: ScreenContext, r: Refusal) => {
   const routes: { label: string; onSelect: () => void; primary?: boolean }[] = [];
   if (r.kind === "admission" && r.code === "msa_unsigned") {
-    routes.push({ label: "Record the MSA signature first", onSelect: () => { outcome.value = { refusal: null, busy: "" }; }, primary: true });
+    routes.push({ label: "Record the MSA signature first", onSelect: () => { outcome.value = { refusal: null, busy: "", pending: null }; }, primary: true });
   }
-  routes.push({ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: "" }; } });
+  routes.push({ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: "", pending: null }; } });
   return routes;
 };
