@@ -2,7 +2,7 @@ import { html, pageHead, DataGrid, StatusPill, type VNode } from "../../../../pa
 import type { AccountWire, ContractWire, ContractState, OrganizationWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { signal } from "../../../../packages/ui/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, linkTo, type Screen } from "./common.ts";
+import { whenReady, refusalView, linkTo, confirmPanel, type Screen } from "./common.ts";
 
 /**
  * C2 — the agreements a customer is served under. One row per signed
@@ -35,7 +35,7 @@ const NEXT: Readonly<Record<ContractState, readonly ("active" | "expired" | "ter
   draft: ["active"], active: ["expired", "terminated"], expired: [], terminated: [],
 });
 
-const outcome = signal<{ readonly refusal: Refusal | null; readonly busy: string }>({ refusal: null, busy: "" });
+const outcome = signal<{ readonly refusal: Refusal | null; readonly busy: string; readonly pending: { readonly id: string; readonly to: "active" | "expired" | "terminated" } | null }>({ refusal: null, busy: "", pending: null });
 
 export const contractsList: Screen = (ctx, params) => {
   const { store, shell } = ctx;
@@ -53,14 +53,14 @@ export const contractsList: Screen = (ctx, params) => {
 
   const transition = async (c: ContractWire, to: "active" | "expired" | "terminated") => {
     if (ctx.degraded || outcome.value.busy) return;
-    outcome.value = { refusal: null, busy: c.id };
+    outcome.value = { refusal: null, busy: c.id, pending: { id: c.id, to } };
     try {
       const out = await shell.gateway.transitionContract({ contractId: c.id, to });
       store.invalidate(keyOf("contracts.list", { orgId: orgId! }));
       store.notice.value = [`Agreement is now ${out.state}.`];
-      outcome.value = { refusal: null, busy: "" };
+      outcome.value = { refusal: null, busy: "", pending: null };
     } catch (err) {
-      outcome.value = { refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: "" };
+      outcome.value = { refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: "", pending: null };
     }
   };
 
@@ -92,7 +92,22 @@ export const contractsList: Screen = (ctx, params) => {
           {
             key: "actions", header: "", align: "end",
             cell: (c: ContractWire) => html`<span class="s2-row-actions">
-              ${NEXT[c.state].map((to) => html`<button type="button" class="s2-link" disabled=${ctx.degraded || outcome.value.busy === c.id} onClick=${() => transition(c, to)}>${to === "active" ? "Activate" : to === "expired" ? "Expire" : "Terminate"}</button>`)}
+              ${NEXT[c.state].map((to) => {
+                const label = to === "active" ? "Activate" : to === "expired" ? "Expire" : "Terminate";
+                const pending = outcome.value.pending?.id === c.id && outcome.value.pending.to === to;
+                return html`<button type="button" class="s2-mutation${to === "terminated" || to === "expired" ? " s2-mutation--danger" : ""}" aria-expanded=${pending} aria-controls=${pending ? `confirm-contract-${c.id}` : undefined} disabled=${ctx.degraded || Boolean(outcome.value.busy) || outcome.value.pending !== null} onClick=${() => { outcome.value = { ...outcome.value, pending: { id: c.id, to } }; }}>${label}</button>
+                  ${pending ? confirmPanel({
+                    id: `confirm-contract-${c.id}`,
+                    title: `${label} this agreement?`,
+                    detail: `${c.kind.replace(/_/g, " ")} agreement · currently ${c.state}. This state change is recorded in the agreement history.`,
+                    confirmLabel: `${label} agreement`,
+                    danger: to === "terminated" || to === "expired",
+                    busy: outcome.value.busy === c.id,
+                    disabled: ctx.degraded,
+                    onConfirm: () => { void transition(c, to); },
+                    onCancel: () => { outcome.value = { ...outcome.value, pending: null }; },
+                  }) : null}`;
+              })}
               ${linkTo(ctx, "terms.override", { orgId: orgId! }, "Overrides")}
             </span>`,
           },
@@ -100,7 +115,7 @@ export const contractsList: Screen = (ctx, params) => {
         rows: contracts, rowKey: (c: ContractWire) => c.id,
         emptyText: "No agreements recorded for this customer yet.",
       })}
-      ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: "" }; } }]) : null}
+      ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: "", pending: null }; } }]) : null}
     </section>`;
 
   if (!orgId) {

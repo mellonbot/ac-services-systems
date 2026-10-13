@@ -90,7 +90,7 @@ test("DataGrid renders a real table with the caller's row order, empty state, an
   assert.match(out, /<caption class="ac-grid__caption">Accounts<\/caption>/);
   assert.match(out, /aria-sort="descending"/);
   assert.ok(out.indexOf("Amped") < out.indexOf("Boulder"), "order is the caller's");
-  assert.match(out, /data-align="end">location/);
+  assert.match(out, /data-align="end" data-label="Tier">location/);
   const empty = render(html`<${DataGrid} density="comfort" columns=${columns} rows=${[]} rowKey=${(r: Row) => r.id} emptyText="No accounts yet." />`);
   assert.match(empty, /colspan="2">No accounts yet\./);
 });
@@ -185,7 +185,7 @@ test("a numeric column reaches the instrument face, per column, declared", () =>
   // "EVERY NUMBER IN THE COMPANY is set in the instrument face with tabular
   // figures" was prose: .ac-num existed with no call site and the grid rendered
   // String(row[key]) in the body face.
-  assert.match(out, /<td class="ac-grid__td" data-align="end" data-numeric="true">04:12/);
+  assert.match(out, /<td class="ac-grid__td" data-align="end" data-numeric="true" data-label="Due">04:12/);
   assert.doesNotMatch(out, /data-align="start" data-numeric/, "a text column is not marked");
 });
 

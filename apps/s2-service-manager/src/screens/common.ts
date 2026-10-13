@@ -46,3 +46,22 @@ export const formValues = (form: HTMLFormElement): Record<string, string> => {
 
 export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "s2-link"): VNode =>
   html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;
+
+export const confirmPanel = (p: {
+  readonly id: string;
+  readonly title: string;
+  readonly detail: string;
+  readonly confirmLabel: string;
+  readonly onConfirm: () => void;
+  readonly onCancel: () => void;
+  readonly busy?: boolean;
+  readonly disabled?: boolean;
+  readonly danger?: boolean;
+}): VNode => html`<div class="s2-confirm" id=${p.id} role="group" aria-labelledby=${`${p.id}-title`}>
+  <strong id=${`${p.id}-title`}>${p.title}</strong>
+  <p>${p.detail}</p>
+  <div class="s2-confirm__actions">
+    <button type="button" class=${`s2-mutation${p.danger ? " s2-mutation--danger" : ""}`} disabled=${Boolean(p.busy || p.disabled)} onClick=${p.onConfirm}>${p.busy ? "Saving…" : p.confirmLabel}</button>
+    <button type="button" class="s2-mutation s2-mutation--quiet" disabled=${p.busy ?? false} onClick=${p.onCancel}>Keep as is</button>
+  </div>
+</div>`;

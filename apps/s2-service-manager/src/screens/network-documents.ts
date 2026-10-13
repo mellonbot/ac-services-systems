@@ -2,7 +2,7 @@ import { html, signal, DataGrid, ComplianceBadge, StatusPill, type VNode } from 
 import type { CredentialWire, CredentialKind, CrewWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { readableKinds } from "./network.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen } from "./common.ts";
+import { whenReady, refusalView, submitAction, formValues, linkTo, confirmPanel, type Screen } from "./common.ts";
 
 /**
  * C4 — a crew's documents, and the one path that verifies one.
@@ -26,7 +26,7 @@ import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen }
  */
 const KINDS: readonly CredentialKind[] = ["insurance", "license", "certification", "background_check"];
 
-const outcome = signal<{ readonly refusal: Refusal | null; readonly busy: string }>({ refusal: null, busy: "" });
+const outcome = signal<{ readonly refusal: Refusal | null; readonly busy: string; readonly confirming: string }>({ refusal: null, busy: "", confirming: "" });
 
 /** A document counts today when it is verified and today sits inside its window. The same question the gate asks of a service window. */
 export const coversToday = (c: CredentialWire, today: string): boolean => c.verifiedAt !== null && c.validFrom <= today && c.validTo >= today;
@@ -40,15 +40,15 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
 
   const verify = async (c: CredentialWire) => {
     if (ctx.degraded || outcome.value.busy) return;
-    outcome.value = { refusal: null, busy: c.id };
+    outcome.value = { refusal: null, busy: c.id, confirming: "" };
     try {
       await shell.gateway.verifyCredential({ credentialId: c.id });
       store.invalidate(keyOf("credentials.list", { crewId }));
       store.invalidate("crews.list");
       store.notice.value = [`${c.kind.replace(/_/g, " ")} ${c.identifier} verified. It is immutable from here — a correction is a new document.`];
-      outcome.value = { refusal: null, busy: "" };
+      outcome.value = { refusal: null, busy: "", confirming: "" };
     } catch (err) {
-      outcome.value = { refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: "" };
+      outcome.value = { refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: "", confirming: "" };
     }
   };
 
@@ -57,7 +57,7 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
     if (ctx.degraded || outcome.value.busy) return;
     const form = e.currentTarget as HTMLFormElement;
     const v = formValues(form);
-    outcome.value = { refusal: null, busy: "record" };
+    outcome.value = { refusal: null, busy: "record", confirming: "" };
     try {
       await shell.gateway.recordCredential({
         crewId,
@@ -70,10 +70,10 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
       store.invalidate(keyOf("credentials.list", { crewId }));
       store.invalidate("crews.list");
       store.notice.value = ["Document on file — unverified. It clears nothing until somebody here has checked it."];
-      outcome.value = { refusal: null, busy: "" };
+      outcome.value = { refusal: null, busy: "", confirming: "" };
       form.reset();
     } catch (err) {
-      outcome.value = { refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: "" };
+      outcome.value = { refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: "", confirming: "" };
     }
   };
 
@@ -94,7 +94,19 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
           key: "actions", header: "", align: "end",
           cell: (c: CredentialWire) => c.verifiedAt
             ? html`<small class="s2-muted">verified — a correction is a new document</small>`
-            : html`<button type="button" class="s2-link" id=${`verify-${c.id}`} disabled=${ctx.degraded || outcome.value.busy === c.id} onClick=${() => verify(c)}>Verify</button>`,
+            : html`<div class="s2-row-actions">
+              <button type="button" class="s2-mutation" id=${`verify-${c.id}`} aria-expanded=${outcome.value.confirming === c.id} aria-controls=${outcome.value.confirming === c.id ? `confirm-credential-${c.id}` : undefined} disabled=${ctx.degraded || Boolean(outcome.value.busy) || Boolean(outcome.value.confirming)} onClick=${() => { outcome.value = { ...outcome.value, confirming: c.id }; }}>Verify</button>
+              ${outcome.value.confirming === c.id ? confirmPanel({
+                id: `confirm-credential-${c.id}`,
+                title: "Verify this document?",
+                detail: `${c.kind.replace(/_/g, " ")} ${c.identifier}. Verification is permanent; a correction requires a new document.`,
+                confirmLabel: "Verify document",
+                busy: outcome.value.busy === c.id,
+                disabled: ctx.degraded,
+                onConfirm: () => { void verify(c); },
+                onCancel: () => { outcome.value = { ...outcome.value, confirming: "" }; },
+              }) : null}
+            </div>`,
         },
       ],
       rows: list, rowKey: (c: CredentialWire) => c.id,
@@ -137,6 +149,6 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
       </div>
       <p class="s2-muted">There is no verified box on this form. Verification is its own act, by this surface, once — and after it the document cannot be edited.</p>
     </form>
-    ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: "" }; } }]) : null}
+    ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: "", confirming: "" }; } }]) : null}
   </section>`;
 };

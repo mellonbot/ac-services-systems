@@ -1,6 +1,6 @@
 import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
-import { densityOf, type Refusal } from "../../../packages/contracts/src/index.ts";
+import { densityOf, type AccountWire, type CrewWire, type FirmWire, type OrganizationWire, type PurchaseOrderDetailOutput, type Refusal, type VendorWire } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
 import { createStore, keyOf, type Store } from "./state.ts";
@@ -61,6 +61,83 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "purchasing": purchasing,
   "purchasing.vendor": purchasingVendor,
   "purchasing.po": purchasingPo,
+};
+
+const NAV_GROUPS = [
+  { label: "Customer records", screens: ["accounts.tree", "contracts.list"] as const },
+  { label: "Subcontractor network", screens: ["network"] as const },
+  { label: "Purchasing", screens: ["purchasing"] as const },
+] as const;
+
+const ROUTE_LABELS: Readonly<Record<Exclude<ScreenId, "login">, string>> = {
+  "accounts.tree": "Accounts",
+  "accounts.new": "New account node",
+  "accounts.move": "Move account node",
+  "organizations.new": "New customer",
+  "contracts.list": "Agreements",
+  "contracts.new": "New agreement",
+  "terms.override": "Term overrides",
+  "terms.resolved": "Resolved terms",
+  "network": "Network",
+  "network.firm.new": "New firm",
+  "network.crew.new": "New crew",
+  "network.crew.documents": "Crew documents",
+  "network.rates": "Rate card",
+  "purchasing": "Purchasing",
+  "purchasing.vendor": "Vendor catalogue",
+  "purchasing.po": "Purchase order",
+};
+
+const navGroupFor = (screen: Exclude<ScreenId, "login">): (typeof NAV_GROUPS)[number] | undefined =>
+  NAV_GROUPS.find((group) => (group.screens as readonly Exclude<ScreenId, "login">[]).some((id) =>
+    id === screen ||
+    (id === "accounts.tree" && screen === "organizations.new") ||
+    (id === "contracts.list" && (screen.startsWith("contracts.") || screen.startsWith("terms."))) ||
+    (id === "network" && screen.startsWith("network.")) ||
+    (id === "purchasing" && screen.startsWith("purchasing."))));
+
+const navTargetFor = (screen: Exclude<ScreenId, "login">): Exclude<ScreenId, "login"> => {
+  if (screen === "organizations.new" || screen.startsWith("accounts.")) return "accounts.tree";
+  if (screen.startsWith("contracts.") || screen.startsWith("terms.")) return "contracts.list";
+  if (screen.startsWith("network.")) return "network";
+  if (screen.startsWith("purchasing.")) return "purchasing";
+  return screen;
+};
+
+const activeEntity = (params: Readonly<Record<string, string>>, store: Store): string | null => {
+  if (params.orgId) {
+    const orgs = store.peek<{ readonly organizations: readonly OrganizationWire[] }>(keyOf("organizations.list", { kind: "customer" }));
+    const org = orgs?.state === "ready" ? orgs.value.organizations.find((item) => item.id === params.orgId) : undefined;
+    if (org) {
+      const nodeId = params.nodeId ?? params.id;
+      if (nodeId) {
+        const nodes = store.peek<{ readonly nodes: readonly AccountWire[] }>(keyOf("accounts.list", { orgId: params.orgId }));
+        const node = nodes?.state === "ready" ? nodes.value.nodes.find((item) => item.id === nodeId) : undefined;
+        if (node) return `${org.name} / ${node.name}`;
+      }
+      return org.name;
+    }
+  }
+  if (params.firmId) {
+    const firms = store.peek<{ readonly firms: readonly FirmWire[] }>(keyOf("firms.list"));
+    const firm = firms?.state === "ready" ? firms.value.firms.find((item) => item.id === params.firmId) : undefined;
+    if (firm) return firm.legalName;
+  }
+  if (params.crewId) {
+    const crews = store.peek<{ readonly crews: readonly CrewWire[] }>(keyOf("crews.list"));
+    const crew = crews?.state === "ready" ? crews.value.crews.find((item) => item.id === params.crewId) : undefined;
+    if (crew) return crew.label;
+  }
+  if (params.vendorId) {
+    const vendors = store.peek<{ readonly vendors: readonly VendorWire[] }>(keyOf("vendors.list"));
+    const vendor = vendors?.state === "ready" ? vendors.value.vendors.find((item) => item.id === params.vendorId) : undefined;
+    if (vendor) return vendor.legalName;
+  }
+  if (params.poId) {
+    const order = store.peek<PurchaseOrderDetailOutput>(keyOf("pos.detail", { poId: params.poId }));
+    if (order?.state === "ready") return order.value.order.number;
+  }
+  return null;
 };
 
 type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
@@ -146,13 +223,43 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const ctx: ScreenContext = { shell: p.shell, store: p.store, router, density: DENSITY, degraded: degraded.value };
     void p.store.version.value; // subscribe: an invalidate re-renders the mounted screen, which re-reads its resources
     const loc = router.current.value;
-    const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
+    const routeId = loc && loc.screen !== "login" ? loc.screen : undefined;
+    const screen = routeId ? SCREEN_VIEWS[routeId] : null;
     const notice = p.store.notice.value;
+    const group = routeId ? navGroupFor(routeId) : undefined;
+    const path = p.shell.context?.path.length
+      ? p.shell.context.path
+      : p.shell.context ? [p.shell.context.parent] : [];
+    const entity = loc ? activeEntity(loc.params, p.store) : null;
     return html`<div class="s2-app">
-      <nav class="s2-nav" aria-label="Screens">
-        ${Object.entries(SCREENS).filter(([, s]) => "title" in s).map(([id, s]) => html`<a class="s2-nav__link" data-current=${loc?.screen === id ? "true" : "false"} href=${router.href(id as ScreenId, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(id as ScreenId, {}); }}>${(s as { title: string }).title}</a>`)}
+      <nav class="s2-nav" aria-label="Workspace">
+        ${NAV_GROUPS.map((navGroup) => html`<div class="s2-nav__group" role="group" aria-label=${navGroup.label}>
+          <span class="s2-nav__group-label">${navGroup.label}</span>
+          <div class="s2-nav__group-links">
+            ${navGroup.screens.map((id) => {
+              const spec = SCREENS[id];
+              const title = "title" in spec ? spec.title : ROUTE_LABELS[id];
+              const current = routeId !== undefined && navGroupFor(routeId)?.label === navGroup.label && navTargetFor(routeId) === id;
+              return html`<a class="s2-nav__link" data-current=${current ? "true" : "false"} aria-current=${current ? "page" : undefined} href=${router.href(id, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(id, {}); }}>${title}</a>`;
+            })}
+          </div>
+        </div>`)}
         <span class="s2-nav__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
         <button type="button" class="s2-nav__logout" onClick=${logout}>Sign out</button>
+      </nav>
+      <nav class="s2-context" aria-label="Current location">
+        <div class="s2-context__scope">
+          <span class="s2-context__label">Signed-in scope</span>
+          <ol>${path.map((node) => html`<li><span>${node.name ?? node.tier}</span><small>${node.tier}</small></li>`)}</ol>
+        </div>
+        <div class="s2-context__current">
+          <span class="s2-context__label">Current location</span>
+          <ol>
+            ${group ? html`<li>${group.label}</li>` : null}
+            <li>${routeId ? ROUTE_LABELS[routeId] : "Workspace"}</li>
+            ${entity ? html`<li aria-current="location">${entity}</li>` : null}
+          </ol>
+        </div>
       </nav>
       ${notice.length ? html`<div class="s2-notice" role="status">${notice.map((n) => html`<p>${n}</p>`)}<button type="button" class="s2-notice__dismiss" onClick=${() => { p.store.notice.value = []; }} aria-label="Dismiss">×</button></div>` : null}
       ${screen ? screen(ctx, loc!.params) : html`<p class="s2-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}

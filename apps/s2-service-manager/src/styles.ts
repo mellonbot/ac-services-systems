@@ -67,14 +67,33 @@ export const S2_CSS = `
 .s2-list{margin:0;padding-inline-start:1.2em}
 .s2-form--inline{display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:end}
 .s2-trace{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
-.s2-trace__step{display:grid;grid-template-columns:10rem 6rem 8rem 1fr;gap:var(--space-3);align-items:baseline}
+.s2-trace__step{display:grid;grid-template-columns:minmax(7rem,1fr) max-content minmax(8rem,1fr);gap:var(--space-1) var(--space-3);align-items:baseline;padding-block:var(--space-1);border-bottom:1px solid var(--color-border)}
 .s2-trace__outcome{font-variant-caps:all-small-caps;letter-spacing:.04em}
 .s2-trace__step[data-outcome="won"] .s2-trace__outcome{color:var(--color-action)}
 .s2-trace__step[data-outcome="not_walked"]{color:var(--color-text-muted)}
-.s2-trace__note{color:var(--color-text-muted)}
+.s2-trace__tier{font-weight:600}
+.s2-trace__note{grid-column:1/-1;color:var(--color-text-muted)}
 .s2-trace-table{width:100%;border-collapse:collapse}
 .s2-refused{margin:var(--space-3) 0 0;padding-inline-start:var(--space-4);color:var(--color-status-at-risk)}
-@media (max-width:760px){.s2-nav{align-items:stretch;flex-wrap:wrap}.s2-nav__link,.s2-nav__logout,.s2-notice__dismiss{min-height:44px;display:inline-flex;align-items:center}.s2-nav__who{order:2;width:100%;margin-inline-start:0}.s2-two-col{grid-template-columns:minmax(0,1fr)}.s2-col--orgs{position:static}.s2-two-col .ac-grid,.s2-contracts .ac-grid{display:block;max-width:100%;overflow-x:auto}.s2-form__actions{align-items:stretch;flex-direction:column}.s2-trace__step{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:760px){
+  .s2-nav{align-items:stretch;flex-wrap:wrap}
+  .s2-nav__group{flex:1 1 14rem}
+  .s2-nav__group-links{flex-wrap:wrap}
+  .s2-nav__link,.s2-nav__logout,.s2-notice__dismiss{min-height:44px;display:inline-flex;align-items:center}
+  .s2-nav__who{order:2;width:100%;margin-inline-start:0}
+  .s2-two-col{grid-template-columns:minmax(0,1fr)}
+  .s2-col--orgs{position:static}
+  .s2-form__actions{align-items:stretch;flex-direction:column}
+  .s2-context{grid-template-columns:minmax(0,1fr)}
+  .s2-app .ac-grid,.s2-app .s2-trace-table{display:block;width:100%;max-width:100%;overflow-x:auto}
+  .s2-app .ac-grid thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .s2-app .ac-grid tbody,.s2-app .ac-grid__row{display:block}
+  .s2-app .ac-grid__row{padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}
+  .s2-app .ac-grid__td{display:grid;grid-template-columns:minmax(7rem,1fr) minmax(0,2fr);gap:var(--space-3);align-items:baseline;justify-items:start;height:auto;min-height:0;padding:var(--space-1) var(--space-3);border-bottom:0;text-align:start;white-space:normal;overflow-wrap:anywhere}
+  .s2-app .ac-grid__td::before{content:attr(data-label);color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
+  .s2-app .ac-grid__empty td{display:block}
+  .s2-app .s2-trace__step{grid-template-columns:minmax(0,1fr) max-content}
+}
 
 /* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */
 .s2-nav{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px;margin:0 0 var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-card);background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface))}
@@ -89,4 +108,30 @@ export const S2_CSS = `
 .s2-form--inline{flex-direction:row}
 .s2-form--inline .s2-field{flex:1 1 16ch;align-items:stretch}
 .s2-two-col>*{min-width:0}
+
+/* Persistent location: the operator's resolved scope stays separate from the
+   customer, firm, or order currently open in the workspace. */
+.s2-nav__group{display:flex;flex-direction:column;gap:var(--space-1);padding-inline:var(--space-2);min-width:0}
+.s2-nav__group-label,.s2-context__label{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
+.s2-nav__group-links{display:flex;align-items:center;gap:4px}
+.s2-context{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-3) var(--space-6);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
+.s2-context__scope,.s2-context__current{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
+.s2-context ol{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-2);list-style:none;margin:0;padding:0;min-width:0}
+.s2-context li{display:inline-flex;align-items:baseline;gap:var(--space-1);min-width:0}
+.s2-context li+li::before{content:"/";color:var(--color-text-muted);margin-inline-end:var(--space-1)}
+.s2-context li[aria-current="location"]{font-weight:700}
+.s2-context li small{color:var(--color-text-muted);font-size:var(--text-xs)}
+.s2-mutation{appearance:none;display:inline-flex;align-items:center;justify-content:center;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action-text);font:inherit;font-weight:600;cursor:pointer}
+.s2-mutation:hover:not(:disabled){background:var(--color-surface-sunken)}
+.s2-mutation:focus-visible,.s2-help summary:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
+.s2-mutation:disabled{opacity:.55;cursor:not-allowed}
+.s2-mutation--danger{border-color:var(--color-status-breached);color:var(--color-status-breached)}
+.s2-mutation--quiet{color:var(--color-text-muted)}
+.s2-confirm{display:flex;flex-direction:column;gap:var(--space-1);min-width:min(32ch,100%);max-width:48ch;padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
+.s2-confirm p{margin:0;color:var(--color-text-muted)}
+.s2-confirm__actions{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-1)}
+.s2-help{color:var(--color-text-muted);font-size:var(--text-sm)}
+.s2-help summary{color:var(--color-action-text);cursor:pointer;font-weight:600}
+.s2-help p{margin:var(--space-1) 0 0}
+.s2-proposal{display:flex;flex-direction:column;gap:var(--space-2)}
 `;

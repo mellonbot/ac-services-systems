@@ -74,7 +74,7 @@ export const contractsNew: Screen = (ctx, params) => {
 
   const scopeField = (nodes: readonly AccountWire[]): VNode =>
     f.scopeTier === "parent"
-      ? html`<p class="s2-parent">Binds to the organization itself. A parent-scope agreement is the one scope with no edge to take a region from, so name the region it is administered from.</p>`
+      ? html`<p class="s2-parent">Binds to the organization itself.</p>`
       : html`<label class="s2-field">
           <span>Which ${f.scopeTier}</span>
           <select name="scopeId" required class="s2-input">
@@ -95,7 +95,6 @@ export const contractsNew: Screen = (ctx, params) => {
     <select name="parentContractId" required class="s2-input">
       ${contracts.filter((c) => c.state === "draft" || c.state === "active").map((c) => html`<option value=${c.id}>${c.kind} · ${c.effectiveFrom} → ${c.effectiveTo ?? "evergreen"}</option>`)}
     </select>
-    <small>An agreement that has already ended is not offered — a child of one binds nobody.</small>
   </label>`;
 
   /** OQ5. Three states, and "not stated" is where it starts. */
@@ -123,6 +122,7 @@ export const contractsNew: Screen = (ctx, params) => {
         </select>
       </label>
       ${whenReady(ctx, tree.value, (t) => scopeField(t.nodes))}
+      ${f.scopeTier === "parent" ? html`<details class="s2-help"><summary>Why a region is needed</summary><p>A parent-scope agreement has no edge to take a region from, so name the region it is administered from.</p></details>` : null}
       ${f.scopeTier === "parent" ? whenReady(ctx, regions.value, (r) => regionField(r.regions)) : null}
       <label class="s2-field">
         <span>Kind</span>
@@ -131,11 +131,12 @@ export const contractsNew: Screen = (ctx, params) => {
         </select>
       </label>
       ${f.kind === "amendment" ? whenReady(ctx, existing.value, (c) => amendmentField(c.contracts)) : null}
+      ${f.kind === "amendment" ? html`<details class="s2-help"><summary>Why ended agreements are unavailable</summary><p>An agreement that has already ended is not offered — a child of one binds nobody.</p></details>` : null}
       <label class="s2-field">
         <span>Billing path</span>
         <select name="billingPath" class="s2-input">${BILLING_PATHS.map((b) => html`<option value=${b}>${b.replace(/_/g, " ")}</option>`)}</select>
-        <small>Four paths, chosen at signature — not a flag on one function.</small>
       </label>
+      <details class="s2-help"><summary>How billing path is used</summary><p>Choose one of the four paths at signature. It defines how the agreement bills; it is not a flag on one function.</p></details>
       <label class="s2-field"><span>Signed</span><input class="s2-input" type="date" name="signedAt" required /></label>
       <label class="s2-field"><span>Effective from</span><input class="s2-input" type="date" name="effectiveFrom" required /></label>
       <label class="s2-field"><span>Effective to</span><input class="s2-input" type="date" name="effectiveTo" /><small>Leave empty for evergreen.</small></label>

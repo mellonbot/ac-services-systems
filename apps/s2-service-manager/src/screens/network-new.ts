@@ -69,14 +69,14 @@ export const networkFirmNew: Screen = (ctx) => {
 
   return html`<section class="s2-form-screen">
     <h2 class="s2-h2">New subcontractor firm</h2>
-    <p class="s2-muted">A firm is recorded with its own tenant root in one step — the organization we settle with and the firm we dispatch are one row's worth of truth, created together or not at all.</p>
+    <details class="s2-help"><summary>Why firms are recorded together</summary><p>A firm is recorded with its own tenant root in one step — the organization we settle with and the firm we dispatch are one row's worth of truth, created together or not at all.</p></details>
     <form class="s2-form" onSubmit=${submit} id="firm-form">
       <label class="s2-field"><span>Legal name</span><input class="s2-input" name="legalName" required /></label>
       ${whenReady(ctx, regions.value, (r) => html`<label class="s2-field">
         <span>Dispatched from</span>
         <select name="regionId" required class="s2-input">${r.regions.filter((x: RegionWire) => x.active).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
-        <small>Our region. The firm's crews are dispatched from here and its rows live in this shard.</small>
       </label>`)}
+      <details class="s2-help"><summary>How this region is used</summary><p>Our region. The firm's crews are dispatched from here and its rows live in this shard.</p></details>
       <label class="s2-field"><span>Settlement terms (days)</span><input class="s2-input" type="number" name="settlementTermsDays" min="0" defaultValue="30" required /><small>D13 — measured from day one.</small></label>
       <label class="s2-field"><span>MSA signed</span><input class="s2-input" type="date" name="msaSignedAt" /><small>Leave empty until it is signed; the firm cannot be activated without it.</small></label>
       <label class="s2-field"><span>W-9</span><input class="s2-input" name="w9DocumentKey" placeholder="storage key of the W-9" /></label>

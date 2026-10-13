@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { renderToString as render } from "../../../packages/ui/src/testing.ts";
 import { createApp, gatewayOrigin, SCREEN_VIEWS } from "./app.ts";
 import { SCREENS } from "./screens.ts";
+import { confirmPanel } from "./screens/common.ts";
 import { orderTree } from "./screens/accounts-tree.ts";
 import { parentCandidates } from "./screens/accounts-move.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
@@ -79,6 +80,20 @@ test("gatewayOrigin: the stamped meta wins; otherwise s2.<site> talks to api.<si
   assert.equal(gatewayOrigin(doc(null, "s2.ac.example")), "https://api.ac.example");
 });
 
+test("confirmation cannot commit while degraded but keeps its safe cancel action available", () => {
+  const out = render(confirmPanel({
+    id: "confirm-transition",
+    title: "Terminate this agreement?",
+    detail: "Current state: active.",
+    confirmLabel: "Terminate agreement",
+    disabled: true,
+    onConfirm: () => {},
+    onCancel: () => {},
+  }));
+  assert.match(out, /<button[^>]*disabled[^>]*>Terminate agreement<\/button>/);
+  assert.match(out, />Keep as is<\/button>/);
+});
+
 test("boot with no session shows login, not an error; a bad password is a refusal card; login posts in cookie mode and the surface holds no token", async () => {
   const gw = fakeGateway();
   const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
@@ -105,6 +120,13 @@ test("boot with no session shows login, not an error; a bad password is a refusa
   assert.equal(ready.kind, "ready");
   if (ready.kind !== "ready") return;
   assert.equal(ready.shell.token(), null, "cookie mode: script never sees the token");
+  const chrome = render(app.view());
+  assert.match(chrome, /aria-label="Customer records"/);
+  assert.match(chrome, /aria-label="Subcontractor network"/);
+  assert.match(chrome, /aria-label="Purchasing"/);
+  assert.match(chrome, /data-current="true" aria-current="page" href="\/accounts"/);
+  assert.match(chrome, /Signed-in scope/);
+  assert.match(chrome, /AC Services/);
   const login = gw.calls.find((c) => c.path === "/auth/login")!;
   assert.equal(login.init.credentials, "include");
   assert.equal(JSON.parse(login.init.body!).surface, "S2");
@@ -119,6 +141,9 @@ test("the tree screen: customers on the left, the selected tree ordered region â
   await settle(); await settle();
   const out = render(app.view());
   assert.match(out, /Amped Fitness Inc\./);
+  assert.match(out, /Current location/);
+  assert.match(out, /aria-current="location">Amped Fitness Inc\.<\/li>/);
+  assert.match(out, /data-current="true" aria-current="page" href="\/accounts"/, "child routes retain their domain as the active nav target");
   assert.match(out, /Amped \/ South/);
   const order = ["Amped / South", "Amped Austin", "Rooftop units", "Amped / West"].map((n) => out.indexOf(n));
   assert.ok(order.every((i) => i >= 0), `all nodes rendered: ${order}`);
@@ -129,6 +154,12 @@ test("the tree screen: customers on the left, the selected tree ordered region â
   assert.match(out, /href="\/accounts\/[^"]+\/new\/location\/[^"]+"/, "+ location from a region node");
   assert.match(out, /href="\/accounts\/[^"]+\/move\/[^"]+"/, "move from a location");
   assert.equal(gw.calls.filter((c) => c.path === "/s2/accounts").length, 1, "one read per key â€” the second render hit the signal");
+  const ready = app.phase.value;
+  assert.equal(ready.kind, "ready");
+  if (ready.kind === "ready") {
+    assert.equal(ready.store.peek<{ readonly organizations: readonly { readonly id: string }[] }>("organizations.list?kind=customer")?.state, "ready");
+    assert.equal(gw.calls.filter((c) => c.path === "/s2/organizations").length, 1, "peek uses the already-loaded cache without fetching");
+  }
 });
 
 test("an account event invalidates the tree and the next render refetches; nothing is patched from the envelope", async () => {
