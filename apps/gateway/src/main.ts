@@ -225,6 +225,7 @@ const login = async (body: Partial<OperationIO["auth.login"]["input"]>, res: Ser
       "SELECT id, namespace, org_id, region_id, scope_tier, scope_id, roles, firm_id, password_hash, active FROM users WHERE email = $1", [email],
     ))[0];
     if (!u || !u.active || !u.password_hash || !verifyPassword(password, u.password_hash)) throw new AuthError("invalid credentials", "bad_claims");
+    if (!SURFACES[surface].enabled) throw new SurfaceDisabled(surface);
     if (SURFACES[surface].namespace !== u.namespace) throw new HttpError(403, `${surface} serves the ${SURFACES[surface].namespace} namespace`);
     // The role check the unit of work makes on every request, made at the door:
     // a login no request on this surface would admit is not given a session.
