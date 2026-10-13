@@ -1,6 +1,17 @@
 import { html, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { CoverageOutput } from "../../../../packages/contracts/src/index.ts";
+import { SURFACES, SURFACE_IDS, SURFACE_PATHS, type CoverageOutput, type SurfaceId } from "../../../../packages/contracts/src/index.ts";
 import { coverage, whenReady, linkTo, type Screen, type ScreenContext } from "./common.ts";
+
+const surfaceLoginLabel = (id: SurfaceId): string => {
+  switch (SURFACES[id].namespace) {
+    case "internal": return "Staff sign-in";
+    case "device": return "Technician sign-in";
+    case "customer": return "Customer sign-in";
+    case "vendor": return "Vendor sign-in";
+    case "subcontractor": return "Subcontractor sign-in";
+    case "anonymous": return "Public site";
+  }
+};
 
 /**
  * THE FRONT PAGE, and a short list of things it does not say.
@@ -46,6 +57,16 @@ export const home: Screen = (ctx: ScreenContext): VNode => {
       is a conversation, not a map — ask and we will answer.
     </p>
     <p>${linkTo(ctx, "coverage", {}, "The full list")}</p>
+    <section class="s1-surface-access" id="surface-logins" aria-labelledby="surface-logins-title">
+      <h2 class="s1-h2" id="surface-logins-title">Sign in to a portal</h2>
+      <p class="s1-surface-access__intro">Choose the workspace for your role. Each portal has its own sign-in and access scope.</p>
+      <ul class="s1-portal-list">
+        ${SURFACE_IDS.filter((id) => id !== "S1" && SURFACES[id].enabled).map((id) => html`<li class="s1-portal-list__item">
+          <div><strong>${SURFACES[id].name}</strong><span>${surfaceLoginLabel(id)}</span></div>
+          <a class="s1-portal-list__link" href="${SURFACE_PATHS[id]}/">Sign in</a>
+        </li>`)}
+      </ul>
+    </section>
   </section>`;
 };
 

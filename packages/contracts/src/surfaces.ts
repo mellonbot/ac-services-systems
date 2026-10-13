@@ -218,6 +218,18 @@ export const densityOf = <Id extends SurfaceId>(id: Id): DensityOf<Id> => REGIST
 
 export const SURFACE_IDS = Object.keys(SURFACES) as readonly SurfaceId[];
 
+/** Root-relative mount paths used by the unified public deployment. */
+export const SURFACE_PATHS: Readonly<Record<SurfaceId, string>> = Object.freeze({
+  S1: "/",
+  S2: "/service-manager",
+  S3: "/dispatch",
+  S4: "/hq",
+  S5: "/technician",
+  S6: "/customer",
+  S7: "/vendor",
+  S8: "/subcontractor",
+});
+
 export const surfacesInPhase = (phase: Phase): readonly Surface[] =>
   SURFACE_IDS.map((id) => SURFACES[id]).filter((s) => s.phase === phase);
 

@@ -49,6 +49,10 @@ jobs:
       - run: npm run test:ui
       # The one build step. Every enabled surface bundles, browser-only, from its emitted frame.
       - run: node tools/ci/build-surface.ts --all --minify
+      - name: unified Cloudflare Pages package
+        run: pnpm build:pages
+        env:
+          AC_GATEWAY: https://api.example.invalid
       - name: generated artifacts are current
         run: |
           node tools/ci/emit-schema.ts

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { matchPath, buildPath, createRouter, type History, type ScreenSpec } from "./router.ts";
+import { matchPath, buildPath, browserHistory, createRouter, type History, type ScreenSpec } from "./router.ts";
 
 test("matchPath binds :params, honours a trailing optional, and refuses extra segments", () => {
   assert.deepEqual(matchPath("/accounts/:orgId?", "/accounts"), {});
@@ -62,4 +62,46 @@ test("first declared match wins — the registry is ordered specific to general"
   // "/accounts/o/new/site" also has the shape a greedy tree route could claim; the specific route is declared first.
   assert.equal(r.resolve("/accounts/o/new/site")?.screen, "accounts.new");
   assert.equal(r.resolve("/accounts/o")?.screen, "accounts.tree");
+});
+
+test("browserHistory scopes app routes under a mount path and preserves deep links", () => {
+  let pathname = "/dispatch/board";
+  let onPop: (() => void) | undefined;
+  const pushed: string[] = [];
+  const win = {
+    location: { get pathname() { return pathname; } },
+    history: { pushState: (_state: unknown, _title: string, path: string) => { pathname = path; pushed.push(path); } },
+    addEventListener: (_type: "popstate", cb: () => void) => { onPop = cb; },
+    removeEventListener: (_type: "popstate", cb: () => void) => { if (onPop === cb) onPop = undefined; },
+  };
+  const history = browserHistory(win, "/dispatch");
+  assert.equal(history.path(), "/board");
+
+  const router = createRouter({
+    login: { path: "/", uses: [] },
+    board: { path: "/board", uses: [] },
+    job: { path: "/job/:jobId", uses: [] },
+  }, history);
+  assert.deepEqual(router.current.value, { screen: "board", params: {} });
+  assert.equal(router.href("board"), "/dispatch/board", "anchors include the surface mount path");
+  assert.equal(router.href("login"), "/dispatch/", "the app-local root points to the mounted root");
+  assert.equal(router.href("job", { jobId: "job-1" }), "/dispatch/job/job-1", "deep links include the mount path once");
+  router.navigate("login");
+  assert.deepEqual(pushed, ["/dispatch/"]);
+  assert.equal(pathname, "/dispatch/");
+  assert.deepEqual(router.current.value, { screen: "login", params: {} }, "navigation resolves against the app-local route");
+
+  pathname = "/dispatch/board";
+  const stop = router.start();
+  onPop?.();
+  assert.deepEqual(router.current.value, { screen: "board", params: {} });
+  pathname = "/dispatch/job/job-1";
+  onPop?.();
+  assert.deepEqual(router.current.value, { screen: "job", params: { jobId: "job-1" } });
+  stop();
+
+  pathname = "/dispatch";
+  assert.equal(history.path(), "/", "the mount root resolves with or without its trailing slash");
+  pathname = "/customer/sites";
+  assert.equal(history.path(), "/__outside_surface__", "a path outside the mount never resolves as an app route");
 });

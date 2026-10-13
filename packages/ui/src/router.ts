@@ -62,6 +62,8 @@ export type Location<S extends Record<string, ScreenSpec>> = { readonly screen: 
 export type History = {
   readonly path: () => string;
   readonly push: (path: string) => void;
+  /** Render an app-local route as a browser-visible URL, if the app is mounted below a base path. */
+  readonly href?: (path: string) => string;
   /** Subscribe to back/forward; returns unsubscribe. */
   readonly onPop: (cb: () => void) => () => void;
 };
@@ -85,19 +87,38 @@ export const createRouter = <S extends Record<string, ScreenSpec>>(screens: S, h
     return null;
   };
   const current = signal<Location<S> | null>(resolve(history.path()));
-  const href: Router<S>["href"] = (screen, params) => buildPath(screens[screen]!.path, params);
+  const href: Router<S>["href"] = (screen, params) => {
+    const path = buildPath(screens[screen]!.path, params);
+    return history.href?.(path) ?? path;
+  };
   return {
     current,
     resolve,
     href,
-    navigate: (screen, params) => { const p = href(screen, params); history.push(p); current.value = resolve(p); },
+    navigate: (screen, params) => {
+      const path = buildPath(screens[screen]!.path, params);
+      history.push(path);
+      current.value = resolve(path);
+    },
     start: () => history.onPop(() => { current.value = resolve(history.path()); }),
   };
 };
 
 /** The browser's History API in the router's shape. Not called under node --test; the tests hand in a fake. */
-export const browserHistory = (w: { location: { pathname: string }; history: { pushState: (s: unknown, t: string, u: string) => void }; addEventListener: (t: "popstate", cb: () => void) => void; removeEventListener: (t: "popstate", cb: () => void) => void }): History => ({
-  path: () => w.location.pathname,
-  push: (p) => w.history.pushState(null, "", p),
-  onPop: (cb) => { w.addEventListener("popstate", cb); return () => w.removeEventListener("popstate", cb); },
-});
+export const browserHistory = (
+  w: { location: { pathname: string }; history: { pushState: (s: unknown, t: string, u: string) => void }; addEventListener: (t: "popstate", cb: () => void) => void; removeEventListener: (t: "popstate", cb: () => void) => void },
+  basePath = "",
+): History => {
+  const base = basePath === "/" ? "" : basePath.replace(/\/+$/, "");
+  return {
+    path: () => {
+      const pathname = w.location.pathname;
+      if (!base) return pathname;
+      if (pathname === base || pathname === `${base}/`) return "/";
+      return pathname.startsWith(`${base}/`) ? pathname.slice(base.length) : "/__outside_surface__";
+    },
+    push: (path) => w.history.pushState(null, "", base ? `${base}${path === "/" ? "/" : path}` : path),
+    href: (path) => base ? `${base}${path === "/" ? "/" : path}` : path,
+    onPop: (cb) => { w.addEventListener("popstate", cb); return () => w.removeEventListener("popstate", cb); },
+  };
+};

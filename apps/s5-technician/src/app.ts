@@ -1,6 +1,6 @@
 import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
-import { densityOf, type Refusal } from "../../../packages/contracts/src/index.ts";
+import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
 import { createStore, type Store } from "./state.ts";
@@ -46,7 +46,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const newId = opts.newId ?? (() => (globalThis.crypto?.randomUUID?.() ?? `${now()}-${Math.random()}`));
   const phase = signal<Phase>({ kind: "login", refusal: null, busy: false });
   const degraded = signal(false);
-  const router = createRouter(SCREENS, opts.window ? browserHistory(opts.window) : { path: () => "/", push: () => {}, onPop: () => () => {} });
+  const router = createRouter(SCREENS, opts.window ? browserHistory(opts.window, SURFACE_PATHS.S5) : { path: () => "/", push: () => {}, onPop: () => () => {} });
 
   const login = async (hardwareId: string, email: string, password: string) => {
     phase.value = { kind: "login", refusal: null, busy: true };
