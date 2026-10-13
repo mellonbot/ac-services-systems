@@ -202,9 +202,9 @@ async function main(): Promise<void> {
     await s2.gateway.registerEquipment({ siteId: renoRoof, kind: "package", label: "PU-1", manufacturer: "Trane", model: "Precedent", serial: "T-88213" });
     await s2.gateway.setContact({ accountId: austinRoof, role: "site_manager", name: "Dana Ortiz", phone: "(512) 555-0100", email: "dana.ortiz@amped.example", note: "On site 6a–3p", isPrimary: true });
     await s2.gateway.setContact({ accountId: austin, role: "security", name: "Front desk", phone: "(512) 555-0199" });
-    const past = new Date(Date.now() - 100 * 24 * 3600_000);
-    const pws = new Date(Date.UTC(past.getUTCFullYear(), past.getUTCMonth(), past.getUTCDate(), 9)).toISOString();
-    const pwe = new Date(Date.UTC(past.getUTCFullYear(), past.getUTCMonth(), past.getUTCDate(), 13)).toISOString();
+    // Fixed inside the invoice's June period: a date relative to now overtook the July invoice once now passed mid-October.
+    const pws = "2026-06-15T09:00:00.000Z";
+    const pwe = "2026-06-15T13:00:00.000Z";
     const pm = await s2.gateway.createJob({ siteId: austinRoof, serviceCode: "PM-Q2", priority: "pm", serviceWindowStart: pws, serviceWindowEnd: pwe, equipmentIds: [rtu1, rtu2] });
     await admin(`UPDATE jobs SET state = 'complete' WHERE id = $1`, [pm.id]);
     const inv = (await admin(`INSERT INTO invoices (org_id, region_id, bill_to_tier, bill_to_id, contract_id, billing_path, period_start, period_end, total_minor, currency, issued_at, due_at)
