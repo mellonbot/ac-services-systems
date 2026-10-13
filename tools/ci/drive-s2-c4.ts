@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
 import { hashPassword } from "../../apps/gateway/src/auth.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
+import { SURFACE_PATHS } from "../../packages/contracts/src/index.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 import { Cdp, findChrome } from "./cdp.ts";
 
@@ -198,7 +199,7 @@ async function main(): Promise<void> {
 
     site = serveDist(join(ROOT, "apps/s2-service-manager/dist"));
     cdp = await Cdp.launch(chrome);
-    await cdp.openTab(`${SITE}/login`);
+    await cdp.openTab(`${SITE}${SURFACE_PATHS.S2}/login`);
 
     // ── 1. the login screen renders at all
     await cdp.waitFor(`document.getElementById("login-form")`, "the login form");
@@ -210,12 +211,12 @@ async function main(): Promise<void> {
     check(2, "login over the cookie session leaves the login screen");
 
     // ── 3. the network screen is reachable and empty-stated
-    await cdp.navigate(`${SITE}/network`);
-    await cdp.waitFor(`${text}.includes("Network") || document.querySelector(".ac-data-grid, .s2-tree__head")`, "the network screen");
+    await cdp.navigate(`${SITE}${SURFACE_PATHS.S2}/network`);
+    await cdp.waitFor(`document.querySelector("h1")?.textContent?.trim() === "Network"`, "the network screen");
     check(3, "the network screen renders");
 
     // ── 4. a firm cannot be recorded without an OQ5 position
-    await cdp.navigate(`${SITE}/network/firms/new`);
+    await cdp.navigate(`${SITE}${SURFACE_PATHS.S2}/network/firms/new`);
     await cdp.waitFor(`document.getElementById("firm-form")`, "the firm form");
     const disabled = await cdp.eval<boolean>(`!!document.getElementById("record-firm")?.disabled`);
     must(disabled, "the record button should be disabled while OQ5 is unset");
@@ -342,7 +343,7 @@ async function main(): Promise<void> {
     //      never reached the gateway, because `form.reset()` had emptied a
     //      currency field whose default was a DOM property, and HTML5
     //      validation then blocked the submit with no message anywhere.
-    await cdp.navigate(`${SITE}/network`);
+    await cdp.navigate(`${SITE}${SURFACE_PATHS.S2}/network`);
     await cdp.waitFor(`[...document.querySelectorAll("a")].some(a => a.textContent.trim() === ${JSON.stringify(name)})`, "the firm in the list");
     await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === ${JSON.stringify(name)}).click(); return true; })()`);
     await cdp.waitFor(`[...document.querySelectorAll("a")].some(a => a.textContent.trim() === "Rate card")`, "the rate card link");
