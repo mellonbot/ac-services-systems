@@ -130,3 +130,33 @@ jobs:
       # the PAINTED page, so a promise arriving through a stylesheet fails too.
       - name: S1 through a real browser
         run: npm run drive:s1
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    needs: [full, migrate]
+    environment:
+      name: production
+      url: https://acservice.systems
+    concurrency:
+      group: cloudflare-pages-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Build unified site
+        run: pnpm build:pages
+        env:
+          AC_GATEWAY: ${{ vars.AC_GATEWAY }}
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist/pages --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=main
