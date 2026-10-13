@@ -1,0 +1,70 @@
+name: seed-logins
+
+# Manual only. A fresh production database has the UNASSIGNED region and no
+# people: nothing can sign in. This creates one real service region (if its
+# code is new) and seeds the three staff test logins — superadmin-test,
+# dispatcher-test, service_manager-test (tools/ci/test-logins.ts) — with the
+# password held as the AC_TEST_LOGIN_PASSWORD secret on the `production`
+# environment. Idempotent: re-running re-applies the same rows. Customer (S6),
+# vendor (S7) and subcontractor (S8) principals are not seeded here; see
+# docs/OPEN_DECISIONS.md, OPEN-S6-IDP.
+on:
+  workflow_dispatch:
+    inputs:
+      region_code:
+        description: "Region code (short, upper-case, e.g. DFW). Created if absent."
+        required: true
+        default: DFW
+      region_name:
+        description: "Region name"
+        required: true
+        default: Dallas–Fort Worth
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: production environment is configured
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AC_TEST_LOGIN_PASSWORD: ${{ secrets.AC_TEST_LOGIN_PASSWORD }}
+        run: |
+          missing=0
+          for name in DATABASE_URL AC_TEST_LOGIN_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set on the GitHub 'production' environment. gh secret set $name --env production"
+              missing=1
+            fi
+          done
+          if [ -n "$AC_TEST_LOGIN_PASSWORD" ] && [ "${#AC_TEST_LOGIN_PASSWORD}" -lt 12 ]; then
+            echo "::error::AC_TEST_LOGIN_PASSWORD must be at least 12 characters"; missing=1
+          fi
+          exit $missing
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile --prod
+      - name: the region exists
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CODE: ${{ inputs.region_code }}
+          NAME: ${{ inputs.region_name }}
+        run: |
+          case "$CODE" in
+            [A-Z][A-Z0-9_]*) ;;
+            *) echo "::error::region_code must be upper-case letters/digits/underscore, got '$CODE'"; exit 1 ;;
+          esac
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --no-psqlrc -v code="$CODE" -v name="$NAME" -c \
+            "INSERT INTO regions (code, name) VALUES (:'code', :'name') ON CONFLICT (code) DO NOTHING;" \
+            -c "SELECT code, name, active FROM regions WHERE code = :'code';"
+      - name: seed the staff test logins
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AC_TEST_LOGIN_PASSWORD: ${{ secrets.AC_TEST_LOGIN_PASSWORD }}
+          AC_TEST_LOGIN_REGION: ${{ inputs.region_code }}
+        run: node tools/ci/seed-test-logins.ts
