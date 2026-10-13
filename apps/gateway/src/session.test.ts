@@ -19,6 +19,14 @@ test("allowed origins are derived from the registry: one https origin per enable
   assert.ok(!o.has("https://s1-marketing.ac.example"), "the anonymous marketing site never holds a session");
 });
 
+test("the unified site is an origin: every portal served under its path on https://<AC_SITE> (and www) may hold a session", () => {
+  const o = allowedOrigins(prod);
+  assert.ok(o.has("https://ac.example"), "the apex, where Cloudflare Pages serves /customer/, /dispatch/, …");
+  assert.ok(o.has("https://www.ac.example"), "and its www alias");
+  assert.ok(!o.has("http://ac.example"), "never plain http in production posture");
+  assert.ok(!o.has("https://api.ac.example"), "the gateway's own host is not a browser origin");
+});
+
 test("development posture takes exact origins from AC_DEV_ORIGINS and nothing else; with neither, nobody", () => {
   assert.deepEqual([...allowedOrigins(dev)].sort(), ["http://localhost:4173", "http://localhost:5173"]);
   assert.equal(allowedOrigins(sessionConfigFromEnv({})).size, 0);

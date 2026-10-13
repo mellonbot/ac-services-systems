@@ -18,8 +18,11 @@ import { SURFACES, SURFACE_IDS } from "../../../packages/contracts/src/surfaces.
  *      for any origin not in the registry. That header is the CSRF line, and
  *      it is the header the generated client already sends on every call.
  *   3. CORS is derived from SURFACES, not configured beside it: the allowed
- *      origins are `https://<app>.<AC_SITE>` for every enabled surface. Adding
- *      an origin is adding a surface, which is a reviewed diff on the registry.
+ *      origins are `https://<app>.<AC_SITE>` for every enabled surface, plus
+ *      the site itself (`https://<AC_SITE>` and `https://www.<AC_SITE>`), which
+ *      is where the unified Cloudflare Pages build serves every portal under
+ *      its own path (SURFACE_PATHS). Adding an origin is adding a surface, which
+ *      is a reviewed diff on the registry.
  *
  * Bearer tokens keep working unchanged for devices, tests and non-browser
  * clients. Nothing here is consulted for them except the revocation check,
@@ -43,6 +46,10 @@ export const sessionConfigFromEnv = (env: NodeJS.ProcessEnv): SessionConfig => (
 export const allowedOrigins = (cfg: SessionConfig): ReadonlySet<string> => {
   const out = new Set<string>();
   if (cfg.site) {
+    // The unified site: one origin, every enabled portal under its mount path.
+    // The gateway lives at api.<site>, so this is same-site and SameSite=Strict holds.
+    out.add(`https://${cfg.site}`);
+    out.add(`https://www.${cfg.site}`);
     for (const id of SURFACE_IDS) {
       const s = SURFACES[id];
       if (s.enabled && s.namespace !== "anonymous") out.add(`https://${s.app}.${cfg.site}`);

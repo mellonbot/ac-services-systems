@@ -224,6 +224,8 @@ node tools/ci/build-surface.ts --all --minify
 npm run gateway                     # :8080 — every route is a row in packages/contracts/src/operations.ts
 #   AC_IMAGERY_URL=https://…?c={lat},{lng}&z={zoom}&s={w}x{h}&key=…  AC_IMAGERY_ATTRIBUTION="© …"   → the site card's overhead imagery, fetched by the gateway (item 9). Unset → the card says so and draws the address alone.
 npm run worker                      # outbox relay (1s), SLA cascade (60s), credential expiry (1h)
+docker build -t ac-gateway . && docker run --rm -p 8080:8080 -e DATABASE_URL=… -e AC_SIGNING_KEY_PEM="$(cat key.pem)" -e AC_SITE=ac.example ac-gateway
+#                                   # the two above as one container (infra/cloudflare/entrypoint.mjs) — what production runs, on Cloudflare Containers; see docs/CLOUDFLARE_PAGES.md
 ```
 
 ## What is here

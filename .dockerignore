@@ -1,0 +1,14 @@
+.git
+.github
+node_modules
+**/node_modules
+**/dist
+claude
+docs
+test
+tools/demo
+Claude outputs
+*.md
+.env
+.env.*
+.dev.vars*

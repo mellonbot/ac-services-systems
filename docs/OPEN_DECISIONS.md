@@ -200,6 +200,12 @@ deliberately rather than discovered:
 Until one is chosen, S1 should not be exposed on a public domain. Naming the
 owner is D7's; the choice is the infrastructure memo's (`02`).
 
+*2026-10-13:* the infrastructure is Cloudflare (`docs/CLOUDFLARE_PAGES.md`),
+so the choice is the first one: a WAF rate-limiting rule on the zone for
+`POST api.acservice.systems/auth/anonymous` and `/s1/leads`. It is a dashboard
+or API object on the zone, not a file here; the setup section names it as a
+step before the site is public. Still open: the numbers.
+
 **OPEN-S7 — enable the vendor portal (D9).** *Item 11 (2026-09-27)* built
 procurement and S7 in full, with S7 left `enabled: false` (Phase 4). The
 partners asked to show it in the clickable demo for a few days: `tools/demo/build.ts`
