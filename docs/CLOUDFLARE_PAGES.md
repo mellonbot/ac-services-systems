@@ -72,6 +72,12 @@ drops it (`apps/gateway/src/pg-url.ts`). If the gateway container starts
 and exits, **Actions → db-check → Run workflow** connects to the production
 database with the same library and prints what it sees, naming no secret.
 
+The Worker's `DATABASE_URL` and the GitHub `production` one must be the same
+login: migration 0012 grants that login `SET ROLE` on `ac_gateway` and
+`ac_worker`, which a Postgres 16+ role creator does not get by default. A
+gateway connecting as any other login answers 500 on every request while
+`/healthz` stays green; `db-check` shows the refusal by name.
+
 Without `AC_SIGNING_KEY_PEM` the gateway mints an ephemeral key and every
 session dies with the container; the Worker refuses to start it. The custom
 domain `api.acservice.systems` is created by the first deploy from the
