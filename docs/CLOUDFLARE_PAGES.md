@@ -84,15 +84,15 @@ Create a GitHub Actions environment named `production` and configure:
 
 | Name | Type | Value |
 | --- | --- | --- |
-| `AC_GATEWAY` | Variable | `https://api.acservice.systems` — the gateway container's domain |
+| `AC_GATEWAY` | Optional variable | Override for the gateway origin; defaults to `https://api.acservice.systems` |
 | `CLOUDFLARE_PAGES_PROJECT` | Variable | Exact name of the Pages project |
 | `CLOUDFLARE_API_TOKEN` | Secret | Cloudflare API token for the account: Workers Scripts **Edit**, Cloudflare Pages **Edit**, Containers **Edit**, Workers Routes/Custom Domains **Edit** on the zone, Account Settings **Read** |
 | `CLOUDFLARE_ACCOUNT_ID` | Secret | Cloudflare account ID |
 | `DATABASE_URL` | Secret | The production connection string, for migrations (the same value the Worker holds) |
 
-The build fails unless `AC_GATEWAY` is a valid HTTPS origin. Production
-deployments run automatically for successful pushes to `main`; use **Actions →
-guard → Run workflow** on `main` to deploy manually.
+If set, `AC_GATEWAY` must be a valid HTTPS origin. Production deployments run
+automatically for successful pushes to `main`; use **Actions → guard → Run
+workflow** on `main` to deploy manually.
 
 ## Published routes
 
