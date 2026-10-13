@@ -136,7 +136,7 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:1400px
 /* A numeric column is the instrument face, declared once per column rather than
    hoped for: .ac-num existed and nothing rendered it, so every SLA timer and
    invoice total in the system was proportional serif. Column.numeric sets this. */
-.ac-grid__td[data-numeric="true"]{font-family:var(--font-instrument);font-variant-numeric:tabular-nums}
+.ac-grid__td[data-numeric="true"]{font-family:var(--font-instrument);font-variant-numeric:tabular-nums;white-space:nowrap}
 .ac-grid__th{position:sticky;top:0;background:color-mix(in srgb,var(--color-surface-sunken) 45%,var(--color-surface));color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--color-border-hard)}
 /* NOT all:unset. It ties :focus-visible on specificity and wins on source
    order — the cascade is resolved per property, not per state — so the outline
@@ -148,6 +148,22 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:1400px
 .ac-grid__row:hover{background:color-mix(in srgb,var(--color-surface-sunken) calc(100% * var(--hover)),transparent)}
 .ac-grid__row[data-selected="true"]{background:color-mix(in srgb,var(--color-surface-sunken) 60%,var(--color-surface));box-shadow:inset 3px 0 0 var(--color-action)}
 .ac-grid__empty td{color:var(--color-text-muted);text-align:center}
+/* A comfort grid on a phone: a table cannot shrink below its content, so S6's
+   Work and Agreements pushed the page ~300px sideways at 390px, and Work needs
+   ~820px for its columns. Below 840px each row becomes
+   a stack of label/value lines, the label set as the column head was. Console
+   grids are not read on a phone and keep their columns. */
+@media (max-width:840px){
+.ac-grid[data-density="comfort"],.ac-grid[data-density="comfort"] tbody,.ac-grid[data-density="comfort"] tr{display:block}
+.ac-grid[data-density="comfort"] thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ac-grid[data-density="comfort"] .ac-grid__row{padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}
+.ac-grid[data-density="comfort"] tbody tr:last-child{border-bottom:0}
+.ac-grid[data-density="comfort"] caption{display:block;padding:var(--space-3) var(--space-3) 0}
+.ac-grid[data-density="comfort"] .ac-grid__td{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:var(--space-3);align-items:baseline;justify-items:start;height:auto;min-height:0;padding:var(--space-1) var(--space-3);border-bottom:0;text-align:start;white-space:normal;overflow-wrap:anywhere}
+.ac-grid[data-density="comfort"] .ac-grid__td::before{content:attr(data-label);color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
+.ac-grid[data-density="comfort"] .ac-grid__empty td{display:block}
+.ac-grid[data-density="comfort"] .ac-pill{max-width:100%;white-space:normal}
+}
 
 /* ---- ComplianceBadge (console only) ---- */
 .ac-badge{display:inline-flex;align-items:center;gap:var(--space-1);padding:1px var(--space-2);border-radius:var(--radius-pill);border:1px solid var(--badge-color,var(--color-border));color:var(--badge-color,inherit);font-family:var(--font-instrument);font-size:var(--text-xs);letter-spacing:var(--track-normal);text-transform:uppercase}

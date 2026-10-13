@@ -331,7 +331,7 @@ test("AGREEMENTS: the customer's paper, with the position it took on its own dia
   assert.match(out, /In force/);
   assert.match(out, /Rights reserved to Rankine/);
   assert.match(out, /Terms at this scope/);
-  assert.match(out, /2026-01-01 → open/);
+  assert.match(out, /2026-01-01<br\/>→ open/);
 });
 
 test("a refused read renders the heading, the message and a retry route; sign out returns to login", async () => {

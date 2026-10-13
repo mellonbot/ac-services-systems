@@ -97,7 +97,7 @@ export const work: Screen = (ctx) => {
         { key: "site", header: "Site", cell: (j) => linkTo(ctx, "site", { siteId: j.siteId }, siteName(j.siteId)) },
         { key: "serviceCode", header: "Service" },
         { key: "state", header: "State", cell: (j) => STATE_WORD[j.state] },
-        { key: "window", header: "Window", cell: (j) => `${when(j.serviceWindowStart)} – ${when(j.serviceWindowEnd)}` },
+        { key: "window", header: "Window", numeric: true, cell: (j) => html`${when(j.serviceWindowStart)}<br />– ${when(j.serviceWindowEnd)}` },
         {
           key: "sla", header: "Response",
           cell: (j) => StatusPill({ density: ctx.density, status: slaStatus(j, now), label: j.slaSatisfiedAt ? `Responded ${when(j.slaSatisfiedAt)}` : j.slaDueAt ? `Due ${when(j.slaDueAt)}` : "No commitment on file" }) ?? html``,
