@@ -29,6 +29,7 @@ import { connectShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 import { Cdp, findChrome } from "./cdp.ts";
+import { SURFACE_PATHS } from "../../packages/contracts/src/surfaces.ts";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const GIVEN_DB = process.env.DATABASE_URL;
@@ -38,6 +39,8 @@ const GATEWAY_PORT = 23600 + Math.floor(Math.random() * 400);
 const SITE_PORT = 24100 + Math.floor(Math.random() * 400);
 const GATEWAY = `http://127.0.0.1:${GATEWAY_PORT}`;
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
+/** The portal lives at its mount path (SURFACE_PATHS.S8), as the unified Pages site serves it. */
+const FIRM = `${SITE}${SURFACE_PATHS.S8}`;
 const RUN = Date.now().toString(36).toUpperCase();
 const SCRATCH = process.env.AC_DRIVE_DB ?? `ac_drive8_${RUN.toLowerCase()}`;
 const PASSWORD = "correct horse battery staple";
@@ -195,7 +198,7 @@ async function main(): Promise<void> {
 
     site = serveDist(join(ROOT, "apps/s8-subcontractor-portal/dist"));
     cdp = await Cdp.launch(chrome);
-    await cdp.openTab(`${SITE}/login`);
+    await cdp.openTab(`${FIRM}/login`);
     const shots = process.env.AC_DRIVE_SHOTS;
     if (shots) { mkdirSync(shots, { recursive: true }); await cdp.send("Emulation.setDeviceMetricsOverride", { width: 1180, height: 860, deviceScaleFactor: 1, mobile: false }); }
     const shot = async (name: string) => {
@@ -240,7 +243,7 @@ async function main(): Promise<void> {
 
     // ── 4. Documents for the new crew: file insurance → "Awaiting Rankine"
     const crewA2 = (await admin(`SELECT id FROM crews WHERE label = $1`, [`Crew A2 ${RUN}`]))[0]!.id as string;
-    await cdp.navigate(`${SITE}/crews/${crewA2}/documents`);
+    await cdp.navigate(`${FIRM}/crews/${crewA2}/documents`);
     await cdp.waitFor(has("Nothing on file for this crew yet"), "the empty document list");
     await cdp.eval(fillAndSubmit("document-form", { kind: "insurance", identifier: `COI-${RUN}`, validFrom: "2026-01-01", validTo: "2026-12-31" }));
     await cdp.waitFor(`document.getElementById("document-outcome")`, "the filing receipt");
@@ -320,7 +323,7 @@ async function main(): Promise<void> {
     check(10, "sign out, then Firm B in the same bundle: its own firm, its own money, its own work — nothing of A's");
 
     // ── 11. A deep link to A's statement from B's session: not on record, and the lines refused in the gateway's words
-    await cdp.navigate(`${SITE}/statements/${stmtA}`);
+    await cdp.navigate(`${FIRM}/statements/${stmtA}`);
     await cdp.waitFor(has("is on record for your firm") + ` || document.querySelector(".s8-refusal")`, "the refusal or the empty record");
     const page11 = await cdp.eval<string>(text);
     must(/No statement .* is on record for your firm/.test(page11), "the statement is not there from inside B's scope");
