@@ -76,7 +76,7 @@ const view = <Row,>(p: ViewProps<typeof DataGridSpec, DataGridProps<Row>>): VNod
               tabindex=${p.onSelect ? 0 : undefined}
               onClick=${p.onSelect ? () => p.onSelect?.(row) : undefined}
               onKeyDown=${p.onSelect ? (e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); p.onSelect?.(row); } } : undefined}>
-              ${p.columns.map((c) => html`<td class="ac-grid__td" data-align=${c.align ?? "start"} data-numeric=${c.numeric ? "true" : undefined}>${cell(row, c)}</td>`)}
+              ${p.columns.map((c) => html`<td class="ac-grid__td" data-align=${c.align ?? "start"} data-numeric=${c.numeric ? "true" : undefined} data-label=${p.density === "comfort" ? c.header : undefined}>${cell(row, c)}</td>`)}
             </tr>`;
           })}
     </tbody>
