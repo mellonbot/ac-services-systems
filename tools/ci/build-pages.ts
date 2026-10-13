@@ -1,0 +1,47 @@
+#!/usr/bin/env node
+import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { SURFACE_IDS, SURFACE_PATHS, SURFACES } from "../../packages/contracts/src/index.ts";
+import { buildSurface } from "./build-surface.ts";
+
+const ROOT = fileURLToPath(new URL("../../", import.meta.url));
+const OUTPUT = join(ROOT, "dist", "pages");
+
+const gatewayOrigin = (value: string | undefined): string => {
+  if (!value?.trim()) throw new Error("AC_GATEWAY is required to build the unified site; set it to the production gateway origin in Cloudflare Pages build variables.");
+  const url = new URL(value.trim());
+  if (url.protocol !== "https:" || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error("AC_GATEWAY must be an HTTPS origin with no path, query, or fragment.");
+  }
+  return url.origin;
+};
+
+const redirectsForEnabledSurfaces = (): string => {
+  const redirects = SURFACE_IDS
+    .filter((id) => id !== "S1" && SURFACES[id].enabled)
+    .flatMap((id) => {
+      const path = SURFACE_PATHS[id];
+      return [`${path} ${path}/ 308`, `${path}/* ${path}/index.html 200`];
+    });
+  redirects.push("/* /index.html 200");
+  return `${redirects.join("\n")}\n`;
+};
+
+export const buildPages = async (gateway = gatewayOrigin(process.env.AC_GATEWAY)): Promise<void> => {
+  rmSync(OUTPUT, { recursive: true, force: true });
+  mkdirSync(OUTPUT, { recursive: true });
+
+  for (const id of SURFACE_IDS.filter((surfaceId) => SURFACES[surfaceId].enabled)) {
+    const basePath = SURFACE_PATHS[id];
+    const built = await buildSurface(id, { minify: true, gateway, basePath });
+    const target = basePath === "/" ? OUTPUT : join(OUTPUT, basePath.slice(1));
+    cpSync(built.outDir, target, { recursive: true, force: true });
+    console.log(`build-pages: ${id} → ${target.replace(ROOT, "")}`);
+  }
+
+  writeFileSync(join(OUTPUT, "_redirects"), redirectsForEnabledSurfaces());
+};
+
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (isMain) await buildPages();

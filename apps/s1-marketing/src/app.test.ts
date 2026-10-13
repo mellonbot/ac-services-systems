@@ -6,7 +6,7 @@ import { SCREENS } from "./screens.ts";
 import { createLeadBuffer, BUFFER_KEY, DUPLICATE_CODE, type BufferStore } from "./buffer.ts";
 import { S1_CSS } from "./styles.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import { OPERATIONS, SURFACES } from "../../../packages/contracts/src/index.ts";
+import { OPERATIONS, SURFACES, SURFACE_IDS, SURFACE_PATHS } from "../../../packages/contracts/src/index.ts";
 
 /**
  * S1 against a scripted gateway, through the REAL shell and the REAL
@@ -75,6 +75,16 @@ test("S1's registry has no login screen and no read of a lead — the two things
     assert.ok(op, `${u} is a catalogue operation`);
     assert.ok(op!.surfaces.includes("S1"), `${u} admits S1`);
   }
+});
+
+test("the S1 home is the main entry and links every enabled portal to its own sign-in path", () => {
+  const app = appWith(fakeGateway());
+  const page = render(app.view());
+  assert.match(page, /id="surface-logins"/);
+  const enabledPortals = SURFACE_IDS.filter((id) => id !== "S1" && SURFACES[id].enabled);
+  for (const id of enabledPortals) assert.match(page, new RegExp(`href="${SURFACE_PATHS[id]}/"`), `${id} has a distinct entry link`);
+  assert.equal((page.match(/class="s1-portal-list__link"/g) ?? []).length, enabledPortals.length);
+  assert.equal(page.includes(`${SURFACE_PATHS.S7}/`), false, "the disabled vendor portal is not advertised");
 });
 
 test("THE PAGE RENDERS WITH NO GATEWAY AT ALL, and the form still takes a lead", async () => {

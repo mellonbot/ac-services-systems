@@ -1,6 +1,6 @@
 import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
-import { densityOf, type Refusal } from "../../../packages/contracts/src/index.ts";
+import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
 import { createStore, type Store } from "./state.ts";
@@ -45,7 +45,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const now = opts.now ?? (() => Date.now());
   const phase = signal<Phase>({ kind: "booting" });
   const degraded = signal(false);
-  const router = createRouter(SCREENS, opts.window ? browserHistory(opts.window) : { path: () => "/", push: () => {}, onPop: () => () => {} });
+  const router = createRouter(SCREENS, opts.window ? browserHistory(opts.window, SURFACE_PATHS.S3) : { path: () => "/", push: () => {}, onPop: () => () => {} });
 
   const become = (shell: ConnectedShell) => {
     const store = createStore(shell, now);

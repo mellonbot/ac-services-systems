@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SURFACES, SURFACE_IDS, mayWrite, WHITE_LABEL_SURFACES, isWhiteLabel } from "./surfaces.ts";
+import { SURFACES, SURFACE_IDS, SURFACE_PATHS, mayWrite, WHITE_LABEL_SURFACES, isWhiteLabel } from "./surfaces.ts";
 import { OPERATIONS } from "./operations.ts";
 import { WRITE_ENTITIES } from "./entities.ts";
 
@@ -46,6 +46,15 @@ test("no surface writes an entity outside the declared universe", () => {
 
 test("Phase 1 is exactly S1,S2,S3,S5,S6,S8", () => {
   assert.deepEqual(SURFACE_IDS.filter((id) => SURFACES[id].phase === 1), ["S1","S2","S3","S5","S6","S8"]);
+});
+
+test("surface paths are unique; S1 owns the root and every enabled portal has a path", () => {
+  const paths = SURFACE_IDS.map((id) => SURFACE_PATHS[id]);
+  assert.equal(new Set(paths).size, paths.length);
+  assert.equal(SURFACE_PATHS.S1, "/");
+  for (const id of SURFACE_IDS) {
+    if (SURFACES[id].enabled) assert.ok(SURFACE_PATHS[id].startsWith("/"), `${id} has a root-relative path`);
+  }
 });
 
 // ---------------------------------------------------------------------------

@@ -11,6 +11,7 @@
  * Output, in apps/<app>/dist/ (gitignored):
  *   index.html   the frame from apps/<app>/frame.html (emitted from the registry), with
  *                <meta name="ac-gateway"> stamped from AC_GATEWAY when set (empty = derive api.<site>)
+ *                assets can be prefixed for a shared path-based deployment
  *   bundle.js    esbuild of src/app.ts (the surface's own entry) or, absent, src/main.ts (the
  *                generated registry boot) — esm, es2022, browser, sourcemapped
  *   bundle.js.map
@@ -43,7 +44,7 @@ export type BuildReport = {
   readonly entry: string;
 };
 
-export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean; gateway?: string } = {}): Promise<BuildReport> => {
+export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean; gateway?: string; basePath?: string } = {}): Promise<BuildReport> => {
   const s = SURFACES[id];
   const appDir = join(ROOT, "apps", s.app);
   const outDir = join(appDir, "dist");
@@ -76,7 +77,12 @@ export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean; gate
 
   writeFileSync(join(outDir, "ui.css"), UI_CSS);
   const gateway = opts.gateway ?? process.env.AC_GATEWAY ?? "";
-  writeFileSync(join(outDir, "index.html"), readFileSync(frame, "utf8").replace('<meta name="ac-gateway" content="">', `<meta name="ac-gateway" content="${gateway.replace(/"/g, "")}">`));
+  const assetPrefix = opts.basePath && opts.basePath !== "/" ? opts.basePath.replace(/\/+$/, "") : "";
+  const index = readFileSync(frame, "utf8")
+    .replace('<meta name="ac-gateway" content="">', `<meta name="ac-gateway" content="${gateway.replace(/"/g, "")}">`)
+    .replace('href="/ui.css"', `href="${assetPrefix}/ui.css"`)
+    .replace('src="/bundle.js"', `src="${assetPrefix}/bundle.js"`);
+  writeFileSync(join(outDir, "index.html"), index);
 
   const inputs = Object.keys(result.metafile?.inputs ?? {});
   return {

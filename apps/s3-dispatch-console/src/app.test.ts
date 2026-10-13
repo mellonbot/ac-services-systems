@@ -124,10 +124,10 @@ test("the board shows every job with its SLA glyph, its crew, and offers Dispatc
   assert.match(out, /No routes or vehicle positions are being inferred/);
   assert.match(out, /aria-label="Filter jobs"/);
   assert.doesNotMatch(out, /data-latitude|data-longitude|latitude|longitude/i);
-  assert.match(out, new RegExp(`href="/dispatch/${JOB_CREATED}"`));
+  assert.match(out, new RegExp(`href="/job/${JOB_CREATED}"`));
   assert.match(out, new RegExp(`id="release-${JOB_ASSIGNED}"`));
   assert.doesNotMatch(out, new RegExp(`id="release-${JOB_CREATED}"`), "an unassigned job offers no release");
-  assert.doesNotMatch(out, new RegExp(`href="/dispatch/${JOB_ASSIGNED}"`), "an already-assigned job offers no dispatch link");
+  assert.doesNotMatch(out, new RegExp(`href="/job/${JOB_ASSIGNED}"`), "an already-assigned job offers no dispatch link");
 });
 
 test("board filters persist across renders and show only the selected assignment state", async () => {

@@ -1,6 +1,6 @@
 import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, type VNode } from "../../../packages/ui/src/index.ts";
 import type { AnonymousShell } from "../../../packages/shell/src/index.ts";
-import { densityOf, type SubmitLeadInput } from "../../../packages/contracts/src/index.ts";
+import { densityOf, SURFACE_PATHS, type SubmitLeadInput } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, open } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
 import { createStore } from "./state.ts";
@@ -65,7 +65,7 @@ export const createApp = (opts: {
   });
   const store = createStore(shell, now);
   const buffer: LeadBuffer = createLeadBuffer({ store: opts.store ?? null, now });
-  const router = createRouter(SCREENS, opts.window ? browserHistory(opts.window) : { path: () => "/", push: () => {}, onPop: () => () => {} });
+  const router = createRouter(SCREENS, opts.window ? browserHistory(opts.window, SURFACE_PATHS.S1) : { path: () => "/", push: () => {}, onPop: () => () => {} });
 
   /**
    * One flush at a time, and the session minted inside it rather than at
@@ -155,6 +155,7 @@ export const createApp = (opts: {
         ${nav("home", "Home")}
         ${nav("coverage", "Where we work")}
         <span class="s1-nav__spacer"></span>
+        <a class="s1-link" href="/#surface-logins">Portal sign-in</a>
         ${nav("enquire", "Ask us to call")}
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s1-empty">Nothing at this address. ${nav("home", "Start here")}</p>`}
