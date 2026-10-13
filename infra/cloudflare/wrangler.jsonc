@@ -1,0 +1,42 @@
+// THE GATEWAY ON CLOUDFLARE — one Worker (worker.mjs) fronting one container
+// (the Dockerfile at the repo root) on api.<AC_SITE>.
+//
+//   npx wrangler@4 deploy -c infra/cloudflare/wrangler.jsonc     ← CI does this on main (needs Docker)
+//   npx wrangler@4 secret put DATABASE_URL        -c infra/cloudflare/wrangler.jsonc
+//   npx wrangler@4 secret put AC_SIGNING_KEY_PEM  -c infra/cloudflare/wrangler.jsonc
+//   npx wrangler@4 tail -c infra/cloudflare/wrangler.jsonc
+//
+// Secrets (never in this file): DATABASE_URL, AC_SIGNING_KEY_PEM; optional
+// AC_IMAGERY_URL, AC_IMAGERY_ATTRIBUTION (OPEN-S6-IMAGERY).
+// Requires the Workers Paid plan (Containers).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ac-gateway",
+  "main": "./worker.mjs",
+  "compatibility_date": "2026-10-13",
+  "account_id": "caa70659220a45ce66a819f58ac243bf",
+  // Reachable on the custom domain alone — no workers.dev hostname, so there
+  // is exactly one origin the surfaces' frames can name.
+  "workers_dev": false,
+  "routes": [{ "pattern": "api.acservice.systems", "custom_domain": true }],
+  "vars": {
+    // Production posture: Secure cookies; browser origins derived from SURFACES under this site.
+    "AC_SITE": "acservice.systems",
+    "AC_SIGNING_KID": "k1"
+  },
+  // Keeps the container's inactivity timer from elapsing — see worker.mjs.
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "observability": { "enabled": true },
+  "containers": [
+    {
+      "class_name": "Gateway",
+      "image": "../../Dockerfile",
+      "image_build_context": "../..",
+      // 1/4 vCPU, 1 GiB: two Node processes and a pg pool of ten. Measured, not guessed, once it runs.
+      "instance_type": "basic",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": { "bindings": [{ "name": "GATEWAY", "class_name": "Gateway" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Gateway"] }]
+}

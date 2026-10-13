@@ -3,16 +3,27 @@
 Non-negotiable #10: infrastructure as code **from the first server**, not after
 the third one is already hand-configured and nobody remembers which.
 
-This directory is a build target, and WS-A A5 gates on it existing before
-anything is racked. It is empty because no infrastructure decision has been made
-yet — that is D7, the only non-negotiable in §7.2 with no mechanism behind it.
+D7 (one named infrastructure owner — Ethan M., 2026-09-14) is closed; the
+infrastructure decision it gated was taken on 2026-10-13: **Cloudflare**.
 
-What lands here, and what each is holding:
+- `cloudflare/` — the gateway and the worker as one container behind a Worker
+  on `api.acservice.systems` (`wrangler.jsonc`, `worker.mjs`,
+  `entrypoint.mjs`; the image is the `Dockerfile` at the repo root), and the
+  static site on Cloudflare Pages. Deployed by `.github/workflows/guard.yml`
+  on `main`. Read `docs/CLOUDFLARE_PAGES.md` first.
 
-- `network/` — regions are the shard boundary; the VPC layout has to make
-  `region_id` routable rather than merely present
-- `database/` — Postgres, the four roles from `migrations/0002`, and the
-  restore-test schedule (#11, an operations calendar item with a name attached)
-- `monitoring/` — external by construction. Monitoring that lives on the thing it
-  monitors reports green while the thing is on fire (#12)
-- `storage/` — object storage behind `packages/storage`'s key scheme
+What is still held elsewhere, and why:
+
+- **database** — PlanetScale Postgres created from the Cloudflare dashboard (or
+  any Postgres 16 over TLS). The four roles are `migrations/0002`; the restore
+  test (#11) is an operations calendar item with a name attached, not a file
+  here, because no file can run a restore for you.
+- **monitoring** — external by construction (#12). Monitoring that lives on the
+  thing it monitors reports green while the thing is on fire. The gateway's
+  `/healthz` and the Worker's cron are what it watches; what watches them is
+  not yet chosen.
+- **storage** — object storage behind `packages/storage`'s key scheme. R2 is
+  the obvious fit and is not yet bound.
+- **network** — regions are the shard boundary. A container per region
+  (`AC_REGION_ID`) is a second Durable Object name in `worker.mjs` when Tier 3
+  arrives; nothing structural changes.
