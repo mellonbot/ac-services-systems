@@ -153,7 +153,7 @@ jobs:
       - name: Build unified site
         run: pnpm build:pages
         env:
-          AC_GATEWAY: ${{ vars.AC_GATEWAY }}
+          AC_GATEWAY: ${{ vars.AC_GATEWAY || 'https://api.acservice.systems' }}
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
