@@ -185,17 +185,18 @@ test("the vendor ships, never more than ordered; the office receives in two part
   assert.equal(d.lines[0]!.shippedMilli, "10000");
 });
 
-test("an invoice at the order's price for what was received matches; one past the receipt is held, in words", { skip }, async () => {
-  const ok = await asVendor(vendorA, (uow) => proc.submitVendorInvoice(uow, { poId, invoiceNumber: `INV-${RUN}-1`, invoiceDate: today(), lines: [{ poLineId: lineId, quantityMilli: "8000", unitPriceMinor: "4250" }] }, randomUUID));
-  assert.equal(ok.matchState, "matched");
-  assert.equal(ok.totalMinor, "34000");
-  const held = await asVendor(vendorA, (uow) => proc.submitVendorInvoice(uow, { poId, invoiceNumber: `INV-${RUN}-2`, invoiceDate: today(), lines: [{ poLineId: lineId, quantityMilli: "3000", unitPriceMinor: "4300" }] }, randomUUID));
-  assert.equal(held.matchState, "held");
-  assert.deepEqual(held.matchNotes.map((n) => n.code).sort(), ["over_received", "price"]);
-  await assert.rejects(asVendor(vendorA, (uow) => proc.submitVendorInvoice(uow, { poId, invoiceNumber: `INV-${RUN}-1`, invoiceDate: today(), lines: [{ poLineId: lineId, quantityMilli: "1000", unitPriceMinor: "4250" }] }, randomUUID)),
+test("concurrent invoices serialize matching; excess is held, and held invoices do not use up receipts", { skip }, async () => {
+  const simultaneous = await Promise.all(["1", "2"].map((suffix) =>
+    asVendor(vendorA, (uow) => proc.submitVendorInvoice(uow, { poId, invoiceNumber: `INV-${RUN}-${suffix}`, invoiceDate: today(), lines: [{ poLineId: lineId, quantityMilli: "6000", unitPriceMinor: "4250" }] }, randomUUID))));
+  const matched = simultaneous.find((invoice) => invoice.matchState === "matched");
+  const held = simultaneous.find((invoice) => invoice.matchState === "held");
+  assert.ok(matched);
+  assert.ok(held);
+  assert.equal(matched.totalMinor, "25500");
+  assert.deepEqual(held.matchNotes.map((n) => n.code), ["over_received"]);
+  await assert.rejects(asVendor(vendorA, (uow) => proc.submitVendorInvoice(uow, { poId, invoiceNumber: `INV-${RUN}-${matched === simultaneous[0] ? "1" : "2"}`, invoiceDate: today(), lines: [{ poLineId: lineId, quantityMilli: "1000", unitPriceMinor: "4250" }] }, randomUUID)),
     (e) => code(e) === "23505", "an invoice number is the vendor's once");
-  // The held invoice does not use up the receipt: a corrected invoice for the 2 left to bill matches.
-  const fixed = await asVendor(vendorA, (uow) => proc.submitVendorInvoice(uow, { poId, invoiceNumber: `INV-${RUN}-3`, invoiceDate: today(), lines: [{ poLineId: lineId, quantityMilli: "2000", unitPriceMinor: "4250" }] }, randomUUID));
+  const fixed = await asVendor(vendorA, (uow) => proc.submitVendorInvoice(uow, { poId, invoiceNumber: `INV-${RUN}-3`, invoiceDate: today(), lines: [{ poLineId: lineId, quantityMilli: "4000", unitPriceMinor: "4250" }] }, randomUUID));
   assert.equal(fixed.matchState, "matched");
   assert.equal((await s2.gateway.purchaseOrder({ poId })).lines[0]!.invoicedMilli, "10000", "matched invoices only");
   const office = await s2.gateway.listVendorInvoices({ poId });

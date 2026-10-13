@@ -438,7 +438,10 @@ export const listVendorInvoices = async (uow: UnitOfWork, input: ListVendorInvoi
 };
 
 export const submitVendorInvoice = async (uow: UnitOfWork, input: SubmitVendorInvoiceInput, newId: () => string): Promise<SubmitVendorInvoiceOutput> => {
-  const po = await loadPo(uow, requireUuid(input.poId, "poId"));
+  const poId = requireUuid(input.poId, "poId");
+  // Serialize invoice matching for this order before reading matched quantities.
+  await uow.tx.query("SELECT id FROM purchase_orders WHERE id = $1 FOR UPDATE", [poId]);
+  const po = await loadPo(uow, poId);
   const invoiceNumber = requireText(input.invoiceNumber, "invoiceNumber", 60);
   const invoiceDate = requireDate(input.invoiceDate, "invoiceDate");
   const documentKey = input.documentKey === undefined ? null : requireText(input.documentKey, "documentKey");
