@@ -10,7 +10,9 @@ Pages after the `full` and `migrate` CI jobs pass on `main`. GitHub's
 Create or retain a Cloudflare Pages project for the unified site, bind
 `acservice.systems` and `www.acservice.systems` to it, and set its production
 branch to `main`. Disable Cloudflare Pages Git integration so GitHub Actions is
-the only publisher.
+the only publisher. Remove both custom domains from the clickable demo Worker
+before binding them to Pages; `tools/demo/wrangler.jsonc` intentionally no
+longer assigns the production domains to that Worker.
 
 Create a GitHub Actions environment named `production` and configure:
 
