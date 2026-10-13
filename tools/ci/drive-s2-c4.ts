@@ -102,6 +102,18 @@ const refusalText = `(document.querySelector(".ac-refusal")?.innerText ?? "")`;
 /** A GRID ROW, not the page. "9500" is also in the rate field's own helper copy, and a page-text probe passes on the instructions. */
 const gridRow = (needle: string) => `[...document.querySelectorAll("tbody tr")].some(r => r.innerText.includes(${JSON.stringify(needle)}))`;
 
+const confirmAction = async (cdp: Cdp, label: string): Promise<void> => {
+  const buttons = `document.querySelectorAll(".s2-confirm button")`;
+  const matches = `[...${buttons}].some(b => b.textContent.trim() === ${JSON.stringify(label)})`;
+  await cdp.waitFor(matches, `the "${label}" confirmation`);
+  await cdp.eval(`(() => {
+    const button = [...${buttons}].find(b => b.textContent.trim() === ${JSON.stringify(label)});
+    if (!button) throw new Error("no confirmation button: ${label}");
+    button.click();
+    return true;
+  })()`);
+};
+
 async function main(): Promise<void> {
   // A skip is a pass that looked like work. On a laptop with no database that
   // is the right answer; in CI it is how a check stops checking and nobody
@@ -221,6 +233,7 @@ async function main(): Promise<void> {
     // ── 6. activation without a signed MSA is refused BY NAME
     await cdp.waitFor(`document.getElementById("step-active")`, "the activate step");
     await cdp.eval(`(() => { document.getElementById("step-active").click(); return true; })()`);
+    await confirmAction(cdp, "Activate firm");
     await cdp.waitFor(`${refusalText}.length > 0`, "a refusal card for the unsigned MSA");
     const unsigned = await cdp.eval<string>(refusalText);
     must(/msa_unsigned/i.test(unsigned), `expected msa_unsigned, got: ${unsigned}`);
@@ -236,6 +249,7 @@ async function main(): Promise<void> {
     await cdp.waitFor(`${text}.includes("signed 2026-09-01")`, "the recorded signature");
     await cdp.waitFor(`document.getElementById("step-active")`, "the activate step after signing");
     await cdp.eval(`(() => { document.getElementById("step-active").click(); return true; })()`);
+    await confirmAction(cdp, "Activate firm");
     await cdp.waitFor(`document.querySelector(".s2-firm .s2-state")?.innerText.trim() === "active"`, "the firm to reach active");
     check(7, "MSA signed → activated: onboarding → active, and the ladder holds");
 
@@ -313,6 +327,7 @@ async function main(): Promise<void> {
     })()`);
     must(verifyId !== null, "a freshly recorded document should offer exactly one Verify control");
     await cdp.eval(`(() => { document.getElementById(${JSON.stringify(verifyId)}).click(); return true; })()`);
+    await confirmAction(cdp, "Verify document");
     await cdp.waitFor(`!document.getElementById(${JSON.stringify(verifyId)})`, "the Verify control to go away once used");
     await cdp.waitFor(`${text}.toLowerCase().includes("a correction is a new document")`, "the immutability sentence on the verified row");
     const pillsAfter = await cdp.eval<string[]>(`[...document.querySelectorAll(".ac-pill__word")].map(e => e.innerText.trim().toLowerCase())`);
