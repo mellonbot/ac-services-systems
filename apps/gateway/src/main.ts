@@ -23,7 +23,7 @@ import { listEquipment, registerEquipment, listContacts, setContact, listInvoice
 import { siteImagery, imageryConfigFromEnv } from "./handlers/imagery.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
-import { SURFACES, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
+import { SURFACES, admits, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
 import { OPERATIONS, OPERATION_IDS, routeKey, surfacesFor, type OperationId, type OperationIO } from "../../../packages/contracts/src/operations.ts";
 import type { Claims, Namespace, Principal } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
@@ -226,6 +226,11 @@ const login = async (body: Partial<OperationIO["auth.login"]["input"]>, res: Ser
     ))[0];
     if (!u || !u.active || !u.password_hash || !verifyPassword(password, u.password_hash)) throw new AuthError("invalid credentials", "bad_claims");
     if (SURFACES[surface].namespace !== u.namespace) throw new HttpError(403, `${surface} serves the ${SURFACES[surface].namespace} namespace`);
+    // The role check the unit of work makes on every request, made at the door:
+    // a login no request on this surface would admit is not given a session.
+    if (!admits(surface, { namespace: u.namespace, roles: u.roles })) {
+      throw new HttpError(403, `${surface} admits [${SURFACES[surface].roles?.join(", ")}]; this login holds [${u.roles.join(", ") || "—"}]`);
+    }
     const claims: Omit<Claims, "iat" | "exp" | "sid"> = {
       sub: u.id, ns: u.namespace, org: u.org_id, region: u.region_id, scope_tier: u.scope_tier, scope_id: u.scope_id, roles: u.roles,
       ...(u.firm_id ? { firm: u.firm_id } : {}),
