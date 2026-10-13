@@ -1,6 +1,6 @@
-import { html, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, signal, StatusPill, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { JobWire } from "../../../../packages/contracts/src/index.ts";
-import { keyOf } from "../state.ts";
+import { keyOf, type Store } from "../state.ts";
 import { whenReady, submitAction, linkTo, type Screen } from "./common.ts";
 
 /**
@@ -29,6 +29,16 @@ export const isReleasable = (job: JobWire): boolean => job.state === "assigned" 
 export const isDispatchable = (job: JobWire): boolean => job.currentCrewId === null && (job.state === "created" || job.state === "reassigned");
 
 const CLOSED = ["complete", "invoiced", "cancelled", "aborted"];
+type BoardFilter = "all" | "unassigned" | "assigned";
+const boardFilters = new WeakMap<Store, Signal<BoardFilter>>();
+const filterFor = (store: Store): Signal<BoardFilter> => {
+  let filter = boardFilters.get(store);
+  if (!filter) {
+    filter = signal<BoardFilter>("all");
+    boardFilters.set(store, filter);
+  }
+  return filter;
+};
 /** The strip above the board: what a dispatcher reads before the rows. Counts of the rows the gateway returned — no filter of its own. */
 export const boardStats = (jobs: readonly JobWire[], now: number) => {
   const open = jobs.filter((j) => !CLOSED.includes(j.state));
@@ -44,52 +54,125 @@ export const boardStats = (jobs: readonly JobWire[], now: number) => {
   </div>`;
 };
 
+const shopModel = (): VNode => html`<svg class="s3-shop-model" viewBox="0 0 360 250" role="img" aria-labelledby="shop-model-title">
+  <title id="shop-model-title">Illustrative isometric AC Services dispatch shop, not a geographic location</title>
+  <ellipse cx="181" cy="222" rx="143" ry="15" fill="color-mix(in srgb,var(--color-text) 9%,transparent)" />
+  <polygon points="42,103 177,36 316,103 181,173" fill="var(--color-surface-sunken)" stroke="var(--color-border-hard)" />
+  <polygon points="42,103 181,173 181,225 42,155" fill="var(--color-surface)" stroke="var(--color-border-hard)" />
+  <polygon points="181,173 316,103 316,155 181,225" fill="var(--color-page)" stroke="var(--color-border-hard)" />
+  <polygon points="42,103 177,36 316,103 181,173" fill="var(--color-surface)" stroke="var(--color-text)" stroke-width="1.5" />
+  <path d="M49 101 177 39 309 102" fill="none" stroke="var(--color-action)" stroke-width="3" />
+  <polygon points="78,104 177,55 280,104 181,154" fill="var(--color-surface-sunken)" stroke="var(--color-border-hard)" />
+  <polygon points="78,104 181,154 181,169 78,119" fill="var(--color-page)" stroke="var(--color-border-hard)" />
+  <polygon points="181,154 280,104 280,119 181,169" fill="var(--color-surface)" stroke="var(--color-border-hard)" />
+  <polygon points="112,122 151,142 151,187 112,167" fill="var(--color-surface-sunken)" stroke="var(--color-text)" />
+  <polygon points="151,142 173,131 173,176 151,187" fill="var(--color-border)" stroke="var(--color-text)" />
+  <path d="M116 131 148 147M116 137 148 153M116 143 148 159M116 149 148 165" stroke="var(--color-border-hard)" stroke-width="2" />
+  <polygon points="207,127 252,104 252,150 207,173" fill="var(--color-surface-sunken)" stroke="var(--color-text)" />
+  <path d="M214 139 245 123M214 146 245 130M214 153 245 137" stroke="var(--color-border-hard)" stroke-width="2" />
+  <polygon points="235,62 259,74 259,95 235,83" fill="var(--color-page)" stroke="var(--color-border-hard)" />
+  <path d="M241 62v14m7-11v14m7-11v14" stroke="var(--color-text-muted)" stroke-width="2" />
+  <text x="195" y="202" class="s3-shop-model__sign" text-anchor="middle">AC SERVICES</text>
+</svg>`;
+
+const truckModel = (id: string): VNode => html`<svg class="s3-truck-model" viewBox="0 0 112 58" role="img" aria-labelledby=${`truck-title-${id}`}>
+  <title id=${`truck-title-${id}`}>AC Services truck model; technician location unavailable</title>
+  <ellipse cx="56" cy="49" rx="48" ry="5" fill="color-mix(in srgb,var(--color-text) 8%,transparent)" />
+  <polygon points="9,28 57,13 93,22 44,39" fill="var(--color-surface-sunken)" stroke="var(--color-text)" stroke-width="1.4" />
+  <polygon points="9,28 44,39 44,47 9,36" fill="var(--color-page)" stroke="var(--color-text)" stroke-width="1.4" />
+  <polygon points="44,39 93,22 93,31 44,47" fill="var(--color-surface)" stroke="var(--color-text)" stroke-width="1.4" />
+  <polygon points="61,20 78,15 90,18 73,24" fill="var(--color-surface)" stroke="var(--color-border-hard)" />
+  <path d="M14 31 39 39M49 39 88 26" stroke="var(--color-action)" stroke-width="2" />
+  <circle cx="27" cy="40" r="6" fill="var(--color-text)" /><circle cx="27" cy="40" r="2.5" fill="var(--color-surface)" />
+  <circle cx="76" cy="34" r="6" fill="var(--color-text)" /><circle cx="76" cy="34" r="2.5" fill="var(--color-surface)" />
+  <text x="29" y="34" class="s3-truck-model__mark" text-anchor="middle">AC</text>
+</svg>`;
+
+const jobRow = (ctx: Parameters<Screen>[0], job: JobWire, now: number): VNode => html`<li class="s3-map-job" data-state=${job.state}>
+  <div class="s3-map-job__main">
+    <span class="s3-map-job__site">${job.siteName ?? "Site name unavailable"}</span>
+    <span class="s3-map-job__service">${job.serviceCode.replace(/_/g, " ")} · ${job.priority}</span>
+  </div>
+  <div class="s3-map-job__assignment">
+    ${job.currentCrewId && job.currentCrewLabel
+      ? html`<span class="s3-map-job__crew">${truckModel(job.id)}<span>${job.currentCrewLabel}</span></span>`
+      : html`<span class="s3-map-job__unassigned">Unassigned</span>`}
+    <span class="s3-map-job__location">Technician location unavailable</span>
+  </div>
+  <div class="s3-map-job__footer">
+    ${StatusPill({ density: ctx.density, status: slaStatus(job, now), label: job.slaSatisfiedAt ? "Satisfied" : job.slaDueAt ? new Date(job.slaDueAt).toLocaleString() : "No timer" })}
+    <span class="s3-map-job__state">${job.state}</span>
+    <span class="s3-row-actions">
+      ${isDispatchable(job) ? linkTo(ctx, "dispatch", { jobId: job.id }, "Dispatch") : null}
+      ${isReleasable(job) ? submitAction(ctx, "Release", () => void releaseJob(ctx, job), `release-${job.id}`, "quiet") : null}
+    </span>
+  </div>
+</li>`;
+
+const releaseJob = async (ctx: Parameters<Screen>[0], job: JobWire): Promise<void> => {
+  if (!job.currentAssignmentId) return;
+  try {
+    await ctx.shell.gateway.releaseAssignment({ assignmentId: job.currentAssignmentId, orgId: job.orgId, regionId: job.regionId, reason: "released from the board" });
+    ctx.store.notice.value = [`${job.serviceCode} at its site was released for re-dispatch.`];
+    ctx.store.invalidate("jobs.list");
+  } catch {
+    ctx.store.notice.value = ["The release did not go through. The board still shows the crew as assigned — try again."];
+  }
+};
+
 export const board: Screen = (ctx) => {
   const jobsKey = keyOf("jobs.list", {});
   const jobs = ctx.store.read(jobsKey, () => ctx.shell.gateway.listJobs({}));
+  const filter = filterFor(ctx.store);
   const now = Date.now();
-
-  const release = async (job: JobWire) => {
-    if (!job.currentAssignmentId) return;
-    try {
-      await ctx.shell.gateway.releaseAssignment({ assignmentId: job.currentAssignmentId, orgId: job.orgId, regionId: job.regionId, reason: "released from the board" });
-      ctx.store.notice.value = [`${job.serviceCode} at its site was released for re-dispatch.`];
-      ctx.store.invalidate("jobs.list");
-    } catch {
-      ctx.store.notice.value = ["The release did not go through. The board still shows the crew as assigned — try again."];
-    }
-  };
 
   return html`<section class="s3-board">
     <header class="ac-page-head">
-      <div><h1 class="ac-page-head__title">Dispatch board</h1>
-        <p class="ac-page-head__lede">Every job in your region with its response clock. Dispatch runs through the compliance gate; a crew that does not clear the whole service window is refused in plain words.</p></div>
+      <div><h1 class="ac-page-head__title">Dispatch</h1>
+        <p class="ac-page-head__lede">Your region at a glance. Assignments are live; site coordinates and technician GPS are not available in this view.</p></div>
     </header>
     ${whenReady(ctx, jobs.value, (out) => boardStats(out.jobs, now))}
-    ${whenReady(ctx, jobs.value, (out) => DataGrid<JobWire>({
-      density: ctx.density,
-      caption: "Jobs visible to this region",
-      emptyText: "No jobs on the board.",
-      rows: out.jobs,
-      rowKey: (j) => j.id,
-      columns: [
-        { key: "site", header: "Site", cell: (j) => j.siteName ?? html`<span class="s3-muted">—</span>` },
-        { key: "serviceCode", header: "Service" },
-        { key: "priority", header: "Priority" },
-        { key: "state", header: "State" },
-        {
-          key: "sla", header: "SLA",
-          cell: (j) => StatusPill({ density: ctx.density, status: slaStatus(j, now), label: j.slaSatisfiedAt ? "Satisfied" : j.slaDueAt ? new Date(j.slaDueAt).toLocaleString() : "No timer" }) ?? html``,
-        },
-        { key: "crew", header: "Crew", cell: (j) => j.currentCrewLabel ?? "Unassigned" },
-        {
-          key: "actions", header: "Actions",
-          cell: (j) => html`<span class="s3-row-actions">
-            ${isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch") : null}
-            ${isReleasable(j) ? submitAction(ctx, "Release", () => void release(j), `release-${j.id}`, "quiet") : null}
-          </span>`,
-        },
-      ],
-    }) ?? html``)}
+    ${whenReady(ctx, jobs.value, (out) => {
+      const visibleJobs = out.jobs.filter((job) => !CLOSED.includes(job.state) &&
+        (filter.value === "all" || (filter.value === "assigned" ? job.currentCrewId !== null : job.currentCrewId === null)));
+      return html`<div class="s3-map-layout">
+        <section class="s3-map-scene" aria-label="Illustrative dispatch area">
+          <div class="s3-map-scene__top">
+            <div><h2 class="s3-h2">Dispatch area</h2><p>Operational schematic · not geographic</p></div>
+            <span class="s3-map-scene__badge">Locations unavailable</span>
+          </div>
+          <div class="s3-map-scene__art">
+            <svg class="s3-map-lines" viewBox="0 0 960 560" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
+              <path d="M-60 120 275 290 1020-70M-45 490 410 250 1020 560M260-40 520 600M710-60 405 600M-60 310 1010 310" />
+              <path d="M-40 122 275 282 1015-74M-40 490 410 242 1010 555M260-40 512 600M710-60 397 600M-60 299 1010 299" />
+              <path d="M80 0v560M0 420h960M850 0v560" />
+            </svg>
+            <div class="s3-map-scene__blocks" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <figure class="s3-shop">
+              ${shopModel()}
+              <figcaption><strong>AC Services</strong><span>Illustrative shop model · actual address not configured</span></figcaption>
+            </figure>
+            <div class="s3-map-notice" role="note">
+              <strong>No location pins yet</strong>
+              <span>Site coordinates and technician GPS are not in the dispatch feed. No routes or vehicle positions are being inferred.</span>
+            </div>
+            <div class="s3-map-scale" aria-hidden="true"><span></span>Not to scale</div>
+          </div>
+        </section>
+        <section class="s3-map-jobs" aria-labelledby="s3-jobs-title">
+          <header class="s3-map-jobs__head">
+            <div><h2 id="s3-jobs-title" class="s3-h2">Open work</h2><span>${visibleJobs.length} ${visibleJobs.length === 1 ? "job" : "jobs"} in view</span></div>
+            <div class="s3-map-filters" role="group" aria-label="Filter jobs">
+              ${(["all", "unassigned", "assigned"] as const).map((value) => html`<button type="button" data-current=${filter.value === value ? "true" : "false"} aria-pressed=${filter.value === value} onClick=${() => { filter.value = value; }}>${value === "all" ? "All" : value === "unassigned" ? "Unassigned" : "Assigned"}</button>`)}
+            </div>
+          </header>
+          ${visibleJobs.length
+            ? html`<ul class="s3-map-job-list">${visibleJobs.map((job) => jobRow(ctx, job, now))}</ul>`
+            : html`<div class="s3-map-empty"><strong>${filter.value === "unassigned" ? "No unassigned jobs" : filter.value === "assigned" ? "No active assignments" : "No open work"}</strong><span>New jobs will appear here when they enter this region's board.</span></div>`}
+        </section>
+      </div>`;
+    })}
   </section>`;
 };

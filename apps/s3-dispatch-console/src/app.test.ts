@@ -68,6 +68,13 @@ const fakeGateway = (overrides: Partial<Record<string, Reply | ((init: Parameter
 };
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
+type TestNode = { type?: unknown; props?: Record<string, unknown> };
+const nodesIn = (node: unknown): TestNode[] => {
+  if (Array.isArray(node)) return node.flatMap(nodesIn);
+  if (!node || typeof node !== "object") return [];
+  const current = node as TestNode;
+  return [current, ...nodesIn(current.props?.children)];
+};
 
 const ready = async (overrides?: Partial<Record<string, Reply | ((init: Parameters<FetchLike>[1]) => Reply)>>) => {
   const g = fakeGateway(overrides);
@@ -105,14 +112,48 @@ test("the board shows every job with its SLA glyph, its crew, and offers Dispatc
   const { app } = await ready();
   app.router.navigate("board", {});
   render(app.view()); await settle(); await settle();
-  const out = render(app.view());
-  assert.match(out, /hvac_repair/);
+  const tree = app.view();
+  const out = render(tree);
+  assert.match(out, /hvac repair/);
   assert.match(out, /Unassigned/);
   assert.match(out, /Crew A1/);
+  assert.match(out, /s3-truck-model/);
+  assert.match(out, /Illustrative isometric AC Services dispatch shop, not a geographic location/);
+  assert.match(out, /Operational schematic · not geographic/);
+  assert.match(out, /Technician location unavailable/);
+  assert.match(out, /No routes or vehicle positions are being inferred/);
+  assert.match(out, /aria-label="Filter jobs"/);
+  assert.doesNotMatch(out, /data-latitude|data-longitude|latitude|longitude/i);
   assert.match(out, new RegExp(`href="/dispatch/${JOB_CREATED}"`));
   assert.match(out, new RegExp(`id="release-${JOB_ASSIGNED}"`));
   assert.doesNotMatch(out, new RegExp(`id="release-${JOB_CREATED}"`), "an unassigned job offers no release");
   assert.doesNotMatch(out, new RegExp(`href="/dispatch/${JOB_ASSIGNED}"`), "an already-assigned job offers no dispatch link");
+});
+
+test("board filters persist across renders and show only the selected assignment state", async () => {
+  const { app } = await ready();
+  app.router.navigate("board", {});
+  render(app.view()); await settle(); await settle();
+  const findFilter = (label: string) => nodesIn(app.view()).find((node) =>
+    node.type === "button" && node.props?.children === label);
+
+  const unassigned = findFilter("Unassigned");
+  assert.equal(typeof unassigned?.props?.onClick, "function");
+  (unassigned!.props!.onClick as () => void)();
+  const unassignedView = render(app.view());
+  assert.match(unassignedView, /Austin — Roof/);
+  assert.match(unassignedView, /data-state="created"/);
+  assert.doesNotMatch(unassignedView, /data-state="assigned"/);
+  assert.doesNotMatch(unassignedView, /Crew A1/);
+  assert.match(unassignedView, /data-current="true"[^>]*aria-pressed="true"/);
+
+  const assigned = findFilter("Assigned");
+  assert.equal(typeof assigned?.props?.onClick, "function");
+  (assigned!.props!.onClick as () => void)();
+  const assignedView = render(app.view());
+  assert.match(assignedView, /Crew A1/);
+  assert.match(assignedView, /data-state="assigned"/);
+  assert.doesNotMatch(assignedView, /data-state="created"/);
 });
 
 test("dispatch: the dry run renders as ComplianceBadge with the gate's own reason, and Assign is offered only where it cleared", async () => {
