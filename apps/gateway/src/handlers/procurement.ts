@@ -144,9 +144,15 @@ export const listCatalog = async (uow: UnitOfWork, input: ListCatalogInput): Pro
     "SELECT id, vendor_id, vendor_sku, description, uom, active, org_id, region_id FROM vendor_catalog_items WHERE ($1::uuid IS NULL OR vendor_id = $1) ORDER BY vendor_sku", [vendorId]);
   const prices = await uow.tx.query<PriceRow>(
     `SELECT ${PRICE_COLS} FROM vendor_catalog_prices p WHERE ($1::uuid IS NULL OR p.vendor_id = $1) AND p.state IN ('accepted','proposed') ORDER BY p.proposed_at`, [vendorId]);
+  const pricesByItem = new Map<string, PriceRow[]>();
+  for (const price of prices) {
+    const itemPrices = pricesByItem.get(price.item_id);
+    if (itemPrices) itemPrices.push(price);
+    else pricesByItem.set(price.item_id, [price]);
+  }
   return {
     items: items.map((i): CatalogItemWire => {
-      const mine = prices.filter((p) => p.item_id === i.id);
+      const mine = pricesByItem.get(i.id) ?? [];
       const current = mine.find((p) => p.current);
       return {
         id: i.id, vendorId: i.vendor_id, vendorSku: i.vendor_sku, description: i.description, uom: i.uom, active: i.active,
@@ -284,11 +290,17 @@ export const purchaseOrder = async (uow: UnitOfWork, input: PurchaseOrderDetailI
     "SELECT id, to_char(shipped_on, 'YYYY-MM-DD') AS shipped_on, carrier, tracking FROM shipments WHERE po_id = $1 ORDER BY shipped_on, created_at", [po.id]);
   const shipLines = await uow.tx.query<{ shipment_id: string; po_line_id: string; quantity_milli: string }>(
     "SELECT sl.shipment_id, sl.po_line_id, sl.quantity_milli::text AS quantity_milli FROM shipment_lines sl JOIN shipments s ON s.id = sl.shipment_id WHERE s.po_id = $1", [po.id]);
+  const shipLinesByShipment = new Map<string, typeof shipLines[number][]>();
+  for (const line of shipLines) {
+    const group = shipLinesByShipment.get(line.shipment_id);
+    if (group) group.push(line);
+    else shipLinesByShipment.set(line.shipment_id, [line]);
+  }
   const receipts = await uow.tx.query<{ id: string; po_line_id: string; quantity_milli: string; received_at: string }>(
     `SELECT id, po_line_id, quantity_milli::text AS quantity_milli, ${ts("received_at")} AS received_at FROM po_receipts WHERE po_id = $1 ORDER BY received_at`, [po.id]);
   return {
     order: poWire(po), receivingPoint: rp ? rpWire(rp) : null, lines: lines.map(lineWire),
-    shipments: shipments.map((s) => ({ id: s.id, shippedOn: s.shipped_on, carrier: s.carrier, tracking: s.tracking, lines: shipLines.filter((l) => l.shipment_id === s.id).map((l) => ({ poLineId: l.po_line_id, quantityMilli: l.quantity_milli })) })),
+    shipments: shipments.map((s) => ({ id: s.id, shippedOn: s.shipped_on, carrier: s.carrier, tracking: s.tracking, lines: (shipLinesByShipment.get(s.id) ?? []).map((l) => ({ poLineId: l.po_line_id, quantityMilli: l.quantity_milli })) })),
     receipts: receipts.map((r) => ({ id: r.id, poLineId: r.po_line_id, quantityMilli: r.quantity_milli, receivedAt: r.received_at })),
     invoices: (await listVendorInvoices(uow, { poId: po.id })).invoices,
     returns: (await listReturns(uow, { poId: po.id })).returns,
@@ -301,12 +313,21 @@ export const createPurchaseOrder = async (uow: UnitOfWork, input: CreatePurchase
   const rp = (await uow.tx.query<RpRow>("SELECT id, code, tier, region_id, address, active FROM receiving_points WHERE id = $1", [requireUuid(input.receivingPointId, "receivingPointId")]))[0];
   if (!rp || !rp.active) throw new InputRefused(`no active receiving point ${input.receivingPointId}`, "unknown_receiving_point");
   const raw = requireLines<{ itemId: unknown; quantityMilli: unknown }>(input.lines, "lines");
+  const itemIds = [...new Set(raw.flatMap((l) => typeof l.itemId === "string" && UUID.test(l.itemId) ? [l.itemId.toLowerCase()] : []))];
+  const items = await uow.tx.query<ItemRow>(
+    "SELECT id, vendor_id, vendor_sku, description, uom, active, org_id, region_id FROM vendor_catalog_items WHERE id = ANY($1::uuid[])", [itemIds]);
+  const prices = await uow.tx.query<{ id: string; item_id: string; price_minor: string; currency: string }>(
+    "SELECT id, item_id, price_minor::text AS price_minor, currency FROM vendor_catalog_prices WHERE item_id = ANY($1::uuid[]) AND state = 'accepted' AND effective @> $2::date",
+    [itemIds, now.toISOString().slice(0, 10)]);
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+  const pricesByItem = new Map(prices.map((price) => [price.item_id, price]));
   const lines: { itemId: string; qty: bigint; priceId: string; price: bigint; currency: string }[] = [];
   for (const [n, l] of raw.entries()) {
-    const item = await loadItem(uow, requireUuid(l.itemId, `lines[${n}].itemId`));
+    const itemId = requireUuid(l.itemId, `lines[${n}].itemId`);
+    const item = itemsById.get(itemId.toLowerCase());
+    if (!item) throw new InputRefused(`no catalogue item ${itemId} visible in this scope`, "unknown_item");
     if (item.vendor_id !== vendor.id) throw new InputRefused(`item ${item.vendor_sku} is another vendor's — an order goes to one vendor`, "item_not_vendors");
-    const price = (await uow.tx.query<{ id: string; price_minor: string; currency: string }>(
-      "SELECT id, price_minor::text AS price_minor, currency FROM vendor_catalog_prices WHERE item_id = $1 AND state = 'accepted' AND effective @> $2::date", [item.id, now.toISOString().slice(0, 10)]))[0];
+    const price = pricesByItem.get(item.id);
     if (!price) throw new InputRefused(`${item.vendor_sku} has no accepted price today — accept the vendor's proposal first`, "no_accepted_price");
     lines.push({ itemId: item.id, qty: requireDigits(l.quantityMilli, `lines[${n}].quantityMilli`, true), priceId: price.id, price: BigInt(price.price_minor), currency: price.currency });
   }
@@ -321,11 +342,12 @@ export const createPurchaseOrder = async (uow: UnitOfWork, input: CreatePurchase
       await tx.query(
         `INSERT INTO purchase_orders (id, org_id, region_id, vendor_id, number, receiving_point_id, currency, total_minor, raised_by)
          VALUES ($1, $2, $3, $2, $4, $5, $6, $7::bigint, $8)`, [id, vendor.id, rp.region_id, number, rp.id, [...currencies][0], total.toString(), actorId]);
-      for (const [i, l] of lines.entries()) {
-        await tx.query(
-          `INSERT INTO purchase_order_lines (org_id, region_id, po_id, vendor_id, line_no, item_id, price_id, quantity_milli, unit_price_minor)
-           VALUES ($1, $2, $3, $1, $4, $5, $6, $7::bigint, $8::bigint)`, [vendor.id, rp.region_id, id, i + 1, l.itemId, l.priceId, l.qty.toString(), l.price.toString()]);
-      }
+      await tx.query(
+        `INSERT INTO purchase_order_lines (org_id, region_id, po_id, vendor_id, line_no, item_id, price_id, quantity_milli, unit_price_minor)
+         SELECT $1, $2, $3, $1, l.ordinality::integer, l.item_id, l.price_id, l.quantity_milli, l.unit_price_minor
+           FROM unnest($4::uuid[], $5::uuid[], $6::bigint[], $7::bigint[])
+                WITH ORDINALITY AS l(item_id, price_id, quantity_milli, unit_price_minor, ordinality)`,
+        [vendor.id, rp.region_id, id, lines.map((l) => l.itemId), lines.map((l) => l.priceId), lines.map((l) => l.qty.toString()), lines.map((l) => l.price.toString())]);
     },
   );
   return { id, number, totalMinor: total.toString(), eventId };
@@ -387,7 +409,11 @@ export const recordShipment = async (uow: UnitOfWork, input: RecordShipmentInput
     { entity: "ship_date", entityId: id, action: "shipment.record", topic: "po.shipped", before: null, after: { poId: po.id, shippedOn, carrier, tracking, lines: lines.map((l) => ({ poLineId: l.poLineId, quantityMilli: l.qty.toString() })) }, orgId: po.org_id, regionId: po.region_id, payload: { number: po.number, shippedOn } },
     async (tx) => {
       await tx.query("INSERT INTO shipments (id, org_id, region_id, po_id, vendor_id, shipped_on, carrier, tracking) VALUES ($1, $2, $3, $4, $2, $5::date, $6, $7)", [id, po.org_id, po.region_id, po.id, shippedOn, carrier, tracking]);
-      for (const l of lines) await tx.query("INSERT INTO shipment_lines (org_id, region_id, shipment_id, po_line_id, vendor_id, quantity_milli) VALUES ($1, $2, $3, $4, $1, $5::bigint)", [po.org_id, po.region_id, id, l.poLineId, l.qty.toString()]);
+      await tx.query(
+        `INSERT INTO shipment_lines (org_id, region_id, shipment_id, po_line_id, vendor_id, quantity_milli)
+         SELECT $1, $2, $3, l.po_line_id, $1, l.quantity_milli
+           FROM unnest($4::uuid[], $5::bigint[]) AS l(po_line_id, quantity_milli)`,
+        [po.org_id, po.region_id, id, lines.map((l) => l.poLineId), lines.map((l) => l.qty.toString())]);
     },
   );
   return { id, eventId };
@@ -399,14 +425,17 @@ export const recordReceipt = async (uow: UnitOfWork, input: RecordReceiptInput, 
   const current = await loadLines(uow, po.id);
   const lines = parseQtyLines(input.lines, new Set(current.map((l) => l.id)));
   const ids = lines.map(() => newId());
-  const complete = current.every((c) => BigInt(c.received) + (lines.find((l) => l.poLineId === c.id)?.qty ?? 0n) >= BigInt(c.quantity_milli));
+  const receivedByLine = new Map(lines.map((line) => [line.poLineId, line.qty]));
+  const complete = current.every((c) => BigInt(c.received) + (receivedByLine.get(c.id) ?? 0n) >= BigInt(c.quantity_milli));
   const state: PoState = complete ? "received" : "acknowledged";
   const eventId = await uow.apply(
     { entity: "po_receipt", entityId: po.id, action: "po.receive", topic: "po.received", before: { state: po.state }, after: { state, lines: lines.map((l) => ({ poLineId: l.poLineId, quantityMilli: l.qty.toString() })) }, orgId: po.org_id, regionId: po.region_id, payload: { number: po.number, complete } },
     async (tx) => {
-      for (const [i, l] of lines.entries()) {
-        await tx.query("INSERT INTO po_receipts (id, org_id, region_id, po_id, po_line_id, vendor_id, quantity_milli, received_by) VALUES ($1, $2, $3, $4, $5, $2, $6::bigint, $7)", [ids[i], po.org_id, po.region_id, po.id, l.poLineId, l.qty.toString(), actorId]);
-      }
+      await tx.query(
+        `INSERT INTO po_receipts (id, org_id, region_id, po_id, po_line_id, vendor_id, quantity_milli, received_by)
+         SELECT l.id, $1, $2, $3, l.po_line_id, $1, l.quantity_milli, $7
+           FROM unnest($4::uuid[], $5::uuid[], $6::bigint[]) AS l(id, po_line_id, quantity_milli)`,
+        [po.org_id, po.region_id, po.id, ids, lines.map((l) => l.poLineId), lines.map((l) => l.qty.toString()), actorId]);
       if (complete) await tx.query("UPDATE purchase_orders SET state = 'received' WHERE id = $1", [po.id]);
     },
   );
@@ -428,11 +457,17 @@ export const listVendorInvoices = async (uow: UnitOfWork, input: ListVendorInvoi
   const lines = await uow.tx.query<{ invoice_id: string; po_line_id: string; quantity_milli: string; unit_price_minor: string; amount_minor: string }>(
     `SELECT l.invoice_id, l.po_line_id, l.quantity_milli::text AS quantity_milli, l.unit_price_minor::text AS unit_price_minor, l.amount_minor::text AS amount_minor
        FROM vendor_invoice_lines l JOIN vendor_invoices i ON i.id = l.invoice_id WHERE ($1::uuid IS NULL OR i.po_id = $1)`, [poId]);
+  const linesByInvoice = new Map<string, typeof lines[number][]>();
+  for (const line of lines) {
+    const group = linesByInvoice.get(line.invoice_id);
+    if (group) group.push(line);
+    else linesByInvoice.set(line.invoice_id, [line]);
+  }
   return {
     invoices: rows.map((r): VendorInvoiceWire => ({
       id: r.id, poId: r.po_id, poNumber: r.po_number, vendorId: r.vendor_id, invoiceNumber: r.invoice_number, invoiceDate: r.invoice_date, totalMinor: r.total_minor, currency: r.currency,
       matchState: r.match_state, matchNotes: r.match_notes, createdAt: r.created_at,
-      lines: lines.filter((l) => l.invoice_id === r.id).map((l) => ({ poLineId: l.po_line_id, quantityMilli: l.quantity_milli, unitPriceMinor: l.unit_price_minor, amountMinor: l.amount_minor })),
+      lines: (linesByInvoice.get(r.id) ?? []).map((l) => ({ poLineId: l.po_line_id, quantityMilli: l.quantity_milli, unitPriceMinor: l.unit_price_minor, amountMinor: l.amount_minor })),
     })),
   };
 };
@@ -472,12 +507,12 @@ export const submitVendorInvoice = async (uow: UnitOfWork, input: SubmitVendorIn
         `INSERT INTO vendor_invoices (id, org_id, region_id, po_id, vendor_id, invoice_number, invoice_date, total_minor, currency, match_state, match_notes, document_key)
          VALUES ($1, $2, $3, $4, $2, $5, $6::date, $7::bigint, $8, $9, $10::jsonb, $11)`,
         [id, po.org_id, po.region_id, po.id, invoiceNumber, invoiceDate, total.toString(), po.currency, verdict.state, JSON.stringify(verdict.notes), documentKey]);
-      for (const l of lines) {
-        await tx.query(
-          `INSERT INTO vendor_invoice_lines (org_id, region_id, invoice_id, po_line_id, vendor_id, quantity_milli, unit_price_minor, amount_minor)
-           VALUES ($1, $2, $3, $4, $1, $5::bigint, $6::bigint, $7::bigint)`,
-          [po.org_id, po.region_id, id, l.poLineId, l.quantityMilli.toString(), l.unitPriceMinor.toString(), l.amount.toString()]);
-      }
+      await tx.query(
+        `INSERT INTO vendor_invoice_lines (org_id, region_id, invoice_id, po_line_id, vendor_id, quantity_milli, unit_price_minor, amount_minor)
+         SELECT $1, $2, $3, l.po_line_id, $1, l.quantity_milli, l.unit_price_minor, l.amount_minor
+           FROM unnest($4::uuid[], $5::bigint[], $6::bigint[], $7::bigint[])
+                AS l(po_line_id, quantity_milli, unit_price_minor, amount_minor)`,
+        [po.org_id, po.region_id, id, lines.map((l) => l.poLineId), lines.map((l) => l.quantityMilli.toString()), lines.map((l) => l.unitPriceMinor.toString()), lines.map((l) => l.amount.toString())]);
     },
   );
   return { id, matchState: verdict.state, matchNotes: verdict.notes, totalMinor: total.toString(), eventId };
