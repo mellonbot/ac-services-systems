@@ -81,21 +81,21 @@ export const documents: Screen = (ctx, params) => {
     ${outcomeView(ctx, o)}
 
     <h2 class="s8-h2">File a document</h2>
-    <form class="s8-form" id="document-form" onSubmit=${submit}>
-      <label class="s8-field"><span>Kind</span>
-        <select class="s8-input" name="kind" required id="document-kind">
+    <form class="ac-form" id="document-form" onSubmit=${submit}>
+      <label class="ac-field"><span>Kind</span>
+        <select class="ac-input" name="kind" required id="document-kind">
           ${KINDS.map((k) => html`<option value=${k}>${kindWord(k)}</option>`)}
         </select>
       </label>
-      <label class="s8-field"><span>Identifier</span>
-        <input class="s8-input" name="identifier" required maxlength="120" id="document-identifier" placeholder="Policy, licence or certificate number" />
+      <label class="ac-field"><span>Identifier</span>
+        <input class="ac-input" name="identifier" required maxlength="120" id="document-identifier" placeholder="Policy, licence or certificate number" />
       </label>
       <div class="s8-field--pair">
-        <label class="s8-field"><span>Valid from</span><input class="s8-input" name="validFrom" type="date" required id="document-from" /></label>
-        <label class="s8-field"><span>Valid to</span><input class="s8-input" name="validTo" type="date" required id="document-to" /></label>
+        <label class="ac-field"><span>Valid from</span><input class="ac-input" name="validFrom" type="date" required id="document-from" /></label>
+        <label class="ac-field"><span>Valid to</span><input class="ac-input" name="validTo" type="date" required id="document-to" /></label>
       </div>
-      <label class="s8-field"><span>Stored file (optional)</span>
-        <input class="s8-input" name="documentKey" maxlength="200" id="document-key" placeholder="The key from your upload, when the scan is ready" />
+      <label class="ac-field"><span>Stored file (optional)</span>
+        <input class="ac-input" name="documentKey" maxlength="200" id="document-key" placeholder="The key from your upload, when the scan is ready" />
       </label>
       <p class="s8-muted">Filed documents are verified by Rankine before they count. Until then the crew reads "Awaiting Rankine".</p>
       ${submitAction(ctx, o.kind === "busy" ? "Sending…" : "File document", "document-send", o.kind === "busy")}
@@ -105,7 +105,7 @@ export const documents: Screen = (ctx, params) => {
 
 const outcomeView = (ctx: ScreenContext, o: Outcome): VNode | null => {
   switch (o.kind) {
-    case "filed": return html`<p class="s8-sent" role="status" id="document-outcome">Filed — ${o.what} is with the office for verification.</p>`;
+    case "filed": return html`<p class="ac-notice" data-tone="ok" role="status" id="document-outcome">Filed — ${o.what} is with the office for verification.</p>`;
     case "refused": return refusalView(ctx, o.refusal, [{ label: "Edit and file again", onSelect: resetDocumentForm, primary: true }]);
     default: return null;
   }

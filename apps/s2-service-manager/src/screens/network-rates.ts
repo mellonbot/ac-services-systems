@@ -95,16 +95,16 @@ export const networkRates: Screen = (ctx, params) => {
     })}
     ${whenReady(ctx, cards.value, (c) => grid(c.rateCards))}
     <h3 class="s2-h2">Set a rate from a day</h3>
-    <form class="s2-form" onSubmit=${submit} id="rate-form">
-      <label class="s2-field"><span>Service code</span><input class="s2-input" name="serviceCode" required placeholder="HVAC_REPAIR" /></label>
-      <label class="s2-field">
+    <form class="ac-form" onSubmit=${submit} id="rate-form">
+      <label class="ac-field"><span>Service code</span><input class="ac-input" name="serviceCode" required placeholder="HVAC_REPAIR" /></label>
+      <label class="ac-field">
         <span>Rate (minor units)</span>
-        <input class="s2-input" name="rateMinor" required inputmode="numeric" pattern="[0-9]*" placeholder="9500" />
+        <input class="ac-input" name="rateMinor" required inputmode="numeric" pattern="[0-9]*" placeholder="9500" />
         <small>Integer minor units — 9500 is ninety-five dollars. Never a decimal: the money path carries no floats.</small>
       </label>
-      <label class="s2-field"><span>Currency</span><input class="s2-input" name="currency" defaultValue="USD" required /></label>
-      <label class="s2-field"><span>Effective from</span><input class="s2-input" type="date" name="effectiveFrom" required /><small>The row in effect that day is closed at it. Both are audited.</small></label>
-      <label class="s2-field"><span>Effective to</span><input class="s2-input" type="date" name="effectiveTo" /><small>Leave empty for open-ended. A window that would sit on top of a later row is refused — two prices on one day is a settlement nobody can check.</small></label>
+      <label class="ac-field"><span>Currency</span><input class="ac-input" name="currency" defaultValue="USD" required /></label>
+      <label class="ac-field"><span>Effective from</span><input class="ac-input" type="date" name="effectiveFrom" required /><small>The row in effect that day is closed at it. Both are audited.</small></label>
+      <label class="ac-field"><span>Effective to</span><input class="ac-input" type="date" name="effectiveTo" /><small>Leave empty for open-ended. A window that would sit on top of a later row is refused — two prices on one day is a settlement nobody can check.</small></label>
       <div class="s2-form__actions">
         ${submitAction(ctx, outcome.value.busy ? "Setting…" : "Set rate", "set-rate")}
       </div>

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToString as render } from "./testing.ts";
-import { pageHead, statStrip } from "./layout.ts";
+import { pageHead, statStrip, notice } from "./layout.ts";
 import { UI_CSS } from "./styles.ts";
 
 test("the page head is the name, one sentence, and an optional side slot", () => {
@@ -20,4 +20,10 @@ test("a stat tile carries a tone only when given one — a plain count stays ink
 
 test("every class the layout draws has a rule in UI_CSS", () => {
   for (const cls of ["ac-page-head", "ac-page-head__title", "ac-page-head__lede", "ac-page-head__side", "ac-stats", "ac-stat", "ac-stat__n", "ac-stat__l", "ac-stat__s"]) assert.match(UI_CSS, new RegExp(`\\.${cls}\\b`), cls);
+});
+
+test("a notice is one sentence with a tone — a status line, never a toast", () => {
+  assert.equal(render(notice("ok", "Filed — with the office.", "doc-outcome")), `<p class="ac-notice" role="status" data-tone="ok" id="doc-outcome">Filed — with the office.</p>`);
+  assert.match(render(notice("at_risk", "Queued.")), /data-tone="at_risk"/);
+  for (const cls of ["ac-notice"]) assert.match(UI_CSS, new RegExp(`\\.${cls}(?![\\w-])`), cls);
 });

@@ -1,4 +1,4 @@
-import { html, refusalHeading, PrimaryAction, type VNode, type Router } from "../../../../packages/ui/src/index.ts";
+import { html, RefusalNotice, PrimaryAction, type VNode, type Router } from "../../../../packages/ui/src/index.ts";
 import type { Shell } from "../../../../packages/shell/src/index.ts";
 import type { Refusal, DensityOf, CoverageOutput } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
@@ -46,13 +46,7 @@ export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) =>
  * forward.
  */
 export const refusalView = (ctx: ScreenContext, refusal: Refusal, routes: readonly { label: string; onSelect: () => void; primary?: boolean }[] = []): VNode =>
-  html`<section class="s1-refusal" role="alert" data-kind=${refusal.kind} data-density=${ctx.density}>
-    <h2 class="s1-refusal__heading">${refusalHeading(refusal)}</h2>
-    <p class="s1-refusal__message">${refusal.message}</p>
-    ${routes.length ? html`<div class="s1-refusal__routes">
-      ${routes.map((r) => html`<button type="button" class="ac-action" data-kind=${r.primary ? "primary" : "quiet"} data-density=${ctx.density} onClick=${r.onSelect}>${r.label}</button>`)}
-    </div>` : null}
-  </section>`;
+  RefusalNotice({ density: ctx.density, refusal, routes }) ?? html``;
 
 /**
  * S1's submit button, and the one place this surface differs from every other
@@ -70,5 +64,5 @@ export const refusalView = (ctx: ScreenContext, refusal: Refusal, routes: readon
 export const submitAction = (ctx: ScreenContext, label: string, id?: string): VNode =>
   PrimaryAction({ density: ctx.density, label, type: "submit", ...(id ? { id } : {}) }) ?? html``;
 
-export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "s1-link"): VNode =>
+export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "ac-link"): VNode =>
   html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;

@@ -55,7 +55,7 @@ export const networkFirmNew: Screen = (ctx) => {
     }
   };
 
-  const oq5Field = (): VNode => html`<fieldset class="s2-field s2-oq5" id="firm-oq5">
+  const oq5Field = (): VNode => html`<fieldset class="ac-field s2-oq5" id="firm-oq5">
     <legend>Diagnostic data rights (OQ5, firm side)</legend>
     ${([
       ["reserved", "Reserved — the MSA retains our rights to the diagnostic data this firm's work produces"],
@@ -70,17 +70,17 @@ export const networkFirmNew: Screen = (ctx) => {
   return html`<section class="s2-form-screen">
     <h2 class="s2-h2">New subcontractor firm</h2>
     <details class="s2-help"><summary>Why firms are recorded together</summary><p>A firm is recorded with its own tenant root in one step — the organization we settle with and the firm we dispatch are one row's worth of truth, created together or not at all.</p></details>
-    <form class="s2-form" onSubmit=${submit} id="firm-form">
-      <label class="s2-field"><span>Legal name</span><input class="s2-input" name="legalName" required /></label>
-      ${whenReady(ctx, regions.value, (r) => html`<label class="s2-field">
+    <form class="ac-form" onSubmit=${submit} id="firm-form">
+      <label class="ac-field"><span>Legal name</span><input class="ac-input" name="legalName" required /></label>
+      ${whenReady(ctx, regions.value, (r) => html`<label class="ac-field">
         <span>Dispatched from</span>
-        <select name="regionId" required class="s2-input">${r.regions.filter((x: RegionWire) => x.active).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
+        <select name="regionId" required class="ac-input">${r.regions.filter((x: RegionWire) => x.active).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
       </label>`)}
       <details class="s2-help"><summary>How this region is used</summary><p>Our region. The firm's crews are dispatched from here and its rows live in this shard.</p></details>
-      <label class="s2-field"><span>Settlement terms (days)</span><input class="s2-input" type="number" name="settlementTermsDays" min="0" defaultValue="30" required /><small>D13 — measured from day one.</small></label>
-      <label class="s2-field"><span>MSA signed</span><input class="s2-input" type="date" name="msaSignedAt" /><small>Leave empty until it is signed; the firm cannot be activated without it.</small></label>
-      <label class="s2-field"><span>W-9</span><input class="s2-input" name="w9DocumentKey" placeholder="storage key of the W-9" /></label>
-      <label class="s2-field"><span>External reference</span><input class="s2-input" name="externalRef" /></label>
+      <label class="ac-field"><span>Settlement terms (days)</span><input class="ac-input" type="number" name="settlementTermsDays" min="0" defaultValue="30" required /><small>D13 — measured from day one.</small></label>
+      <label class="ac-field"><span>MSA signed</span><input class="ac-input" type="date" name="msaSignedAt" /><small>Leave empty until it is signed; the firm cannot be activated without it.</small></label>
+      <label class="ac-field"><span>W-9</span><input class="ac-input" name="w9DocumentKey" placeholder="storage key of the W-9" /></label>
+      <label class="ac-field"><span>External reference</span><input class="ac-input" name="externalRef" /></label>
       ${oq5Field()}
       <div class="s2-form__actions">
         ${f.oq5 === "unset" && !ctx.degraded
@@ -134,9 +134,9 @@ export const networkCrewNew: Screen = (ctx, params) => {
     }
   };
 
-  const firmField = (list: readonly FirmWire[]): VNode => html`<label class="s2-field">
+  const firmField = (list: readonly FirmWire[]): VNode => html`<label class="ac-field">
     <span>Firm</span>
-    <select name="firmId" required class="s2-input">
+    <select name="firmId" required class="ac-input">
       ${list.filter((x) => x.status !== "terminated").map((x) => html`<option value=${x.id} selected=${x.id === firmId}>${x.legalName} (${x.status})</option>`)}
     </select>
     <small>A terminated firm is not offered — a crew rostered under one is a crew nobody can dispatch.</small>
@@ -144,19 +144,19 @@ export const networkCrewNew: Screen = (ctx, params) => {
 
   return html`<section class="s2-form-screen">
     <h2 class="s2-h2">New crew</h2>
-    <form class="s2-form" onSubmit=${submit} id="crew-form">
-      <label class="s2-field"><span>Label</span><input class="s2-input" name="label" required /></label>
-      <label class="s2-field">
+    <form class="ac-form" onSubmit=${submit} id="crew-form">
+      <label class="ac-field"><span>Label</span><input class="ac-input" name="label" required /></label>
+      <label class="ac-field">
         <span>Employment</span>
-        <select name="employmentType" class="s2-input" onChange=${(e: Event) => { crewForm.value = { ...crewForm.value, employmentType: (e.currentTarget as HTMLSelectElement).value as EmploymentType }; }}>
+        <select name="employmentType" class="ac-input" onChange=${(e: Event) => { crewForm.value = { ...crewForm.value, employmentType: (e.currentTarget as HTMLSelectElement).value as EmploymentType }; }}>
           ${(["employed", "subcontracted"] as const).map((t) => html`<option value=${t} selected=${f.employmentType === t}>${t}</option>`)}
         </select>
         <small>Read by the compliance gate and by nothing else. The field experience is identical either way.</small>
       </label>
       ${f.employmentType === "subcontracted" ? whenReady(ctx, firms.value, (x) => firmField(x.firms)) : html`<p class="s2-parent">An employed crew is ours — no firm is named, and none is offered.</p>`}
-      ${whenReady(ctx, regions.value, (r) => html`<label class="s2-field">
+      ${whenReady(ctx, regions.value, (r) => html`<label class="ac-field">
         <span>Home region</span>
-        <select name="homeRegionId" required class="s2-input">${r.regions.filter((x: RegionWire) => x.active).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
+        <select name="homeRegionId" required class="ac-input">${r.regions.filter((x: RegionWire) => x.active).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
         <small>Where the crew is normally dispatched from. A crew that changes region is a new crew with a new document set.</small>
       </label>`)}
       <div class="s2-form__actions">

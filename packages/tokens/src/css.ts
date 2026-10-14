@@ -149,6 +149,9 @@ export const tokenCss = (density: Density, opts: FrameOptions = {}): string => {
   // The type scale is the DENSITY's, not a shared constant — see TYPE_SCALE.
   for (const [k, v] of Object.entries(TYPE_SCALE[density])) lines.push(`--text-${k}:${v}`);
   for (const [k, v] of Object.entries(P.track)) lines.push(`--track-${k}:${v}`);
+  // Motion: three durations and the one curve, so no sheet types a duration.
+  for (const [k, v] of Object.entries(P.motion)) lines.push(`--motion-${k}:${v}`);
+  lines.push(`--ease:${P.ease}`);
   return `:root{${lines.join(";")}}`;
 };
 

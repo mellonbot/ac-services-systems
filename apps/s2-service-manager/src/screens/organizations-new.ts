@@ -33,16 +33,16 @@ export const organizationsNew: Screen = (ctx) => {
     }
   };
 
-  const form = (list: readonly RegionWire[]): VNode => html`<form class="s2-form" onSubmit=${submit} id="org-form">
-    <label class="s2-field"><span>Customer name</span><input class="s2-input" name="name" required autocomplete="off" /></label>
-    <label class="s2-field"><span>Customer's reference (optional)</span><input class="s2-input" name="externalRef" /></label>
+  const form = (list: readonly RegionWire[]): VNode => html`<form class="ac-form" onSubmit=${submit} id="org-form">
+    <label class="ac-field"><span>Customer name</span><input class="ac-input" name="name" required autocomplete="off" /></label>
+    <label class="ac-field"><span>Customer's reference (optional)</span><input class="ac-input" name="externalRef" /></label>
     <fieldset class="s2-fieldset">
       <legend>First region node</legend>
-      <label class="s2-field">
+      <label class="ac-field">
         <span>Our service region</span>
-        <select class="s2-input" name="regionId" required>${list.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}</select>
+        <select class="ac-input" name="regionId" required>${list.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}</select>
       </label>
-      <label class="s2-field"><span>Node name</span><input class="s2-input" name="nodeName" placeholder="e.g. Amped / South" /></label>
+      <label class="ac-field"><span>Node name</span><input class="ac-input" name="nodeName" placeholder="e.g. Amped / South" /></label>
       <small>A parent never exists without a place we serve it from. Both rows are written in one transaction, or neither is.</small>
     </fieldset>
     <div class="s2-form__actions">

@@ -70,7 +70,7 @@ const nodeView = (ctx: ScreenContext, tree: Tree, n: AccountWire, jobs: readonly
   return html`<li class="s6-node" role="treeitem" aria-expanded=${kids.length ? "true" : undefined} data-tier=${n.tier} data-scope=${n.id === scopeId ? "true" : "false"}>
     <div class="s6-node__row">
       <span class="s6-node__tier">${TIER_WORD[n.tier]}</span>
-      ${isSite ? linkTo(ctx, "site", { siteId: n.id }, n.name, "s6-node__name s6-link") : html`<span class="s6-node__name">${n.name}</span>`}
+      ${isSite ? linkTo(ctx, "site", { siteId: n.id }, n.name, "s6-node__name ac-link") : html`<span class="s6-node__name">${n.name}</span>`}
       ${n.customerGroup ? html`<span class="s6-node__group" title="Your own grouping — reportable, never structure">${n.customerGroup}</span>` : null}
       ${isSite ? html`<span class="s6-node__facts">
         ${here.length ? StatusPill({ density: ctx.density, status: worst, label: `${here.length} open job${here.length === 1 ? "" : "s"}` }) : html`<span class="s6-muted">No open work</span>`}

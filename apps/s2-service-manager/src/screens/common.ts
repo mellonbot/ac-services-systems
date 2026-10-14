@@ -44,7 +44,7 @@ export const formValues = (form: HTMLFormElement): Record<string, string> => {
   return out;
 };
 
-export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "s2-link"): VNode =>
+export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "ac-link"): VNode =>
   html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;
 
 export const confirmPanel = (p: {

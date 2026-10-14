@@ -299,8 +299,8 @@ async function main(): Promise<void> {
     await cdp.waitFor(has("is off the roster"), "the retire receipt");
     await cdp.waitFor(has("Retired"), "the row to read Retired");
     await cdp.eval(`(() => { document.querySelector('button[data-retire="${crewA}"]').click(); return true; })()`);
-    await cdp.waitFor(`document.querySelector(".s8-refusal")`, "the refusal for an assigned crew");
-    const refused = await cdp.eval<string>(`document.querySelector(".s8-refusal").innerText`);
+    await cdp.waitFor(`document.querySelector(".ac-notice[data-tone='breached']")`, "the refusal for an assigned crew");
+    const refused = await cdp.eval<string>(`document.querySelector(".ac-notice[data-tone='breached']").innerText`);
     must(/holds 1 live assignment/.test(refused), `the gateway's sentence, got ${JSON.stringify(refused)}`);
     must(!(await cdp.eval<boolean>(`!!document.querySelector(".ac-refusal")`)), "not the console card");
     must((await admin(`SELECT active FROM crews WHERE id = $1`, [crewA]))[0]!.active === true, "nothing took effect");
@@ -308,7 +308,7 @@ async function main(): Promise<void> {
     check(9, "Crews: the new crew retired; the assigned crew refused with the gateway's words and no console card");
 
     // ── 10. Sign out; Firm B signs in to the SAME bundle: its own firm, its own statement, its own work
-    await cdp.eval(`(() => { document.querySelector(".s8-nav__logout").click(); return true; })()`);
+    await cdp.eval(`(() => { document.querySelector(".ac-nav__signout").click(); return true; })()`);
     await cdp.waitFor(`document.getElementById("login-form")`, "the login form after sign-out");
     await cdp.eval(fillAndSubmit("login-form", { email: B_EMAIL, password: PASSWORD }));
     await cdp.waitFor(`!document.getElementById("login-form") && ${has("Firm B Mechanical")}`, "firm B's home");
@@ -324,7 +324,7 @@ async function main(): Promise<void> {
 
     // ── 11. A deep link to A's statement from B's session: not on record, and the lines refused in the gateway's words
     await cdp.navigate(`${FIRM}/statements/${stmtA}`);
-    await cdp.waitFor(has("is on record for your firm") + ` || document.querySelector(".s8-refusal")`, "the refusal or the empty record");
+    await cdp.waitFor(has("is on record for your firm") + ` || document.querySelector(".ac-notice[data-tone='breached']")`, "the refusal or the empty record");
     const page11 = await cdp.eval<string>(text);
     must(/No statement .* is on record for your firm/.test(page11), "the statement is not there from inside B's scope");
     must(/no statement .* visible in this scope/.test(page11), "the lines request refused in the gateway's words — unknown, not forbidden");

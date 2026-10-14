@@ -60,9 +60,9 @@ export const request: Screen = (ctx, params) => {
       const tree = treeOf(out.nodes);
       const sites = tree.ofTier("site");
       if (sites.length === 0) return html`<p class="s6-empty">No sites are in view to request service at.</p>`;
-      return html`<form class="s6-form" id="request-form" onSubmit=${submit}>
-        <label class="s6-field"><span>Site</span>
-          <select class="s6-input" name="siteId" required id="request-site">
+      return html`<form class="ac-form" id="request-form" onSubmit=${submit}>
+        <label class="ac-field"><span>Site</span>
+          <select class="ac-input" name="siteId" required id="request-site">
             ${sites.map((s) => html`<option value=${s.id} defaultSelected=${s.id === preselected}>${tree.crumbs(s.id).slice(-2).join(" › ")}</option>`)}
           </select>
         </label>
@@ -70,8 +70,8 @@ export const request: Screen = (ctx, params) => {
           ${(Object.keys(PRIORITY_WORD) as ServiceRequestPriority[]).map((p) => html`
             <label class="s6-radio"><input type="radio" name="priority" value=${p} defaultChecked=${p === "routine"} /> <span>${PRIORITY_WORD[p]}</span></label>`)}
         </fieldset>
-        <label class="s6-field"><span>What is wrong</span>
-          <textarea class="s6-input s6-textarea" name="description" required rows="5" maxlength="2000" id="request-description" placeholder="Where, what you observed, since when."></textarea>
+        <label class="ac-field"><span>What is wrong</span>
+          <textarea class="ac-input ac-textarea" name="description" required rows="5" maxlength="2000" id="request-description" placeholder="Where, what you observed, since when."></textarea>
         </label>
         ${submitAction(ctx, o.kind === "busy" ? "Sending…" : "Send request", "request-send", o.kind === "busy")}
       </form>`;
@@ -83,7 +83,7 @@ export const request: Screen = (ctx, params) => {
 
 const outcomeView = (ctx: ScreenContext, o: Outcome): VNode | null => {
   switch (o.kind) {
-    case "sent": return html`<p class="s6-sent" role="status" id="request-sent">Received — your request at ${o.siteName} is with the office. It will appear under Work as a job once one is opened against it.</p>`;
+    case "sent": return html`<p class="ac-notice" data-tone="ok" role="status" id="request-sent">Received — your request at ${o.siteName} is with the office. It will appear under Work as a job once one is opened against it.</p>`;
     case "refused": return refusalView(ctx, o.refusal, [{ label: "Edit and send again", onSelect: resetRequestForm, primary: true }]);
     default: return null;
   }

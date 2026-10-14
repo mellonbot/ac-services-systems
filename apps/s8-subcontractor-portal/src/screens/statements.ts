@@ -111,15 +111,15 @@ export const statement: Screen = (ctx, params) => {
 
 const positionForms = (ctx: ScreenContext, s: SettlementWire, o: Outcome, acknowledge: (e: Event) => void, dispute: (e: Event) => void): VNode => html`
   <div class="s8-position">
-    ${s.state === "issued" ? html`<form class="s8-form" id="acknowledge-form" onSubmit=${acknowledge}>
+    ${s.state === "issued" ? html`<form class="ac-form" id="acknowledge-form" onSubmit=${acknowledge}>
       <h2 class="s8-h2">This statement is right</h2>
       <p class="s8-muted">Acknowledging starts the payment clock at the office under your settlement terms. It does not close a line you later find wrong — you can still dispute.</p>
       ${submitAction(ctx, o.kind === "busy" ? "Sending…" : "Acknowledge", "acknowledge-send", o.kind === "busy")}
     </form>` : null}
-    <form class="s8-form" id="dispute-form" onSubmit=${dispute}>
+    <form class="ac-form" id="dispute-form" onSubmit=${dispute}>
       <h2 class="s8-h2">Something is wrong</h2>
-      <label class="s8-field"><span>What, and why</span>
-        <textarea class="s8-input s8-textarea" name="reason" required rows="4" maxlength="2000" id="dispute-reason" placeholder="Name the line — the job, the rate or the quantity — and what it should read."></textarea>
+      <label class="ac-field"><span>What, and why</span>
+        <textarea class="ac-input ac-textarea" name="reason" required rows="4" maxlength="2000" id="dispute-reason" placeholder="Name the line — the job, the rate or the quantity — and what it should read."></textarea>
       </label>
       ${submitAction(ctx, o.kind === "busy" ? "Sending…" : "Dispute", "dispute-send", o.kind === "busy")}
     </form>
@@ -127,8 +127,8 @@ const positionForms = (ctx: ScreenContext, s: SettlementWire, o: Outcome, acknow
 
 const outcomeView = (ctx: ScreenContext, o: Outcome): VNode | null => {
   switch (o.kind) {
-    case "acknowledged": return html`<p class="s8-sent" role="status" id="statement-outcome">Acknowledged. The office has your position.</p>`;
-    case "disputed": return html`<p class="s8-sent" role="status" id="statement-outcome">Disputed. The office reads your reason on the statement and answers there.</p>`;
+    case "acknowledged": return html`<p class="ac-notice" data-tone="ok" role="status" id="statement-outcome">Acknowledged. The office has your position.</p>`;
+    case "disputed": return html`<p class="ac-notice" data-tone="ok" role="status" id="statement-outcome">Disputed. The office reads your reason on the statement and answers there.</p>`;
     case "refused": return refusalView(ctx, o.refusal, [{ label: "Dismiss", onSelect: resetStatementForm, primary: true }]);
     default: return null;
   }

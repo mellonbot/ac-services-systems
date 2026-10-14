@@ -384,15 +384,15 @@ async function main(): Promise<void> {
 
     // ── 10. a deep link to Reno's terms is not the manager's: the resolver says unknown_scope, in the customer's words
     await cdp.navigate(`${CUSTOMER}/terms/site/${renoRoof}`);
-    await cdp.waitFor(`document.querySelector(".s6-refusal")`, "a refusal for a node outside the scope");
-    const refused = await cdp.eval<string>(`document.querySelector(".s6-refusal").innerText`);
+    await cdp.waitFor(`document.querySelector(".ac-notice[data-tone='breached']")`, "a refusal for a node outside the scope");
+    const refused = await cdp.eval<string>(`document.querySelector(".ac-notice[data-tone='breached']").innerText`);
     must(/Refused/.test(refused) && /no site node/.test(refused), `the refusal is the gateway's sentence, got ${JSON.stringify(refused)}`);
     must(!(await cdp.eval<boolean>(`!!document.querySelector(".ac-refusal")`)), "not the console card");
     await shot("07-terms-out-of-scope-refused");
     check(10, "a deep link to another location's terms is refused with the gateway's words — no console card");
 
     // ── 11. sign out → login form; the executive signs in and the SAME bundle shows the whole account
-    await cdp.eval(`(() => { document.querySelector(".s6-nav__logout").click(); return true; })()`);
+    await cdp.eval(`(() => { document.querySelector(".ac-nav__signout").click(); return true; })()`);
     await cdp.waitFor(`document.getElementById("login-form")`, "the login form after sign-out");
     await cdp.eval(fillAndSubmit("login-form", { email: EXEC_EMAIL, password: PASSWORD }));
     await cdp.waitFor(`!document.getElementById("login-form") && ${has("Reno — Roof")}`, "the executive's sites");

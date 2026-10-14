@@ -153,7 +153,7 @@ export const network: Screen = (ctx, params) => {
           ? `signed ${f.msaSignedAt}`
           : html`<form class="s2-form--inline" onSubmit=${(e: Event) => { e.preventDefault(); const d = new FormData(e.currentTarget as HTMLFormElement).get("msaSignedAt"); signMsa(f, String(d ?? "")); }}>
               <span class="s2-muted">not signed — a firm is not activated without one</span>
-              <input class="s2-input" type="date" name="msaSignedAt" required aria-label="MSA signed on" />
+              <input class="ac-input" type="date" name="msaSignedAt" required aria-label="MSA signed on" />
               <button type="submit" class="s2-mutation" disabled=${busy}>Record signature</button>
             </form>`}</dd>
         <dt>Data rights (OQ5)</dt><dd>${StatusPill({ density: ctx.density, status: f.diagnosticDataRightsReserved ? "ok" : "at_risk", label: f.diagnosticDataRightsReserved ? "Reserved" : "Not reserved" })}</dd>

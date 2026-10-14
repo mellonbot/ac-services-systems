@@ -1,4 +1,4 @@
-import { html, refusalHeading, PrimaryAction, type VNode, type Router } from "../../../../packages/ui/src/index.ts";
+import { html, RefusalNotice, PrimaryAction, type VNode, type Router } from "../../../../packages/ui/src/index.ts";
 import type { Shell } from "../../../../packages/shell/src/index.ts";
 import type { Refusal, DensityOf, FirmWire, CrewWire } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
@@ -34,13 +34,7 @@ export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) =>
  * forward. The discipline S6 follows for the customer.
  */
 export const refusalView = (ctx: ScreenContext, refusal: Refusal, routes: readonly { label: string; onSelect: () => void; primary?: boolean }[] = []): VNode =>
-  html`<section class="s8-refusal" role="alert" data-kind=${refusal.kind} data-density=${ctx.density}>
-    <h2 class="s8-refusal__heading">${refusalHeading(refusal)}</h2>
-    <p class="s8-refusal__message">${refusal.message}</p>
-    ${routes.length ? html`<div class="s8-refusal__routes">
-      ${routes.map((r) => html`<button type="button" class="ac-action" data-kind=${r.primary ? "primary" : "quiet"} data-density=${ctx.density} onClick=${r.onSelect}>${r.label}</button>`)}
-    </div>` : null}
-  </section>`;
+  RefusalNotice({ density: ctx.density, refusal, routes }) ?? html``;
 
 /**
  * A mutation button. Disabled with the declared reason while the gateway is
@@ -56,7 +50,7 @@ export const submitAction = (ctx: ScreenContext, label: string, id?: string, bus
     ...(ctx.degraded ? { disabledReason: `Gateway unreachable — ${ctx.shell.degradedMode}` } : busy ? { disabledReason: "Sending…" } : {}),
   }) ?? html``;
 
-export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "s8-link"): VNode =>
+export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "ac-link"): VNode =>
   html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;
 
 /** The firm's own row — `firms.list` returns exactly one to a firm principal (0005). */

@@ -84,11 +84,11 @@ export const jobDetail: Screen = (ctx, params) => {
       <h1 class="s5-h1">${job.serviceCode}</h1>
       <p class="s5-job__state">State: <strong>${job.state.replace(/_/g, " ")}</strong> · Priority: ${job.priority}</p>
       <p class="s5-job__window">${new Date(job.serviceWindowStart).toLocaleString()} → ${new Date(job.serviceWindowEnd).toLocaleString()}</p>
-      ${jobPending > 0 ? html`<p class="s5-queued" role="status">${jobPending} change${jobPending === 1 ? "" : "s"} waiting to sync${ctx.degraded ? " — offline" : ""}.</p>` : null}
+      ${jobPending > 0 ? html`<p class="ac-notice" data-tone="at_risk" role="status">${jobPending} change${jobPending === 1 ? "" : "s"} waiting to sync${ctx.degraded ? " — offline" : ""}.</p>` : null}
       ${jobAttention.map((a) => html`<div class="s5-attention" role="alert" key=${a.mutationId}>
         ${StatusPill({ density: ctx.density, status: "blocked", label: a.kind.replace(/_/g, " ") })}
         <p>${a.note}</p>
-        <button type="button" class="s5-link" onClick=${() => ctx.queue.dismissAttention(a.mutationId)}>Dismiss</button>
+        <button type="button" class="ac-link" onClick=${() => ctx.queue.dismissAttention(a.mutationId)}>Dismiss</button>
       </div>`)}
 
       <h2 class="s5-h2">Move job to</h2>
@@ -107,11 +107,11 @@ export const jobDetail: Screen = (ctx, params) => {
       ${PrimaryAction({ density: ctx.density, label: runningSince ? "Stop" : "Start", id: "clock-toggle", onClick: clockToggle, kind: runningSince ? "danger" : "primary" })}
 
       <h2 class="s5-h2">Parts used</h2>
-      <form class="s5-form" id="parts-form" onSubmit=${addPart}>
-        <label class="s5-field"><span>Part SKU</span><input class="s5-input" name="partSku" type="text" required /></label>
-        <label class="s5-field"><span>Quantity</span><input class="s5-input" name="quantity" type="number" step="0.001" min="0" required /></label>
-        <label class="s5-field"><span>Source</span>
-          <select class="s5-input" name="source">
+      <form class="ac-form" id="parts-form" onSubmit=${addPart}>
+        <label class="ac-field"><span>Part SKU</span><input class="ac-input" name="partSku" type="text" required /></label>
+        <label class="ac-field"><span>Quantity</span><input class="ac-input" name="quantity" type="number" step="0.001" min="0" required /></label>
+        <label class="ac-field"><span>Source</span>
+          <select class="ac-input" name="source">
             ${PART_SOURCES.map((s) => html`<option value=${s}>${s.replace(/_/g, " ")}</option>`)}
           </select>
         </label>

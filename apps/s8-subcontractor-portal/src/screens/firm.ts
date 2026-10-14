@@ -32,7 +32,7 @@ export const firm: Screen = (ctx) => {
       return html`
         <h1 class="s8-h1">${f.legalName}</h1>
         <p class="s8-scope">${StatusPill({ density: ctx.density, status: st.status, label: st.word }) ?? html``} <span>${st.sentence}</span></p>
-        <dl class="s8-facts">
+        <dl class="ac-facts">
           <div><dt>Master agreement</dt><dd>${f.msaSignedAt ? `Signed ${day(f.msaSignedAt)}` : "Not yet signed"}</dd></div>
           <div><dt>Settlement terms</dt><dd>${f.settlementTermsDays} days from statement</dd></div>
           <div><dt>Diagnostic data</dt><dd>${f.diagnosticDataRightsReserved ? "Rights reserved to Rankine under the MSA" : "Rights not reserved"}</dd></div>

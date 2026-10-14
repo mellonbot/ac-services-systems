@@ -1,4 +1,4 @@
-import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, refusalHeading, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalNotice, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect, brand } from "./main.ts";
@@ -112,7 +112,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   };
 
   const nav = (screen: Exclude<ScreenId, "login" | "terms" | "request" | "site">, label: string): VNode =>
-    html`<a class="s6-nav__link" data-current=${router.current.value?.screen === screen ? "true" : "false"} href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
+    html`<a class="ac-seg__item" data-current=${router.current.value?.screen === screen ? "true" : "false"} href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
 
   const view = (): VNode => {
     const p = phase.value;
@@ -124,13 +124,13 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     const who = p.shell.context?.path.map((n) => n.name).join(" › ") ?? p.shell.context?.parent.name ?? "";
     return html`<div class="s6-app">
-      <nav class="s6-nav" aria-label="Screens">
+      <nav class="ac-nav" aria-label="Screens">
         ${nav("sites", "Sites")}
         ${nav("work", "Work")}
         ${nav("agreements", "Agreements")}
-        <span class="s6-nav__who" id="who">${who}</span>
+        <span class="ac-nav__who" id="who">${who}</span>
         ${PrimaryAction({ density: DENSITY, label: "Request service", id: "nav-request", onClick: () => router.navigate("request", {}) })}
-        <button type="button" class="s6-nav__logout" onClick=${logout}>Sign out</button>
+        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s6-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}
     </div>`;
@@ -150,12 +150,12 @@ export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: 
   };
   return html`<section class="s6-login">
     <h1 class="s6-h1">${SURFACE.name}</h1>
-    <form class="s6-form" onSubmit=${submit} id="login-form">
-      <label class="s6-field"><span>Email</span><input class="s6-input" name="email" type="email" required autocomplete="username" /></label>
-      <label class="s6-field"><span>Password</span><input class="s6-input" name="password" type="password" required autocomplete="current-password" /></label>
+    <form class="ac-form" onSubmit=${submit} id="login-form">
+      <label class="ac-field"><span>Email</span><input class="ac-input" name="email" type="email" required autocomplete="username" /></label>
+      <label class="ac-field"><span>Password</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>
       ${PrimaryAction({ density: DENSITY, label: p.busy ? "Signing in…" : "Sign in", type: "submit", id: "sign-in" })}
     </form>
-    ${p.refusal ? html`<section class="s6-refusal" role="alert" data-kind=${p.refusal.kind}><h2 class="s6-refusal__heading">${refusalHeading(p.refusal)}</h2><p class="s6-refusal__message">${p.refusal.message}</p></section>` : null}
+    ${p.refusal ? RefusalNotice({ density: DENSITY, refusal: p.refusal }) : null}
   </section>`;
 };
 

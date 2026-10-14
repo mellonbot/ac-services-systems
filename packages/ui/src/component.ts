@@ -60,7 +60,13 @@ export const DegradedBannerSpec = declare({
   notes: "The surface's declared degraded text and the age of the last good answer. Every surface renders this; none writes the flag it reads.",
 });
 
+export const RefusalNoticeSpec = declare({
+  name: "RefusalNotice",
+  densities: ["console", "comfort", "field"] as const,
+  notes: "RefusalCard's plain sibling: the same heading, the gateway's message verbatim, a way forward — and none of the axis, tiers or code, which are the office's to act on. For every reader who cannot act on a refusal: a customer, a firm, a vendor, a stranger, a crew, and the read-only dashboard.",
+});
+
 /** Every spec, for the guard and the docs. */
 export const COMPONENT_SPECS = Object.freeze([
-  DataGridSpec, ComplianceBadgeSpec, StatusPillSpec, PrimaryActionSpec, RefusalCardSpec, DegradedBannerSpec,
+  DataGridSpec, ComplianceBadgeSpec, StatusPillSpec, PrimaryActionSpec, RefusalCardSpec, DegradedBannerSpec, RefusalNoticeSpec,
 ] as const);

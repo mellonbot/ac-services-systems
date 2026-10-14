@@ -67,7 +67,7 @@ export const terms: Screen = (ctx, params) => {
   return html`<section class="s6-terms">
     <h1 class="s6-h1">Terms at ${here}</h1>
     ${tree && tier !== "parent" ? html`<p class="s6-crumbs">${[ctx.shell.context?.parent.name ?? "", ...tree.crumbs(nodeId)].filter(Boolean).join(" › ")}</p>` : null}
-    <label class="s6-field s6-field--inline"><span>As of</span><input class="s6-input" type="date" name="asOf" value=${asOf} onChange=${onAsOf} id="as-of" /></label>
+    <label class="ac-field s6-field--inline"><span>As of</span><input class="ac-input" type="date" name="asOf" value=${asOf} onChange=${onAsOf} id="as-of" /></label>
     ${whenReady(ctx, resolved.value, (out) => html`
       <dl class="s6-terms__list">
         ${Object.values(out.resolved).map((r) => termRow(r, policies.get(r.termKey), nameOf))}

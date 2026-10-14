@@ -142,7 +142,7 @@ export const createApp = (opts: {
   };
 
   const nav = (screen: ScreenId, label: string): VNode =>
-    html`<a class="s1-link" href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
+    html`<a class="ac-link" href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
 
   const view = (): VNode => {
     const ctx: ScreenContext = { shell, store, buffer, router, density: DENSITY, degraded: degraded.value, submit };
@@ -155,7 +155,7 @@ export const createApp = (opts: {
         ${nav("home", "Home")}
         ${nav("coverage", "Where we work")}
         <span class="s1-nav__spacer"></span>
-        <a class="s1-link" href="/#surface-logins">Portal sign-in</a>
+        <a class="ac-link" href="/#surface-logins">Portal sign-in</a>
         ${nav("enquire", "Ask us to call")}
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s1-empty">Nothing at this address. ${nav("home", "Start here")}</p>`}

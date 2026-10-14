@@ -75,30 +75,30 @@ export const contractsNew: Screen = (ctx, params) => {
   const scopeField = (nodes: readonly AccountWire[]): VNode =>
     f.scopeTier === "parent"
       ? html`<p class="s2-parent">Binds to the organization itself.</p>`
-      : html`<label class="s2-field">
+      : html`<label class="ac-field">
           <span>Which ${f.scopeTier}</span>
-          <select name="scopeId" required class="s2-input">
+          <select name="scopeId" required class="ac-input">
             ${nodes.filter((n) => n.tier === f.scopeTier).map((n) => html`<option value=${n.id}>${n.name}</option>`)}
           </select>
           <small>The region follows this node's edge; it is not chosen here.</small>
         </label>`;
 
-  const regionField = (regions: readonly RegionWire[]): VNode => html`<label class="s2-field">
+  const regionField = (regions: readonly RegionWire[]): VNode => html`<label class="ac-field">
     <span>Administered from</span>
-    <select name="regionId" required class="s2-input">
+    <select name="regionId" required class="ac-input">
       ${regions.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}
     </select>
   </label>`;
 
-  const amendmentField = (contracts: readonly ContractWire[]): VNode => html`<label class="s2-field">
+  const amendmentField = (contracts: readonly ContractWire[]): VNode => html`<label class="ac-field">
     <span>Amends</span>
-    <select name="parentContractId" required class="s2-input">
+    <select name="parentContractId" required class="ac-input">
       ${contracts.filter((c) => c.state === "draft" || c.state === "active").map((c) => html`<option value=${c.id}>${c.kind} · ${c.effectiveFrom} → ${c.effectiveTo ?? "evergreen"}</option>`)}
     </select>
   </label>`;
 
   /** OQ5. Three states, and "not stated" is where it starts. */
-  const oq5Field = (): VNode => html`<fieldset class="s2-field s2-oq5" id="oq5">
+  const oq5Field = (): VNode => html`<fieldset class="ac-field s2-oq5" id="oq5">
     <legend>Diagnostic data rights (OQ5)</legend>
     ${([
       ["reserved", "Reserved — we retain rights to the diagnostic data this agreement produces"],
@@ -114,33 +114,33 @@ export const contractsNew: Screen = (ctx, params) => {
 
   return html`<section class="s2-form-screen">
     <h2 class="s2-h2">New agreement</h2>
-    <form class="s2-form" onSubmit=${submit} id="contract-form">
-      <label class="s2-field">
+    <form class="ac-form" onSubmit=${submit} id="contract-form">
+      <label class="ac-field">
         <span>Binds to</span>
-        <select name="scopeTier" class="s2-input" onChange=${(e: Event) => { form.value = { ...form.value, scopeTier: (e.currentTarget as HTMLSelectElement).value as Tier }; }}>
+        <select name="scopeTier" class="ac-input" onChange=${(e: Event) => { form.value = { ...form.value, scopeTier: (e.currentTarget as HTMLSelectElement).value as Tier }; }}>
           ${SCOPE_TIERS.map((t) => html`<option value=${t} selected=${f.scopeTier === t}>${t}</option>`)}
         </select>
       </label>
       ${whenReady(ctx, tree.value, (t) => scopeField(t.nodes))}
       ${f.scopeTier === "parent" ? html`<details class="s2-help"><summary>Why a region is needed</summary><p>A parent-scope agreement has no edge to take a region from, so name the region it is administered from.</p></details>` : null}
       ${f.scopeTier === "parent" ? whenReady(ctx, regions.value, (r) => regionField(r.regions)) : null}
-      <label class="s2-field">
+      <label class="ac-field">
         <span>Kind</span>
-        <select name="kind" class="s2-input" onChange=${(e: Event) => { form.value = { ...form.value, kind: (e.currentTarget as HTMLSelectElement).value }; }}>
+        <select name="kind" class="ac-input" onChange=${(e: Event) => { form.value = { ...form.value, kind: (e.currentTarget as HTMLSelectElement).value }; }}>
           ${KINDS.map((k) => html`<option value=${k} selected=${f.kind === k}>${k.replace(/_/g, " ")}</option>`)}
         </select>
       </label>
       ${f.kind === "amendment" ? whenReady(ctx, existing.value, (c) => amendmentField(c.contracts)) : null}
       ${f.kind === "amendment" ? html`<details class="s2-help"><summary>Why ended agreements are unavailable</summary><p>An agreement that has already ended is not offered — a child of one binds nobody.</p></details>` : null}
-      <label class="s2-field">
+      <label class="ac-field">
         <span>Billing path</span>
-        <select name="billingPath" class="s2-input">${BILLING_PATHS.map((b) => html`<option value=${b}>${b.replace(/_/g, " ")}</option>`)}</select>
+        <select name="billingPath" class="ac-input">${BILLING_PATHS.map((b) => html`<option value=${b}>${b.replace(/_/g, " ")}</option>`)}</select>
       </label>
       <details class="s2-help"><summary>How billing path is used</summary><p>Choose one of the four paths at signature. It defines how the agreement bills; it is not a flag on one function.</p></details>
-      <label class="s2-field"><span>Signed</span><input class="s2-input" type="date" name="signedAt" required /></label>
-      <label class="s2-field"><span>Effective from</span><input class="s2-input" type="date" name="effectiveFrom" required /></label>
-      <label class="s2-field"><span>Effective to</span><input class="s2-input" type="date" name="effectiveTo" /><small>Leave empty for evergreen.</small></label>
-      <label class="s2-field"><span>Signed document</span><input class="s2-input" name="documentKey" placeholder="storage key of the PDF" /></label>
+      <label class="ac-field"><span>Signed</span><input class="ac-input" type="date" name="signedAt" required /></label>
+      <label class="ac-field"><span>Effective from</span><input class="ac-input" type="date" name="effectiveFrom" required /></label>
+      <label class="ac-field"><span>Effective to</span><input class="ac-input" type="date" name="effectiveTo" /><small>Leave empty for evergreen.</small></label>
+      <label class="ac-field"><span>Signed document</span><input class="ac-input" name="documentKey" placeholder="storage key of the PDF" /></label>
       ${oq5Field()}
       <div class="s2-form__actions">
         ${oq5Submit(ctx, f)}

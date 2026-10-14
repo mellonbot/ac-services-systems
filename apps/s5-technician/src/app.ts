@@ -1,4 +1,4 @@
-import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
+import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalNotice, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -96,10 +96,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     const notice = p.store.notice.value;
     return html`<div class="s5-app">
-      <nav class="s5-nav" aria-label="Screens">
-        <a class="s5-nav__link" data-current=${loc?.screen === "jobs" ? "true" : "false"} href=${router.href("jobs", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>My jobs</a>
-        <span class="s5-nav__who">${p.crew.label}</span>
-        <button type="button" class="s5-nav__logout" onClick=${logout}>Sign out</button>
+      <nav class="ac-nav" aria-label="Screens">
+        <a class="ac-seg__item" data-current=${loc?.screen === "jobs" ? "true" : "false"} href=${router.href("jobs", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>My jobs</a>
+        <span class="ac-nav__who">${p.crew.label}</span>
+        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
       </nav>
       ${notice.length ? html`<div class="s5-notice" role="status">${notice.map((n) => html`<p>${n}</p>`)}<button type="button" class="s5-notice__dismiss" onClick=${() => { p.store.notice.value = []; }} aria-label="Dismiss">×</button></div>` : null}
       ${screen ? screen(ctx, loc!.params) : html`<p class="s5-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}
@@ -120,13 +120,13 @@ export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: 
   };
   return html`<section class="s5-login">
     <h1 class="s5-h1">${SURFACE.name}</h1>
-    <form class="s5-form" onSubmit=${submit} id="login-form">
-      <label class="s5-field"><span>Device</span><input class="s5-input" name="hardwareId" type="text" required autocomplete="off" placeholder="Hardware ID" /></label>
-      <label class="s5-field"><span>Email</span><input class="s5-input" name="email" type="email" required autocomplete="username" /></label>
-      <label class="s5-field"><span>Password</span><input class="s5-input" name="password" type="password" required autocomplete="current-password" /></label>
+    <form class="ac-form" onSubmit=${submit} id="login-form">
+      <label class="ac-field"><span>Device</span><input class="ac-input" name="hardwareId" type="text" required autocomplete="off" placeholder="Hardware ID" /></label>
+      <label class="ac-field"><span>Email</span><input class="ac-input" name="email" type="email" required autocomplete="username" /></label>
+      <label class="ac-field"><span>Password</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>
       ${PrimaryAction({ density: DENSITY, label: p.busy ? "Signing in…" : "Sign in", type: "submit", id: "sign-in" })}
     </form>
-    ${p.refusal ? html`<div class="s5-refusal" role="alert"><p>${p.refusal.message}</p></div>` : null}
+    ${p.refusal ? RefusalNotice({ density: DENSITY, refusal: p.refusal }) : null}
   </section>`;
 };
 

@@ -1,4 +1,4 @@
-import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, refusalHeading, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalNotice, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -88,7 +88,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   };
 
   const nav = (screen: "orders" | "catalogue" | "invoices" | "returns", label: string, current: boolean): VNode =>
-    html`<a class="s7-nav__link" data-current=${current ? "true" : "false"} href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
+    html`<a class="ac-seg__item" data-current=${current ? "true" : "false"} href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
 
   const view = (): VNode => {
     const p = phase.value;
@@ -100,13 +100,13 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     const who = p.shell.context?.parent.name ?? "";
     return html`<div class="s7-app">
-      <nav class="s7-nav" aria-label="Screens">
+      <nav class="ac-nav" aria-label="Screens">
         ${nav("orders", "Orders", loc?.screen === "orders" || loc?.screen === "order")}
         ${nav("catalogue", "Catalogue", loc?.screen === "catalogue")}
         ${nav("invoices", "Invoices", loc?.screen === "invoices")}
         ${nav("returns", "Returns", loc?.screen === "returns")}
-        <span class="s7-nav__who" id="who">${who}</span>
-        <button type="button" class="s7-nav__logout" onClick=${logout}>Sign out</button>
+        <span class="ac-nav__who" id="who">${who}</span>
+        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s7-empty">Nothing at this address.</p>`}
     </div>`;
@@ -126,12 +126,12 @@ export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: 
   };
   return html`<section class="s7-login">
     <h1 class="s7-h1">${SURFACE.name}</h1>
-    <form class="s7-form" onSubmit=${submit} id="login-form">
-      <label class="s7-field"><span>Email</span><input class="s7-input" name="email" type="email" required autocomplete="username" /></label>
-      <label class="s7-field"><span>Password</span><input class="s7-input" name="password" type="password" required autocomplete="current-password" /></label>
+    <form class="ac-form" onSubmit=${submit} id="login-form">
+      <label class="ac-field"><span>Email</span><input class="ac-input" name="email" type="email" required autocomplete="username" /></label>
+      <label class="ac-field"><span>Password</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>
       ${PrimaryAction({ density: DENSITY, label: p.busy ? "Signing in…" : "Sign in", type: "submit", id: "sign-in" })}
     </form>
-    ${p.refusal ? html`<section class="s7-refusal" role="alert" data-kind=${p.refusal.kind}><h2 class="s7-refusal__heading">${refusalHeading(p.refusal)}</h2><p class="s7-refusal__message">${p.refusal.message}</p></section>` : null}
+    ${p.refusal ? RefusalNotice({ density: DENSITY, refusal: p.refusal }) : null}
   </section>`;
 };
 

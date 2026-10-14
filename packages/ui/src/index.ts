@@ -16,6 +16,7 @@ export * from "./components/primary-action.ts";
 export * from "./components/data-grid.ts";
 export * from "./components/compliance-badge.ts";
 export * from "./components/refusal-card.ts";
+export * from "./components/refusal-notice.ts";
 export * from "./components/degraded-banner.ts";
 export * from "./router.ts";
 export * from "./layout.ts";

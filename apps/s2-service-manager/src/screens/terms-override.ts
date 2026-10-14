@@ -39,20 +39,20 @@ export const valueControl = (policy: TermPolicy, current?: unknown): VNode => {
   const v = current === undefined || current === null ? "" : String(current);
   switch (policy.valueKind) {
     case "enum":
-      return html`<select name="termValue" required class="s2-input">
+      return html`<select name="termValue" required class="ac-input">
         ${(policy.values ?? []).map((o) => html`<option value=${o} selected=${o === v}>${o}</option>`)}
       </select>`;
     case "int":
-      return html`<input class="s2-input" name="termValue" type="number" step="1" required value=${v} />`;
+      return html`<input class="ac-input" name="termValue" type="number" step="1" required value=${v} />`;
     case "bool":
-      return html`<select name="termValue" required class="s2-input">
+      return html`<select name="termValue" required class="ac-input">
         <option value="true" selected=${v === "true"}>true</option>
         <option value="false" selected=${v === "false"}>false</option>
       </select>`;
     case "money":
-      return html`<input class="s2-input" name="termValue" inputmode="numeric" pattern="-?[0-9]+" required value=${v} placeholder="integer minor units, e.g. 18500" />`;
+      return html`<input class="ac-input" name="termValue" inputmode="numeric" pattern="-?[0-9]+" required value=${v} placeholder="integer minor units, e.g. 18500" />`;
     case "text":
-      return html`<input class="s2-input" name="termValue" required value=${v} />`;
+      return html`<input class="ac-input" name="termValue" required value=${v} />`;
   }
 };
 
@@ -126,9 +126,9 @@ export const termsOverride: Screen = (ctx, params) => {
   const scopeOptions = (policy: TermPolicy, nodes: readonly AccountWire[], tier: Tier): VNode =>
     tier === "parent"
       ? html`<input type="hidden" name="scopeId" value=${orgId} /><p class="s2-parent">At the organization.</p>`
-      : html`<label class="s2-field">
+      : html`<label class="ac-field">
           <span>Which ${tier}</span>
-          <select name="scopeId" required class="s2-input">
+          <select name="scopeId" required class="ac-input">
             ${nodes.filter((n) => n.tier === tier).map((n) => html`<option value=${n.id}>${n.name}</option>`)}
           </select>
         </label>`;
@@ -138,18 +138,18 @@ export const termsOverride: Screen = (ctx, params) => {
     const policy = terms.find((t) => t.key === f.termKey);
     const tiers = authoringTiers(policy);
     const tier = (f.scopeTier || tiers[0] || "") as Tier | "";
-    return html`<form class="s2-form" onSubmit=${policy && contract ? submit(policy, contract) : (e: Event) => e.preventDefault()} id="override-form">
-      <label class="s2-field">
+    return html`<form class="ac-form" onSubmit=${policy && contract ? submit(policy, contract) : (e: Event) => e.preventDefault()} id="override-form">
+      <label class="ac-field">
         <span>Under which agreement</span>
-        <select name="contractId" required class="s2-input" onChange=${(e: Event) => { form.value = { ...form.value, contractId: (e.currentTarget as HTMLSelectElement).value }; }}>
+        <select name="contractId" required class="ac-input" onChange=${(e: Event) => { form.value = { ...form.value, contractId: (e.currentTarget as HTMLSelectElement).value }; }}>
           <option value="">Choose…</option>
           ${list.map((c) => html`<option value=${c.id} selected=${c.id === f.contractId}>${c.kind} · ${c.scopeTier} · ${c.state}</option>`)}
         </select>
       </label>
       <details class="s2-help"><summary>Where this override is recorded</summary><p>The override is written into this agreement's region — the document decides where it lives.</p></details>
-      <label class="s2-field">
+      <label class="ac-field">
         <span>Term</span>
-        <select name="termKey" required class="s2-input" onChange=${(e: Event) => { form.value = { ...form.value, termKey: (e.currentTarget as HTMLSelectElement).value, scopeTier: "" }; }}>
+        <select name="termKey" required class="ac-input" onChange=${(e: Event) => { form.value = { ...form.value, termKey: (e.currentTarget as HTMLSelectElement).value, scopeTier: "" }; }}>
           <option value="">Choose…</option>
           ${terms.map((t) => html`<option value=${t.key} selected=${t.key === f.termKey}>${t.key}</option>`)}
         </select>
@@ -161,17 +161,17 @@ export const termsOverride: Screen = (ctx, params) => {
             · authored at ${tiers.join(", ")} · ${policy.valueKind}
           </p>
           <details class="s2-help"><summary>Why this term works this way</summary><p class="s2-rationale">${policy.rationale}</p></details>
-          <label class="s2-field">
+          <label class="ac-field">
             <span>At which tier</span>
-            <select name="scopeTier" required class="s2-input" onChange=${(e: Event) => { form.value = { ...form.value, scopeTier: (e.currentTarget as HTMLSelectElement).value as Tier }; }}>
+            <select name="scopeTier" required class="ac-input" onChange=${(e: Event) => { form.value = { ...form.value, scopeTier: (e.currentTarget as HTMLSelectElement).value as Tier }; }}>
               ${tiers.map((t) => html`<option value=${t} selected=${t === tier}>${t}</option>`)}
             </select>
             <small>Only the tiers the register admits for this term. A tier it does not admit is a row that can never be right, so it is not offered.</small>
           </label>
           ${tier ? scopeOptions(policy, nodes, tier as Tier) : null}
-          <label class="s2-field"><span>Value</span>${valueControl(policy)}</label>
-          <label class="s2-field"><span>Effective from</span><input class="s2-input" type="date" name="effectiveFrom" required /></label>
-          <label class="s2-field"><span>Effective to</span><input class="s2-input" type="date" name="effectiveTo" /><small>Leave empty for open-ended.</small></label>
+          <label class="ac-field"><span>Value</span>${valueControl(policy)}</label>
+          <label class="ac-field"><span>Effective from</span><input class="ac-input" type="date" name="effectiveFrom" required /></label>
+          <label class="ac-field"><span>Effective to</span><input class="ac-input" type="date" name="effectiveTo" /><small>Leave empty for open-ended.</small></label>
           <details class="s2-help"><summary>Why overlapping dates are refused</summary><p>Two rows in effect at once are refused — there is no tie-break that produces an invoice anyone can check.</p></details>
           <div class="s2-form__actions">
             ${submitAction(ctx, f.busy ? "Recording…" : "Record override", "author")}

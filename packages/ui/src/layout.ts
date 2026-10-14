@@ -22,3 +22,13 @@ export const statStrip = (tiles: readonly StatTile[], id?: string): VNode =>
   html`<div class="ac-stats" id=${id}>
     ${tiles.map((t) => html`<div class="ac-stat" data-tone=${t.tone}><span class="ac-stat__n">${t.n}</span><span class="ac-stat__l">${t.label}</span>${t.sub ? html`<span class="ac-stat__s">${t.sub}</span>` : null}</div>`)}
   </div>`;
+
+export type NoticeTone = "ok" | "at_risk" | "breached";
+
+/**
+ * One sentence with a tone, as a status line: what a form did, in the
+ * surface's words — filed, queued, acknowledged. A refusal is RefusalNotice,
+ * which carries a heading and routes; this carries neither.
+ */
+export const notice = (tone: NoticeTone, body: ComponentChildren, id?: string): VNode =>
+  html`<p class="ac-notice" role="status" data-tone=${tone} id=${id}>${body}</p>`;

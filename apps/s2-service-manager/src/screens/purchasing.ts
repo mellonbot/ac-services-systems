@@ -130,11 +130,11 @@ export const purchasing: Screen = (ctx) => {
         { key: "status", header: "Status", cell: (r: VendorWire) => r.status },
       ],
     }) ?? html``)}
-    <form class="s2-form s2-form--inline" onSubmit=${newVendor} id="vendor-form">
-      <label class="s2-field"><span>Legal name</span><input class="s2-input" name="legalName" required /></label>
-      <label class="s2-field"><span>Administered from</span><select class="s2-input" name="regionId" required>${whenReady(ctx, regions.value, (r) => html`${regionOptions(r.regions)}`)}</select></label>
-      <label class="s2-field"><span>Payment terms (days)</span><input class="s2-input" name="paymentTermsDays" inputmode="numeric" defaultValue="30" /></label>
-      <label class="s2-field"><span>Contact email</span><input class="s2-input" name="contactEmail" type="email" /></label>
+    <form class="ac-form s2-form--inline" onSubmit=${newVendor} id="vendor-form">
+      <label class="ac-field"><span>Legal name</span><input class="ac-input" name="legalName" required /></label>
+      <label class="ac-field"><span>Administered from</span><select class="ac-input" name="regionId" required>${whenReady(ctx, regions.value, (r) => html`${regionOptions(r.regions)}`)}</select></label>
+      <label class="ac-field"><span>Payment terms (days)</span><input class="ac-input" name="paymentTermsDays" inputmode="numeric" defaultValue="30" /></label>
+      <label class="ac-field"><span>Contact email</span><input class="ac-input" name="contactEmail" type="email" /></label>
       <div class="s2-form__actions">${submitAction(ctx, "Add vendor", "add-vendor")}</div>
     </form>
 
@@ -148,13 +148,13 @@ export const purchasing: Screen = (ctx) => {
         { key: "address", header: "Address", cell: (r: ReceivingPointWire) => [r.address.line1, r.address.city, r.address.state].filter(Boolean).join(", ") },
       ],
     }) ?? html``)}
-    <form class="s2-form s2-form--inline" onSubmit=${newPoint} id="point-form">
-      <label class="s2-field"><span>Code</span><input class="s2-input" name="code" required placeholder="SOUTH-HUB" /></label>
-      <label class="s2-field"><span>Tier</span><select class="s2-input" name="tier">${Object.entries(TIER_WORD).map(([k, w]) => html`<option value=${k}>${w}</option>`)}</select></label>
-      <label class="s2-field"><span>Region</span><select class="s2-input" name="regionId" required>${whenReady(ctx, regions.value, (r) => html`${regionOptions(r.regions)}`)}</select></label>
-      <label class="s2-field"><span>Street</span><input class="s2-input" name="line1" required /></label>
-      <label class="s2-field"><span>City</span><input class="s2-input" name="city" required /></label>
-      <label class="s2-field"><span>State</span><input class="s2-input" name="state" /></label>
+    <form class="ac-form s2-form--inline" onSubmit=${newPoint} id="point-form">
+      <label class="ac-field"><span>Code</span><input class="ac-input" name="code" required placeholder="SOUTH-HUB" /></label>
+      <label class="ac-field"><span>Tier</span><select class="ac-input" name="tier">${Object.entries(TIER_WORD).map(([k, w]) => html`<option value=${k}>${w}</option>`)}</select></label>
+      <label class="ac-field"><span>Region</span><select class="ac-input" name="regionId" required>${whenReady(ctx, regions.value, (r) => html`${regionOptions(r.regions)}`)}</select></label>
+      <label class="ac-field"><span>Street</span><input class="ac-input" name="line1" required /></label>
+      <label class="ac-field"><span>City</span><input class="ac-input" name="city" required /></label>
+      <label class="ac-field"><span>State</span><input class="ac-input" name="state" /></label>
       <div class="s2-form__actions">${submitAction(ctx, "Add receiving point", "add-point")}</div>
     </form>
     ${refusal(ctx)}
@@ -239,20 +239,20 @@ export const purchasingVendor: Screen = (ctx, params) => {
         ],
       })}
       <h2 class="s2-h2">Raise a purchase order</h2>
-      <form class="s2-form" onSubmit=${raise} id="po-form">
-        <label class="s2-field"><span>Deliver to</span>
-          <select class="s2-input" name="receivingPointId" required>${whenReady(ctx, points.value, (p) => html`${p.receivingPoints.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.code} · ${TIER_WORD[r.tier]}</option>`)}`)}</select>
+      <form class="ac-form" onSubmit=${raise} id="po-form">
+        <label class="ac-field"><span>Deliver to</span>
+          <select class="ac-input" name="receivingPointId" required>${whenReady(ctx, points.value, (p) => html`${p.receivingPoints.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.code} · ${TIER_WORD[r.tier]}</option>`)}`)}</select>
         </label>
-        ${c.items.filter((i) => i.current).map((i) => html`<label class="s2-field"><span>${i.vendorSku} — ${i.description} at ${money(i.current!.priceMinor, i.current!.currency)}</span>
-          <input class="s2-input" name=${`qty:${i.id}`} inputmode="decimal" placeholder="Quantity (${i.uom})" /></label>`)}
+        ${c.items.filter((i) => i.current).map((i) => html`<label class="ac-field"><span>${i.vendorSku} — ${i.description} at ${money(i.current!.priceMinor, i.current!.currency)}</span>
+          <input class="ac-input" name=${`qty:${i.id}`} inputmode="decimal" placeholder="Quantity (${i.uom})" /></label>`)}
         ${c.items.some((i) => i.current) ? null : html`<p class="s2-muted">No item has an accepted price yet, so nothing can be ordered.</p>`}
         <div class="s2-form__actions">${submitAction(ctx, "Raise draft", "raise-po")}</div>
       </form>`)}
     <h2 class="s2-h2">Add an item</h2>
-    <form class="s2-form s2-form--inline" onSubmit=${addItem} id="item-form">
-      <label class="s2-field"><span>Vendor SKU</span><input class="s2-input" name="vendorSku" required /></label>
-      <label class="s2-field"><span>Description</span><input class="s2-input" name="description" required /></label>
-      <label class="s2-field"><span>Unit</span><input class="s2-input" name="uom" placeholder="each" /></label>
+    <form class="ac-form s2-form--inline" onSubmit=${addItem} id="item-form">
+      <label class="ac-field"><span>Vendor SKU</span><input class="ac-input" name="vendorSku" required /></label>
+      <label class="ac-field"><span>Description</span><input class="ac-input" name="description" required /></label>
+      <label class="ac-field"><span>Unit</span><input class="ac-input" name="uom" placeholder="each" /></label>
       <div class="s2-form__actions">${submitAction(ctx, "Add item", "add-item")}</div>
     </form>
     ${refusal(ctx)}
@@ -341,8 +341,8 @@ export const purchasingPo: Screen = (ctx, params) => {
           ],
         })}
         ${o.state === "acknowledged" && open.length ? html`<h2 class="s2-h2">Receive goods</h2>
-          <form class="s2-form s2-form--inline" onSubmit=${(e: Event) => receive(e, open)} id="receive-form">
-            ${open.map((l) => html`<label class="s2-field"><span>Line ${l.lineNo}: ${qty((BigInt(l.quantityMilli) - BigInt(l.receivedMilli)).toString())} outstanding</span><input class="s2-input" name=${`rcv:${l.id}`} inputmode="decimal" /></label>`)}
+          <form class="ac-form s2-form--inline" onSubmit=${(e: Event) => receive(e, open)} id="receive-form">
+            ${open.map((l) => html`<label class="ac-field"><span>Line ${l.lineNo}: ${qty((BigInt(l.quantityMilli) - BigInt(l.receivedMilli)).toString())} outstanding</span><input class="ac-input" name=${`rcv:${l.id}`} inputmode="decimal" /></label>`)}
             <div class="s2-form__actions">${submitAction(ctx, "Record receipt", "record-receipt")}</div>
           </form>` : null}
         ${d.shipments.length ? html`<h2 class="s2-h2">Shipments</h2><ul class="s2-list">${d.shipments.map((s) => html`<li>${s.shippedOn} · ${s.carrier}${s.tracking ? ` ${s.tracking}` : ""} · ${s.lines.map((l) => `line ${d.lines.find((x) => x.id === l.poLineId)?.lineNo}: ${qty(l.quantityMilli)}`).join(", ")}</li>`)}</ul>` : null}
@@ -365,10 +365,10 @@ export const purchasingPo: Screen = (ctx, params) => {
             { key: "state", header: "Vendor's answer", cell: (r: RmaWire) => r.state === "authorized" ? `Authorized · ${r.rmaNumber}` : r.state === "rejected" ? `Rejected · ${r.vendorNote ?? ""}` : "Waiting" },
           ],
         })}
-        ${d.lines.some((l) => BigInt(l.receivedMilli) > BigInt(l.returnedMilli)) ? html`<form class="s2-form s2-form--inline" onSubmit=${(e: Event) => requestReturn(e, d.lines)} id="return-form">
-          <label class="s2-field"><span>Line</span><select class="s2-input" name="poLineId">${d.lines.filter((l) => BigInt(l.receivedMilli) > BigInt(l.returnedMilli)).map((l) => html`<option value=${l.id}>${l.lineNo} — ${l.vendorSku}</option>`)}</select></label>
-          <label class="s2-field"><span>Quantity</span><input class="s2-input" name="quantity" inputmode="decimal" pattern="[0-9]+(\\.[0-9]{1,3})?" required /></label>
-          <label class="s2-field"><span>Reason</span><input class="s2-input" name="reason" required /></label>
+        ${d.lines.some((l) => BigInt(l.receivedMilli) > BigInt(l.returnedMilli)) ? html`<form class="ac-form s2-form--inline" onSubmit=${(e: Event) => requestReturn(e, d.lines)} id="return-form">
+          <label class="ac-field"><span>Line</span><select class="ac-input" name="poLineId">${d.lines.filter((l) => BigInt(l.receivedMilli) > BigInt(l.returnedMilli)).map((l) => html`<option value=${l.id}>${l.lineNo} — ${l.vendorSku}</option>`)}</select></label>
+          <label class="ac-field"><span>Quantity</span><input class="ac-input" name="quantity" inputmode="decimal" pattern="[0-9]+(\\.[0-9]{1,3})?" required /></label>
+          <label class="ac-field"><span>Reason</span><input class="ac-input" name="reason" required /></label>
           <div class="s2-form__actions">${submitAction(ctx, "Request return", "request-return")}</div>
         </form>` : null}
         ${outcome.value.pending?.kind === "return" && outcome.value.pending.owner === poId ? confirmPanel({

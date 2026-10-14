@@ -1,6 +1,6 @@
-import { html, signal, refusalHeading, PrimaryAction, StatusPill, type VNode, type Router, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, signal, RefusalNotice, PrimaryAction, StatusPill, type VNode, type Router, type Status } from "../../../../packages/ui/src/index.ts";
 import type { Shell } from "../../../../packages/shell/src/index.ts";
-import type { Refusal, DensityOf, PoState } from "../../../../packages/contracts/src/index.ts";
+import { densityOf, type Refusal, type DensityOf, type PoState } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
 import type { SCREENS } from "../screens.ts";
 
@@ -14,11 +14,8 @@ export type ScreenContext = {
 export type Params = Readonly<Record<string, string>>;
 export type Screen = (ctx: ScreenContext, params: Params) => VNode;
 
-const refusalBlock = (r: Refusal, onDismiss?: () => void): VNode => html`<section class="s7-refusal" role="alert" data-kind=${r.kind}>
-  <h2 class="s7-refusal__heading">${refusalHeading(r)}</h2>
-  <p class="s7-refusal__message">${r.message}</p>
-  ${onDismiss ? html`<button type="button" class="s7-link s7-link--button" onClick=${onDismiss}>Dismiss</button>` : null}
-</section>`;
+const refusalBlock = (r: Refusal, onDismiss?: () => void): VNode =>
+  RefusalNotice({ density: densityOf("S7"), refusal: r, ...(onDismiss ? { onDismiss } : {}) }) ?? html``;
 
 export const whenReady = <T>(_ctx: ScreenContext, r: Resource<T>, view: (v: T) => VNode): VNode => {
   switch (r.state) {
@@ -45,7 +42,7 @@ export const act = async (ctx: ScreenContext, out: Outcome, fn: () => Promise<st
 };
 export const outcomeView = (out: Outcome, id: string): VNode | null =>
   out.value.refusal ? refusalBlock(out.value.refusal, () => { out.value = { refusal: null, sent: null, busy: false }; })
-  : out.value.sent ? html`<p class="s7-sent" role="status" id=${id}>${out.value.sent}</p>` : null;
+  : out.value.sent ? html`<p class="ac-notice" data-tone="ok" role="status" id=${id}>${out.value.sent}</p>` : null;
 
 export const submitAction = (ctx: ScreenContext, out: Outcome, label: string, id: string): VNode =>
   PrimaryAction({
@@ -59,7 +56,7 @@ export const formValues = (form: HTMLFormElement): Record<string, string> => {
   return o;
 };
 
-export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "s7-link"): VNode =>
+export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "ac-link"): VNode =>
   html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;
 
 /** An order in the vendor's words. Waiting on the vendor is the one state that asks something of them. */
