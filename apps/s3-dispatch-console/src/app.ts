@@ -52,7 +52,7 @@ type PreviewShell = ConnectedShell & {
 
 type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store } | { kind: "preview"; shell: PreviewShell; store: Store };
 
-const createPreviewShell = (now: () => number): PreviewShell => {
+const createPreviewShell = (): PreviewShell => {
   const shell = {
     principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" },
     context: { principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" }, path: [{ tier: "parent", id: "org-preview", name: "AC Services" }], parent: { tier: "parent", id: "org-preview", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "region-preview" },
@@ -110,7 +110,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const boot = async () => {
     const localPreview = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test((new URL(opts.baseUrl, "http://localhost")).hostname) || opts.baseUrl === "http://127.0.0.1:8080";
     if (localPreview) {
-      const shell = createPreviewShell(now);
+      const shell = createPreviewShell();
       const store = createStore(shell, now);
       phase.value = { kind: "preview", shell, store };
       router.navigate("board", {});

@@ -184,7 +184,7 @@ export const board: Screen = (ctx) => {
         </div>
       </div>
 
-      ${whenReady(ctx, jobs.value, (out) => html`<div class="dispatch-dashboard__stats">${dashboardStats.map((stat) => html`<div class="dispatch-stat" data-tone=${stat.tone}>
+      ${whenReady(ctx, jobs.value, () => html`<div class="dispatch-dashboard__stats">${dashboardStats.map((stat) => html`<div class="dispatch-stat" data-tone=${stat.tone}>
         <span class="dispatch-stat__value">${stat.value}</span>
         <span class="dispatch-stat__label">${stat.label}</span>
       </div>`)}</div>`) }
