@@ -199,7 +199,7 @@ export const FIGURES = Object.freeze({
    * which is precisely why the slot is barred rather than the colour retuned.
    */
   redFromFault: degrees(
-    ["packages/tokens/src/primitives.ts", "packages/tokens/src/semantic.ts", "packages/tokens/src/whitelabel.ts", "docs/BRAND.md"],
+    ["packages/tokens/src/primitives.ts", "packages/tokens/src/semantic.ts", "packages/tokens/src/whitelabel.ts", "packages/contracts/src/surfaces.ts", "apps/s1-marketing/src/styles.ts", "docs/BRAND.md"],
     "brand red from the fault ink — why no bright red clears the 30° gate",
     0.55,
     P.brand.fill,

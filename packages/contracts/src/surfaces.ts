@@ -46,7 +46,7 @@ export type Surface = {
    * Does this surface render the state ramp — a status pill, a compliance
    * badge, an SLA figure, a refusal?
    *
-   * TRUE bars the brand accent here. Red measures 1.2° from the fault ink, so a
+   * TRUE bars the brand accent here. Red measures 0.55° from the fault ink, so a
    * red control beside a state chip reads as an alarm; `tokenCss` resolves
    * `color.brand` to Ink Black on these surfaces, exactly as it does for a
    * tenant accent that fails the gate (packages/tokens/src/whitelabel.ts).

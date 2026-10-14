@@ -8,7 +8,7 @@ export const S5_CSS = `
 .s5-app{display:flex;flex-direction:column;gap:var(--space-4);padding:var(--space-3)}
 .s5-nav{display:flex;align-items:center;gap:var(--space-4);padding-bottom:var(--space-2);border-bottom:1px solid var(--color-border)}
 .s5-nav__who{margin-inline-start:auto;color:var(--color-text-muted);font-size:var(--text-sm)}
-.s5-nav__logout{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;color:var(--color-action);font:inherit;min-height:var(--control-height)}
+.s5-nav__logout{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;color:var(--color-action-text);font:inherit;min-height:var(--control-height)}
 .s5-notice{display:flex;gap:var(--space-3);align-items:baseline;padding:var(--space-2) var(--space-3);background:var(--color-surface-sunken);border:1px solid var(--color-status-at-risk);border-radius:var(--radius-control)}
 .s5-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2);min-height:var(--control-height)}
 .s5-h1{margin:0 0 var(--space-3);font-size:var(--text-xl)}
@@ -23,7 +23,7 @@ export const S5_CSS = `
 .s5-job-row{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-card)}
 .s5-job-row__service{flex:1;font-weight:600}
 .s5-job-row__state{color:var(--color-text-muted)}
-.s5-link{color:var(--color-action);text-decoration:none}
+.s5-link{color:var(--color-action-text);text-decoration:none}
 .s5-link--open{margin-inline-start:auto}
 .s5-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
 .s5-checklist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}

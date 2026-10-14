@@ -3,7 +3,7 @@
  * literal here as it does in packages/ui.
  *
  * S1 is the one surface in the system that WEARS THE HOUSE RED. Everywhere
- * else the brand role resolves to Ink Black, because the red measures 1.2°
+ * else the brand role resolves to Ink Black, because the red measures 0.55°
  * from the fault ink and a red control beside a status chip reads as an alarm
  * (packages/tokens/src/whitelabel.ts, and the registry's `stateRamp` flag,
  * which is `false` here and true everywhere else). Nothing on this page bears
@@ -24,7 +24,7 @@ export const S1_CSS = `
 .s1-h2{margin:var(--space-6) 0 var(--space-2);font-size:var(--text-lg)}
 .s1-lede{margin:0 0 var(--space-4);font-size:var(--text-md);max-width:60ch}
 .s1-loading,.s1-empty,.s1-muted{color:var(--color-text-muted)}
-.s1-link{color:var(--color-action);text-decoration:none}
+.s1-link{color:var(--color-action-text);text-decoration:none}
 .s1-link:hover{text-decoration:underline}
 .s1-cta{display:inline-flex;align-items:center;min-height:var(--control-height);padding:0 var(--space-4);background:var(--color-brand);color:var(--color-brand-ink);text-decoration:none;font-weight:600}
 .s1-cta:hover{text-decoration:underline}
@@ -54,7 +54,7 @@ export const S1_CSS = `
 .s1-refusal__heading{margin:0 0 var(--space-2);font-size:var(--text-md)}
 .s1-refusal__message{margin:0 0 var(--space-2)}
 .s1-refusal__routes{display:flex;gap:var(--space-3)}
-.s1-call{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);color:var(--color-action);text-decoration:none;font-weight:600}
+.s1-call{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);color:var(--color-action-text);text-decoration:none;font-weight:600}
 .s1-foot{margin-top:var(--space-6);padding-top:var(--space-3);border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size:var(--text-sm)}
 
 /* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */

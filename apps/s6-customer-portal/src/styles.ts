@@ -10,12 +10,12 @@ export const S6_CSS = `
 .s6-app{display:flex;flex-direction:column;gap:var(--space-3)}
 .s6-nav{display:flex;align-items:center;gap:var(--space-4);padding-bottom:var(--space-2);border-bottom:1px solid var(--color-border)}
 .s6-nav__who{margin-inline-start:auto;color:var(--color-text-muted);font-size:var(--text-sm)}
-.s6-nav__logout{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;color:var(--color-action);font:inherit}
+.s6-nav__logout{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;color:var(--color-action-text);font:inherit}
 .s6-h1{margin:0 0 var(--space-2);font-size:var(--text-xl)}
 .s6-h2{margin:var(--space-6) 0 var(--space-2);font-size:var(--text-lg)}
 .s6-scope,.s6-crumbs{margin:0 0 var(--space-4);color:var(--color-text-muted)}
 .s6-loading,.s6-empty,.s6-muted{color:var(--color-text-muted)}
-.s6-link{color:var(--color-action);text-decoration:none}
+.s6-link{color:var(--color-action-text);text-decoration:none}
 .s6-link:hover{text-decoration:underline}
 .s6-actions{display:flex;gap:var(--space-4);margin:var(--space-4) 0 0}
 .s6-tree{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
@@ -111,7 +111,6 @@ export const S6_CSS = `
 .s6-step__label{font-size:var(--text-xs);color:var(--color-text-muted)}
 .s6-step[data-state="current"] .s6-step__label{color:var(--color-action-text);font-weight:700}
 .s6-order__note{margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);background:color-mix(in srgb,var(--color-surface-sunken) 45%,var(--color-surface));font-size:var(--text-sm)}
-@media (max-width:640px){.s6-step__label{font-size:10px}}
 .s6-h1{font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);text-transform:none;line-height:1.15}
 .s6-h2{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-tight);text-transform:none}
 .s6-facts>div{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-2) var(--space-3)}

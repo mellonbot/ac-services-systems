@@ -8,7 +8,7 @@ export const S3_CSS = `
 .s3-app{display:flex;flex-direction:column;gap:var(--space-3)}
 .s3-nav{display:flex;align-items:center;gap:var(--space-4);padding-bottom:var(--space-2);border-bottom:1px solid var(--color-border)}
 .s3-nav__who{margin-inline-start:auto;color:var(--color-text-muted);font-size:var(--text-sm)}
-.s3-nav__logout{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;color:var(--color-action);font:inherit}
+.s3-nav__logout{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;color:var(--color-action-text);font:inherit}
 .s3-notice{display:flex;gap:var(--space-3);align-items:baseline;padding:var(--space-2) var(--space-3);background:var(--color-surface-sunken);border:1px solid var(--color-status-at-risk);border-radius:var(--radius-control)}
 .s3-notice p{margin:0}
 .s3-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2)}
@@ -16,7 +16,7 @@ export const S3_CSS = `
 .s3-h2{margin:var(--space-4) 0 var(--space-2);font-size:var(--text-lg)}
 .s3-loading,.s3-empty,.s3-muted{color:var(--color-text-muted)}
 .s3-row-actions{display:inline-flex;gap:var(--space-3);white-space:nowrap}
-.s3-link{color:var(--color-action);text-decoration:none}
+.s3-link{color:var(--color-action-text);text-decoration:none}
 .s3-link:hover{text-decoration:underline}
 .s3-login{max-width:40ch;margin:10vh auto 0}
 .s3-form{display:flex;flex-direction:column;gap:var(--space-3)}

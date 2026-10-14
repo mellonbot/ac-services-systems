@@ -9,12 +9,12 @@ export const S8_CSS = `
 .s8-app{display:flex;flex-direction:column;gap:var(--space-3)}
 .s8-nav{display:flex;align-items:center;gap:var(--space-4);padding-bottom:var(--space-2);border-bottom:1px solid var(--color-border)}
 .s8-nav__who{margin-inline-start:auto;color:var(--color-text-muted);font-size:var(--text-sm)}
-.s8-nav__logout{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;color:var(--color-action);font:inherit}
+.s8-nav__logout{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;color:var(--color-action-text);font:inherit}
 .s8-h1{margin:0 0 var(--space-2);font-size:var(--text-xl)}
 .s8-h2{margin:var(--space-6) 0 var(--space-2);font-size:var(--text-lg)}
 .s8-scope,.s8-crumbs{margin:0 0 var(--space-4);color:var(--color-text-muted);display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
 .s8-loading,.s8-empty,.s8-muted{color:var(--color-text-muted)}
-.s8-link{color:var(--color-action);text-decoration:none}
+.s8-link{color:var(--color-action-text);text-decoration:none}
 .s8-link:hover{text-decoration:underline}
 .s8-link--button{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;font:inherit}
 .s8-link--button:disabled{color:var(--color-text-muted);cursor:default;text-decoration:none}

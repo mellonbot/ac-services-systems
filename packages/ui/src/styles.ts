@@ -117,7 +117,7 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:1400px
    RefusalCard — pressed its own label to 1.00:1 and the danger variant to
    1.24:1. A variant that sets a resting colour keeps it unless the press sets
    one too; ON_FILL measures both pairs now. */
-.ac-action:active{background:var(--color-action-pressed);border-color:var(--color-action-pressed);color:var(--color-action-ink)}
+.ac-action:active{background:var(--color-action-pressed);border-color:var(--color-action-text);color:var(--color-action-ink)}
 /* Danger inverts rather than filling with the arc: a destructive control does
    not borrow the primary's ink to say "pressed". 6.23:1 on the light stock,
    16.34:1 on the plate. */

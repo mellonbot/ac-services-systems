@@ -9,7 +9,7 @@ export const S2_CSS = `
 .s2-nav__link{color:var(--color-text-muted);text-decoration:none;font-weight:600}
 .s2-nav__link[data-current="true"]{color:var(--color-text);box-shadow:inset 0 -2px 0 var(--color-action)}
 .s2-nav__who{margin-inline-start:auto;color:var(--color-text-muted);font-size:var(--text-sm)}
-.s2-nav__logout{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;color:var(--color-action);font:inherit}
+.s2-nav__logout{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;color:var(--color-action-text);font:inherit}
 .s2-notice{display:flex;gap:var(--space-3);align-items:baseline;padding:var(--space-2) var(--space-3);background:var(--color-surface-sunken);border:1px solid var(--color-status-at-risk);border-radius:var(--radius-control)}
 .s2-notice p{margin:0}
 .s2-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2)}
@@ -24,7 +24,7 @@ export const S2_CSS = `
 .s2-node[data-tier="region"]{font-weight:600}
 .s2-node[data-tier="site"]{color:var(--color-text-muted)}
 .s2-row-actions{display:inline-flex;gap:var(--space-3);white-space:nowrap}
-.s2-link{color:var(--color-action);text-decoration:none}
+.s2-link{color:var(--color-action-text);text-decoration:none}
 .s2-link:hover{text-decoration:underline}
 .s2-link--action{display:inline-flex;align-items:center;text-decoration:none}
 .s2-aside-actions{margin:var(--space-3) 0 0}
@@ -42,7 +42,7 @@ export const S2_CSS = `
 
 /* C2 — agreements, the register-driven override form, and the resolution trace. */
 .s2-state{display:inline-block;padding:0 var(--space-2);border-radius:var(--radius-pill);border:1px solid var(--color-border);font-size:var(--text-sm)}
-.s2-state[data-tone="live"]{border-color:var(--color-action);color:var(--color-text)}
+.s2-state[data-tone="live"]{border-color:var(--color-action-text);color:var(--color-text)}
 .s2-state[data-tone="pending"]{border-style:dashed;color:var(--color-text-muted)}
 .s2-state[data-tone="ended"]{color:var(--color-text-muted);text-decoration:line-through}
 /* C4 — a suspended firm: held, not ended. Dotted rather than dashed so the
@@ -69,7 +69,7 @@ export const S2_CSS = `
 .s2-trace{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
 .s2-trace__step{display:grid;grid-template-columns:minmax(7rem,1fr) max-content minmax(8rem,1fr);gap:var(--space-1) var(--space-3);align-items:baseline;padding-block:var(--space-1);border-bottom:1px solid var(--color-border)}
 .s2-trace__outcome{font-variant-caps:all-small-caps;letter-spacing:.04em}
-.s2-trace__step[data-outcome="won"] .s2-trace__outcome{color:var(--color-action)}
+.s2-trace__step[data-outcome="won"] .s2-trace__outcome{color:var(--color-action-text)}
 .s2-trace__step[data-outcome="not_walked"]{color:var(--color-text-muted)}
 .s2-trace__tier{font-weight:600}
 .s2-trace__note{grid-column:1/-1;color:var(--color-text-muted)}
