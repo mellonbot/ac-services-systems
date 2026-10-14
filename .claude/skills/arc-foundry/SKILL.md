@@ -219,8 +219,13 @@ leading with, content in **panels**, tables inside a panel, and navigation as a
 **segmented control** (a pill track with the current screen raised).
 
 Accent rules are 3px and sit on the **top** edge; a coloured left border is not part of this
-system. No backdrop blur, no gradient meshes, no blurred blobs, no emoji. Motion
-110/170/260ms on `cubic-bezier(.2,.6,.3,1)`; no entrance animation on data.
+system. No backdrop blur, no gradient meshes, no blurred blobs, no emoji.
+
+**Motion is a token.** `--motion-fast` 110ms, `--motion-base` 170ms, `--motion-slow` 260ms, all
+on `--ease` `cubic-bezier(.2,.6,.3,1)`, emitted by `tokenCss` to every density. A transition
+names those variables and never a number; a control's state change moves and data does not
+(no entrance animation, no keyframes); and `prefers-reduced-motion: reduce` stills every
+control that moves. `styles.test.ts` checks all three.
 
 Never use `all: unset` on a control. It ties `:focus-visible` on specificity `(0,1,0)`, is
 declared later, and the cascade resolves per property rather than per state — which computed
@@ -243,6 +248,12 @@ set, a parse caught six pairs under threshold that had been ratified by eye.
 - `brandCss` emits a **scoped** block — an unscoped `:root{}` applies light-stock overrides
   to the field frame, where `--color-text` is cream (E-16).
 - Print: no dark flood fills, no hairlines that vanish, body ≥12pt at reading distance.
+- Every surface stylesheet and `UI_CSS` are **parsed** by `sheetViolations`
+  (`packages/tokens/src/audit.ts`, run by `tools/ci/sheet-audit.test.ts` under `guard:test`): a
+  fill role setting a word, a fill role drawing a rule, type in px under the density's floor,
+  and a surface redeclaring the chrome `packages/ui` draws — `.ac-nav`, `.ac-link`, `.ac-form`,
+  `.ac-field`, `.ac-input`, `.ac-notice`, `.ac-facts`. A surface arranges these; it does not
+  redraw them, and a refusal outside the console is `RefusalNotice`, not markup.
 - In-repo: `npm run guard:all`, `npm run test:ui`, `npm run surfaces:check`.
 - Say in one line what you matched, and name any value you derived rather than took from the
   bulletin, with its measurement.

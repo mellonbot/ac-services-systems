@@ -73,4 +73,12 @@ export const PRIMITIVES = Object.freeze({
   text: { xs: "11px", sm: "13px", md: "15px", lg: "18px", xl: "22px", display: "28px", mast: "40px" },
   /** Tracking is load-bearing: a typed label is +0.14em and up; the script wordmark takes none at all. */
   track: { tight: "0.02em", normal: "0.05em", mark: "0.07em", wide: "0.14em", wider: "0.24em", widest: "0.34em" },
+  /**
+   * Motion, Bulletin No. 2: three durations on one curve. A control's state
+   * change moves; data does not ("no entrance animation on data"). Named here
+   * so a stylesheet reads `var(--motion-fast)` and never types a number — the
+   * same argument as the type scale, and the figures lived in prose until now.
+   */
+  motion: { fast: "110ms", base: "170ms", slow: "260ms" },
+  ease: "cubic-bezier(.2,.6,.3,1)",
 });

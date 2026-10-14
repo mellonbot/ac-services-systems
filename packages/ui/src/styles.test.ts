@@ -176,3 +176,34 @@ test("the shared input is sized by the density, never by a number of its own", (
   assert.match(input.decls, /border-radius:var\(--radius-control\)/);
   assert.doesNotMatch(input.decls, /(?:min-height|height|font-size|padding):[^;]*\d+px/, "a hand-typed size is a size one density gets wrong");
 });
+
+// ---------------------------------------------------------------------------
+// Motion. 110/170/260ms on one curve, from the tokens; a control's state change
+// moves, data does not ("no entrance animation on data"); and a reader who has
+// asked for reduced motion gets none.
+// ---------------------------------------------------------------------------
+const TRANSITIONING = RULES.filter((r) => /(?:^|;)\s*transition\s*:(?!\s*none)/.test(r.decls));
+
+test("every transition takes its duration and curve from the motion tokens", () => {
+  assert.ok(TRANSITIONING.length >= 4, "the controls that change state — action, segment, chip, link — move");
+  for (const { selector, decls } of TRANSITIONING) {
+    const value = /(?:^|;)\s*transition\s*:\s*([^;]+)/.exec(decls)![1]!;
+    for (const part of value.split(",")) {
+      assert.match(part, /var\(--motion-(?:fast|base|slow)\)/, `${selector}: "${part.trim()}" has no token duration`);
+      assert.match(part, /var\(--ease\)/, `${selector}: "${part.trim()}" has no token curve`);
+    }
+    assert.doesNotMatch(value, /\d+m?s\b/, `${selector} types a duration`);
+  }
+  for (const sel of [".ac-action", ".ac-seg__item", ".ac-chip", ".ac-link"])
+    assert.ok(TRANSITIONING.some((r) => r.selector === sel), `${sel} does not move`);
+});
+
+test("data does not animate in, and a reader who asked for reduced motion gets none", () => {
+  assert.doesNotMatch(DECLARED, /(?:^|[;{\s])animation(?:-[a-z]+)?\s*:/, "no keyframe animation — data appears, it does not arrive");
+  assert.doesNotMatch(DECLARED, /@keyframes/);
+  const reduced = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{([\s\S]*?)\}\s*\}/.exec(DECLARED);
+  assert.ok(reduced, "a prefers-reduced-motion block");
+  for (const { selector } of TRANSITIONING)
+    assert.ok(reduced![1]!.includes(selector), `${selector} transitions but is not stilled under reduced motion`);
+  assert.match(reduced![1]!, /transition:none/);
+});

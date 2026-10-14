@@ -182,3 +182,17 @@ test("the second channel is in the subset that has to carry it", () => {
     assert.ok(SUBSET_GLYPHS.includes(s.glyph), `the ${status} glyph is not in SUBSET_GLYPHS`);
   assert.ok(SUBSET_GLYPHS.includes("°"), "the degree sign the trade actually needs");
 });
+
+test("motion is a token: three durations and one easing reach every density, and nothing else sets a duration", () => {
+  // The bulletin states 110/170/260ms on cubic-bezier(.2,.6,.3,1) and no
+  // sheet could read it — the figures lived in prose and the component sheet
+  // had no transitions at all. A duration typed into a stylesheet is a value
+  // one density gets wrong, the same argument as the type scale.
+  assert.deepEqual(P.motion, { fast: "110ms", base: "170ms", slow: "260ms" });
+  assert.equal(P.ease, "cubic-bezier(.2,.6,.3,1)");
+  for (const d of DENSITIES) {
+    const css = tokenCss(d);
+    for (const [k, v] of Object.entries(P.motion)) assert.ok(css.includes(`--motion-${k}:${v}`), `${d} lacks --motion-${k}`);
+    assert.ok(css.includes(`--ease:${P.ease}`), `${d} lacks --ease`);
+  }
+});

@@ -107,7 +107,7 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:1400px
    is what licenses the fill to be an arc; on the field ground the fill reads
    6.07:1 and the press state is brighter still. */
 .ac-action-wrap{display:inline-flex;flex-direction:column;gap:var(--space-1);align-items:flex-start}
-.ac-action{min-height:var(--control-height);min-width:var(--control-height);padding:0 var(--space-4);border-radius:var(--radius-control);border:1px solid var(--color-action-text);background:var(--color-action);color:var(--color-action-ink);font-family:var(--font-label);font-size:var(--text-md);font-weight:700;letter-spacing:var(--track-tight);cursor:pointer}
+.ac-action{min-height:var(--control-height);min-width:var(--control-height);padding:0 var(--space-4);border-radius:var(--radius-control);border:1px solid var(--color-action-text);background:var(--color-action);color:var(--color-action-ink);font-family:var(--font-label);font-size:var(--text-md);font-weight:700;letter-spacing:var(--track-tight);cursor:pointer;transition:background-color var(--motion-fast) var(--ease),border-color var(--motion-fast) var(--ease),color var(--motion-fast) var(--ease),filter var(--motion-fast) var(--ease)}
 .ac-action[data-kind="quiet"]{background:var(--color-surface);color:var(--color-action-text);border-color:var(--color-border-hard)}
 .ac-action[data-kind="danger"]{background:var(--color-status-breached-fill);border-color:var(--color-status-breached);color:var(--color-status-breached)}
 .ac-action:hover{filter:brightness(calc(1 - 0.08 * var(--hover)))}
@@ -222,9 +222,9 @@ ac-degraded[hidden]{display:none}
 .ac-panel__title{margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
 .ac-panel__sub{margin:2px 0 0;color:var(--color-text-muted);font-size:var(--text-sm)}
 .ac-seg,.ac-nav{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface));border:1px solid var(--color-border);border-radius:var(--radius-card)}
-.ac-seg__item{display:inline-flex;align-items:center;gap:6px;padding:var(--space-2) var(--space-4);border-radius:var(--radius-control);color:var(--color-text-muted);font-weight:600;font-size:var(--text-sm);text-decoration:none;white-space:nowrap}
+.ac-seg__item{display:inline-flex;align-items:center;gap:6px;padding:var(--space-2) var(--space-4);border-radius:var(--radius-control);color:var(--color-text-muted);font-weight:600;font-size:var(--text-sm);text-decoration:none;white-space:nowrap;transition:background-color var(--motion-base) var(--ease),color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease)}
 .ac-seg__item[data-current="true"]{background:var(--color-surface);color:var(--color-action-text);box-shadow:var(--elevation-raised)}
-.ac-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--radius-pill);border:1px solid var(--color-border-hard);background:var(--color-surface);color:var(--color-text);font-size:var(--text-sm);font-weight:600;text-decoration:none;cursor:pointer}
+.ac-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--radius-pill);border:1px solid var(--color-border-hard);background:var(--color-surface);color:var(--color-text);font-size:var(--text-sm);font-weight:600;text-decoration:none;cursor:pointer;transition:background-color var(--motion-fast) var(--ease),border-color var(--motion-fast) var(--ease),color var(--motion-fast) var(--ease)}
 .ac-chip[aria-pressed="true"]{background:color-mix(in srgb,var(--color-action) 14%,var(--color-surface));border-color:color-mix(in srgb,var(--color-action-text) 45%,transparent);color:var(--color-action-text)}
 
 /* ---- The chrome every surface shares — Rev A, drawn once ----
@@ -241,7 +241,7 @@ ac-degraded[hidden]{display:none}
 /* A link is a WORD, so it takes the envelope, never the fill. Its underline is
    a hover affordance and is gated like every other one: where there is no
    cursor it is drawn in transparent. */
-.ac-link{color:var(--color-action-text);text-decoration:none}
+.ac-link{color:var(--color-action-text);text-decoration:none;transition:text-decoration-color var(--motion-fast) var(--ease)}
 .ac-link:hover{text-decoration:underline;text-decoration-color:color-mix(in srgb,currentColor calc(100% * var(--hover)),transparent)}
 .ac-link--button{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;font:inherit}
 .ac-link--button:disabled{color:var(--color-text-muted);cursor:default;text-decoration:none}
@@ -267,6 +267,11 @@ ac-degraded[hidden]{display:none}
 .ac-facts>div{padding:var(--space-2) var(--space-3);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 .ac-facts dt{font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
 .ac-facts dd{margin:var(--space-1) 0 0;font-weight:600}
+/* ---- Motion ----
+   110/170/260ms on one curve, from the tokens: a control's state change
+   moves, data does not. A reader who asked for reduced motion gets none —
+   the same selectors, stilled, declared last so they win on source order. */
+@media (prefers-reduced-motion:reduce){.ac-action,.ac-seg__item,.ac-chip,.ac-link{transition:none}}
 `;
 
 /** Every `var(--name)` the stylesheet reads. The test checks each is defined by tokenCss for every density. */
