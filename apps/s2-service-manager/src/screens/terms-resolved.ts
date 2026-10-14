@@ -80,7 +80,7 @@ export const termsResolved: Screen = (ctx, params) => {
           { key: "wonAt", header: "Won at", cell: (r: ResolutionWire) => (r.wonAt === "fallback" ? "register fallback" : `${r.wonAt.tier}`) },
           {
             key: "trace", header: "", align: "end",
-            cell: (r: ResolutionWire) => html`<button type="button" class="s2-link" onClick=${() => { q.value = { ...q.value, open: q.value.open === r.termKey ? "" : r.termKey }; }}>
+            cell: (r: ResolutionWire) => html`<button type="button" class="ac-link" onClick=${() => { q.value = { ...q.value, open: q.value.open === r.termKey ? "" : r.termKey }; }}>
               ${q.value.open === r.termKey ? "Hide trace" : "Trace"}
             </button>`,
           },
@@ -95,22 +95,22 @@ export const termsResolved: Screen = (ctx, params) => {
     </section>`;
   };
 
-  const picker = (nodes: readonly AccountWire[], termKeys: readonly string[]): VNode => html`<form class="s2-form s2-form--inline" onSubmit=${(e: Event) => e.preventDefault()} id="resolve-form">
-    <label class="s2-field">
+  const picker = (nodes: readonly AccountWire[], termKeys: readonly string[]): VNode => html`<form class="ac-form s2-form--inline" onSubmit=${(e: Event) => e.preventDefault()} id="resolve-form">
+    <label class="ac-field">
       <span>At which node</span>
-      <select name="nodeId" class="s2-input" onChange=${(e: Event) => { q.value = { ...q.value, nodeId: (e.currentTarget as HTMLSelectElement).value, open: "" }; }}>
+      <select name="nodeId" class="ac-input" onChange=${(e: Event) => { q.value = { ...q.value, nodeId: (e.currentTarget as HTMLSelectElement).value, open: "" }; }}>
         <option value="">Choose…</option>
         ${nodes.map((n) => html`<option value=${n.id} selected=${n.id === nodeId}>${n.name} (${n.tier})</option>`)}
       </select>
     </label>
-    <label class="s2-field">
+    <label class="ac-field">
       <span>As of</span>
-      <input class="s2-input" type="date" name="asOf" value=${s.asOf} onChange=${(e: Event) => { q.value = { ...q.value, asOf: (e.currentTarget as HTMLInputElement).value, open: "" }; }} />
+      <input class="ac-input" type="date" name="asOf" value=${s.asOf} onChange=${(e: Event) => { q.value = { ...q.value, asOf: (e.currentTarget as HTMLInputElement).value, open: "" }; }} />
       <small>A February job reprices against February.</small>
     </label>
-    <label class="s2-field">
+    <label class="ac-field">
       <span>One term</span>
-      <select name="termKey" class="s2-input" onChange=${(e: Event) => { q.value = { ...q.value, termKey: (e.currentTarget as HTMLSelectElement).value, open: "" }; }}>
+      <select name="termKey" class="ac-input" onChange=${(e: Event) => { q.value = { ...q.value, termKey: (e.currentTarget as HTMLSelectElement).value, open: "" }; }}>
         <option value="">All registered terms</option>
         ${termKeys.map((k) => html`<option value=${k} selected=${k === s.termKey}>${k}</option>`)}
       </select>

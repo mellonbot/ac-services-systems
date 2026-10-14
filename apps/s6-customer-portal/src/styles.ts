@@ -8,15 +8,10 @@
  */
 export const S6_CSS = `
 .s6-app{display:flex;flex-direction:column;gap:var(--space-3)}
-.s6-nav{display:flex;align-items:center;gap:var(--space-4);padding-bottom:var(--space-2);border-bottom:1px solid var(--color-border)}
-.s6-nav__who{margin-inline-start:auto;color:var(--color-text-muted);font-size:var(--text-sm)}
-.s6-nav__logout{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;color:var(--color-action-text);font:inherit}
 .s6-h1{margin:0 0 var(--space-2);font-size:var(--text-xl)}
 .s6-h2{margin:var(--space-6) 0 var(--space-2);font-size:var(--text-lg)}
 .s6-scope,.s6-crumbs{margin:0 0 var(--space-4);color:var(--color-text-muted)}
 .s6-loading,.s6-empty,.s6-muted{color:var(--color-text-muted)}
-.s6-link{color:var(--color-action-text);text-decoration:none}
-.s6-link:hover{text-decoration:underline}
 .s6-actions{display:flex;gap:var(--space-4);margin:var(--space-4) 0 0}
 .s6-tree{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
 .s6-tree .s6-tree{margin-inline-start:var(--space-6);margin-top:var(--space-2)}
@@ -28,20 +23,10 @@ export const S6_CSS = `
 .s6-node__facts{display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm)}
 .s6-node__actions{margin-inline-start:auto;display:inline-flex;gap:var(--space-3);white-space:nowrap}
 .s6-login{max-width:40ch;margin:10vh auto 0}
-.s6-form{display:flex;flex-direction:column;gap:var(--space-3);max-width:64ch}
-.s6-field{display:flex;flex-direction:column;gap:var(--space-1)}
 .s6-field--inline{flex-direction:row;align-items:center;gap:var(--space-3);margin:0 0 var(--space-4)}
-.s6-field>span{font-weight:600;font-size:var(--text-sm);color:var(--color-text-muted)}
-.s6-input{min-height:var(--control-height);padding:0 var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-none);background:var(--color-surface);color:var(--color-text);font:inherit}
-.s6-textarea{padding:var(--space-2);min-height:calc(var(--control-height) * 2.5);resize:vertical}
 .s6-fieldset{border:1px solid var(--color-border);padding:var(--space-2) var(--space-3);display:flex;flex-direction:column;gap:var(--space-2);margin:0}
 .s6-fieldset legend{font-weight:600;font-size:var(--text-sm);color:var(--color-text-muted);padding:0 var(--space-1)}
 .s6-radio{display:flex;gap:var(--space-2);align-items:baseline}
-.s6-refusal{padding:var(--space-3);border:1px solid var(--color-status-breached);background:var(--color-surface);max-width:64ch}
-.s6-refusal__heading{margin:0 0 var(--space-2);font-size:var(--text-md)}
-.s6-refusal__message{margin:0 0 var(--space-2)}
-.s6-refusal__routes{display:flex;gap:var(--space-3)}
-.s6-sent{padding:var(--space-2) var(--space-3);border:1px solid var(--color-status-ok);background:var(--color-surface)}
 .s6-terms__list{margin:0;display:flex;flex-direction:column;gap:var(--space-2)}
 .s6-term{display:grid;grid-template-columns:minmax(18ch,1fr) minmax(12ch,auto) 2fr;gap:var(--space-2) var(--space-4);align-items:baseline;padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);background:var(--color-surface)}
 .s6-term__key{color:var(--color-text-muted)}
@@ -62,11 +47,6 @@ export const S6_CSS = `
 .s6-roof__glyph{color:var(--color-text-muted)}
 .s6-roof__coords{font-size:var(--text-sm)}
 .s6-address{font-style:normal;display:flex;flex-direction:column;gap:var(--space-1)}
-.s6-facts{margin:0;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3) var(--space-4)}
-.s6-facts>div{display:flex;flex-direction:column;gap:var(--space-1)}
-.s6-facts dt{font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
-.s6-facts dd{margin:0;font-weight:600}
-.s6-facts dd.ac-num{font-size:var(--text-xl)}
 .s6-contacts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3)}
 .s6-contact{display:flex;flex-direction:column;gap:var(--space-1);padding-inline-start:var(--space-3);border-inline-start:3px solid var(--color-border)}
 .s6-contact[data-primary="true"]{border-inline-start-color:var(--color-border-hard)}
@@ -84,17 +64,14 @@ export const S6_CSS = `
 .s6-ledger__detail{font-size:var(--text-sm)}
 .s6-ledger__amount{text-align:end;font-weight:600}
 .s6-visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.s6-site .ac-facts{margin:0;grid-template-columns:1fr 1fr}
+.s6-site .ac-facts>div{display:flex;flex-direction:column;gap:var(--space-1)}
+.s6-site .ac-facts dd.ac-num{font-size:var(--text-xl)}
 @media (max-width:1100px){.s6-site__grid{grid-template-columns:1fr 1fr}.s6-panel--where{grid-column:1 / -1}}
-@media (max-width:760px){.s6-site__grid{grid-template-columns:1fr}.s6-ledger__row{grid-template-columns:1fr}.s6-ledger__amount{text-align:start}.s6-nav{align-items:stretch;flex-wrap:wrap}.s6-nav__who{order:2;width:100%;margin-inline-start:0}.s6-node__actions{margin-inline-start:0;width:100%}.s6-term{grid-template-columns:1fr}}
+@media (max-width:760px){.s6-site__grid{grid-template-columns:1fr}.s6-ledger__row{grid-template-columns:1fr}.s6-ledger__amount{text-align:start}.s6-node__actions{margin-inline-start:0;width:100%}.s6-term{grid-template-columns:1fr}}
 
 /* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */
-.s6-nav{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px;margin:0 0 var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-card);background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface))}
-.s6-nav__link{display:inline-flex;align-items:center;padding:var(--space-2) var(--space-4);border-radius:var(--radius-control);color:var(--color-text-muted);font-weight:600;text-decoration:none;box-shadow:none}
-.s6-nav__link[data-current="true"]{background:var(--color-surface);color:var(--color-action-text);box-shadow:var(--elevation-raised)}
-.s6-nav__who{padding:0 var(--space-2)}
-.s6-nav__logout{padding:var(--space-2) var(--space-3);border-radius:var(--radius-control)}
-.s6-input,.s6-textarea{border-radius:var(--radius-control)}
-.s6-fieldset,.s6-node__group,.s6-node__row,.s6-panel,.s6-refusal,.s6-roof,.s6-sent,.s6-term{border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.s6-fieldset,.s6-node__group,.s6-node__row,.s6-panel,.s6-roof,.s6-term{border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 .s6-orders{display:flex;flex-direction:column;gap:var(--space-3);margin:0 0 var(--space-4)}
 .s6-order{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-4)}
 .s6-order__head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-3);flex-wrap:wrap}
@@ -113,7 +90,5 @@ export const S6_CSS = `
 .s6-order__note{margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);background:color-mix(in srgb,var(--color-surface-sunken) 45%,var(--color-surface));font-size:var(--text-sm)}
 .s6-h1{font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);text-transform:none;line-height:1.15}
 .s6-h2{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-tight);text-transform:none}
-.s6-facts>div{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-2) var(--space-3)}
-.s6-form{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-4)}
 .s6-tree{padding:0}
 `;

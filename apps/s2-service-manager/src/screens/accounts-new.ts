@@ -55,9 +55,9 @@ export const accountsNew: Screen = (ctx, params) => {
     }
   };
 
-  const regionField = (regions: readonly RegionWire[]): VNode => html`<label class="s2-field">
+  const regionField = (regions: readonly RegionWire[]): VNode => html`<label class="ac-field">
     <span>Our service region</span>
-    <select name="regionId" required class="s2-input">
+    <select name="regionId" required class="ac-input">
       ${regions.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}
     </select>
     <small>The region node is where this customer's tree meets one of our regions. Everything under it is dispatched from here.</small>
@@ -76,13 +76,13 @@ export const accountsNew: Screen = (ctx, params) => {
   return html`<section class="s2-form-screen">
     <h2 class="s2-h2">New ${tier}</h2>
     ${tree ? whenReady(ctx, tree.value, (t) => whenReady(ctx, regions.value, (r) => parentLine(t.nodes, r.regions))) : null}
-    <form class="s2-form" onSubmit=${submit} id="account-form">
-      <label class="s2-field"><span>Name</span><input class="s2-input" name="name" required autocomplete="off" /></label>
+    <form class="ac-form" onSubmit=${submit} id="account-form">
+      <label class="ac-field"><span>Name</span><input class="ac-input" name="name" required autocomplete="off" /></label>
       ${tier === "region" ? whenReady(ctx, regions.value, (r) => regionField(r.regions)) : null}
       ${tier !== "region" ? html`
-        <label class="s2-field"><span>Customer's own grouping</span><input class="s2-input" name="customerGroup" placeholder="e.g. Mountain — an attribute, never structure" /></label>
-        <label class="s2-field"><span>Customer's site / store code</span><input class="s2-input" name="externalRef" /></label>
-        <label class="s2-field"><span>Timezone (IANA)</span><input class="s2-input" name="timezone" placeholder="America/Chicago" /></label>` : null}
+        <label class="ac-field"><span>Customer's own grouping</span><input class="ac-input" name="customerGroup" placeholder="e.g. Mountain — an attribute, never structure" /></label>
+        <label class="ac-field"><span>Customer's site / store code</span><input class="ac-input" name="externalRef" /></label>
+        <label class="ac-field"><span>Timezone (IANA)</span><input class="ac-input" name="timezone" placeholder="America/Chicago" /></label>` : null}
       <div class="s2-form__actions">
         ${submitAction(ctx, outcome.value.busy ? "Creating…" : `Create ${tier}`, "create")}
         ${linkTo(ctx, "accounts.tree", { orgId }, "Cancel")}

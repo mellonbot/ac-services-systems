@@ -7,6 +7,7 @@ import { PrimaryAction } from "./components/primary-action.ts";
 import { DataGrid } from "./components/data-grid.ts";
 import { ComplianceBadge } from "./components/compliance-badge.ts";
 import { RefusalCard, refusalHeading, AXIS_SENTENCE } from "./components/refusal-card.ts";
+import { RefusalNotice } from "./components/refusal-notice.ts";
 import { DegradedBanner, applyDegraded, ageOf } from "./components/degraded-banner.ts";
 import { COMPONENT_SPECS, ComplianceBadgeSpec, DataGridSpec } from "./component.ts";
 import { STATUS_GLYPH, MARK_GLYPHS } from "../../tokens/src/index.ts";
@@ -50,7 +51,7 @@ test("densityOf is literal, so the registry's density reaches the component type
 });
 
 test("every spec has an implementation carrying it, and no density outside the three", () => {
-  const carried = [StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner].map((c) => c.spec.name).sort();
+  const carried = [StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner, RefusalNotice].map((c) => c.spec.name).sort();
   assert.deepEqual(carried, [...COMPONENT_SPECS].map((s) => s.name).sort());
   for (const s of COMPONENT_SPECS) for (const d of s.densities) assert.ok(["console", "comfort", "field"].includes(d));
 });
@@ -219,4 +220,36 @@ test("every mark a component draws is a named mark, so the font subset can be ch
   const sorted = render(html`<${DataGrid} density="console" columns=${[{ key: "a", header: "A", sortable: true }]} rows=${[]}
     rowKey=${() => "k"} sort=${{ key: "a", dir: "desc" }} onSort=${() => {}} />`);
   assert.ok(sorted.includes(MARK_GLYPHS.sortDesc));
+});
+
+// ---------------------------------------------------------------------------
+// RefusalNotice — RefusalCard's plain sibling. Six surfaces each rendered their
+// own: the same heading, the gateway's message, a way forward, and none of the
+// axis, tiers or code that are the office's to act on. The discipline was
+// right and copied six times; now it is one component with the card's floor.
+// ---------------------------------------------------------------------------
+test("RefusalNotice is the heading, the message verbatim, and the routes — admitted at every density", () => {
+  const refusal: Refusal = { kind: "scope", error: "unknown_scope", message: "There is no site node in this scope." } as Refusal;
+  let chosen = "";
+  const out = render(RefusalNotice({
+    density: "comfort", refusal,
+    routes: [{ label: "Try again", onSelect: () => { chosen = "retry"; }, primary: true }, { label: "Back", onSelect: () => { chosen = "back"; } }],
+  }) ?? html``);
+  assert.match(out, /<section class="ac-notice" role="alert" data-tone="breached" data-kind="scope" data-density="comfort"/);
+  assert.match(out, new RegExp(`${MARK_GLYPHS.fault}`), "the fault mark — colour never carries alone");
+  assert.match(out, new RegExp(`ac-notice__heading[^<]*<[^>]*>[^<]*</span> ${refusalHeading(refusal)}`));
+  assert.match(out, /<p class="ac-notice__message">There is no site node in this scope\.<\/p>/);
+  assert.match(out, /ac-notice__routes/);
+  assert.match(out, /class="ac-action" data-kind="primary"[^>]*>Try again</);
+  assert.match(out, /class="ac-action" data-kind="quiet"[^>]*>Back</);
+  assert.doesNotMatch(out, /ac-refusal|Authoring tiers|Attempted at/, "the console's facts stay on the console");
+  void chosen;
+  for (const d of ["console", "comfort", "field"] as const) assert.ok(RefusalNotice({ density: d, refusal }), d);
+  assert.ok(COMPONENT_SPECS.some((s) => s.name === "RefusalNotice"));
+});
+
+test("RefusalNotice can be dismissed, as a link-button rather than a filled control", () => {
+  const out = render(RefusalNotice({ density: "comfort", refusal: { kind: "no_route", message: "Unknown." }, onDismiss: () => {} }) ?? html``);
+  assert.match(out, /<button type="button" class="ac-link ac-link--button"[^>]*>Dismiss<\/button>/);
+  assert.doesNotMatch(render(RefusalNotice({ density: "comfort", refusal: { kind: "no_route", message: "Unknown." } }) ?? html``), /Dismiss|ac-notice__routes/);
 });

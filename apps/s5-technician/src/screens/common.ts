@@ -1,4 +1,4 @@
-import { html, StatusPill, type VNode, type Router, type Signal } from "../../../../packages/ui/src/index.ts";
+import { html, RefusalNotice, type VNode, type Router, type Signal } from "../../../../packages/ui/src/index.ts";
 import type { Shell } from "../../../../packages/shell/src/index.ts";
 import type { Refusal, DensityOf } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
@@ -41,16 +41,13 @@ export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) =>
 };
 
 /**
- * S5's own refusal rendering — never `RefusalCard` (console-only; a field
- * screen has no admitted variant to import, so this is not a style choice,
- * it is what compiles). A crew cannot act on a refusal's axis or its
- * permitted tiers either way; the gateway's own message, plainly, is enough.
+ * A refusal on the tablet: RefusalNotice, never RefusalCard (console-only; a
+ * field screen has no admitted variant to import). A crew cannot act on a
+ * refusal's axis or its permitted tiers; the heading, the gateway's own
+ * message and the fault mark are enough.
  */
 export const refusalView = (ctx: ScreenContext, refusal: Refusal): VNode =>
-  html`<div class="s5-refusal" role="alert">
-    ${StatusPill({ density: ctx.density, status: "blocked", label: "Not available" })}
-    <p class="s5-refusal__message">${refusal.message}</p>
-  </div>`;
+  RefusalNotice({ density: ctx.density, refusal }) ?? html``;
 
-export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "s5-link"): VNode =>
+export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "ac-link"): VNode =>
   html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;

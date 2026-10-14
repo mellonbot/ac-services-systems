@@ -1,4 +1,4 @@
-import { html, refusalHeading, StatusPill, type VNode, type Router, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, RefusalNotice, StatusPill, type VNode, type Router, type Status } from "../../../../packages/ui/src/index.ts";
 import type { Shell } from "../../../../packages/shell/src/index.ts";
 import { HQ_METRICS, type DensityOf, type HqMetricKey, type HqMetricsOutput, type HqRegionWire } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
@@ -21,15 +21,11 @@ export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) =>
   switch (r.state) {
     case "loading": return html`<p class="s4-loading" role="status">Loading…</p>`;
     case "ready": return view(r.value);
-    case "refused": return html`<section class="s4-refusal" role="alert" data-kind=${r.refusal.kind} data-density=${ctx.density}>
-      <h2 class="s4-refusal__heading">${refusalHeading(r.refusal)}</h2>
-      <p class="s4-refusal__message">${r.refusal.message}</p>
-      ${retry ? html`<button type="button" class="ac-action" data-kind="primary" data-density=${ctx.density} onClick=${retry}>Try again</button>` : null}
-    </section>`;
+    case "refused": return RefusalNotice({ density: ctx.density, refusal: r.refusal, routes: retry ? [{ label: "Try again", onSelect: retry, primary: true }] : [] }) ?? html``;
   }
 };
 
-export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "s4-link"): VNode =>
+export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "ac-link"): VNode =>
   html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;
 
 export const readMetrics = (ctx: ScreenContext) =>

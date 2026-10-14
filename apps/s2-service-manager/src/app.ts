@@ -232,7 +232,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       : p.shell.context ? [p.shell.context.parent] : [];
     const entity = loc ? activeEntity(loc.params, p.store) : null;
     return html`<div class="s2-app">
-      <nav class="s2-nav" aria-label="Workspace">
+      <nav class="ac-nav" aria-label="Workspace">
         ${NAV_GROUPS.map((navGroup) => html`<div class="s2-nav__group" role="group" aria-label=${navGroup.label}>
           <span class="s2-nav__group-label">${navGroup.label}</span>
           <div class="s2-nav__group-links">
@@ -240,12 +240,12 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
               const spec = SCREENS[id];
               const title = "title" in spec ? spec.title : ROUTE_LABELS[id];
               const current = routeId !== undefined && navGroupFor(routeId)?.label === navGroup.label && navTargetFor(routeId) === id;
-              return html`<a class="s2-nav__link" data-current=${current ? "true" : "false"} aria-current=${current ? "page" : undefined} href=${router.href(id, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(id, {}); }}>${title}</a>`;
+              return html`<a class="ac-seg__item" data-current=${current ? "true" : "false"} aria-current=${current ? "page" : undefined} href=${router.href(id, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(id, {}); }}>${title}</a>`;
             })}
           </div>
         </div>`)}
-        <span class="s2-nav__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
-        <button type="button" class="s2-nav__logout" onClick=${logout}>Sign out</button>
+        <span class="ac-nav__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
+        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
       </nav>
       <nav class="s2-context" aria-label="Current location">
         <div class="s2-context__scope">
@@ -280,9 +280,9 @@ export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: 
   };
   return html`<section class="s2-login">
     <h1 class="s2-h1">${SURFACE.name}</h1>
-    <form class="s2-form" onSubmit=${submit} id="login-form">
-      <label class="s2-field"><span>Email</span><input class="s2-input" name="email" type="email" required autocomplete="username" /></label>
-      <label class="s2-field"><span>Password</span><input class="s2-input" name="password" type="password" required autocomplete="current-password" /></label>
+    <form class="ac-form" onSubmit=${submit} id="login-form">
+      <label class="ac-field"><span>Email</span><input class="ac-input" name="email" type="email" required autocomplete="username" /></label>
+      <label class="ac-field"><span>Password</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>
       ${PrimaryAction({ density: DENSITY, label: p.busy ? "Signing in…" : "Sign in", type: "submit", id: "sign-in" })}
     </form>
     ${p.refusal ? RefusalCard({ density: DENSITY, refusal: p.refusal }) : null}

@@ -52,10 +52,10 @@ export const accountsMove: Screen = (ctx, params) => {
     return html`<section class="s2-form-screen">
       <h2 class="s2-h2">Move ${node.tier} "${node.name}"</h2>
       <p class="s2-parent">Currently dispatched from <strong>${regionName(node.regionId)}</strong>${descendants ? html` with <strong>${descendants}</strong> node${descendants === 1 ? "" : "s"} beneath it, which will follow` : ""}.</p>
-      <form class="s2-form" onSubmit=${submit(node)} id="move-form">
-        <label class="s2-field">
+      <form class="ac-form" onSubmit=${submit(node)} id="move-form">
+        <label class="ac-field">
           <span>New parent (${node.tier === "location" ? "region node" : "location"})</span>
-          <select class="s2-input" name="newParentId" required>
+          <select class="ac-input" name="newParentId" required>
             ${candidates.map((c) => html`<option value=${c.id}>${c.name} — ${regionName(c.regionId)}</option>`)}
           </select>
           ${candidates.length === 0 ? html`<small>No other ${node.tier === "location" ? "region node" : "location"} in this tree to move under.</small>` : html`<small>The region follows the edge. Moving under a node in another region moves the shard key of this node and everything under it.</small>`}

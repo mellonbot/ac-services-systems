@@ -107,7 +107,7 @@ test("boot with no session shows login, not an error; a bad password is a refusa
   assert.deepEqual(gw.calls.map((c) => c.path), ["/me"], "boot tries to resume the cookie session first");
   assert.equal(gw.calls[0]!.init.credentials, "include", "cookie mode from the first request");
   let out = render(app.view());
-  assert.match(out, /<form class="s2-form"[^>]*id="login-form"/);
+  assert.match(out, /<form class="ac-form"[^>]*id="login-form"/);
   assert.doesNotMatch(out, /ac-refusal/, "a missing session is the normal first visit");
 
   await app.login("owner@ac.test", "wrong");

@@ -38,15 +38,15 @@ export const catalogue: Screen = (ctx) => {
           { key: "proposed", header: "Your proposals", cell: (r: CatalogItemWire) => (r.proposals.length === 0 ? html`<span class="s7-muted">—</span>` : html`${r.proposals.map((p) => html`<div class="s7-row">
               ${StatusPill({ density: ctx.density, status: "at_risk", label: "Waiting on Rankine" })}
               <span class="s7-num">${money(p.priceMinor, p.currency)}</span><span>from ${p.effectiveFrom}</span>
-              <button type="button" class="s7-link s7-link--button" onClick=${() => withdraw(p.id)}>Withdraw</button>
+              <button type="button" class="ac-link ac-link--button" onClick=${() => withdraw(p.id)}>Withdraw</button>
             </div>`)}`) },
         ],
       })}</div>
       ${c.items.length ? html`<h2 class="s7-h2">Propose a price</h2>
-        <form class="s7-form s7-form--row" onSubmit=${propose} id="propose-form">
-          <label class="s7-field"><span>Item</span><select class="s7-input" name="itemId" required>${c.items.map((i) => html`<option value=${i.id}>${i.vendorSku} — ${i.description}</option>`)}</select></label>
-          <label class="s7-field"><span>Unit price (USD)</span><input class="s7-input" name="price" inputmode="decimal" required placeholder="42.50" /></label>
-          <label class="s7-field"><span>From</span><input class="s7-input" type="date" name="effectiveFrom" min=${today()} defaultValue=${today()} required /></label>
+        <form class="ac-form s7-form--row" onSubmit=${propose} id="propose-form">
+          <label class="ac-field"><span>Item</span><select class="ac-input" name="itemId" required>${c.items.map((i) => html`<option value=${i.id}>${i.vendorSku} — ${i.description}</option>`)}</select></label>
+          <label class="ac-field"><span>Unit price (USD)</span><input class="ac-input" name="price" inputmode="decimal" required placeholder="42.50" /></label>
+          <label class="ac-field"><span>From</span><input class="ac-input" type="date" name="effectiveFrom" min=${today()} defaultValue=${today()} required /></label>
           ${submitAction(ctx, out, "Propose", "propose-price")}
         </form>` : null}`)}
     ${outcomeView(out, "propose-outcome")}

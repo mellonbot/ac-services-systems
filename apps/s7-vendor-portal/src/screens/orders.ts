@@ -52,8 +52,8 @@ const acknowledgeForm = (ctx: ScreenContext, d: PurchaseOrderDetailOutput): VNod
     }, REFRESH);
   };
   return html`<h2 class="s7-h2">Acknowledge this order</h2>
-    <form class="s7-form s7-form--row" onSubmit=${submit} id="ack-form">
-      <label class="s7-field"><span>It will ship on</span><input class="s7-input" type="date" name="promisedShipOn" min=${today()} required /></label>
+    <form class="ac-form s7-form--row" onSubmit=${submit} id="ack-form">
+      <label class="ac-field"><span>It will ship on</span><input class="ac-input" type="date" name="promisedShipOn" min=${today()} required /></label>
       ${submitAction(ctx, ack, "Acknowledge", "acknowledge")}
     </form>`;
 };
@@ -72,14 +72,14 @@ const shipForm = (ctx: ScreenContext, d: PurchaseOrderDetailOutput): VNode => {
     }, REFRESH);
   };
   return html`<h2 class="s7-h2">Record a shipment</h2>
-    <form class="s7-form" onSubmit=${submit} id="ship-form">
+    <form class="ac-form" onSubmit=${submit} id="ship-form">
       <div class="s7-row">
-        <label class="s7-field"><span>Shipped on</span><input class="s7-input" type="date" name="shippedOn" defaultValue=${today()} required /></label>
-        <label class="s7-field"><span>Carrier</span><input class="s7-input" name="carrier" required /></label>
-        <label class="s7-field"><span>Tracking</span><input class="s7-input" name="tracking" /></label>
+        <label class="ac-field"><span>Shipped on</span><input class="ac-input" type="date" name="shippedOn" defaultValue=${today()} required /></label>
+        <label class="ac-field"><span>Carrier</span><input class="ac-input" name="carrier" required /></label>
+        <label class="ac-field"><span>Tracking</span><input class="ac-input" name="tracking" /></label>
       </div>
-      ${open.map((l) => html`<label class="s7-field"><span>Line ${l.lineNo} · ${l.vendorSku} — ${qty((BigInt(l.quantityMilli) - BigInt(l.shippedMilli)).toString())} ${l.uom} still to ship</span>
-        <input class="s7-input" name=${`ship:${l.id}`} inputmode="decimal" defaultValue=${qty((BigInt(l.quantityMilli) - BigInt(l.shippedMilli)).toString())} /></label>`)}
+      ${open.map((l) => html`<label class="ac-field"><span>Line ${l.lineNo} · ${l.vendorSku} — ${qty((BigInt(l.quantityMilli) - BigInt(l.shippedMilli)).toString())} ${l.uom} still to ship</span>
+        <input class="ac-input" name=${`ship:${l.id}`} inputmode="decimal" defaultValue=${qty((BigInt(l.quantityMilli) - BigInt(l.shippedMilli)).toString())} /></label>`)}
       ${submitAction(ctx, ship, "Record shipment", "record-shipment")}
     </form>`;
 };
@@ -100,15 +100,15 @@ const invoiceForm = (ctx: ScreenContext, d: PurchaseOrderDetailOutput): VNode =>
     }, REFRESH);
   };
   return html`<h2 class="s7-h2">Submit an invoice</h2>
-    <form class="s7-form" onSubmit=${submit} id="invoice-form">
+    <form class="ac-form" onSubmit=${submit} id="invoice-form">
       <div class="s7-row">
-        <label class="s7-field"><span>Invoice number</span><input class="s7-input" name="invoiceNumber" required /></label>
-        <label class="s7-field"><span>Invoice date</span><input class="s7-input" type="date" name="invoiceDate" defaultValue=${today()} required /></label>
+        <label class="ac-field"><span>Invoice number</span><input class="ac-input" name="invoiceNumber" required /></label>
+        <label class="ac-field"><span>Invoice date</span><input class="ac-input" type="date" name="invoiceDate" defaultValue=${today()} required /></label>
       </div>
       ${billable.map((l) => html`<div class="s7-row">
-        <label class="s7-field"><span>Line ${l.lineNo} · ${l.vendorSku} — quantity (${qty((BigInt(l.receivedMilli) - BigInt(l.invoicedMilli)).toString())} received, not yet invoiced)</span>
-          <input class="s7-input" name=${`q:${l.id}`} inputmode="decimal" defaultValue=${qty((BigInt(l.receivedMilli) - BigInt(l.invoicedMilli)).toString())} /></label>
-        <label class="s7-field"><span>Unit price</span><input class="s7-input" name=${`p:${l.id}`} inputmode="decimal" defaultValue=${plain(l.unitPriceMinor)} /></label>
+        <label class="ac-field"><span>Line ${l.lineNo} · ${l.vendorSku} — quantity (${qty((BigInt(l.receivedMilli) - BigInt(l.invoicedMilli)).toString())} received, not yet invoiced)</span>
+          <input class="ac-input" name=${`q:${l.id}`} inputmode="decimal" defaultValue=${qty((BigInt(l.receivedMilli) - BigInt(l.invoicedMilli)).toString())} /></label>
+        <label class="ac-field"><span>Unit price</span><input class="ac-input" name=${`p:${l.id}`} inputmode="decimal" defaultValue=${plain(l.unitPriceMinor)} /></label>
       </div>`)}
       <small class="s7-muted">Rankine matches every invoice to the order's price and to what it received. A difference holds the invoice, with the reason, until the office resolves it.</small>
       ${submitAction(ctx, inv, "Submit invoice", "submit-invoice")}
@@ -128,11 +128,11 @@ const returnsBlock = (ctx: ScreenContext, d: PurchaseOrderDetailOutput): VNode =
   };
   return html`${d.returns.map((r) => {
     const line = d.lines.find((l) => l.id === r.poLineId);
-    return html`<div class="s7-form">
+    return html`<div class="ac-form">
       <p><b>Line ${line?.lineNo ?? "—"} · ${line?.vendorSku ?? ""}</b> — ${qty(r.quantityMilli)} to return. ${r.reason}</p>
       ${r.state === "requested" ? html`<form class="s7-row s7-row--end" onSubmit=${(e: Event) => answer(r, e)} id=${`rma-${r.id}`}>
-          <label class="s7-field"><span>Your RMA number (to authorize)</span><input class="s7-input" name="rmaNumber" /></label>
-          <label class="s7-field"><span>Note (required to reject)</span><input class="s7-input" name="note" /></label>
+          <label class="ac-field"><span>Your RMA number (to authorize)</span><input class="ac-input" name="rmaNumber" /></label>
+          <label class="ac-field"><span>Note (required to reject)</span><input class="ac-input" name="note" /></label>
           <button type="submit" class="ac-action" data-kind="primary" data-density=${ctx.density} value="authorized">Authorize</button>
           <button type="submit" class="ac-action" data-kind="quiet" data-density=${ctx.density} value="rejected">Reject</button>
         </form>`
@@ -154,7 +154,7 @@ export const order: Screen = (ctx, params) => {
       const o = d.order, rp = d.receivingPoint;
       return html`
         <h1 class="s7-h1">${o.number} ${poPill(ctx, o.state)}</h1>
-        <dl class="s7-facts">
+        <dl class="ac-facts">
           <div><dt>Deliver to</dt><dd>${rp ? html`${rp.code} · ${TIER_WORD[rp.tier]}<br /><span class="s7-muted">${[rp.address.line1, rp.address.city, rp.address.state, rp.address.postal].filter(Boolean).join(", ")}</span>` : "—"}</dd></div>
           <div><dt>Total</dt><dd class="s7-num">${money(o.totalMinor, o.currency)}</dd></div>
           <div><dt>Issued</dt><dd>${o.issuedAt ? o.issuedAt.slice(0, 10) : "—"}</dd></div>

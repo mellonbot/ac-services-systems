@@ -154,7 +154,7 @@ export const site: Screen = (ctx, params) => {
 
         <section class="s6-panel s6-panel--now" aria-labelledby="site-now">
           <h2 class="s6-h2 s6-panel__h" id="site-now">Right now</h2>
-          <dl class="s6-facts" id="site-facts">
+          <dl class="ac-facts" id="site-facts">
             <div><dt>Open jobs</dt><dd class="ac-num">${openJobs.length}</dd></div>
             <div><dt>Requests waiting</dt><dd class="ac-num">${siteRequests.filter((r) => r.jobId === null).length}</dd></div>
             <div><dt>Units on record</dt><dd class="ac-num">${equipment.value.state === "ready" ? equipment.value.value.equipment.filter((e) => e.active).length : "…"}</dd></div>
@@ -210,7 +210,7 @@ const addressView = (a: AddressWire | null, tz: string | null): VNode => {
   const geo = a && typeof a.lat === "number" && typeof a.lng === "number" ? `geo:${a.lat},${a.lng}` : null;
   return html`<address class="s6-address" id="site-address">
     ${lines.map((l) => html`<span>${l}</span>`)}
-    ${geo ? html`<a class="s6-link" href=${geo}>Open in your maps app</a>` : null}
+    ${geo ? html`<a class="ac-link" href=${geo}>Open in your maps app</a>` : null}
     ${tz ? html`<span class="s6-muted">${tz}</span>` : null}
   </address>`;
 };
@@ -222,8 +222,8 @@ const contactsView = (contacts: readonly ContactWire[], siteId: string): VNode =
       <span class="s6-contact__role">${ROLE_WORD[c.role]}${c.accountId !== siteId ? html` <span class="s6-muted">· ${TIER_WORD[c.accountTier]}: ${c.accountName}</span>` : null}</span>
       <span class="s6-contact__name">${c.name}</span>
       <span class="s6-contact__reach">
-        ${c.phone ? html`<a class="s6-link ac-num" href=${`tel:${c.phone.replace(/[^\d+]/g, "")}`}>${c.phone}</a>` : null}
-        ${c.email ? html`<a class="s6-link" href=${`mailto:${c.email}`}>${c.email}</a>` : null}
+        ${c.phone ? html`<a class="ac-link ac-num" href=${`tel:${c.phone.replace(/[^\d+]/g, "")}`}>${c.phone}</a>` : null}
+        ${c.email ? html`<a class="ac-link" href=${`mailto:${c.email}`}>${c.email}</a>` : null}
       </span>
       ${c.note ? html`<span class="s6-muted s6-contact__note">${c.note}</span>` : null}
     </li>`)}

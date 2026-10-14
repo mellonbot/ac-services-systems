@@ -58,11 +58,11 @@ export const enquire: Screen = (ctx: ScreenContext): VNode => {
       up; we will tell you what we can do before anyone commits to anything.
     </p>
 
-    ${sent.length ? html`<section class="s1-sent" role="status" id="sent">
+    ${sent.length ? html`<section class="ac-notice" data-tone="ok" role="status" id="sent">
       <p>${sent[sent.length - 1]}</p>
     </section>` : null}
 
-    ${queued.length ? html`<section class="s1-queued" role="status" id="queued">
+    ${queued.length ? html`<section class="ac-notice" data-tone="at_risk" role="status" id="queued">
       <p><strong>${queued.length === 1 ? "Your message is waiting to send." : `${queued.length} messages are waiting to send.`}</strong></p>
       <p>
         We could not reach our system just now, so it is being held on this
@@ -71,33 +71,33 @@ export const enquire: Screen = (ctx: ScreenContext): VNode => {
       </p>
     </section>` : null}
 
-    ${attention.map((a) => html`<section class="s1-refusal" role="alert" data-kind="input">
-      <h2 class="s1-refusal__heading">That did not go through</h2>
-      <p class="s1-refusal__message">${a.message}</p>
-      <div class="s1-refusal__routes">
+    ${attention.map((a) => html`<section class="ac-notice" role="alert" data-tone="breached" data-kind="input">
+      <h2 class="ac-notice__heading">That did not go through</h2>
+      <p class="ac-notice__message">${a.message}</p>
+      <div class="ac-notice__routes">
         <button type="button" class="ac-action" data-kind="quiet" data-density=${ctx.density}
                 onClick=${() => ctx.buffer.dismiss(a.submissionId)}>Dismiss</button>
       </div>
     </section>`)}
 
-    <form class="s1-form" onSubmit=${onSubmit} id="lead-form">
-      <label class="s1-field"><span>Your name</span>
-        <input class="s1-input" name="name" type="text" required maxlength="120" autocomplete="name" id="lead-name" />
+    <form class="ac-form" onSubmit=${onSubmit} id="lead-form">
+      <label class="ac-field"><span>Your name</span>
+        <input class="ac-input" name="name" type="text" required maxlength="120" autocomplete="name" id="lead-name" />
       </label>
-      <label class="s1-field"><span>Email <span class="s1-field__hint">— or a phone number below</span></span>
-        <input class="s1-input" name="email" type="email" maxlength="254" autocomplete="email" id="lead-email" />
+      <label class="ac-field"><span>Email <span class="ac-field__hint">— or a phone number below</span></span>
+        <input class="ac-input" name="email" type="email" maxlength="254" autocomplete="email" id="lead-email" />
       </label>
-      <label class="s1-field"><span>Phone</span>
-        <input class="s1-input" name="phone" type="tel" maxlength="40" autocomplete="tel" id="lead-phone" />
+      <label class="ac-field"><span>Phone</span>
+        <input class="ac-input" name="phone" type="tel" maxlength="40" autocomplete="tel" id="lead-phone" />
       </label>
-      <label class="s1-field"><span>Where is the site? <span class="s1-field__hint">— a city is enough</span></span>
-        <input class="s1-input" name="metro" type="text" maxlength="80" list="s1-metros" id="lead-metro" />
+      <label class="ac-field"><span>Where is the site? <span class="ac-field__hint">— a city is enough</span></span>
+        <input class="ac-input" name="metro" type="text" maxlength="80" list="s1-metros" id="lead-metro" />
       </label>
       ${whenReady<CoverageOutput>(ctx, cov, (v) => html`<datalist id="s1-metros">
         ${v.metros.map((m) => html`<option value=${m.name}></option>`)}
       </datalist>`, undefined)}
-      <label class="s1-field"><span>What do you need? <span class="s1-field__hint">— optional</span></span>
-        <textarea class="s1-input s1-textarea" name="note" maxlength="2000" id="lead-note"></textarea>
+      <label class="ac-field"><span>What do you need? <span class="ac-field__hint">— optional</span></span>
+        <textarea class="ac-input ac-textarea" name="note" maxlength="2000" id="lead-note"></textarea>
       </label>
       ${submitAction(ctx, "Ask us to call", "lead-submit")}
     </form>

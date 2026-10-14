@@ -31,3 +31,28 @@ test("the component stylesheet is clean at every density it serves", () => {
   for (const d of Object.keys(DENSITY) as Density[])
     assert.deepEqual(sheetViolations(UI_CSS, d).map((v) => `${v.selector}: ${v.message}`), [], d);
 });
+
+/**
+ * The chrome packages/ui draws — nav, link, form, field, input, notice, facts
+ * — is drawn once. A surface that redeclares one of these families has forked
+ * it, and a fork is where the next fill-as-word comes from. Modifiers
+ * (`.s2-form--inline`) and surface-owned parts (`.s2-form__actions`) are the
+ * surface's arrangement and are not caught here; S1's masthead row is its own
+ * thing, not the segmented nav, and is exempt by name.
+ */
+const SHARED_FAMILIES = /\.s\d-(?:nav(?:__(?:link|who|logout))?|link(?:--button)?|form|field|input|textarea|refusal(?:__[a-z]+)?|sent|queued|facts)\b(?![-_])/g;
+
+test("no surface stylesheet redeclares the chrome the component sheet owns", async () => {
+  const forks: string[] = [];
+  for (const id of SURFACE_IDS) {
+    const sheet = (await surfaceSheet(SURFACES[id].app)).replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const m of sheet.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
+      const selector = m[1]!.trim();
+      for (const hit of selector.matchAll(SHARED_FAMILIES)) {
+        if (/^\.s1-nav/.test(hit[0])) continue;
+        forks.push(`${SURFACES[id].app}: ${selector} redeclares ${hit[0]}`);
+      }
+    }
+  }
+  assert.deepEqual(forks, []);
+});

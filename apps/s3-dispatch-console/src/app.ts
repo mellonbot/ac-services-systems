@@ -113,10 +113,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     const notice = p.store.notice.value;
     return html`<div class="s3-app">
-      <nav class="s3-nav" aria-label="Screens">
-        <a class="s3-nav__link" data-current="true" href=${router.href("board", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("board", {}); }}>Board</a>
-        <span class="s3-nav__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
-        <button type="button" class="s3-nav__logout" onClick=${logout}>Sign out</button>
+      <nav class="ac-nav" aria-label="Screens">
+        <a class="ac-seg__item" data-current="true" href=${router.href("board", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("board", {}); }}>Board</a>
+        <span class="ac-nav__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
+        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
       </nav>
       ${notice.length ? html`<div class="s3-notice" role="status">${notice.map((n) => html`<p>${n}</p>`)}<button type="button" class="s3-notice__dismiss" onClick=${() => { p.store.notice.value = []; }} aria-label="Dismiss">×</button></div>` : null}
       ${screen ? screen(ctx, loc!.params) : html`<p class="s3-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}
@@ -137,9 +137,9 @@ export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: 
   };
   return html`<section class="s3-login">
     <h1 class="s3-h1">${SURFACE.name}</h1>
-    <form class="s3-form" onSubmit=${submit} id="login-form">
-      <label class="s3-field"><span>Email</span><input class="s3-input" name="email" type="email" required autocomplete="username" /></label>
-      <label class="s3-field"><span>Password</span><input class="s3-input" name="password" type="password" required autocomplete="current-password" /></label>
+    <form class="ac-form" onSubmit=${submit} id="login-form">
+      <label class="ac-field"><span>Email</span><input class="ac-input" name="email" type="email" required autocomplete="username" /></label>
+      <label class="ac-field"><span>Password</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>
       ${PrimaryAction({ density: DENSITY, label: p.busy ? "Signing in…" : "Sign in", type: "submit", id: "sign-in" })}
     </form>
     ${p.refusal ? RefusalCard({ density: DENSITY, refusal: p.refusal }) : null}

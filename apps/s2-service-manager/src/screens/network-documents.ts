@@ -135,15 +135,15 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
     })}
     ${whenReady(ctx, docs.value, (d) => grid(d.credentials))}
     <h3 class="s2-h2">Put a document on file</h3>
-    <form class="s2-form" onSubmit=${record} id="credential-form">
-      <label class="s2-field">
+    <form class="ac-form" onSubmit=${record} id="credential-form">
+      <label class="ac-field">
         <span>Kind</span>
-        <select name="kind" class="s2-input">${KINDS.map((k) => html`<option value=${k}>${k.replace(/_/g, " ")}</option>`)}</select>
+        <select name="kind" class="ac-input">${KINDS.map((k) => html`<option value=${k}>${k.replace(/_/g, " ")}</option>`)}</select>
       </label>
-      <label class="s2-field"><span>Identifier</span><input class="s2-input" name="identifier" required placeholder="policy or licence number" /></label>
-      <label class="s2-field"><span>Valid from</span><input class="s2-input" type="date" name="validFrom" required /></label>
-      <label class="s2-field"><span>Valid to</span><input class="s2-input" type="date" name="validTo" required /><small>The gate checks the whole service window against this, never today — a certificate that expires on Tuesday does not clear a job on Thursday.</small></label>
-      <label class="s2-field"><span>Scan</span><input class="s2-input" name="documentKey" placeholder="storage key of the PDF" /></label>
+      <label class="ac-field"><span>Identifier</span><input class="ac-input" name="identifier" required placeholder="policy or licence number" /></label>
+      <label class="ac-field"><span>Valid from</span><input class="ac-input" type="date" name="validFrom" required /></label>
+      <label class="ac-field"><span>Valid to</span><input class="ac-input" type="date" name="validTo" required /><small>The gate checks the whole service window against this, never today — a certificate that expires on Tuesday does not clear a job on Thursday.</small></label>
+      <label class="ac-field"><span>Scan</span><input class="ac-input" name="documentKey" placeholder="storage key of the PDF" /></label>
       <div class="s2-form__actions">
         ${submitAction(ctx, outcome.value.busy === "record" ? "Recording…" : "Put on file (unverified)", "record-credential")}
       </div>

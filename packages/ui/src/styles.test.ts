@@ -144,3 +144,35 @@ test("the fault mark carries a fill, because on the plate ground the word role I
   assert.ok(mark, ".ac-degraded__mark");
   assert.match(mark.decls, /background:var\(--color-status-breached-fill\)/);
 });
+
+// ---------------------------------------------------------------------------
+// The chrome every surface drew for itself. Eight stylesheets each carried the
+// same segmented nav (twice — the pre-Rev-A rule and the Rev A override), the
+// same link, input, field and form, a refusal block that was RefusalCard with
+// the console's facts removed, a "sent" notice and a fact grid. One sheet owns
+// them now; a surface arranges them and names nothing it could get wrong.
+// ---------------------------------------------------------------------------
+test("the chrome every surface shares has a rule in the component sheet", () => {
+  for (const cls of [
+    "ac-nav", "ac-nav__who", "ac-nav__signout",
+    "ac-link", "ac-link--button",
+    "ac-form", "ac-field", "ac-field__hint", "ac-input", "ac-textarea",
+    "ac-notice", "ac-notice__heading", "ac-notice__message", "ac-notice__routes",
+    "ac-facts",
+  ]) assert.match(UI_CSS, new RegExp(`\\.${cls}(?![\\w-])`), cls);
+});
+
+test("a notice carries state, so no accent role may decorate it", () => {
+  // The refusal notice is outlined in the fault ink and the sent notice in jade:
+  // colour is state here, with a word beside it, and the arc stays out — the
+  // same fence the pill and the badge sit behind.
+  assert.ok(STATE_BEARING_SELECTORS.includes(".ac-notice"));
+});
+
+test("the shared input is sized by the density, never by a number of its own", () => {
+  const input = RULES.find((r) => r.selector === ".ac-input");
+  assert.ok(input, ".ac-input");
+  assert.match(input.decls, /min-height:var\(--control-height\)/);
+  assert.match(input.decls, /border-radius:var\(--radius-control\)/);
+  assert.doesNotMatch(input.decls, /(?:min-height|height|font-size|padding):[^;]*\d+px/, "a hand-typed size is a size one density gets wrong");
+});

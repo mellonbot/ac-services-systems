@@ -221,11 +221,52 @@ ac-degraded[hidden]{display:none}
 .ac-panel__head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:var(--space-2);margin:0 0 var(--space-3)}
 .ac-panel__title{margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
 .ac-panel__sub{margin:2px 0 0;color:var(--color-text-muted);font-size:var(--text-sm)}
-.ac-seg{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface));border:1px solid var(--color-border);border-radius:var(--radius-card)}
+.ac-seg,.ac-nav{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface));border:1px solid var(--color-border);border-radius:var(--radius-card)}
 .ac-seg__item{display:inline-flex;align-items:center;gap:6px;padding:var(--space-2) var(--space-4);border-radius:var(--radius-control);color:var(--color-text-muted);font-weight:600;font-size:var(--text-sm);text-decoration:none;white-space:nowrap}
 .ac-seg__item[data-current="true"]{background:var(--color-surface);color:var(--color-action-text);box-shadow:var(--elevation-raised)}
 .ac-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--radius-pill);border:1px solid var(--color-border-hard);background:var(--color-surface);color:var(--color-text);font-size:var(--text-sm);font-weight:600;text-decoration:none;cursor:pointer}
 .ac-chip[aria-pressed="true"]{background:color-mix(in srgb,var(--color-action) 14%,var(--color-surface));border-color:color-mix(in srgb,var(--color-action-text) 45%,transparent);color:var(--color-action-text)}
+
+/* ---- The chrome every surface shares — Rev A, drawn once ----
+   Eight surfaces each drew the same segmented nav (twice: the pre-Rev-A rule and
+   the Rev A override), the same link, input, field and form, a refusal block
+   that was RefusalCard without the console's facts, a "sent" notice and a fact
+   grid. Fourteen of those copies painted the arc fill as a word. They are drawn
+   here once; a surface arranges them and names no value it could get wrong.
+   Every size is the density's, every colour a role. */
+.ac-nav{display:flex;margin:0 0 var(--space-2)}
+.ac-nav__who{margin-inline-start:auto;padding:0 var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm)}
+.ac-nav__signout{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);cursor:pointer;color:var(--color-action-text);font:inherit;min-height:var(--control-height)}
+@media (max-width:760px){.ac-nav{align-items:stretch}.ac-nav__who{order:2;width:100%;margin-inline-start:0}}
+/* A link is a WORD, so it takes the envelope, never the fill. Its underline is
+   a hover affordance and is gated like every other one: where there is no
+   cursor it is drawn in transparent. */
+.ac-link{color:var(--color-action-text);text-decoration:none}
+.ac-link:hover{text-decoration:underline;text-decoration-color:color-mix(in srgb,currentColor calc(100% * var(--hover)),transparent)}
+.ac-link--button{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;font:inherit}
+.ac-link--button:disabled{color:var(--color-text-muted);cursor:default;text-decoration:none}
+.ac-form{display:flex;flex-direction:column;gap:var(--space-3);max-width:64ch;padding:var(--space-4);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.ac-field{display:flex;flex-direction:column;gap:var(--space-1);flex:1;min-width:0}
+.ac-field>span{font-weight:600;font-size:var(--text-sm);color:var(--color-text-muted)}
+.ac-field small,.ac-field__hint{font-weight:400;color:var(--color-text-muted);font-size:var(--text-sm)}
+.ac-input{min-height:var(--control-height);padding:0 var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit}
+[data-density="field"] .ac-input{padding:0 var(--space-3)}
+.ac-textarea{padding:var(--space-2);min-height:calc(var(--control-height) * 2.5);resize:vertical}
+/* A notice is a state with a sentence beside it: outlined in the state's own
+   ink, with the 3px top rule a refusal card carries. It is state-bearing, so
+   no accent role enters it (STATE_BEARING_SELECTORS). */
+.ac-notice{margin:0;padding:var(--space-3);max-width:64ch;background:var(--color-surface);border:1px solid var(--notice-color,var(--color-border-hard));border-top:3px solid var(--notice-color,var(--color-border-hard));border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.ac-notice[data-tone="ok"]{--notice-color:var(--color-status-ok)}
+.ac-notice[data-tone="at_risk"]{--notice-color:var(--color-status-at-risk)}
+.ac-notice[data-tone="breached"]{--notice-color:var(--color-status-breached)}
+.ac-notice__heading{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-md);font-weight:700}
+.ac-notice__mark{color:var(--notice-color)}
+.ac-notice__message{margin:0 0 var(--space-2)}
+.ac-notice__routes{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.ac-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20ch),1fr));gap:var(--space-3);margin:0 0 var(--space-4)}
+.ac-facts>div{padding:var(--space-2) var(--space-3);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.ac-facts dt{font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
+.ac-facts dd{margin:var(--space-1) 0 0;font-weight:600}
 `;
 
 /** Every `var(--name)` the stylesheet reads. The test checks each is defined by tokenCss for every density. */
@@ -248,7 +289,7 @@ export const cssVariablesDefined = (css: string): readonly string[] =>
  * which it did not do until styles.test.ts grew the check; the comment was the
  * enforcement.
  */
-export const STATE_BEARING_SELECTORS = Object.freeze([".ac-pill", ".ac-badge"]);
+export const STATE_BEARING_SELECTORS = Object.freeze([".ac-pill", ".ac-badge", ".ac-notice"]);
 
 /**
  * The accent roles that may NEVER appear in a state-bearing rule. The house red

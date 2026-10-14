@@ -36,7 +36,7 @@ export const jobList: Screen = (ctx) => {
             ${StatusPill({ density: ctx.density, status: priorityStatus(j.priority), label: j.priority })}
             <span class="s5-job-row__service">${j.serviceCode}</span>
             <span class="s5-job-row__state">${j.state.replace(/_/g, " ")}</span>
-            ${linkTo(ctx, "job", { jobId: j.id }, "Open", "s5-link s5-link--open")}
+            ${linkTo(ctx, "job", { jobId: j.id }, "Open", "ac-link s5-link--open")}
           </li>`)}
         </ul>`)}
   </section>`;

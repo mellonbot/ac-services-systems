@@ -71,7 +71,7 @@ export const crews: Screen = (ctx) => {
         { key: "detail", header: "Documents", cell: (c) => readiness(c).detail },
         { key: "actions", header: "", cell: (c) => html`<span class="s8-row__actions">
             ${linkTo(ctx, "documents", { crewId: c.id }, "Documents")}
-            ${c.active ? html`<button type="button" class="s8-link s8-link--button" data-retire=${c.id} onClick=${() => retire(c)} disabled=${ctx.degraded || o.kind === "busy"}>Retire</button>` : null}
+            ${c.active ? html`<button type="button" class="ac-link ac-link--button" data-retire=${c.id} onClick=${() => retire(c)} disabled=${ctx.degraded || o.kind === "busy"}>Retire</button>` : null}
           </span>` },
       ],
     }) ?? html``, () => ctx.store.invalidate("crews.list"))}
@@ -81,9 +81,9 @@ export const crews: Screen = (ctx) => {
     <h2 class="s8-h2">Enroll a crew</h2>
     ${firmRes.value.state === "ready" && !mayRoster
       ? html`<p class="s8-muted" id="enroll-closed">Your firm is ${f?.status ?? "not on record"}; the roster does not change until the office ${f?.status === "suspended" ? "lifts the suspension" : "records otherwise"}.</p>`
-      : html`<form class="s8-form" id="enroll-form" onSubmit=${enroll}>
-        <label class="s8-field"><span>Crew name</span>
-          <input class="s8-input" name="label" required maxlength="120" id="enroll-label" placeholder="As it should read on a job — e.g. Crew 2 (Reyes / Okafor)" />
+      : html`<form class="ac-form" id="enroll-form" onSubmit=${enroll}>
+        <label class="ac-field"><span>Crew name</span>
+          <input class="ac-input" name="label" required maxlength="120" id="enroll-label" placeholder="As it should read on a job — e.g. Crew 2 (Reyes / Okafor)" />
         </label>
         <p class="s8-muted">Subcontracted, under ${f?.legalName ?? "your firm"}, dispatched from your region — none of that is typed here.</p>
         ${submitAction(ctx, o.kind === "busy" ? "Sending…" : "Enroll", "enroll-send", o.kind === "busy")}
@@ -93,8 +93,8 @@ export const crews: Screen = (ctx) => {
 
 const outcomeView = (ctx: ScreenContext, o: Outcome): VNode | null => {
   switch (o.kind) {
-    case "enrolled": return html`<p class="s8-sent" role="status" id="roster-outcome">${o.label} is on the roster. File its documents next — nothing is dispatched until they are verified.</p>`;
-    case "retired": return html`<p class="s8-sent" role="status" id="roster-outcome">${o.label} is off the roster. Its documents stay on file.</p>`;
+    case "enrolled": return html`<p class="ac-notice" data-tone="ok" role="status" id="roster-outcome">${o.label} is on the roster. File its documents next — nothing is dispatched until they are verified.</p>`;
+    case "retired": return html`<p class="ac-notice" data-tone="ok" role="status" id="roster-outcome">${o.label} is off the roster. Its documents stay on file.</p>`;
     case "refused": return refusalView(ctx, o.refusal, [{ label: "Dismiss", onSelect: resetRosterForm, primary: true }]);
     default: return null;
   }

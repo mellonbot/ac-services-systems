@@ -6,9 +6,6 @@
  */
 export const S3_CSS = `
 .s3-app{display:flex;flex-direction:column;gap:var(--space-3)}
-.s3-nav{display:flex;align-items:center;gap:var(--space-4);padding-bottom:var(--space-2);border-bottom:1px solid var(--color-border)}
-.s3-nav__who{margin-inline-start:auto;color:var(--color-text-muted);font-size:var(--text-sm)}
-.s3-nav__logout{appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;color:var(--color-action-text);font:inherit}
 .s3-notice{display:flex;gap:var(--space-3);align-items:baseline;padding:var(--space-2) var(--space-3);background:var(--color-surface-sunken);border:1px solid var(--color-status-at-risk);border-radius:var(--radius-control)}
 .s3-notice p{margin:0}
 .s3-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2)}
@@ -16,28 +13,16 @@ export const S3_CSS = `
 .s3-h2{margin:var(--space-4) 0 var(--space-2);font-size:var(--text-lg)}
 .s3-loading,.s3-empty,.s3-muted{color:var(--color-text-muted)}
 .s3-row-actions{display:inline-flex;gap:var(--space-3);white-space:nowrap}
-.s3-link{color:var(--color-action-text);text-decoration:none}
-.s3-link:hover{text-decoration:underline}
 .s3-login{max-width:40ch;margin:10vh auto 0}
-.s3-form{display:flex;flex-direction:column;gap:var(--space-3)}
-.s3-field{display:flex;flex-direction:column;gap:var(--space-1)}
-.s3-field>span{font-weight:600;font-size:var(--text-sm);color:var(--color-text-muted)}
-.s3-input{min-height:var(--control-height);padding:0 var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-none);background:var(--color-surface);color:var(--color-text);font:inherit}
 .s3-job-facts{display:grid;grid-template-columns:auto 1fr;gap:var(--space-2) var(--space-4);margin:0 0 var(--space-4);align-items:baseline}
 .s3-job-facts dt{color:var(--color-text-muted);font-size:var(--text-sm)}
 .s3-job-facts dd{margin:0}
 .s3-candidates{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
 .s3-candidate{display:flex;align-items:center;gap:var(--space-4);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-card)}
 .s3-candidate__label{flex:1}
-@media (max-width:760px){.s3-nav{align-items:stretch;flex-wrap:wrap}.s3-nav__who{order:2;width:100%;margin-inline-start:0}.s3-candidate{flex-wrap:wrap}}
+@media (max-width:760px){.s3-candidate{flex-wrap:wrap}}
 
 /* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */
-.s3-nav{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px;margin:0 0 var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-card);background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface))}
-.s3-nav__link{display:inline-flex;align-items:center;padding:var(--space-2) var(--space-4);border-radius:var(--radius-control);color:var(--color-text-muted);font-weight:600;text-decoration:none;box-shadow:none}
-.s3-nav__link[data-current="true"]{background:var(--color-surface);color:var(--color-action-text);box-shadow:var(--elevation-raised)}
-.s3-nav__who{padding:0 var(--space-2)}
-.s3-nav__logout{padding:var(--space-2) var(--space-3);border-radius:var(--radius-control)}
-.s3-input{border-radius:var(--radius-control)}
 .s3-h1{font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);text-transform:none;line-height:1.15}
 .s3-h2{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-tight);text-transform:none}
 
