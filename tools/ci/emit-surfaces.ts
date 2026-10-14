@@ -111,10 +111,14 @@ export const renderStatusApp = (): string => `import { html, mount, signal, effe
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 
-export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string } }): string => {
+export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string; hostname: string } }): string => {
   const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
   if (stamped) return stamped;
-  const host = doc.location.host;
+  const host = doc.location.host || "localhost";
+  const hostname = doc.location.hostname || host.split(":")[0] || "localhost";
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname.startsWith("127.")) {
+    return "http://127.0.0.1:8080";
+  }
   const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
   return \`\${doc.location.protocol}//api.\${site}\`;
 };
