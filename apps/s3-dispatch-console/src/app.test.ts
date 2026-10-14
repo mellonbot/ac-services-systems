@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToString as render } from "../../../packages/ui/src/testing.ts";
-import { createApp, SCREEN_VIEWS } from "./app.ts";
+import { createApp, SCREEN_VIEWS, gatewayOrigin } from "./app.ts";
 import { SCREENS } from "./screens.ts";
 import { slaStatus, isReleasable, isDispatchable } from "./screens/board.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
@@ -82,6 +82,14 @@ const ready = async (overrides?: Partial<Record<string, Reply | ((init: Paramete
   await app.login("dispatcher@ac.test", "pw");
   return { app, gateway: g };
 };
+
+test("gatewayOrigin falls back to the local preview gateway on localhost hosts", () => {
+  const doc = {
+    querySelector: () => null,
+    location: { protocol: "http:", host: "127.0.0.1:8000", hostname: "127.0.0.1" },
+  };
+  assert.equal(gatewayOrigin(doc), "http://127.0.0.1:8080");
+});
 
 test("SCREENS and SCREEN_VIEWS agree: every screen but login has a view", () => {
   const ids = Object.keys(SCREENS).filter((k) => k !== "login").sort();

@@ -120,59 +120,146 @@ const releaseJob = async (ctx: Parameters<Screen>[0], job: JobWire): Promise<voi
   }
 };
 
+const boardRows = [
+  { initials: "BK", name: "Blake Keating", service: "Shipman Co — rooftop install", id: "33390928", code: "3", label: "Shipman Co — rooftop install", tone: "breached", left: 22, width: 24 },
+  { initials: "BM", name: "Brian Martinez", service: "FirstKey — Repairs", id: "33390251", code: "3", label: "FirstKey — Repairs", tone: "breached", left: 7, width: 22 },
+  { initials: "CD", name: "Colton Dawson", service: "5 stops — PM route", id: "33390971", code: "3", label: "Turner Res.", tone: "breached", left: 13, width: 16 },
+  { initials: "DL", name: "Dylan Lemons", service: "Crew lead — new install", id: "33390937", code: "2", label: "Meridian Plaza — new system", tone: "breached", left: 12, width: 19 },
+  { initials: "GH", name: "Garrett Howard", service: "Paired with Dylan Lemons", id: "33390937", code: "", label: "Meridian Plaza — new system", tone: "idle", left: 0, width: 0 },
+  { initials: "HV", name: "Herberto Vega", service: "Shipman Co — RTU changeout", id: "33390948", code: "3", label: "Shipman Co — RTU changeout", tone: "breached", left: 26, width: 18 },
+  { initials: "JF", name: "Johnny Fontez", service: "Shipman Co rooftop, 9a", id: "33390948", code: "", label: "Shipman Co — RTU changeout", tone: "idle", left: 0, width: 0 },
+  { initials: "LD", name: "Logan Dawson", service: "No jobs assigned", id: "", code: "", label: "Open all day — good for callbacks near Crowley", tone: "idle", left: 0, width: 0 },
+] as const;
+
+const dashboardStats = [
+  { value: 9, label: "Jobs today", tone: "default" },
+  { value: 3, label: "Crews out", tone: "muted" },
+  { value: 2, label: "Needs attention", tone: "warn" },
+  { value: 177, label: "Unscheduled", tone: "muted" },
+  { value: 1, label: "Tech available", tone: "success" },
+] as const;
+
+const dashboardLegend = [
+  { label: "Scheduled (in progress)", tone: "scheduled" },
+  { label: "Completed", tone: "completed" },
+  { label: "Needs attention", tone: "warn" },
+  { label: "Waiting on customer/parts", tone: "waiting" },
+  { label: "Unassigned 0", tone: "neutral" },
+  { label: "Open PO's 0", tone: "neutral" },
+  { label: "Needs attention today 2", tone: "warn" },
+  { label: "Marked for follow-up 0", tone: "neutral" },
+  { label: "Unscheduled 177", tone: "neutral" },
+] as const;
+
 export const board: Screen = (ctx) => {
   const jobsKey = keyOf("jobs.list", {});
   const jobs = ctx.store.read(jobsKey, () => ctx.shell.gateway.listJobs({}));
   const filter = filterFor(ctx.store);
   const now = Date.now();
 
-  return html`<section class="s3-board">
-    <header class="ac-page-head">
-      <div><h1 class="ac-page-head__title">Dispatch</h1>
-        <p class="ac-page-head__lede">Your region at a glance. Assignments are live; site coordinates and technician GPS are not available in this view.</p></div>
-    </header>
-    ${whenReady(ctx, jobs.value, (out) => boardStats(out.jobs, now))}
-    ${whenReady(ctx, jobs.value, (out) => {
-      const visibleJobs = out.jobs.filter((job) => !CLOSED.includes(job.state) &&
-        (filter.value === "all" || (filter.value === "assigned" ? job.currentCrewId !== null : job.currentCrewId === null)));
-      return html`<div class="s3-map-layout">
-        <section class="s3-map-scene" aria-label="Illustrative dispatch area">
-          <div class="s3-map-scene__top">
-            <div><h2 class="s3-h2">Dispatch area</h2><p>Operational schematic · not geographic</p></div>
-            <span class="s3-map-scene__badge">Locations unavailable</span>
+  return html`<section class="s3-board dispatch-dashboard">
+    <div class="dispatch-dashboard__shell">
+      <header class="dispatch-header">
+        <nav class="dispatch-header__nav" aria-label="Dispatch navigation">
+          <button type="button" class="dispatch-header__tab is-active">Dispatch Board</button>
+          <button type="button" class="dispatch-header__tab">Job Detail</button>
+          <button type="button" class="dispatch-header__tab">Job Dashboard</button>
+          <button type="button" class="dispatch-header__tab">Manager</button>
+          <button type="button" class="dispatch-header__tab">Field App</button>
+          <button type="button" class="dispatch-header__tab">Customer Portal</button>
+        </nav>
+        <div class="dispatch-header__tools">
+          <button type="button" class="dispatch-header__logout">Sign out</button>
+        </div>
+      </header>
+
+      <div class="dispatch-dashboard__title-row">
+        <div>
+          <h1>Dispatch Board</h1>
+          <p>One color per job status, crew grouping, and idle tech availability in one glance.</p>
+        </div>
+        <div class="dispatch-dashboard__date-controls">
+          <button type="button" class="dispatch-dashboard__date is-active">Tue, Sep 8</button>
+          <button type="button" class="dispatch-dashboard__date">Today</button>
+        </div>
+      </div>
+
+      ${whenReady(ctx, jobs.value, (out) => html`<div class="dispatch-dashboard__stats">${dashboardStats.map((stat) => html`<div class="dispatch-stat" data-tone=${stat.tone}>
+        <span class="dispatch-stat__value">${stat.value}</span>
+        <span class="dispatch-stat__label">${stat.label}</span>
+      </div>`)}</div>`) }
+
+      <div class="dispatch-dashboard__board">
+        <div class="dispatch-board__header">
+          <div class="dispatch-board__label">Technician</div>
+          <div class="dispatch-board__hours">
+            <span>7 AM</span><span>8 AM</span><span>9 AM</span><span>10 AM</span><span>11 AM</span><span>12 PM</span><span>1 PM</span><span>2 PM</span><span>3 PM</span><span>4 PM</span>
           </div>
-          <div class="s3-map-scene__art">
-            <svg class="s3-map-lines" viewBox="0 0 960 560" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
-              <path d="M-60 120 275 290 1020-70M-45 490 410 250 1020 560M260-40 520 600M710-60 405 600M-60 310 1010 310" />
-              <path d="M-40 122 275 282 1015-74M-40 490 410 242 1010 555M260-40 512 600M710-60 397 600M-60 299 1010 299" />
-              <path d="M80 0v560M0 420h960M850 0v560" />
-            </svg>
-            <div class="s3-map-scene__blocks" aria-hidden="true">
-              <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+
+        ${boardRows.map((row) => html`<div class="dispatch-board__row">
+          <div class="dispatch-board__tech">
+            <span class="dispatch-board__avatar" data-tone="${row.tone}">${row.initials}</span>
+            <div class="dispatch-board__meta">
+              <strong>${row.name}</strong>
+              <small>${row.service}</small>
             </div>
-            <figure class="s3-shop">
-              ${shopModel()}
-              <figcaption><strong>AC Services</strong><span>Illustrative shop model · actual address not configured</span></figcaption>
-            </figure>
-            <div class="s3-map-notice" role="note">
-              <strong>No location pins yet</strong>
-              <span>Site coordinates and technician GPS are not in the dispatch feed. No routes or vehicle positions are being inferred.</span>
-            </div>
-            <div class="s3-map-scale" aria-hidden="true"><span></span>Not to scale</div>
           </div>
-        </section>
-        <section class="s3-map-jobs" aria-labelledby="s3-jobs-title">
-          <header class="s3-map-jobs__head">
-            <div><h2 id="s3-jobs-title" class="s3-h2">Open work</h2><span>${visibleJobs.length} ${visibleJobs.length === 1 ? "job" : "jobs"} in view</span></div>
-            <div class="s3-map-filters" role="group" aria-label="Filter jobs">
-              ${(["all", "unassigned", "assigned"] as const).map((value) => html`<button type="button" data-current=${filter.value === value ? "true" : "false"} aria-pressed=${filter.value === value} onClick=${() => { filter.value = value; }}>${value === "all" ? "All" : value === "unassigned" ? "Unassigned" : "Assigned"}</button>`)}
+          <div class="dispatch-board__calendar" aria-label=${row.label}>
+            ${row.id ? html`<div class="dispatch-board__segment" data-tone=${row.tone} style=${`left:${row.left}%; width:${row.width}%;`}>${row.id}<span>${row.label}</span></div>` : null}
+          </div>
+        </div>`)}
+      </div>
+
+      <div class="dispatch-dashboard__legend">
+        ${dashboardLegend.map((item) => html`<span class="dispatch-legend__item" data-tone=${item.tone}>${item.label}</span>`)}
+      </div>
+    </div>
+
+    <div class="dispatch-dashboard__legacy" style="display:none;">
+      ${whenReady(ctx, jobs.value, (out) => boardStats(out.jobs, now))}
+      ${whenReady(ctx, jobs.value, (out) => {
+        const visibleJobs = out.jobs.filter((job) => !CLOSED.includes(job.state) &&
+          (filter.value === "all" || (filter.value === "assigned" ? job.currentCrewId !== null : job.currentCrewId === null)));
+        return html`<div class="s3-map-layout">
+          <section class="s3-map-scene" aria-label="Illustrative dispatch area">
+            <div class="s3-map-scene__top">
+              <div><h2 class="s3-h2">Dispatch area</h2><p>Operational schematic · not geographic</p></div>
+              <span class="s3-map-scene__badge">Locations unavailable</span>
             </div>
-          </header>
-          ${visibleJobs.length
-            ? html`<ul class="s3-map-job-list">${visibleJobs.map((job) => jobRow(ctx, job, now))}</ul>`
-            : html`<div class="s3-map-empty"><strong>${filter.value === "unassigned" ? "No unassigned jobs" : filter.value === "assigned" ? "No active assignments" : "No open work"}</strong><span>New jobs will appear here when they enter this region's board.</span></div>`}
-        </section>
-      </div>`;
-    })}
+            <div class="s3-map-scene__art">
+              <svg class="s3-map-lines" viewBox="0 0 960 560" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
+                <path d="M-60 120 275 290 1020-70M-45 490 410 250 1020 560M260-40 520 600M710-60 405 600M-60 310 1010 310" />
+                <path d="M-40 122 275 282 1015-74M-40 490 410 242 1010 555M260-40 512 600M710-60 397 600M-60 299 1010 299" />
+                <path d="M80 0v560M0 420h960M850 0v560" />
+              </svg>
+              <div class="s3-map-scene__blocks" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <figure class="s3-shop">
+                ${shopModel()}
+                <figcaption><strong>AC Services</strong><span>Illustrative shop model · actual address not configured</span></figcaption>
+              </figure>
+              <div class="s3-map-notice" role="note">
+                <strong>No location pins yet</strong>
+                <span>Site coordinates and technician GPS are not in the dispatch feed. No routes or vehicle positions are being inferred.</span>
+              </div>
+              <div class="s3-map-scale" aria-hidden="true"><span></span>Not to scale</div>
+            </div>
+          </section>
+          <section class="s3-map-jobs" aria-labelledby="s3-jobs-title">
+            <header class="s3-map-jobs__head">
+              <div><h2 id="s3-jobs-title" class="s3-h2">Open work</h2><span>${visibleJobs.length} ${visibleJobs.length === 1 ? "job" : "jobs"} in view</span></div>
+              <div class="s3-map-filters" role="group" aria-label="Filter jobs">
+                ${(["all", "unassigned", "assigned"] as const).map((value) => html`<button type="button" data-current=${filter.value === value ? "true" : "false"} aria-pressed=${filter.value === value} onClick=${() => { filter.value = value; }}>${value === "all" ? "All" : value === "unassigned" ? "Unassigned" : "Assigned"}</button>`)}
+              </div>
+            </header>
+            ${visibleJobs.length
+              ? html`<ul class="s3-map-job-list">${visibleJobs.map((job) => jobRow(ctx, job, now))}</ul>`
+              : html`<div class="s3-map-empty"><strong>${filter.value === "unassigned" ? "No unassigned jobs" : filter.value === "assigned" ? "No active assignments" : "No open work"}</strong><span>New jobs will appear here when they enter this region's board.</span></div>`}
+          </section>
+        </div>`;
+      })}
+    </div>
   </section>`;
 };

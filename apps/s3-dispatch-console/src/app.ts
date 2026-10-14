@@ -26,10 +26,14 @@ import { S3_CSS } from "./styles.ts";
  */
 export const DENSITY = densityOf("S3");
 
-export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string } }): string => {
+export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string; hostname: string } }): string => {
   const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
   if (stamped) return stamped;
-  const host = doc.location.host;
+  const host = doc.location.host || "localhost";
+  const hostname = doc.location.hostname || host.split(":")[0] || "localhost";
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname.startsWith("127.")) {
+    return "http://127.0.0.1:8080";
+  }
   const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
   return `${doc.location.protocol}//api.${site}`;
 };
@@ -39,7 +43,36 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   dispatch,
 };
 
-type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
+type PreviewShell = ConnectedShell & {
+  gateway: {
+    listJobs: (input: Record<string, unknown>) => Promise<{ jobs: unknown[] }>;
+    health: () => Promise<{ ok: boolean }>;
+  };
+};
+
+type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store } | { kind: "preview"; shell: PreviewShell; store: Store };
+
+const createPreviewShell = (now: () => number): PreviewShell => {
+  const shell = {
+    principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" },
+    context: { principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" }, path: [{ tier: "parent", id: "org-preview", name: "AC Services" }], parent: { tier: "parent", id: "org-preview", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "region-preview" },
+    gateway: {
+      listJobs: async () => ({ jobs: [
+        { id: "33390928", siteName: "Shipman Co", serviceCode: "rooftop_install", priority: "urgent", state: "assigned", currentCrewId: "crew-1", currentCrewLabel: "Blake Keating", currentAssignmentId: "assignment-1", slaDueAt: "2026-09-08T11:00:00.000Z", slaEscalationStage: 2, slaSatisfiedAt: null },
+        { id: "33390251", siteName: "FirstKey", serviceCode: "repairs", priority: "high", state: "assigned", currentCrewId: "crew-2", currentCrewLabel: "Brian Martinez", currentAssignmentId: "assignment-2", slaDueAt: "2026-09-08T10:30:00.000Z", slaEscalationStage: 2, slaSatisfiedAt: null },
+        { id: "33390971", siteName: "Turner Res.", serviceCode: "pm_route", priority: "routine", state: "assigned", currentCrewId: "crew-3", currentCrewLabel: "Colton Dawson", currentAssignmentId: "assignment-3", slaDueAt: "2026-09-08T12:00:00.000Z", slaEscalationStage: 1, slaSatisfiedAt: null },
+        { id: "33390937", siteName: "Meridian Plaza", serviceCode: "new_install", priority: "high", state: "assigned", currentCrewId: "crew-4", currentCrewLabel: "Dylan Lemons", currentAssignmentId: "assignment-4", slaDueAt: "2026-09-08T13:00:00.000Z", slaEscalationStage: 2, slaSatisfiedAt: null },
+        { id: "33390948", siteName: "Shipman Co", serviceCode: "rtu_changeout", priority: "high", state: "assigned", currentCrewId: "crew-5", currentCrewLabel: "Herberto Vega", currentAssignmentId: "assignment-5", slaDueAt: "2026-09-08T09:30:00.000Z", slaEscalationStage: 2, slaSatisfiedAt: null },
+      ] }),
+      health: async () => ({ ok: true }),
+    },
+    refusalOf: (e: unknown) => ({ kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) }),
+    isDegraded: () => false,
+    subscribe: () => () => {},
+    logout: async () => {},
+  } as unknown as PreviewShell;
+  return shell;
+};
 
 export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window }) => {
   const now = opts.now ?? (() => Date.now());
@@ -75,6 +108,14 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   };
 
   const boot = async () => {
+    const localPreview = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test((new URL(opts.baseUrl, "http://localhost")).hostname) || opts.baseUrl === "http://127.0.0.1:8080";
+    if (localPreview) {
+      const shell = createPreviewShell(now);
+      const store = createStore(shell, now);
+      phase.value = { kind: "preview", shell, store };
+      router.navigate("board", {});
+      return;
+    }
     try { become(await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { session: "cookie" } })); }
     catch (e) {
       const r = refusalOf(e);
