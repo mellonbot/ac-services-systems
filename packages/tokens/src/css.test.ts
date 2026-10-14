@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { tokenCss, brandCss, cssVar, contrastFailures, semanticFor, SEMANTIC_DARK, GROUNDS, WORD_ROLES, ON_FILL, TENANT_SCOPE, rolesFor } from "./css.ts";
+import { tokenCss, brandCss, cssVar, contrastFailures, semanticFor, SEMANTIC_DARK, GROUNDS, WORD_ROLES, ON_FILL, TENANT_SCOPE, rolesFor, PLATE_SCOPE } from "./css.ts";
 import { SEMANTIC, STATE_ROLES, type SemanticToken } from "./semantic.ts";
 import { DENSITY, TYPE_SCALE, TYPE_FLOOR, type Density } from "./density.ts";
 import { FACES, FACE_ROLES, SUBSET_GLYPHS, MARK_GLYPHS } from "./type.ts";
@@ -194,5 +194,15 @@ test("motion is a token: three durations and one easing reach every density, and
     const css = tokenCss(d);
     for (const [k, v] of Object.entries(P.motion)) assert.ok(css.includes(`--motion-${k}:${v}`), `${d} lacks --motion-${k}`);
     assert.ok(css.includes(`--ease:${P.ease}`), `${d} lacks --ease`);
+  }
+});
+
+test("a plate region inside a light frame carries the field schedule's colour roles and nothing unmeasured", () => {
+  for (const d of DENSITIES) for (const brandLayer of [false, true]) {
+    const css = tokenCss(d, { brandLayer });
+    const block = css.slice(css.indexOf(`${PLATE_SCOPE}{`));
+    const field = rolesFor("field", { brandLayer });
+    for (const k of Object.keys(field) as SemanticToken[]) assert.ok(block.includes(`${cssVar(k)}:${field[k]}`), `${d} ${k}`);
+    assert.ok(!/--text-|--control-height|--density/.test(block), `${d}: the plate re-points colour, never density`);
   }
 });

@@ -140,19 +140,42 @@ export const tokenCss = (density: Density, opts: FrameOptions = {}): string => {
   // Rev A elevation. No new ink: a shadow is the tier's darkest role mixed to a
   // few per cent — Ink Black on the light stock, the sunken well on the field
   // ground (where an ink-coloured shadow would be a cream glow).
-  const shade = d.surface === "dark" ? "var(--color-surface-sunken)" : "var(--color-text)";
-  const [soft, spread] = d.surface === "dark" ? [40, 32] : [7, 6];
-  lines.push(
-    `--elevation-card:0 1px 2px color-mix(in srgb,${shade} ${soft}%,transparent),0 4px 14px color-mix(in srgb,${shade} ${spread}%,transparent)`,
-    `--elevation-raised:0 1px 3px color-mix(in srgb,${shade} ${soft + 4}%,transparent),0 2px 6px color-mix(in srgb,${shade} ${spread}%,transparent)`,
-  );
+  lines.push(...elevation(d.surface === "dark"));
   // The type scale is the DENSITY's, not a shared constant — see TYPE_SCALE.
   for (const [k, v] of Object.entries(TYPE_SCALE[density])) lines.push(`--text-${k}:${v}`);
   for (const [k, v] of Object.entries(P.track)) lines.push(`--track-${k}:${v}`);
   // Motion: three durations and the one curve, so no sheet types a duration.
   for (const [k, v] of Object.entries(P.motion)) lines.push(`--motion-${k}:${v}`);
   lines.push(`--ease:${P.ease}`);
-  return `:root{${lines.join(";")}}`;
+  return `:root{${lines.join(";")}}${plateScope(opts)}`;
+};
+
+const elevation = (dark: boolean): string[] => {
+  const shade = dark ? "var(--color-surface-sunken)" : "var(--color-text)";
+  const [soft, spread] = dark ? [40, 32] : [7, 6];
+  return [
+    `--elevation-card:0 1px 2px color-mix(in srgb,${shade} ${soft}%,transparent),0 4px 14px color-mix(in srgb,${shade} ${spread}%,transparent)`,
+    `--elevation-raised:0 1px 3px color-mix(in srgb,${shade} ${soft + 4}%,transparent),0 2px 6px color-mix(in srgb,${shade} ${spread}%,transparent)`,
+  ];
+};
+
+/**
+ * THE PLATE, AS A REGION. `data-ground="plate"` puts an element on the field
+ * ground inside a light frame — the dispatch board's header bar is the first.
+ * It re-points the colour roles to the field schedule, which `contrastFailures
+ * ("field")` already measures, so no ink is admitted here that is not measured
+ * there; and it re-declares elevation, because a shadow resolved against the
+ * light stock's ink would be a cream glow on this ground. Density does not
+ * change: a plate region in a console is still console type and console hit
+ * boxes. The brand layer resolves as the frame's does.
+ */
+export const PLATE_SCOPE = `[data-ground="plate"]`;
+
+const plateScope = (opts: FrameOptions): string => {
+  const sem = rolesFor("field", opts);
+  const lines = (Object.keys(sem).sort() as SemanticToken[]).map((k) => `${cssVar(k)}:${sem[k]}`);
+  lines.push(...elevation(true), "color:var(--color-text)");
+  return `${PLATE_SCOPE}{${lines.join(";")}}`;
 };
 
 /**
