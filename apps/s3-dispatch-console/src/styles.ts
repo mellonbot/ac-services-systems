@@ -66,12 +66,12 @@ export const S3_CSS = `
 .s3-map-filters button:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
 .dispatch-dashboard{background:var(--color-page);color:var(--color-text);padding:0 0 var(--space-4)}
 .dispatch-dashboard__shell{max-width:1400px;margin:0 auto;padding:0 0 32px}
-.dispatch-header{display:flex;align-items:center;gap:16px;padding:10px 16px;border:1px solid var(--color-border);border-radius:var(--radius-card);background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface));box-shadow:var(--elevation-card)}
+.dispatch-header{display:flex;align-items:center;gap:16px;padding:10px 16px;border:1px solid var(--color-border);border-radius:var(--radius-card);background:linear-gradient(180deg,var(--color-surface) 0%,var(--color-page) 100%);box-shadow:inset 0 1px 0 color-mix(in srgb,var(--color-text) 8%,transparent),var(--elevation-card)}
 .dispatch-header__nav{display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap}
 .dispatch-header__tab{appearance:none;border:0;background:transparent;color:var(--color-text-muted);padding:8px 12px;border-radius:var(--radius-control);font-family:var(--font-label);font-size:var(--text-sm);font-weight:600;cursor:pointer}
-.dispatch-header__tab.is-active{background:var(--color-surface);color:var(--color-action-text);box-shadow:var(--elevation-raised)}
+.dispatch-header__tab.is-active{background:color-mix(in srgb,var(--color-text) 8%,transparent);color:var(--color-text);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-text) 14%,transparent)}
 .dispatch-header__tools{display:flex;align-items:center;gap:8px;margin-left:auto}
-.dispatch-header__logout{appearance:none;border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action-text);padding:8px 10px;font-family:var(--font-label);font-size:var(--text-sm);font-weight:600;cursor:pointer}
+.dispatch-header__logout{appearance:none;border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-text);color:var(--color-surface);padding:8px 10px;font-family:var(--font-label);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 .dispatch-dashboard__title-row{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:8px 0 18px}
 .dispatch-dashboard__title-row h1{margin:0;color:var(--color-text);font-family:var(--font-display);font-size:42px;line-height:1.05;letter-spacing:-0.03em}
 .dispatch-dashboard__title-row p{margin:6px 0 0;color:var(--color-text-muted);max-width:720px;font-size:14px}

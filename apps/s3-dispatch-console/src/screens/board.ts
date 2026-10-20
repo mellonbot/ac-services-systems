@@ -159,7 +159,7 @@ export const board: Screen = (ctx) => {
 
   return html`<section class="s3-board dispatch-dashboard">
     <div class="dispatch-dashboard__shell">
-      <header class="dispatch-header">
+      <header class="dispatch-header" data-ground="plate">
         <nav class="dispatch-header__nav" aria-label="Dispatch navigation">
           <button type="button" class="dispatch-header__tab is-active">Dispatch Board</button>
           <button type="button" class="dispatch-header__tab">Job Detail</button>
