@@ -154,11 +154,20 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     const notice = p.store.notice.value;
     return html`<div class="s3-app">
-      <nav class="ac-nav" aria-label="Screens">
-        <a class="ac-seg__item" data-current="true" href=${router.href("board", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("board", {}); }}>Board</a>
-        <span class="ac-nav__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
-        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
-      </nav>
+      <header class="dispatch-header" data-ground="plate">
+        <nav class="dispatch-header__nav" aria-label="Dispatch navigation">
+          <a class=${`dispatch-header__tab${loc?.screen === "board" ? " is-active" : ""}`} href=${router.href("board", {})}
+             aria-current=${loc?.screen === "board" ? "page" : undefined}
+             onClick=${(e: Event) => { e.preventDefault(); router.navigate("board", {}); }}>Dispatch Board</a>
+          <button type="button" class="dispatch-header__tab">Job Detail</button>
+          <button type="button" class="dispatch-header__tab">Job Dashboard</button>
+          <button type="button" class="dispatch-header__tab">Manager</button>
+        </nav>
+        <div class="dispatch-header__tools">
+          <span class="dispatch-header__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
+          <button type="button" class="dispatch-header__logout" onClick=${logout}>Sign out</button>
+        </div>
+      </header>
       ${notice.length ? html`<div class="s3-notice" role="status">${notice.map((n) => html`<p>${n}</p>`)}<button type="button" class="s3-notice__dismiss" onClick=${() => { p.store.notice.value = []; }} aria-label="Dismiss">×</button></div>` : null}
       ${screen ? screen(ctx, loc!.params) : html`<p class="s3-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}
     </div>`;

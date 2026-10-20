@@ -219,3 +219,19 @@ test("degraded: Assign and Release render disabled with the surface's declared r
   assert.match(out, /Gateway unreachable — Board freezes/);
   assert.match(out, /Crew A1/, "the last server state is still on screen");
 });
+
+test("the dark dispatch bar is the only navigation, and its Sign out ends the session at the gateway", async () => {
+  const { app, gateway } = await ready({ [OPERATIONS["auth.logout"].path]: { status: 200, body: { ok: true, sessionId: "sess-1" } } });
+  await settle();
+  const page = render(app.view());
+  assert.equal((page.match(/class="dispatch-header"/g) ?? []).length, 1, "one bar");
+  assert.equal(page.includes('class="ac-nav"'), false, "the old nav above it is gone");
+  assert.match(page, /dispatcher · AC Services/, "who is signed in stays on screen");
+  const signOut = nodesIn(app.view()).filter((n) => n.props?.class === "dispatch-header__logout");
+  assert.equal(signOut.length, 1, "one Sign out");
+  await (signOut[0]!.props!.onClick as () => Promise<void>)();
+  await settle();
+  assert.ok(gateway.calls.some((c) => c.path === OPERATIONS["auth.logout"].path), "the gateway is told");
+  assert.equal(app.phase.value.kind, "login", "and the console is back at its sign-in");
+  assert.match(render(app.view()), /id="sign-in"/);
+});
