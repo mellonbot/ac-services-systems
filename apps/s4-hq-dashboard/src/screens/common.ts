@@ -4,6 +4,7 @@ import { HQ_METRICS, type DensityOf, type HqMetricKey, type HqMetricsOutput, typ
 import type { Store, Resource } from "../state.ts";
 import { keyOf } from "../state.ts";
 import type { SCREENS } from "../screens.ts";
+export { linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
 
 export type ScreenContext = {
   readonly shell: Shell;
@@ -24,9 +25,6 @@ export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) =>
     case "refused": return RefusalNotice({ density: ctx.density, refusal: r.refusal, routes: retry ? [{ label: "Try again", onSelect: retry, primary: true }] : [] }) ?? html``;
   }
 };
-
-export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "ac-link"): VNode =>
-  html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;
 
 export const readMetrics = (ctx: ScreenContext) =>
   ctx.store.read(keyOf("hq.metrics", {}), () => ctx.shell.gateway.hqMetrics({}));

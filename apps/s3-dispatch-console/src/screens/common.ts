@@ -3,6 +3,7 @@ import type { Shell } from "../../../../packages/shell/src/index.ts";
 import type { Refusal, DensityOf } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
 import type { SCREENS } from "../screens.ts";
+export { linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
 
 /** What every S3 screen receives. A screen is a function of this and its route params — nothing else. */
 export type ScreenContext = {
@@ -40,6 +41,3 @@ export const submitAction = (ctx: ScreenContext, label: string, onClick: () => v
     ...(id ? { id } : {}),
     ...(ctx.degraded ? { disabledReason: `Gateway unreachable — ${ctx.shell.degradedMode}` } : {}),
   }) ?? html``;
-
-export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "ac-link"): VNode =>
-  html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;

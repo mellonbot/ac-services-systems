@@ -4,6 +4,7 @@ import type { Refusal, DensityOf, FirmWire, CrewWire } from "../../../../package
 import type { Store, Resource } from "../state.ts";
 import { keyOf } from "../state.ts";
 import type { SCREENS } from "../screens.ts";
+export { linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
 
 /** What every S8 screen receives. A screen is a function of this and its route params — nothing else. */
 export type ScreenContext = {
@@ -49,9 +50,6 @@ export const submitAction = (ctx: ScreenContext, label: string, id?: string, bus
     ...(id ? { id } : {}),
     ...(ctx.degraded ? { disabledReason: `Gateway unreachable — ${ctx.shell.degradedMode}` } : busy ? { disabledReason: "Sending…" } : {}),
   }) ?? html``;
-
-export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "ac-link"): VNode =>
-  html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;
 
 /** The firm's own row — `firms.list` returns exactly one to a firm principal (0005). */
 export const readFirm = (ctx: ScreenContext) =>

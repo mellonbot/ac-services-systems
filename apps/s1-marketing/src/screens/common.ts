@@ -5,6 +5,7 @@ import type { Store, Resource } from "../state.ts";
 import { keyOf } from "../state.ts";
 import type { LeadBuffer } from "../buffer.ts";
 import type { SCREENS } from "../screens.ts";
+export { linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
 
 /** What every S1 screen receives. A screen is a function of this and its route params — nothing else. */
 export type ScreenContext = {
@@ -63,6 +64,3 @@ export const refusalView = (ctx: ScreenContext, refusal: Refusal, routes: readon
  */
 export const submitAction = (ctx: ScreenContext, label: string, id?: string): VNode =>
   PrimaryAction({ density: ctx.density, label, type: "submit", ...(id ? { id } : {}) }) ?? html``;
-
-export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "ac-link"): VNode =>
-  html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;

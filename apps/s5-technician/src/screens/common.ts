@@ -4,6 +4,7 @@ import type { Refusal, DensityOf } from "../../../../packages/contracts/src/inde
 import type { Store, Resource } from "../state.ts";
 import type { OfflineQueue } from "../offline.ts";
 import type { SCREENS } from "../screens.ts";
+export { linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
 
 /**
  * What every S5 screen receives. `crew` and `queue` are what S2's and S3's
@@ -48,6 +49,3 @@ export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) =>
  */
 export const refusalView = (ctx: ScreenContext, refusal: Refusal): VNode =>
   RefusalNotice({ density: ctx.density, refusal }) ?? html``;
-
-export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "ac-link"): VNode =>
-  html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;
