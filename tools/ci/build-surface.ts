@@ -15,7 +15,8 @@
  *   bundle.js    esbuild of src/app.ts (the surface's own entry) or, absent, src/main.ts (the
  *                generated registry boot) — esm, es2022, browser, sourcemapped
  *   bundle.js.map
- *   ui.css       packages/ui UI_CSS — roles only, no colours
+ *   ui.css       the self-hosted @font-face block, then packages/ui UI_CSS — roles only, no colours
+ *   fonts/       packages/tokens/fonts — the subset faces and their licences
  *
  * No config file exists to drift: the options are here, beside the guard that
  * reads the same repo. esbuild resolves `preact` from packages/ui alone, which
@@ -25,13 +26,14 @@
  * Needs `pnpm install` (esbuild is a native binary). That is the whole
  * dependency of the build path; the guard and the unit suite need nothing.
  */
-import { mkdirSync, writeFileSync, readFileSync, statSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, statSync, existsSync, cpSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { build } from "esbuild";
 import { SURFACES, SURFACE_IDS, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { UI_CSS } from "../../packages/ui/src/styles.ts";
+import { fontFaceCss } from "../../packages/tokens/src/type.ts";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
@@ -75,12 +77,14 @@ export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean; gate
   const leak = /from\s*["']node:|require\(\s*["']node:/.exec(bundle);
   if (leak) throw new Error(`${id}: bundle imports a node: module (${leak[0]}) — something below the shell reached for the platform`);
 
-  writeFileSync(join(outDir, "ui.css"), UI_CSS);
+  writeFileSync(join(outDir, "ui.css"), fontFaceCss() + UI_CSS);
+  cpSync(join(ROOT, "packages/tokens/fonts"), join(outDir, "fonts"), { recursive: true, filter: (src) => !src.endsWith("README.md") });
   const gateway = opts.gateway ?? process.env.AC_GATEWAY ?? "";
   const assetPrefix = opts.basePath && opts.basePath !== "/" ? opts.basePath.replace(/\/+$/, "") : "";
   const index = readFileSync(frame, "utf8")
     .replace('<meta name="ac-gateway" content="">', `<meta name="ac-gateway" content="${gateway.replace(/"/g, "")}">`)
     .replace('href="/ui.css"', `href="${assetPrefix}/ui.css"`)
+    .replaceAll('href="/fonts/', `href="${assetPrefix}/fonts/`)
     .replace('src="/bundle.js"', `src="${assetPrefix}/bundle.js"`);
   writeFileSync(join(outDir, "index.html"), index);
 

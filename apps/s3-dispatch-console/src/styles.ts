@@ -70,7 +70,9 @@ export const S3_CSS = `
 .dispatch-header__nav{display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap}
 .dispatch-header__tab{appearance:none;border:0;background:transparent;color:var(--color-text-muted);padding:8px 12px;border-radius:var(--radius-control);font-family:var(--font-label);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 .dispatch-header__tab.is-active{background:color-mix(in srgb,var(--color-text) 8%,transparent);color:var(--color-text);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-text) 14%,transparent)}
+.dispatch-header__tab{text-decoration:none}
 .dispatch-header__tools{display:flex;align-items:center;gap:8px;margin-left:auto}
+.dispatch-header__who{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-sm)}
 .dispatch-header__logout{appearance:none;border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-text);color:var(--color-surface);padding:8px 10px;font-family:var(--font-label);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 .dispatch-dashboard__title-row{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:8px 0 18px}
 .dispatch-dashboard__title-row h1{margin:0;color:var(--color-text);font-family:var(--font-display);font-size:42px;line-height:1.05;letter-spacing:-0.03em}

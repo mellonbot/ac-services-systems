@@ -151,7 +151,6 @@ export const createApp = (opts: {
     const screen = loc ? SCREEN_VIEWS[loc.screen] : null;
     return html`<div class="s1-app">
       <nav class="s1-nav" aria-label="Sections">
-        <span class="s1-nav__mark">Rankine</span>
         ${nav("coverage", "Where we work")}
         <span class="s1-nav__spacer"></span>
         ${nav("enquire", "Ask us to call")}

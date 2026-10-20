@@ -133,6 +133,32 @@ export const WORDMARK_FLOOR = 28;
  */
 export const SUBSET_GLYPHS = "°ΔΧ×±½¼¾′″₂" + "●▲▼■✕";
 
+/**
+ * THE FILES, as shipped. `packages/tokens/fonts/` holds them, subset to Latin-1,
+ * the punctuation the copy uses and SUBSET_GLYPHS, and pinned to the source
+ * releases named in that folder's README; `build-surface.ts` copies them to every
+ * surface's `dist/fonts/`. Plex cuts none of ● ▲ ▼ ■ ✕, so the marks still come
+ * from the fallback chain; the subset carries them for a face that does.
+ *
+ * Only the weights the sheets set are cut. 800 resolves to 700, the heaviest
+ * Plex weight in the set.
+ */
+export const FONT_FILES = Object.freeze([
+  { family: FACES.wordmark.family, weight: 400, file: "yellowtail-400.woff2", display: FACES.wordmark.display, preload: true },
+  { family: FACES.display.family, weight: 600, file: "plex-sans-condensed-600.woff2", display: FACES.display.display, preload: false },
+  { family: FACES.display.family, weight: 700, file: "plex-sans-condensed-700.woff2", display: FACES.display.display, preload: true },
+  { family: FACES.text.family, weight: 400, file: "plex-sans-400.woff2", display: FACES.text.display, preload: true },
+  { family: FACES.text.family, weight: 600, file: "plex-sans-600.woff2", display: FACES.text.display, preload: true },
+  { family: FACES.text.family, weight: 700, file: "plex-sans-700.woff2", display: FACES.text.display, preload: false },
+  { family: FACES.instrument.family, weight: 400, file: "plex-mono-400.woff2", display: FACES.instrument.display, preload: false },
+  { family: FACES.instrument.family, weight: 600, file: "plex-mono-600.woff2", display: FACES.instrument.display, preload: false },
+] as const);
+
+/** The @font-face block. URLs are relative, so they resolve beside ui.css at whatever path a surface is served under. */
+export const fontFaceCss = (): string => FONT_FILES
+  .map((f) => `@font-face{font-family:"${f.family}";font-style:normal;font-weight:${f.weight};font-display:${f.display};src:url("fonts/${f.file}") format("woff2")}`)
+  .join("\n") + "\n";
+
 /** Third-party hosts a surface must never fetch a face from. The guard reads this list. */
 export const FORBIDDEN_FONT_HOSTS = Object.freeze([
   "fonts.googleapis.com", "fonts.gstatic.com", "use.typekit.net", "fonts.bunny.net",
