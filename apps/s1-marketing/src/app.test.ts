@@ -93,7 +93,7 @@ test("THE PAGE RENDERS WITH NO GATEWAY AT ALL, and the form still takes a lead",
   const app = appWith(g, store);
   // No await before the first render: that is the whole of "site stays up".
   const first = render(app.view());
-  assert.match(first, /Commercial HVAC service/);
+  assert.match(first, /AC Services — Service System/);
   app.router.navigate("enquire", {});
   render(app.view());
   app.submit(form);

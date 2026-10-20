@@ -1,6 +1,10 @@
 import { html, type VNode } from "../../../../packages/ui/src/index.ts";
 import { SURFACES, SURFACE_IDS, SURFACE_PATHS, type CoverageOutput, type SurfaceId } from "../../../../packages/contracts/src/index.ts";
+import { BRAND } from "../../../../packages/tokens/src/brand.ts";
 import { coverage, whenReady, linkTo, type Screen, type ScreenContext } from "./common.ts";
+
+/** The site's name, as the visitor reads it in the heading and the tab. */
+export const SITE_TITLE = `${BRAND.works.firm} — Service System`;
 
 const surfaceLoginLabel = (id: SurfaceId): string => {
   switch (SURFACES[id].namespace) {
@@ -35,37 +39,31 @@ const surfaceLoginLabel = (id: SurfaceId): string => {
 export const home: Screen = (ctx: ScreenContext): VNode => {
   const cov = coverage(ctx);
   return html`<section class="s1-home">
-    <h1 class="s1-h1">Commercial HVAC service, run as one network</h1>
-    <p class="s1-lede">
-      Rankine Operating Company runs commercial heating, ventilation and air-conditioning
-      service across several metros, through local firms that keep their own names.
-      Tell us what you need and the office for your area will get in touch.
-    </p>
-    <p><a class="s1-cta" href=${ctx.router.href("enquire", {})}
-          onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate("enquire", {}); }}
-          id="ask-us">Ask us to call</a></p>
+    <h1 class="s1-h1">${SITE_TITLE}</h1>
+    <p class="s1-lede">Sign in to the workspace for your role.</p>
 
-    <h2 class="s1-h2">Where we work</h2>
-    ${whenReady<CoverageOutput>(ctx, cov, (v) => v.metros.length
-      ? html`<ul class="s1-metros" id="metros">
-          ${v.metros.map((m) => html`<li><span class="s1-metros__code">${m.code}</span>${m.name}</li>`)}
-        </ul>`
-      : html`<p class="s1-empty" id="metros-empty">Our coverage list is being updated. Send us a note and we will tell you whether we reach you.</p>`,
-      () => ctx.store.invalidate("coverage.list"))}
-    <p class="s1-coverage__caveat">
-      This is where we have crews. Whether we can take on a particular building
-      is a conversation, not a map — ask and we will answer.
-    </p>
-    <p>${linkTo(ctx, "coverage", {}, "The full list")}</p>
     <section class="s1-surface-access" id="surface-logins" aria-labelledby="surface-logins-title">
-      <h2 class="s1-h2" id="surface-logins-title">Sign in to a portal</h2>
-      <p class="s1-surface-access__intro">Choose the workspace for your role. Each portal has its own sign-in and access scope.</p>
+      <h2 class="s1-label" id="surface-logins-title">Sign in to a portal</h2>
       <ul class="s1-portal-list">
         ${SURFACE_IDS.filter((id) => id !== "S1" && SURFACES[id].enabled).map((id) => html`<li class="s1-portal-list__item">
           <div><strong>${SURFACES[id].name}</strong><span>${surfaceLoginLabel(id)}</span></div>
           <a class="s1-portal-list__link" href="${SURFACE_PATHS[id]}/">Sign in</a>
         </li>`)}
       </ul>
+    </section>
+
+    <section class="s1-public" aria-labelledby="public-title">
+      <h2 class="s1-label" id="public-title">Not a customer yet</h2>
+      <p class="s1-public__line">
+        Commercial HVAC service, run as one network through local firms that keep their own names.
+      </p>
+      <p><a class="s1-cta" href=${ctx.router.href("enquire", {})}
+            onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate("enquire", {}); }}
+            id="ask-us">Ask us to call</a></p>
+      ${whenReady<CoverageOutput>(ctx, cov, (v) => v.metros.length
+        ? html`<p class="s1-public__where">Where we work: <span id="metros">${v.metros.map((m) => m.name).join(" · ")}</span> — ${linkTo(ctx, "coverage", {}, "the full list")}</p>`
+        : html`<p class="s1-empty" id="metros-empty">Our coverage list is being updated. Send us a note and we will tell you whether we reach you.</p>`,
+        () => ctx.store.invalidate("coverage.list"))}
     </section>
   </section>`;
 };

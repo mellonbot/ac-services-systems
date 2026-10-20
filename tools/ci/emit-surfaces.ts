@@ -240,7 +240,7 @@ export const renderFrame = (s: Surface): string => `<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="same-origin">
 <meta name="ac-gateway" content="">
-<title>${escapeHtml(s.name)} — ${escapeHtml(BRAND.legalName)}</title>
+<title>${escapeHtml(s.id === "S1" ? `${BRAND.works.firm} — Service System` : `${s.name} — ${BRAND.legalName}`)}</title>
 <meta name="theme-color" content="${semanticFor(s.density)["color.surface"]}">
 <link rel="icon" href="${faviconDataUri(16)}">
 <style>${tokenCss(s.density, { brandLayer: !s.stateRamp })}</style>

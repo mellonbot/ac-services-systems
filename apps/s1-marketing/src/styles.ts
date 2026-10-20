@@ -16,7 +16,7 @@
  * see, and the only one they will read on a phone in a car park.
  */
 export const S1_CSS = `
-.s1-app{display:flex;flex-direction:column;gap:var(--space-4);max-width:72ch;margin:0 auto}
+.s1-app{display:flex;flex-direction:column;gap:var(--space-4);max-width:60ch;margin:0 auto}
 .s1-nav{display:flex;align-items:center;gap:var(--space-4);padding-bottom:var(--space-2);border-bottom:1px solid var(--color-border)}
 .s1-nav__mark{font-family:var(--font-wordmark);text-transform:uppercase;letter-spacing:var(--track-mark);color:var(--color-brand-text);font-weight:700}
 .s1-nav__spacer{margin-inline-start:auto}
@@ -30,16 +30,20 @@ export const S1_CSS = `
 .s1-metros li{padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);background:var(--color-surface)}
 .s1-metros__code{display:block;font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
 .s1-coverage__caveat{margin:0 0 var(--space-4);color:var(--color-text-muted);max-width:60ch}
-.s1-surface-access{margin-top:var(--space-8);scroll-margin-top:var(--space-4)}
-.s1-surface-access__intro{max-width:60ch;color:var(--color-text-muted)}
-.s1-portal-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 var(--space-8);margin:var(--space-3) 0 0;padding:0;list-style:none}
-.s1-portal-list__item{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-width:0;padding:var(--space-3) 0;border-top:1px solid var(--color-border)}
+.s1-label{margin:0 0 var(--space-2);font-family:var(--font-label);font-size:var(--text-xs);font-weight:600;letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
+.s1-surface-access{margin-top:var(--space-6);scroll-margin-top:var(--space-4)}
+.s1-portal-list{margin:0;padding:0;list-style:none;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card)}
+.s1-portal-list__item{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-width:0;min-height:var(--control-height);padding:var(--space-3) var(--space-4)}
+.s1-portal-list__item+.s1-portal-list__item{border-top:1px solid var(--color-border)}
 .s1-portal-list__item>div{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
-.s1-portal-list__item strong{font-weight:700}
+.s1-portal-list__item strong{font-weight:600}
 .s1-portal-list__item span{color:var(--color-text-muted);font-size:var(--text-sm)}
-.s1-portal-list__link{flex:none;color:var(--color-action-text);font-weight:700;text-decoration:none}
+.s1-portal-list__link{flex:none;color:var(--color-action-text);font-weight:600;text-decoration:none}
 .s1-portal-list__link:hover{text-decoration:underline}
-.s1-portal-list__link:focus-visible,.s1-nav a:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
+.s1-portal-list__link:focus-visible,.s1-nav a:focus-visible,.s1-public a:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
+.s1-public{margin-top:var(--space-8);padding-top:var(--space-4);border-top:1px solid var(--color-border)}
+.s1-public__line{margin:0 0 var(--space-3);max-width:52ch}
+.s1-public__where{margin:var(--space-3) 0 0;color:var(--color-text-muted);font-size:var(--text-sm)}
 .s1-call{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);color:var(--color-action-text);text-decoration:none;font-weight:600}
 .s1-foot{margin-top:var(--space-6);padding-top:var(--space-3);border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size:var(--text-sm)}
 
@@ -49,5 +53,5 @@ export const S1_CSS = `
 .s1-metros li{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-3) var(--space-4)}
 .s1-cta{border-radius:var(--radius-control)}
 .s1-nav{border-bottom:0}
-@media(max-width:640px){.s1-portal-list{grid-template-columns:minmax(0,1fr)}.s1-nav{flex-wrap:wrap}.s1-nav__spacer{display:none}}
+@media(max-width:640px){.s1-nav{flex-wrap:wrap}.s1-nav__spacer{display:none}}
 `;
