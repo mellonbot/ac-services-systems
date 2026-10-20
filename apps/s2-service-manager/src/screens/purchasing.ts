@@ -5,6 +5,13 @@ import type {
 import type { Store } from "../state.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, submitAction, formValues, linkTo, confirmPanel, type Screen, type ScreenContext } from "./common.ts";
+import {
+  formatQuantity as qty,
+  parseQuantity as toMilli,
+  formatMoney as money,
+  parseMoney,
+} from "../../../../packages/ui/src/fixed-units.ts";
+export { qty, toMilli, money };
 
 /**
  * ITEM 11 — PURCHASING, the office's side of procurement. Three screens over
@@ -26,28 +33,8 @@ export const refreshProcurement = (store: Store): void => {
   for (const k of ["vendors.list", "receivingPoints.list", "catalog.list", "pos.", "vendorInvoices.list", "rmas.list"]) store.invalidate(k);
 };
 
-/** Thousandths → a quantity as people write it: "10", "2.5". */
-export const qty = (milli: string): string => {
-  const n = BigInt(milli), whole = n / 1000n, frac = n % 1000n;
-  return frac === 0n ? whole.toString() : `${whole}.${frac.toString().padStart(3, "0").replace(/0+$/, "")}`;
-};
-/** A quantity as typed ("2.5") → thousandths ("2500"). Refuses more than three decimals rather than rounding someone's order. */
-export const toMilli = (typed: string): string => {
-  const m = /^(\d+)(?:\.(\d{1,3}))?$/.exec(typed.trim());
-  if (!m) throw new Error(`"${typed}" is not a quantity`);
-  return (BigInt(m[1]!) * 1000n + BigInt((m[2] ?? "").padEnd(3, "0") || "0")).toString();
-};
-/** Minor units → "425.00 USD". */
-export const money = (minor: string, currency = "USD"): string => {
-  const n = BigInt(minor), whole = n / 100n, cents = (n % 100n).toString().padStart(2, "0");
-  return `${whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${cents} ${currency}`;
-};
 /** "42.50" → "4250". Two decimals at most; money is never a float. */
-export const toMinor = (typed: string): string => {
-  const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(typed.trim());
-  if (!m) throw new Error(`"${typed}" is not an amount`);
-  return (BigInt(m[1]!) * 100n + BigInt((m[2] ?? "").padEnd(2, "0") || "0")).toString();
-};
+export const toMinor = (typed: string): string => parseMoney(typed);
 
 export const PO_STATE: Readonly<Record<PoState, { status: Status; word: string }>> = {
   draft: { status: "blocked", word: "Draft" },

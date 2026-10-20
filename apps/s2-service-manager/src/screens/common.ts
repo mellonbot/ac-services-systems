@@ -3,6 +3,7 @@ import type { Shell } from "../../../../packages/shell/src/index.ts";
 import type { Refusal, DensityOf } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
 import type { SCREENS } from "../screens.ts";
+export { formValues, linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
 
 /** What every screen receives. A screen is a function of this and its route params — nothing else. */
 export type ScreenContext = {
@@ -37,16 +38,6 @@ export const submitAction = (ctx: ScreenContext, label: string, id?: string): VN
   }) ?? html``;
 
 /** Read a form as strings. Uncontrolled inputs, read at submit (09 §3.5). */
-export const formValues = (form: HTMLFormElement): Record<string, string> => {
-  const out: Record<string, string> = {};
-  // lib is es2023 without dom.iterable; forEach is on the base FormData type.
-  new FormData(form).forEach((v, k) => { if (typeof v === "string") out[k] = v.trim(); });
-  return out;
-};
-
-export const linkTo = (ctx: ScreenContext, screen: keyof typeof SCREENS, params: Params, label: string, cls = "ac-link"): VNode =>
-  html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;
-
 export const confirmPanel = (p: {
   readonly id: string;
   readonly title: string;
