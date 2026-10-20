@@ -17,8 +17,8 @@
  */
 export const S1_CSS = `
 .s1-app{display:flex;flex-direction:column;gap:var(--space-4);max-width:60ch;margin:0 auto}
+.ac-mast{max-width:calc(60ch + 2 * var(--gutter))}
 .s1-nav{display:flex;align-items:center;gap:var(--space-4);padding-bottom:var(--space-2);border-bottom:1px solid var(--color-border)}
-.s1-nav__mark{font-family:var(--font-wordmark);text-transform:uppercase;letter-spacing:var(--track-mark);color:var(--color-brand-text);font-weight:700}
 .s1-nav__spacer{margin-inline-start:auto}
 .s1-h1{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-xl);text-transform:uppercase;letter-spacing:var(--track-normal)}
 .s1-h2{margin:var(--space-6) 0 var(--space-2);font-size:var(--text-lg)}

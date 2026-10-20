@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 import { SURFACES, SURFACE_IDS, type Surface, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import {
   DENSITY, tokenCss, BRAND, faviconDataUri, semanticFor, badgeSvg,
-  SEMANTIC, FACES, ACCENT_GATE, BULLETIN_ERRATA, WORDMARK_FLOOR,
+  SEMANTIC, FACES, ACCENT_GATE, BULLETIN_ERRATA, WORDMARK_FLOOR, FONT_FILES,
 } from "../../packages/tokens/src/index.ts";
 // Not via index.ts: figures.ts is the table of every number the system states
 // about itself, and it is imported HERE so the generated doc quotes the
@@ -244,6 +244,7 @@ export const renderFrame = (s: Surface): string => `<!doctype html>
 <meta name="theme-color" content="${semanticFor(s.density)["color.surface"]}">
 <link rel="icon" href="${faviconDataUri(16)}">
 <style>${tokenCss(s.density, { brandLayer: !s.stateRamp })}</style>
+${FONT_FILES.filter((f) => f.preload).map((f) => `<link rel="preload" href="/fonts/${f.file}" as="font" type="font/woff2" crossorigin>`).join("\n")}
 <link rel="stylesheet" href="/ui.css">${s.whiteLabel ? `
 <!-- The tenant's slot. EMPTY in the file, and the order is the mechanism: the
      plate above is what the page renders with when nothing fills this, so a
