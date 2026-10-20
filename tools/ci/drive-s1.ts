@@ -173,7 +173,7 @@ async function main(): Promise<void> {
     };
 
     // ── 1. THE SITE IS UP WITH NO GATEWAY AT ALL
-    await cdp.waitFor(has("Commercial HVAC service"), "the front page, with nothing listening on the gateway");
+    await cdp.waitFor(has("AC Services — Service System"), "the front page, with nothing listening on the gateway");
     must(!(await cdp.eval<boolean>(has("Dallas")))
       && !(await cdp.eval<boolean>(has("South"))), "no metro may appear before a row does");
     await shot("01-front-page-no-gateway");
@@ -283,7 +283,7 @@ async function main(): Promise<void> {
 
     // ── 12. S1 wears the house red, and it is the brand role that put it there
     await cdp.navigate(`${SITE}/`);
-    await cdp.waitFor(has("Commercial HVAC"), "the front page");
+    await cdp.waitFor(has("AC Services — Service System"), "the front page");
     const brand = await cdp.eval<{ token: string; painted: string }>(`(() => {
       const cs = getComputedStyle(document.documentElement);
       const el = document.querySelector(".s1-cta");
