@@ -131,6 +131,8 @@ test("the board shows every job with its SLA glyph, its crew, and offers Dispatc
   assert.match(out, /Technician location unavailable/);
   assert.match(out, /No routes or vehicle positions are being inferred/);
   assert.match(out, /aria-label="Filter jobs"/);
+  assert.doesNotMatch(out, />Field App</);
+  assert.doesNotMatch(out, />Customer Portal</);
   assert.doesNotMatch(out, /data-latitude|data-longitude|latitude|longitude/i);
   assert.match(out, new RegExp(`href="/job/${JOB_CREATED}"`));
   assert.match(out, new RegExp(`id="release-${JOB_ASSIGNED}"`));
@@ -174,6 +176,7 @@ test("dispatch: the dry run renders as ComplianceBadge with the gate's own reaso
   assert.match(out, /Crew B1/);
   assert.match(out, /Cleared/);
   assert.match(out, /Not cleared — expired in window/);
+  assert.match(out, new RegExp(`href="/customer/site/${SITE}"[^>]*>Austin — Roof</a>`));
   assert.match(out, new RegExp(`id="assign-${CREW_A}"`));
   assert.doesNotMatch(out, new RegExp(`id="assign-${CREW_B}"`), "an uncleared crew has no Assign button — there is no override path here or at the gateway");
 });

@@ -165,8 +165,6 @@ export const board: Screen = (ctx) => {
           <button type="button" class="dispatch-header__tab">Job Detail</button>
           <button type="button" class="dispatch-header__tab">Job Dashboard</button>
           <button type="button" class="dispatch-header__tab">Manager</button>
-          <button type="button" class="dispatch-header__tab">Field App</button>
-          <button type="button" class="dispatch-header__tab">Customer Portal</button>
         </nav>
         <div class="dispatch-header__tools">
           <button type="button" class="dispatch-header__logout">Sign out</button>
