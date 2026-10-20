@@ -152,10 +152,8 @@ export const createApp = (opts: {
     return html`<div class="s1-app">
       <nav class="s1-nav" aria-label="Sections">
         <span class="s1-nav__mark">Rankine</span>
-        ${nav("home", "Home")}
         ${nav("coverage", "Where we work")}
         <span class="s1-nav__spacer"></span>
-        <a class="ac-link" href="/#surface-logins">Portal sign-in</a>
         ${nav("enquire", "Ask us to call")}
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s1-empty">Nothing at this address. ${nav("home", "Start here")}</p>`}
