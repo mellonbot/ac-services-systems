@@ -17,8 +17,10 @@ Production is two Cloudflare deployments from one `main` push, in this order:
    Cloudflare Pages. The `deploy` job publishes it after the gateway is up,
    because the build stamps the gateway origin into every frame.
 
-Both run after the `full` and `migrate` CI jobs pass on `main`; GitHub's
-`production` environment records each deployment.
+Both run after the `zero-install-guard`, `full`, `migrate` and `drive` CI jobs
+pass on `main`, and only when the commit is still `main`'s head — a re-run of
+an older commit stops at the `latest` job instead of rolling production back.
+GitHub's `production` environment records each deployment.
 
 ## Why a container and not a Worker
 
