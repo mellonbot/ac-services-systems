@@ -13,9 +13,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Runs first and alone. Dependency-free by design: if the invariants are
-  # broken there is no reason to spend three minutes installing a toolchain to
-  # find that out.
+  # Dependency-free by design: it answers in about ten seconds, so a broken
+  # invariant is the first red mark on the run. `full`, `migrate` and `drive`
+  # start beside it rather than behind it — holding them back cost every deploy
+  # its ten seconds to save a few runner-minutes on a commit that fails anyway.
   zero-install-guard:
     runs-on: ubuntu-latest
     steps:
@@ -30,7 +31,6 @@ jobs:
 
   full:
     runs-on: ubuntu-latest
-    needs: zero-install-guard
     steps:
       - uses: actions/checkout@v7
       # No version here: pnpm/action-setup reads `packageManager` from
@@ -69,7 +69,6 @@ jobs:
   # interesting case. This job is the only place the live schema is checked.
   migrate:
     runs-on: ubuntu-latest
-    needs: zero-install-guard
     services:
       postgres:
         image: postgres:16
@@ -105,31 +104,84 @@ jobs:
       - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
       - run: npm run test:integration
-      # The DOM is the one layer neither the render tests nor the wire tests
-      # can see, and C4 shipped with two defects that lived exactly there: a
-      # default that was a DOM property surviving a `form.reset()`, and a pill
-      # printing a raw enum beside a chip that printed words. Both need a real
-      # browser and two actions in a row. ubuntu-latest ships Chrome; the drive
-      # finds it, and skips loudly rather than silently if it ever stops.
-      - name: C4 through a real browser
-        run: npm run drive:s2-c4
-      # Item 6: the customer portal, two principals, one bundle — the DOM half
-      # of "tier scoping is the acceptance test" (test/integration/s6.test.ts
-      # is the wire half, above).
-      - name: S6 through a real browser
-        run: npm run drive:s6
-      # Item 7: the subcontractor portal, two firms, one bundle — the DOM half
-      # of firm visibility (test/integration/s8.test.ts is the wire half), and
-      # D12's four writes from the page: enroll, file, acknowledge, dispute.
-      - name: S8 through a real browser
-        run: npm run drive:s8
-      # Item 8: the marketing surface, whose principal is nobody. The DOM half
-      # of the anonymous door (test/integration/s1.test.ts is the wire half),
-      # and the only place two of its mechanisms can be checked at all: the
-      # durable buffer surviving a reload, and the D7a/OQ6 copy ceiling against
-      # the PAINTED page, so a promise arriving through a stylesheet fails too.
-      - name: S1 through a real browser
-        run: npm run drive:s1
+
+  # The DOM is the one layer neither the render tests nor the wire tests
+  # can see, and C4 shipped with two defects that lived exactly there: a
+  # default that was a DOM property surviving a `form.reset()`, and a pill
+  # printing a raw enum beside a chip that printed words. Both need a real
+  # browser and two actions in a row. ubuntu-latest ships Chrome; the drive
+  # finds it, and skips loudly rather than silently if it ever stops.
+  #   s2-c4 — C4 through a real browser.
+  #   s6    — item 6: the customer portal, two principals, one bundle — the DOM
+  #           half of "tier scoping is the acceptance test"
+  #           (test/integration/s6.test.ts is the wire half).
+  #   s8    — item 7: the subcontractor portal, two firms, one bundle — the DOM
+  #           half of firm visibility (test/integration/s8.test.ts is the wire
+  #           half), and D12's four writes from the page: enroll, file,
+  #           acknowledge, dispute.
+  #   s1    — item 8: the marketing surface, whose principal is nobody. The DOM
+  #           half of the anonymous door (test/integration/s1.test.ts is the
+  #           wire half), and the only place two of its mechanisms can be
+  #           checked at all: the durable buffer surviving a reload, and the
+  #           D7a/OQ6 copy ceiling against the PAINTED page, so a promise
+  #           arriving through a stylesheet fails too.
+  # One job per drive: each creates, migrates and drops its own database, so
+  # they share nothing, and side by side they cost the deploy one drive's
+  # time (~40s) instead of four (~2.5m).
+  drive:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        surface: [s2-c4, s6, s8, s1]
+    name: drive (${{ matrix.surface }})
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ac_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/ac_ci
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      # The drives used to follow `migrate` in one job, on a server whose roles
+      # the migration had already made. Make them here too, so a drive sees the
+      # server it always saw.
+      - run: node tools/ci/migrate.ts
+      - run: pnpm install --frozen-lockfile
+      - run: npm run drive:${{ matrix.surface }}
+
+  # A re-run of an older commit passes every check above and would then deploy
+  # it over whatever main has moved on to — a silent rollback. Deploy only the
+  # commit that is main's head right now; a re-run of the head still deploys.
+  latest:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    needs: [zero-install-guard, full, migrate, drive]
+    outputs:
+      current: ${{ steps.head.outputs.current }}
+    steps:
+      - id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head=$(gh api "repos/${{ github.repository }}/commits/main" -q .sha)
+          if [ "$head" = "$GITHUB_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::$GITHUB_SHA is not main's head ($head), so it is not deployed. Re-run the head's workflow to redeploy."
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          fi
 
   # The gateway: apps/gateway and apps/worker as one container behind the Worker
   # on api.acservice.systems (infra/cloudflare/). Migrate the production database,
@@ -140,9 +192,9 @@ jobs:
   # environment (token without account, or the Worker missing a secret) fails
   # here, named, before a several-minute image build and a five-minute wait.
   deploy-gateway:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: needs.latest.outputs.current == 'true'
     runs-on: ubuntu-latest
-    needs: [full, migrate]
+    needs: [full, migrate, drive, latest]
     environment:
       name: production
       url: https://api.acservice.systems/healthz
@@ -235,11 +287,11 @@ jobs:
           exit 1
 
   deploy:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: needs.latest.outputs.current == 'true'
     runs-on: ubuntu-latest
     # After the gateway, because the build stamps the gateway origin into every
     # frame. A skipped gateway (DATABASE_URL unset) still satisfies this.
-    needs: [full, migrate, deploy-gateway]
+    needs: [full, migrate, drive, latest, deploy-gateway]
     environment:
       name: production
       url: https://acservice.systems
