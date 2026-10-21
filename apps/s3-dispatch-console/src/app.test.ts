@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { renderToString as render } from "../../../packages/ui/src/testing.ts";
 import { createApp, SCREEN_VIEWS, gatewayOrigin } from "./app.ts";
 import { SCREENS } from "./screens.ts";
-import { slaStatus, isReleasable, isDispatchable } from "./screens/board.ts";
+import { slaStatus, isReleasable, isDispatchable, boardTimeline } from "./screens/board.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { Principal, JobWire, HierarchyContext, CandidateCrewWire, ServiceRequestWire } from "../../../packages/contracts/src/index.ts";
 import { intakeRows, age, defaultWindow } from "./screens/intake.ts";
@@ -142,6 +142,20 @@ test("the board shows every job with its SLA glyph, its crew, and offers Dispatc
   assert.match(out, new RegExp(`id="release-${JOB_ASSIGNED}"`));
   assert.doesNotMatch(out, new RegExp(`id="release-${JOB_CREATED}"`), "an unassigned job offers no release");
   assert.doesNotMatch(out, new RegExp(`href="/job/${JOB_ASSIGNED}"`), "an already-assigned job offers no dispatch link");
+});
+
+test("the timeline draws only real jobs on the chosen day: a lane per crew, an Unassigned lane, and each bar's SLA as glyph and word", () => {
+  const now = Date.parse("2026-09-18T12:00:00.000Z");
+  const out = render(boardTimeline([jobCreated, jobAssigned], now, 0));
+  assert.match(out, /<strong>Crew A1<\/strong>/);
+  assert.match(out, /data-lane="unassigned"/);
+  assert.equal((out.match(/class="dispatch-board__segment"/g) ?? []).length, 2, "one bar per job, no invented rows");
+  assert.match(out, /data-tone="breached"[^>]*href="\/jobs\/[^"]+"/, "the created job's due date has passed");
+  assert.match(out, />Breached<\/span>/);
+  assert.match(out, /data-tone="ok"/, "the assigned job's timer is satisfied");
+  assert.doesNotMatch(out, /33390928|Blake Keating|Tue, Sep 8/, "no fixed sample rows");
+  const nextDay = render(boardTimeline([jobCreated, jobAssigned], now, 1));
+  assert.match(nextDay, /No open job has a service window on this day/);
 });
 
 test("board filters persist across renders and show only the selected assignment state", async () => {

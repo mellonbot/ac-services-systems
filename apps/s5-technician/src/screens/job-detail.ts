@@ -42,7 +42,7 @@ export const jobDetail: Screen = (ctx, params) => {
   const flush = () => {
     void ctx.queue.flush((mutations) =>
       ctx.shell.gateway.replaySync({ orgId: ctx.shell.principal.orgId, regionId: ctx.shell.principal.regionId, mutations }),
-    ).then(() => ctx.store.invalidate("jobs.mine"));
+    ).then((answered) => { if (answered) ctx.store.invalidate("jobs.mine"); });
   };
 
   const renderForJob = (out: { jobs: readonly FieldJobWire[] }): VNode => {

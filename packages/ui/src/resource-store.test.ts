@@ -40,3 +40,31 @@ test("transport refusals do not mark the gateway as answered", async () => {
   });
   assert.equal(store.lastOkAt.value, null);
 });
+
+test("a refetch shows the held value, keeps it through a transport failure, and drops it for a real refusal", async () => {
+  let mode: "ok" | "offline" | "forbidden" = "ok";
+  const forbidden = { kind: "scope", error: "ScopeError", message: "not yours" } as const;
+  const store = createResourceStore({ refusalOf: (e) => (e === forbidden ? forbidden : null) }, () => 7);
+  const fetcher = async (): Promise<string> => {
+    if (mode === "offline") throw new Error("Failed to fetch");
+    if (mode === "forbidden") throw forbidden;
+    return "jobs";
+  };
+  store.read("jobs.mine", fetcher);
+  await Promise.resolve(); await Promise.resolve();
+
+  mode = "offline";
+  store.invalidate("jobs.mine");
+  const refetch = store.read("jobs.mine", fetcher);
+  assert.deepEqual(refetch.value, { state: "ready", value: "jobs" }, "no loading line while the refetch is in flight");
+  await Promise.resolve(); await Promise.resolve();
+  assert.deepEqual(refetch.value, { state: "ready", value: "jobs" }, "a transport failure keeps what the screen had");
+
+  mode = "forbidden";
+  store.invalidate("jobs.mine");
+  const refused = store.read("jobs.mine", fetcher);
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(refused.value.state, "refused", "the gateway's own refusal is new information and replaces it");
+  store.invalidate("jobs.mine");
+  assert.equal(store.read("jobs.mine", fetcher).value.state, "loading", "and nothing is held after it");
+});
