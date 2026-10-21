@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 89 today. There is no
+ * One method per operation in the catalogue — 94 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -318,11 +318,25 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["jobs.addNote"], input) as Promise<OperationIO["jobs.addNote"]["output"]>;
   },
 
+  /** `GET /jobs/conversation` · query · bearer · surfaces: S6
+   *
+   * What a customer reads about its job beyond the state: the updates dispatch PUBLISHED and the thread. A draft, an internal note, a crew or a photo key is not here — RLS (0016) returns only published updates to a customer. */
+  jobConversation(input: OperationIO["jobs.conversation"]["input"]): Promise<OperationIO["jobs.conversation"]["output"]> {
+    return transport.request(OPERATIONS["jobs.conversation"], input) as Promise<OperationIO["jobs.conversation"]["output"]>;
+  },
+
   /** `POST /s2/jobs` · mutation · bearer · surfaces: S2
    *
    * Author a job against a site. Opens its SLA timer in the same unit of work — due_at is DERIVED from the site's resolved sla_response term, never typed in (domain/sla deriveDueAt). Shadow mode until a region turns it off. */
   createJob(input: OperationIO["jobs.create"]["input"]): Promise<OperationIO["jobs.create"]["output"]> {
     return transport.request(OPERATIONS["jobs.create"], input) as Promise<OperationIO["jobs.create"]["output"]>;
+  },
+
+  /** `GET /s3/jobs/detail` · query · bearer · surfaces: S3
+   *
+   * One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — and the customer thread. RLS decides; nothing here filters. */
+  jobDetail(input: OperationIO["jobs.detail"]["input"]): Promise<OperationIO["jobs.detail"]["output"]> {
+    return transport.request(OPERATIONS["jobs.detail"], input) as Promise<OperationIO["jobs.detail"]["output"]>;
   },
 
   /** `GET /jobs` · query · bearer · surfaces: S2, S3, S6, S8
@@ -337,6 +351,27 @@ export const createGatewayClient = (transport: Transport) => ({
    * Jobs assigned to this shift's crew, unreleased. The field layer's own read — no employment shape, no compliance detail, no other crew's board. */
   myJobs(): Promise<OperationIO["jobs.mine"]["output"]> {
     return transport.request(OPERATIONS["jobs.mine"], undefined) as Promise<OperationIO["jobs.mine"]["output"]>;
+  },
+
+  /** `POST /jobs/message` · mutation · bearer · surfaces: S3, S6
+   *
+   * Write in the job's customer thread. The office (S3) and the customer (S6) post through the same door; which side wrote it is the caller's namespace, never a field. Append-only. */
+  postJobMessage(input: OperationIO["jobs.postMessage"]["input"]): Promise<OperationIO["jobs.postMessage"]["output"]> {
+    return transport.request(OPERATIONS["jobs.postMessage"], input) as Promise<OperationIO["jobs.postMessage"]["output"]>;
+  },
+
+  /** `POST /s3/jobs/update/publish` · mutation · bearer · surfaces: S3
+   *
+   * Publish a draft update to the customer. Once, by name: a second publish is refused as already_published. Delivery is the customer finding it in the portal — no email or push is sent. */
+  publishJobUpdate(input: OperationIO["jobs.publishUpdate"]["input"]): Promise<OperationIO["jobs.publishUpdate"]["output"]> {
+    return transport.request(OPERATIONS["jobs.publishUpdate"], input) as Promise<OperationIO["jobs.publishUpdate"]["output"]>;
+  },
+
+  /** `POST /s3/jobs/update` · mutation · bearer · surfaces: S3
+   *
+   * Write or edit a DRAFT of what the customer is told, usually from an internal note. A draft is invisible to the customer; a published update cannot be edited (0016's trigger) — a correction is a new update. */
+  saveJobUpdate(input: OperationIO["jobs.saveUpdate"]["input"]): Promise<OperationIO["jobs.saveUpdate"]["output"]> {
+    return transport.request(OPERATIONS["jobs.saveUpdate"], input) as Promise<OperationIO["jobs.saveUpdate"]["output"]>;
   },
 
   /** `POST /s3/jobs/return-trip` · mutation · bearer · surfaces: S3
@@ -637,4 +672,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "addJobNote", "createJob", "listJobs", "myJobs", "setReturnTrip", "transitionJob", "submitLead", "createOrganization", "listOrganizations", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "createServiceRequest", "listServiceRequests", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "addJobNote", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "submitLead", "createOrganization", "listOrganizations", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "createServiceRequest", "listServiceRequests", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);

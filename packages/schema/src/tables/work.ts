@@ -104,6 +104,38 @@ export const job_notes = operationalTable("job_notes", {
     { name: "job_id", type: "uuid", references: "jobs(id)" },
     { name: "body", type: "text", check: "length(btrim(body)) BETWEEN 1 AND 2000" },
     { name: "author_id", type: "uuid" },
+    { name: "kind", type: "text", check: "kind IN ('note','standing')", default: "'note'", comment: "0016: 'standing' is what every tech should know before rolling; the newest one is the job's standing note." },
+  ],
+  indexes: [["job_id", "created_at"]],
+});
+
+/**
+ * 0016: what the customer is told. Dispatch writes it — usually from an
+ * internal note — as a draft no customer can read, and publishes it. A
+ * published update is never edited again.
+ */
+export const job_updates = operationalTable("job_updates", {
+  columns: [
+    { name: "job_id", type: "uuid", references: "jobs(id)" },
+    { name: "source_note_id", type: "uuid", nullable: true, references: "job_notes(id)" },
+    { name: "body", type: "text", check: "length(btrim(body)) BETWEEN 1 AND 2000" },
+    { name: "state", type: "text", check: "state IN ('draft','published')", default: "'draft'" },
+    { name: "author_id", type: "uuid" },
+    { name: "updated_at", type: "timestamptz", default: "now()" },
+    { name: "published_at", type: "timestamptz", nullable: true },
+    { name: "published_by", type: "uuid", nullable: true },
+  ],
+  indexes: [["job_id", "created_at"]],
+  constraints: [{ name: "job_updates_published_is_stamped", sql: "CHECK ((state = 'published') = (published_at IS NOT NULL AND published_by IS NOT NULL))" }],
+});
+
+/** 0016: the customer ↔ dispatch thread on a job. Append-only; who wrote it is the writer's namespace, not a field they choose. */
+export const job_messages = operationalTable("job_messages", {
+  columns: [
+    { name: "job_id", type: "uuid", references: "jobs(id)" },
+    { name: "author_kind", type: "text", check: "author_kind IN ('customer','office')" },
+    { name: "author_id", type: "uuid" },
+    { name: "body", type: "text", check: "length(btrim(body)) BETWEEN 1 AND 2000" },
   ],
   indexes: [["job_id", "created_at"]],
 });

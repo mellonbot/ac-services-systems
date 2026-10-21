@@ -22,7 +22,7 @@ import { slaStatus, isDispatchable } from "./board.ts";
 type BucketId = "action" | "customer" | "progress" | "closed";
 type Tone = "breached" | "at_risk" | "info" | "ok";
 
-const STATE_LABEL: Readonly<Record<JobStateWire, string>> = {
+export const STATE_LABEL: Readonly<Record<JobStateWire, string>> = {
   created: "Unassigned", reassigned: "Unassigned", reopened: "Reopened", awaiting_parts: "Waiting on parts", complete: "Needs invoicing",
   assigned: "Dispatched", en_route: "En route", on_site: "On site", in_progress: "In progress",
   invoiced: "Invoiced", cancelled: "Cancelled", aborted: "Aborted",
@@ -65,7 +65,7 @@ export const placeLine = (a: AddressWire | null): string | null => {
   return place || a.line1 || null;
 };
 
-const initials = (name: string): string => name.split(/\s+/).map((w) => w[0] ?? "").join("").slice(0, 2).toUpperCase();
+export const initials = (name: string): string => name.split(/\s+/).map((w) => w[0] ?? "").join("").slice(0, 2).toUpperCase();
 
 type Filter = "action" | "customer" | "open" | "returnTrip" | "Needs pricing" | "Waiting on a PO" | "Trouble invoicing" | "Needs invoicing" | "Unassigned";
 const FILTERS: readonly { id: Filter; label: string }[] = [
@@ -175,7 +175,7 @@ export const jobs: Screen = (ctx) => {
   };
 
   const columns = (): readonly Column<JobWire>[] => [
-    { key: "id", header: "Job #", numeric: true, cell: (j) => isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, j.id) : j.id },
+    { key: "id", header: "Job #", numeric: true, cell: (j) => linkTo(ctx, "detail", { jobId: j.id }, j.id) },
     { key: "site", header: "Customer", cell: (j) => html`<span class="s3-cust"><strong>${j.siteName ?? "Site name unavailable"}</strong><small>${placeLine(j.siteAddress) ?? "Address not recorded"}</small><small class="s3-cust__svc">${j.serviceCode.replace(/_/g, " ")} · ${j.priority}</small></span>` },
     { key: "crew", header: "Tech", cell: (j) => j.currentCrewLabel
       ? html`<span class="s3-tech"><span class="dispatch-board__avatar" aria-hidden="true">${initials(j.currentCrewLabel)}</span>${j.currentCrewLabel}</span>`
@@ -190,7 +190,7 @@ export const jobs: Screen = (ctx) => {
     { key: "sla", header: "SLA", cell: (j) => j.slaDueAt && !j.slaSatisfiedAt
       ? StatusPill({ density: ctx.density, status: slaStatus(j, now) })
       : html`<span class="s3-muted">—</span>` },
-    { key: "move", header: "Move", cell: (j) => html`<span class="s3-moves">${(OFFICE_JOB_TRANSITIONS[j.state] ?? []).map((to) =>
+    { key: "move", header: "Move", cell: (j) => html`<span class="s3-moves">${isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act") : null}${(OFFICE_JOB_TRANSITIONS[j.state] ?? []).map((to) =>
       html`<button type="button" class="s3-act" id=${`move-${j.id}-${to}`} disabled=${ctx.degraded}
         title=${ctx.degraded ? `Gateway unreachable — ${ctx.shell.degradedMode}` : undefined}
         onClick=${() => void moveJob(ctx, j, to)}>${MOVE_LABEL[to] ?? STATE_LABEL[to]}</button>`)}</span>` },

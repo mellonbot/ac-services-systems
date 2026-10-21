@@ -52,6 +52,8 @@ export const ALL_TABLES: readonly Table[] = Object.freeze([
   work.assignments,
   work.job_state_events,
   work.job_notes,
+  work.job_updates,
+  work.job_messages,
   work.job_media,
   work.time_entries,
   work.checklist_items,

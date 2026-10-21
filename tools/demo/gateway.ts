@@ -64,7 +64,7 @@ type Account = { id: string; orgId: string; tier: W.AccountTierWire; name: strin
 type Firm = Mutable<Omit<W.FirmWire, "crewCount" | "activeCrewCount">>;
 type Crew = Mutable<Omit<W.CrewWire, "documents">>;
 type Credential = Mutable<W.CredentialWire>;
-type Job = { id: string; siteId: string; orgId: string; regionId: string; contractId: string | null; serviceCode: string; priority: W.JobPriority; state: W.JobStateWire; serviceWindowStart: string; serviceWindowEnd: string; version: number; openedAt: string; stateChangedAt: string; slaDueAt: string | null; slaEscalationStage: number | null; slaSatisfiedAt: string | null; equipmentIds: string[]; returnTrip: boolean; notes: { body: string; at: string }[] };
+type Job = { id: string; siteId: string; orgId: string; regionId: string; contractId: string | null; serviceCode: string; priority: W.JobPriority; state: W.JobStateWire; serviceWindowStart: string; serviceWindowEnd: string; version: number; openedAt: string; stateChangedAt: string; slaDueAt: string | null; slaEscalationStage: number | null; slaSatisfiedAt: string | null; equipmentIds: string[]; returnTrip: boolean; notes: W.JobNoteWire[]; updates: Mutable<W.JobUpdateWire>[]; messages: W.JobMessageWire[] };
 type Assignment = { id: string; jobId: string; crewId: string; assignedAt: string; releasedAt: string | null };
 type Settlement = Mutable<Omit<W.SettlementWire, "lineCount">>;
 type User = { id: string; email: string; password: string; name: string; principal: Omit<Principal, "sessionId">; surfaces: SurfaceId[]; crewId?: string };
@@ -199,7 +199,7 @@ const job = (id: string, siteId: string, serviceCode: string, priority: W.JobPri
     serviceWindowStart: at(startMs), serviceWindowEnd: at(startMs + hours * HOUR), version: state === "created" ? 1 : 3,
     openedAt: at(Math.min(startMs, 0) - 2 * HOUR), stateChangedAt: state === "created" ? at(Math.min(startMs, 0) - 2 * HOUR) : at(Math.min(startMs, 0)),
     slaDueAt: sla ? at(sla.dueMs) : null, slaEscalationStage: sla ? sla.stage : null, slaSatisfiedAt: sla?.satisfiedMs !== undefined ? at(sla.satisfiedMs) : null,
-    equipmentIds, returnTrip: false, notes: [],
+    equipmentIds, returnTrip: false, notes: [], updates: [], messages: [],
   };
 };
 
@@ -458,6 +458,10 @@ const visibleCrews = (p: Principal): Crew[] =>
 // Wire shaping.
 // ---------------------------------------------------------------------------
 const liveAssignment = (jobId: string) => assignments.filter((a) => a.jobId === jobId && a.releasedAt === null).at(-1) ?? null;
+const latestNoteOf = (j: Job): { body: string; at: string } | null => {
+  const n = j.notes.filter((x) => x.kind === "note").at(-1);
+  return n ? { body: n.body, at: n.at } : null;
+};
 const jobWire = (j: Job, p: Principal): W.JobWire => {
   const site = accounts.find((a) => a.id === j.siteId)!;
   let a = liveAssignment(j.id);
@@ -472,7 +476,7 @@ const jobWire = (j: Job, p: Principal): W.JobWire => {
     currentCrewId: crew?.id ?? null, currentCrewLabel: crew?.label ?? null, currentAssignmentId: a?.id ?? null,
     slaDueAt: open ? j.slaDueAt : null, slaEscalationStage: open ? j.slaEscalationStage : null, slaSatisfiedAt: j.slaSatisfiedAt,
     // Notes are the office's (0015): nobody outside the internal namespace reads one.
-    returnTrip: j.returnTrip, latestNote: p.namespace === "internal" ? j.notes.at(-1) ?? null : null,
+    returnTrip: j.returnTrip, latestNote: p.namespace === "internal" ? latestNoteOf(j) : null,
   };
 };
 const docSummary = (crew: Crew): W.CrewDocumentSummary => {
@@ -988,13 +992,68 @@ const H: Partial<Record<OperationId, Handler>> = {
     return { jobId: j!.id, state: j!.state, version: j!.version, eventId: publish(surface, "job.transitioned", "job", j!.id, j!.orgId, j!.regionId) };
   },
 
-  "jobs.addNote": (i: W.AddJobNoteInput, { surface }) => {
+  "jobs.addNote": (i: W.AddJobNoteInput, { surface, session }) => {
     const j = jobs.find((x) => x.id === i.jobId);
     need(j, `job ${i.jobId} not found in scope`, "unknown_job");
     const body = String(i.body ?? "").trim();
     need(body && body.length <= 2000, "a note is 1 to 2000 characters", "bad_input");
-    j!.notes.push({ body, at: new Date().toISOString() });
-    return { id: uid("n"), jobId: j!.id, eventId: publish(surface, "job.annotated", "job", j!.id, j!.orgId, j!.regionId) };
+    const id = uid("n");
+    j!.notes.push({ id, body, kind: i.kind === "standing" ? "standing" : "note", at: new Date().toISOString(), authorName: session?.user.name ?? null });
+    return { id, jobId: j!.id, eventId: publish(surface, "job.annotated", "job", j!.id, j!.orgId, j!.regionId) };
+  },
+  // 0016 — the job as dispatch reads it, and what the customer is told. A customer reads published updates only.
+  "jobs.detail": (i: W.JobDetailInput, { p, surface }) => {
+    const j = visibleJobs(p, surface).find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    const up = [...ancestorsOf(j!.siteId)];
+    const contact = contacts.filter((c) => up.includes(c.accountId) && c.active)
+      .sort((a, b) => up.indexOf(a.accountId) - up.indexOf(b.accountId) || Number(b.isPrimary) - Number(a.isPrimary))[0];
+    return {
+      job: jobWire(j!, p),
+      contact: contact ? { name: contact.name, phone: contact.phone, email: contact.email } : null,
+      visits: assignments.filter((a) => a.jobId === j!.id).map((a) => ({ id: a.id, crewId: a.crewId, crewLabel: crews.find((c) => c.id === a.crewId)?.label ?? null, assignedAt: a.assignedAt, releasedAt: a.releasedAt, workStart: null, workEnd: null })),
+      media: [], notes: j!.notes, updates: j!.updates, messages: j!.messages,
+    };
+  },
+  "jobs.conversation": (i: W.JobConversationInput, { p, surface }) => {
+    const j = visibleJobs(p, surface).find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    return { jobId: j!.id, updates: j!.updates.filter((u) => u.state === "published"), messages: j!.messages.map((m) => (m.authorKind === "office" ? { ...m, authorName: null } : m)) };
+  },
+  "jobs.saveUpdate": (i: W.SaveJobUpdateInput, { surface }) => {
+    const j = jobs.find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    const body = String(i.body ?? "").trim();
+    need(body && body.length <= 2000, "an update is 1 to 2000 characters", "bad_input");
+    const now = new Date().toISOString();
+    let u = i.updateId ? j!.updates.find((x) => x.id === i.updateId) : undefined;
+    if (i.updateId) {
+      need(u, `update ${i.updateId} is not a draft on job ${i.jobId}`, "unknown_update");
+      need(u!.state === "draft", `update ${i.updateId} is already published to the customer`, "already_published");
+      u!.body = body; u!.updatedAt = now;
+    } else {
+      u = { id: uid("u"), sourceNoteId: i.sourceNoteId ?? null, body, state: "draft", updatedAt: now, publishedAt: null, publishedByName: null };
+      j!.updates.push(u);
+    }
+    return { id: u!.id, state: "draft", eventId: publish(surface, "job.annotated", "job", j!.id, j!.orgId, j!.regionId) };
+  },
+  "jobs.publishUpdate": (i: W.PublishJobUpdateInput, { surface, session }) => {
+    const j = jobs.find((x) => x.updates.some((u) => u.id === i.updateId));
+    need(j, `update ${i.updateId} not found in scope`, "unknown_update");
+    const u = j!.updates.find((x) => x.id === i.updateId)!;
+    need(u.state === "draft", `update ${i.updateId} is already published to the customer`, "already_published");
+    u.state = "published"; u.publishedAt = new Date().toISOString(); u.updatedAt = u.publishedAt; u.publishedByName = session?.user.name ?? null;
+    return { id: u.id, publishedAt: u.publishedAt, eventId: publish(surface, "job.update_published", "job", j!.id, j!.orgId, j!.regionId) };
+  },
+  "jobs.postMessage": (i: W.PostJobMessageInput, { p, surface, session }) => {
+    const j = visibleJobs(p, surface).find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    const body = String(i.body ?? "").trim();
+    need(body && body.length <= 2000, "a message is 1 to 2000 characters", "bad_input");
+    const authorKind = p.namespace === "customer" ? "customer" : "office";
+    const id = uid("m");
+    j!.messages.push({ id, authorKind, authorName: session?.user.name ?? null, body, at: new Date().toISOString() });
+    return { id, authorKind, eventId: publish(surface, "job.message_posted", "job", j!.id, j!.orgId, j!.regionId) };
   },
   "jobs.setReturnTrip": (i: W.SetReturnTripInput, { surface }) => {
     const j = jobs.find((x) => x.id === i.jobId);

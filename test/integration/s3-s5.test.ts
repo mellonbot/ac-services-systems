@@ -448,6 +448,22 @@ test("notes and the return-trip flag (0015): append-only notes with the newest o
   await west.logout();
 });
 
+test("job detail (0016): the job's visits are its assignments with the crew's logged span, its standing note is the newest standing one, and the board's note ignores it", { skip }, async () => {
+  await s3.gateway.addJobNote({ jobId, orgId, regionId: REGION_SOUTH, body: "Roof access through the mechanical room. Bring the 24 ft ladder.", kind: "standing" });
+  const d = await s3.gateway.jobDetail({ jobId });
+  assert.equal(d.job.id, jobId);
+  const assigned = await admin(`SELECT id FROM assignments WHERE job_id = $1 ORDER BY assigned_at, id`, [jobId]);
+  assert.deepEqual(d.visits.map((v) => v.id), assigned.map((a) => a.id), "a visit is an assignment, in order");
+  assert.ok(d.visits.every((v) => v.crewLabel), "each with its crew");
+  assert.ok(d.visits.some((v) => v.workStart !== null && v.workEnd !== null), "the field's time entry sets the span of the visit it was logged in");
+  assert.equal(d.notes.at(-1)!.kind, "standing");
+  assert.notEqual((await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!.latestNote?.body, "Roof access through the mechanical room. Bring the 24 ft ladder.", "a standing note is not the board's latest note");
+  await assert.rejects(s3.gateway.jobDetail({ jobId: "00000000-0000-0000-0000-00000000dead" }), (e: unknown) => code(s3, e) === "unknown_job");
+  const west = await westDispatcher();
+  await assert.rejects(west.gateway.jobDetail({ jobId }), (e: unknown) => code(west, e) === "unknown_job", "RLS: West cannot read the South job's detail");
+  await west.logout();
+});
+
 test("a revoked grant is a dead token: logout ends the session, and the next call is refused as revoked", { skip }, async () => {
   const s5 = await technician();
   const held = s5.token()!;

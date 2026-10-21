@@ -16,6 +16,7 @@ import { listSettlements, listSettlementLines, acknowledgeSettlement, disputeSet
 import { ingestSync } from "./handlers/sync.ts";
 import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
 import { createJob, listJobs, listMyJobs, transitionJob, addJobNote, setReturnTrip } from "./handlers/jobs.ts";
+import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "./handlers/job-detail.ts";
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
 import { createServiceRequest, listServiceRequests } from "./handlers/service-requests.ts";
 import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
@@ -488,6 +489,12 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "jobs.transition": (req, input) => withUow(req, "jobs.transition", (uow, p) => transitionJob(uow, p.subjectId, input, new Date())),
   "jobs.addNote": (req, input) => withUow(req, "jobs.addNote", (uow, p) => addJobNote(uow, p.subjectId, input, randomUUID)),
   "jobs.setReturnTrip": (req, input) => withUow(req, "jobs.setReturnTrip", (uow) => setReturnTrip(uow, input)),
+  // 0016 — one job as dispatch reads it, and what the customer is told.
+  "jobs.detail": (req, input) => withRead(req, "jobs.detail", (uow) => jobDetail(uow, input)),
+  "jobs.conversation": (req, input) => withRead(req, "jobs.conversation", (uow) => jobConversation(uow, input)),
+  "jobs.saveUpdate": (req, input) => withUow(req, "jobs.saveUpdate", (uow, p) => saveJobUpdate(uow, p.subjectId, input, randomUUID, new Date())),
+  "jobs.publishUpdate": (req, input) => withUow(req, "jobs.publishUpdate", (uow, p) => publishJobUpdate(uow, p.subjectId, input, new Date())),
+  "jobs.postMessage": (req, input) => withUow(req, "jobs.postMessage", (uow, p) => postJobMessage(uow, p, input, randomUUID)),
 
   // item 4 — D-2a's primitive: this device, this crew, this window.
   "devices.list": (req, input) => withRead(req, "devices.list", (uow) => listDevices(uow, input)),

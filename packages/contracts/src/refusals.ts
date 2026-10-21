@@ -91,6 +91,9 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   crew_inactive_for_grant: "structural",
   not_crew_member: "structural",
   grant_overlap: "structural",
+  // 0016: a published update is final, and an update id that is not this job's draft is not one to edit.
+  already_published: "structural",
+  unknown_update: "structural",
 });
 
 export const admissionAxis = (code: string | undefined): AdmissionAxis =>

@@ -288,3 +288,34 @@ test("job dashboard: the return-trip filter holds flagged open jobs only — a f
   const jobs = [job("a", "reopened", true, 41), job("b", "awaiting_parts", true, 36), job("c", "assigned", false, 50), job("d", "invoiced", true, 90)];
   assert.deepEqual(stalling(jobs, "returnTrip", now).map((j) => j.id), ["a", "b"]);
 });
+
+test("job detail: a visit is the crews on site one day — photos and notes land in the visit under way when they were made, earlier ones are the office's", async () => {
+  const { groupVisits } = await import("./screens/detail.ts");
+  const v = (id: string, crew: string, start: string, end: string) => ({ id, crewId: crew, crewLabel: crew, assignedAt: start, releasedAt: end, workStart: start, workEnd: end });
+  const groups = groupVisits({
+    visits: [v("a2", "Brian Martinez", "2026-03-31T14:00:00.000Z", "2026-03-31T19:00:00.000Z"), v("a1", "Johnny Fontez", "2026-03-31T15:00:00.000Z", "2026-03-31T18:00:00.000Z"), v("a3", "Herberto Vega", "2026-04-07T15:00:00.000Z", "2026-04-07T17:00:00.000Z")],
+    media: [{ id: "m1", kind: "photo", storageKey: "k/IMG_1.jpg", label: "Coil", capturedAt: "2026-03-31T16:00:00.000Z" }, { id: "m2", kind: "photo", storageKey: "k/IMG_2.jpg", label: null, capturedAt: "2026-04-07T16:00:00.000Z" }],
+    notes: [
+      { id: "n0", body: "quoted on the phone", kind: "note", at: "2026-03-30T12:00:00.000Z", authorName: "Dana" },
+      { id: "n1", body: "filter changed", kind: "note", at: "2026-03-31T18:00:00.000Z", authorName: null },
+      { id: "s1", body: "bring the ladder", kind: "standing", at: "2026-04-01T12:00:00.000Z", authorName: "Dana" },
+    ],
+  });
+  assert.deepEqual(groups.map((g) => g.kind), ["office", "visit", "visit"]);
+  assert.deepEqual(groups[1]!.crews, ["Brian Martinez", "Johnny Fontez"], "two crews the same day are one visit");
+  assert.equal(groups[1]!.end, "2026-03-31T19:00:00.000Z", "spanning both");
+  assert.deepEqual(groups[1]!.media.map((m) => m.id), ["m1"]);
+  assert.deepEqual(groups[1]!.notes.map((n) => n.id), ["n1"], "a standing note is the header's, not a visit's");
+  assert.deepEqual(groups[0]!.notes.map((n) => n.id), ["n0"], "before the first visit is the office's");
+  assert.deepEqual(groups[2]!.media.map((m) => m.id), ["m2"]);
+});
+
+test("job detail: the next visit is scheduled only while nobody holds the job and the work is still ahead", async () => {
+  const { scheduledNext } = await import("./screens/detail.ts");
+  const now = Date.parse("2026-10-21T00:00:00Z");
+  const job = (state: string, crew: string | null, end: string) => ({ state, currentCrewId: crew, serviceWindowEnd: end }) as unknown as JobWire;
+  assert.equal(scheduledNext(job("created", null, "2026-11-01T00:00:00Z"), now), true);
+  assert.equal(scheduledNext(job("assigned", "crew-1", "2026-11-01T00:00:00Z"), now), false, "a crew holds it — that is a visit");
+  assert.equal(scheduledNext(job("created", null, "2026-10-01T00:00:00Z"), now), false, "the window has passed");
+  assert.equal(scheduledNext(job("needs_pricing", null, "2026-11-01T00:00:00Z"), now), false, "the work is done");
+});

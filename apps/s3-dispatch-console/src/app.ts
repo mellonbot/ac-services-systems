@@ -8,6 +8,8 @@ import type { Screen, ScreenContext } from "./screens/common.ts";
 import { board } from "./screens/board.ts";
 import { dispatch } from "./screens/dispatch.ts";
 import { jobs } from "./screens/jobs.ts";
+import { detail, pick } from "./screens/detail.ts";
+import { previewDetail } from "./preview-detail.ts";
 import { S3_CSS } from "./styles.ts";
 
 /**
@@ -43,13 +45,19 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   board,
   dispatch,
   jobs,
+  detail,
+  pick,
 };
 
 type PreviewShell = ConnectedShell & {
   gateway: {
     listJobs: (input: Record<string, unknown>) => Promise<{ jobs: unknown[] }>;
     transitionJob: (input: { jobId: string; to: string }) => Promise<unknown>;
-    addJobNote: (input: { jobId: string; body: string }) => Promise<unknown>;
+    addJobNote: (input: { jobId: string; body: string; kind?: "note" | "standing" }) => Promise<unknown>;
+    jobDetail: (input: { jobId: string }) => Promise<unknown>;
+    saveJobUpdate: (input: { jobId: string; body: string; updateId?: string; sourceNoteId?: string }) => Promise<unknown>;
+    publishJobUpdate: (input: { updateId: string }) => Promise<unknown>;
+    postJobMessage: (input: { jobId: string; body: string }) => Promise<unknown>;
     setReturnTrip: (input: { jobId: string; returnTrip: boolean }) => Promise<unknown>;
     health: () => Promise<{ ok: boolean }>;
   };
@@ -126,9 +134,37 @@ const createPreviewShell = (): PreviewShell => {
     context: { principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" }, path: [{ tier: "parent", id: "org-preview", name: "AC Services" }], parent: { tier: "parent", id: "org-preview", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "region-preview" },
     gateway: {
       listJobs: async () => ({ jobs: PREVIEW_JOBS }),
-      addJobNote: async (input: { jobId: string; body: string }) => {
-        Object.assign(PREVIEW_JOBS.find((j) => j.id === input.jobId)!, { latestNote: { body: input.body, at: new Date().toISOString() } });
-        return { id: "preview-note", jobId: input.jobId, eventId: "preview" };
+      addJobNote: async (input: { jobId: string; body: string; kind?: "note" | "standing" }) => {
+        const job = PREVIEW_JOBS.find((j) => j.id === input.jobId)!;
+        const at = new Date().toISOString();
+        if (input.kind !== "standing") Object.assign(job, { latestNote: { body: input.body, at } });
+        previewDetail(job).notes.push({ id: `n-${at}`, body: input.body, kind: input.kind ?? "note", at, authorName: "Dana" });
+        return { id: `n-${at}`, jobId: input.jobId, eventId: "preview" };
+      },
+      jobDetail: async (input: { jobId: string }) => {
+        const job = PREVIEW_JOBS.find((j) => j.id === input.jobId);
+        if (!job) throw new Error(`job ${input.jobId} not found in scope`);
+        return { ...previewDetail(job), job };
+      },
+      saveJobUpdate: async (input: { jobId: string; body: string; updateId?: string; sourceNoteId?: string }) => {
+        const d = previewDetail(PREVIEW_JOBS.find((j) => j.id === input.jobId)!);
+        const at = new Date().toISOString();
+        const existing = input.updateId ? d.updates.find((u) => u.id === input.updateId) : undefined;
+        if (existing) Object.assign(existing, { body: input.body, updatedAt: at });
+        else d.updates.push({ id: `u-${at}`, sourceNoteId: input.sourceNoteId ?? null, body: input.body, state: "draft", updatedAt: at, publishedAt: null, publishedByName: null });
+        return { id: existing?.id ?? `u-${at}`, state: "draft", eventId: "preview" };
+      },
+      publishJobUpdate: async (input: { updateId: string }) => {
+        for (const job of PREVIEW_JOBS) {
+          const u = previewDetail(job).updates.find((x) => x.id === input.updateId);
+          if (u) { const at = new Date().toISOString(); Object.assign(u, { state: "published", publishedAt: at, updatedAt: at, publishedByName: "Dana" }); return { id: u.id, publishedAt: at, eventId: "preview" }; }
+        }
+        throw new Error("unknown update");
+      },
+      postJobMessage: async (input: { jobId: string; body: string }) => {
+        const at = new Date().toISOString();
+        previewDetail(PREVIEW_JOBS.find((j) => j.id === input.jobId)!).messages.push({ id: `m-${at}`, authorKind: "office", authorName: "Dana", body: input.body, at });
+        return { id: `m-${at}`, authorKind: "office", eventId: "preview" };
       },
       setReturnTrip: async (input: { jobId: string; returnTrip: boolean }) => {
         Object.assign(PREVIEW_JOBS.find((j) => j.id === input.jobId)!, { returnTrip: input.returnTrip });
@@ -168,9 +204,11 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     // change what candidateCrews would say about a crew already on screen.
     shell.subscribe(() => {
       store.invalidate("jobs.list");
+      store.invalidate("jobs.detail");
       store.invalidate("dispatch.candidates");
     }, { topics: [
       "job.created", "job.assigned", "job.reassigned", "job.transitioned", "job.completed", "job.cancelled", "job.annotated",
+      "job.update_published", "job.message_posted",
       "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",
       "crew.compliance_refused", "credential.verified", "credential.expiring", "credential.expired",
     ] });
@@ -219,6 +257,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     p.shell.gateway.health().catch(() => {});
   };
 
+  /** The job the Job Detail tab returns to — the last one opened, until another is. */
+  let lastDetail: string | null = null;
   const view = (): VNode => {
     const p = phase.value;
     if (p.kind === "booting") return html`<p class="s3-loading" role="status">Connecting…</p>`;
@@ -226,6 +266,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const ctx: ScreenContext = { shell: p.shell, store: p.store, router, density: DENSITY, degraded: degraded.value };
     void p.store.version.value; // subscribe: an invalidate re-renders the mounted screen, which re-reads its resources
     const loc = router.current.value;
+    if (loc?.screen === "detail" && loc.params.jobId) lastDetail = loc.params.jobId;
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     const notice = p.store.notice.value;
     return html`<div class="s3-app">
@@ -235,7 +276,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
              data-current=${loc?.screen === "board" ? "true" : undefined}
              aria-current=${loc?.screen === "board" ? "page" : undefined}
              onClick=${(e: Event) => { e.preventDefault(); router.navigate("board", {}); }}>Dispatch Board</a>
-          <button type="button" class="ac-seg__item dispatch-header__tab">Job Detail</button>
+          <a class="ac-seg__item" href=${lastDetail ? router.href("detail", { jobId: lastDetail }) : router.href("pick", {})}
+             data-current=${loc?.screen === "detail" || loc?.screen === "pick" ? "true" : undefined}
+             aria-current=${loc?.screen === "detail" || loc?.screen === "pick" ? "page" : undefined}
+             onClick=${(e: Event) => { e.preventDefault(); if (lastDetail) router.navigate("detail", { jobId: lastDetail }); else router.navigate("pick", {}); }}>Job Detail</a>
           <a class="ac-seg__item" href=${router.href("jobs", {})}
              data-current=${loc?.screen === "jobs" ? "true" : undefined}
              aria-current=${loc?.screen === "jobs" ? "page" : undefined}

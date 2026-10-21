@@ -22,11 +22,11 @@ import { OFFICE_JOB_TRANSITIONS } from "../../../../packages/contracts/src/opera
  * one this system will silently invent.
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const requireUuid = (v: unknown, field: string): string => {
+export const requireUuid = (v: unknown, field: string): string => {
   if (typeof v !== "string" || !UUID.test(v)) throw new BadInput(`${field} must be a uuid`);
   return v;
 };
-const requireText = (v: unknown, field: string): string => {
+export const requireText = (v: unknown, field: string): string => {
   if (typeof v !== "string" || v.trim().length === 0) throw new BadInput(`${field} is required`);
   return v.trim();
 };
@@ -39,7 +39,7 @@ const requireIso = (v: unknown, field: string): Date => {
 
 const PRIORITIES: readonly JobPriority[] = ["emergency", "urgent", "routine", "pm"];
 
-type JobRow = {
+export type JobRow = {
   id: string; site_id: string; site_name: string | null; site_address: AddressWire | null; contract_id: string | null; project_id: string | null;
   service_code: string; priority: JobPriority; state: JobStateWire;
   ws: string; we: string; version: number; opened_at: string; state_changed_at: string; region_id: string; org_id: string;
@@ -48,7 +48,7 @@ type JobRow = {
   return_trip: boolean; note_body: string | null; note_at: string | null;
 };
 
-const toWire = (r: JobRow): JobWire => ({
+export const toWire = (r: JobRow): JobWire => ({
   id: r.id, siteId: r.site_id, siteName: r.site_name, siteAddress: r.site_address, contractId: r.contract_id, projectId: r.project_id,
   serviceCode: r.service_code, priority: r.priority, state: r.state,
   serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version, openedAt: r.opened_at, stateChangedAt: r.state_changed_at,
@@ -58,7 +58,7 @@ const toWire = (r: JobRow): JobWire => ({
   returnTrip: r.return_trip, latestNote: r.note_body !== null && r.note_at !== null ? { body: r.note_body, at: r.note_at } : null,
 });
 
-const JOB_SELECT = `
+export const JOB_SELECT = `
   SELECT j.id, j.site_id, s.name AS site_name, s.address AS site_address, j.contract_id, j.project_id, j.service_code, j.priority, j.state,
          lower(j.service_window) AS ws, upper(j.service_window) AS we, j.version,
          to_char(j.opened_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS opened_at,
@@ -74,7 +74,7 @@ const JOB_SELECT = `
     LEFT JOIN assignments a ON a.job_id = j.id AND a.released_at IS NULL
     LEFT JOIN crews c ON c.id = a.crew_id
     LEFT JOIN sla_timers st ON st.job_id = j.id
-    LEFT JOIN LATERAL (SELECT body, created_at FROM job_notes WHERE job_id = j.id ORDER BY created_at DESC, id DESC LIMIT 1) n ON true`;
+    LEFT JOIN LATERAL (SELECT body, created_at FROM job_notes WHERE job_id = j.id AND kind = 'note' ORDER BY created_at DESC, id DESC LIMIT 1) n ON true`;
 
 export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: () => string, now: Date): Promise<CreateJobOutput> => {
   const siteId = requireUuid(input.siteId, "siteId");
@@ -242,7 +242,7 @@ export const transitionJob = async (uow: UnitOfWork, actorId: string, input: Tra
 };
 
 /** The job a note or flag is about, in scope and matching the tenancy the caller named. */
-const jobInScope = async (uow: UnitOfWork, input: { jobId: string; orgId: string; regionId: string }) => {
+export const jobInScope = async (uow: UnitOfWork, input: { jobId: string; orgId: string; regionId: string }) => {
   const jobId = requireUuid(input.jobId, "jobId");
   const job = (await uow.tx.query<{ org_id: string; region_id: string; return_trip: boolean }>(
     `SELECT org_id, region_id, return_trip FROM jobs WHERE id = $1`, [jobId],
@@ -256,17 +256,19 @@ const jobInScope = async (uow: UnitOfWork, input: { jobId: string; orgId: string
 export const addJobNote = async (uow: UnitOfWork, actorId: string, input: AddJobNoteInput, newId: () => string): Promise<AddJobNoteOutput> => {
   const body = requireText(input.body, "body");
   if (body.length > 2000) throw new BadInput("body must be 2000 characters or fewer — a note, not a report");
+  const kind = input.kind ?? "note";
+  if (kind !== "note" && kind !== "standing") throw new BadInput("kind must be note or standing");
   const job = await jobInScope(uow, input);
   const id = newId();
   const eventId = await uow.apply(
     {
       entity: "job_note", entityId: job.jobId, action: "job.note.add", topic: "job.annotated",
-      before: null, after: { noteId: id, body },
+      before: null, after: { noteId: id, body, kind },
       orgId: job.org_id, regionId: job.region_id,
       payload: { jobId: job.jobId, noteId: id },
     },
     async (tx) => {
-      await tx.insert("job_notes", { id, org_id: job.org_id, region_id: job.region_id, job_id: job.jobId, body, author_id: actorId });
+      await tx.insert("job_notes", { id, org_id: job.org_id, region_id: job.region_id, job_id: job.jobId, body, author_id: actorId, kind });
     },
   );
   return { id, jobId: job.jobId, eventId };

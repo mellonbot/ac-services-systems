@@ -247,6 +247,48 @@ test("NOTES ARE THE OFFICE'S (0015): a dispatcher's note on the customer's job i
   assert.equal((await asBinding(firm, `SELECT count(*)::int AS n FROM job_notes`))[0]!.n, 0, "zero rows for a firm");
 });
 
+test("WHAT THE CUSTOMER IS TOLD (0016): a draft update is the office's until it is published; the thread is both sides', and neither reaches another customer or a firm", { skip }, async () => {
+  const job = (await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobAustin)!;
+  const t = { jobId: jobAustin, orgId: job.orgId, regionId: job.regionId };
+  const note = await s3.gateway.addJobNote({ ...t, body: "Run cap failed; fan motor weak. Customer has pushed back on cost before." });
+  const draft = await s3.gateway.saveJobUpdate({ ...t, body: "Technician found a failed run capacitor.", sourceNoteId: note.id });
+  assert.deepEqual((await fmAustin.gateway.jobConversation({ jobId: jobAustin })).updates, [], "a draft is invisible to the customer");
+  await s3.gateway.saveJobUpdate({ ...t, updateId: draft.id, body: "Technician found a failed run capacitor. Part ordered, expected Sep 19." });
+  const pub = await s3.gateway.publishJobUpdate({ updateId: draft.id });
+  const seen = (await fmAustin.gateway.jobConversation({ jobId: jobAustin })).updates;
+  assert.deepEqual(seen.map((u) => [u.body, u.state]), [["Technician found a failed run capacitor. Part ordered, expected Sep 19.", "published"]]);
+  assert.equal((await admin(`SELECT topic FROM outbox WHERE event_id = $1`, [pub.eventId]))[0]!.topic, "job.update_published");
+  await assert.rejects(s3.gateway.publishJobUpdate({ updateId: draft.id }), (e: unknown) => code(s3, e) === "already_published");
+  await assert.rejects(s3.gateway.saveJobUpdate({ ...t, updateId: draft.id, body: "rewritten" }), (e: unknown) => code(s3, e) === "already_published");
+  await assert.rejects(admin(`UPDATE job_updates SET body = 'rewritten' WHERE id = $1`, [draft.id]), "a published update is final at the table too");
+  const second = await s3.gateway.saveJobUpdate({ ...t, body: "Not yet — still a draft." });
+  assert.equal((await fmAustin.gateway.jobConversation({ jobId: jobAustin })).updates.length, 1, "the second draft stays the office's");
+  assert.equal((await s3.gateway.jobDetail({ jobId: jobAustin })).updates.find((u) => u.id === second.id)?.state, "draft", "the office reads its drafts");
+
+  const asked = await fmAustin.gateway.postJobMessage({ jobId: jobAustin, body: "Can we get it done before the Friday inspection?" });
+  assert.equal(asked.authorKind, "customer");
+  const answered = await s3.gateway.postJobMessage({ jobId: jobAustin, body: "Yes — holding Sep 19 morning for you." });
+  assert.equal(answered.authorKind, "office", "which side wrote it is the namespace, not a field");
+  const thread = (await fmAustin.gateway.jobConversation({ jobId: jobAustin })).messages;
+  assert.deepEqual(thread.map((m) => m.authorKind), ["customer", "office"]);
+  assert.equal(thread[1]!.authorName, null, "a customer does not read the office user's name");
+  const office = await s3.gateway.jobDetail({ jobId: jobAustin });
+  assert.deepEqual(office.messages.map((m) => m.body), thread.map((m) => m.body), "the office reads the same thread");
+  assert.ok(office.notes.some((n) => n.id === note.id), "and its own notes, which the customer never sees");
+
+  for (const attempt of [otherFm.gateway.jobConversation({ jobId: jobAustin }), otherFm.gateway.postJobMessage({ jobId: jobAustin, body: "not my job" })])
+    await assert.rejects(attempt, (e: unknown) => code(otherFm, e) === "unknown_job", "another customer: unknown, not forbidden");
+
+  const b = customerBinding(amped, REGION_SOUTH, "location", austin, USER_FM_AUSTIN);
+  assert.equal((await asBinding(b, `SELECT count(*)::int AS n FROM job_updates WHERE state = 'draft'`))[0]!.n, 0, "zero draft rows for a customer, not an error");
+  await assert.rejects(
+    asBinding(b, `INSERT INTO job_messages (org_id, region_id, job_id, author_kind, author_id, body) VALUES ($1, $2, $3, 'office', $4, 'posing as dispatch')`, [job.orgId, job.regionId, jobAustin, USER_FM_AUSTIN]),
+    "a customer cannot write as the office",
+  );
+  const firm = { ...b, "ac.namespace": "subcontractor", "ac.firm_id": U(77), "ac.org_id": U(77) };
+  for (const table of ["job_updates", "job_messages"]) assert.equal((await asBinding(firm, `SELECT count(*)::int AS n FROM ${table}`))[0]!.n, 0, `${table}: zero rows for a firm`);
+});
+
 test("TIER SCOPING — terms: a REGION-tier override applies to a location-scoped manager (the truncated path 0006 mended); another org's terms are unreachable by any orgId", { skip }, async () => {
   // Austin: parent 4_hour, location pm 4 — and the region node in the trace, walked.
   const at = await fmAustin.gateway.resolvedTerms({ tier: "site", nodeId: austinRoof, termKeys: "sla_response,pm_visits_per_year" });
