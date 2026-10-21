@@ -31,6 +31,7 @@ const h = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<string, 
 const state = {
   db: "local" as DbName,
   production: false,
+  localIsDefault: true,
   kind: "S2" as KindId,
   showInactive: false,
   users: [] as readonly UserRecord[],
@@ -161,24 +162,27 @@ const passwordFields = (): HTMLElement[] => [
   field("Password again", input("password2", { type: "password", autocomplete: "new-password" })),
 ];
 
+type OpenForm = { readonly save: HTMLButtonElement; showError(text: string): void };
+
 /** Opens the modal. `submit` returns the revoked-session count, if the call reports one. */
-const openForm = (title: string, body: HTMLElement[], submit: (f: FormData) => Promise<number | void>): void => {
+const openForm = (title: string, body: HTMLElement[], submit: (f: FormData) => Promise<number | void>): OpenForm => {
   const form = $<HTMLFormElement>("form");
   const error = h("p", { class: "form-error", role: "alert", hidden: true });
+  const save = h("button", { type: "submit", class: "primary" }, "Save");
+  const showError = (text: string): void => { error.textContent = text; error.hidden = !text; };
   form.replaceChildren(
     h("h3", {}, title),
     ...body,
     error,
     h("div", { class: "buttons" },
       h("button", { type: "button", onclick: closeForm }, "Cancel"),
-      h("button", { type: "submit", class: "primary" }, "Save")),
+      save),
   );
   form.onsubmit = async (ev) => {
     ev.preventDefault();
     const data = new FormData(form);
     if (data.has("password") && data.get("password") !== data.get("password2")) {
-      error.textContent = "The two passwords differ.";
-      error.hidden = false;
+      showError("The two passwords differ.");
       return;
     }
     try {
@@ -188,11 +192,17 @@ const openForm = (title: string, body: HTMLElement[], submit: (f: FormData) => P
       if (typeof revoked === "number") signedOut(revoked);
       await reload();
     } catch (e) {
-      error.textContent = message(e);
-      error.hidden = false;
+      showError(message(e));
     }
   };
   dialog().showModal();
+  return { save, showError };
+};
+
+/** Shows a value the pickers no longer offer (inactive region, node, crew), so an untouched form keeps it. */
+const keepOption = (sel: HTMLSelectElement, value: string, text: string): void => {
+  if (!Array.from(sel.options).some((o) => o.value === value)) sel.add(h("option", { value }, text), 1);
+  sel.value = value;
 };
 
 const str = (f: FormData, k: string): string => String(f.get(k) ?? "");
@@ -232,7 +242,7 @@ const customerPlacement = (f: FormData, nodes: readonly AccountNode[], orgId: st
 };
 
 const roleBoxes = (checked: readonly string[]): HTMLElement => h("fieldset", { class: "roles" }, h("legend", {}, "Roles"),
-  ...ROLES.map((r) => h("label", { class: "check" }, h("input", { type: "checkbox", name: "roles", value: r, checked: checked.includes(r) }), r)));
+  ...[...ROLES, ...checked.filter((r) => !(ROLES as readonly string[]).includes(r))].map((r) => h("label", { class: "check" }, h("input", { type: "checkbox", name: "roles", value: r, checked: checked.includes(r) }), r)));
 
 const scopeRadios = (current: "org" | "region"): HTMLElement => h("fieldset", { class: "scope" }, h("legend", {}, "Scope"),
   ...(["org", "region"] as const).map((v) => h("label", { class: "check" },
@@ -269,22 +279,37 @@ const addForm = async (): Promise<void> => {
       case "S6": {
         const orgs = await api.listCustomerOrgs(db);
         if (stale(db)) return;
+        // `nodes` is only ever the tree of `treeOf`; Save stays disabled until the chosen org's tree has arrived.
         let nodes: readonly AccountNode[] = [];
+        let treeOf = "";
         const scope = h("div", { class: "group" });
         const org = select("orgId", orgs.map((o) => [o.id, o.name]));
-        const loadTree = async (): Promise<void> => {
-          const tree = org.value ? await api.listAccountTree(db, org.value) : [];
-          if (stale(db)) return;
-          nodes = tree;
-          if (org.value) customerScope(scope, () => nodes); else scope.replaceChildren();
-        };
-        org.addEventListener("change", () => { void loadTree().catch((e) => { if (!stale(db)) banner(message(e)); }); });
-        await loadTree();
-        if (stale(db)) return;
-        openForm("Add Customer Portal login", [...head, field("Customer", org), scope, ...passwordFields()], async (f) => {
+        const form = openForm("Add Customer Portal login", [...head, field("Customer", org), scope, ...passwordFields()], async (f) => {
           const orgId = str(f, "orgId");
+          if (treeOf !== orgId) throw new Error("The customer's sites have not loaded yet.");
           await api.addLogin(db, { ...base(f), kind: "customer", orgId, ...customerPlacement(f, nodes, orgId) });
         });
+        const loadTree = async (): Promise<void> => {
+          const orgId = org.value;
+          nodes = [];
+          treeOf = "";
+          scope.replaceChildren();
+          form.showError("");
+          form.save.disabled = orgId !== "";
+          if (!orgId) return;
+          try {
+            const tree = await api.listAccountTree(db, orgId);
+            if (stale(db) || org.value !== orgId) return;
+            nodes = tree;
+            treeOf = orgId;
+            customerScope(scope, () => nodes);
+            form.save.disabled = false;
+          } catch (e) {
+            if (!stale(db) && org.value === orgId) form.showError(message(e));
+          }
+        };
+        org.addEventListener("change", () => void loadTree());
+        await loadTree();
         return;
       }
       case "S8": {
@@ -332,25 +357,30 @@ const editForm = async (u: UserRecord): Promise<void> => {
     } else if (u.namespace === "internal") {
       const regions = await api.listRegions(db);
       const region = select("regionId", regions.map((r) => [r.id, `${r.code} — ${r.name}`]));
-      region.value = u.regionId;
-      body.push(roleBoxes(u.roles), scopeRadios(u.scopeTier === "parent" ? "org" : "region"), field("Region", region));
+      keepOption(region, u.regionId, u.regionCode);
+      const was = u.scopeTier === "parent" ? "org" : "region";
+      body.push(roleBoxes(u.roles), scopeRadios(was), field("Region", region));
       build = (f) => {
         const regionId = str(f, "regionId");
+        const roles = f.getAll("roles") as Role[];
+        if (str(f, "scope") === was && regionId === u.regionId) return { displayName: str(f, "displayName"), roles };
         const scope = str(f, "scope") === "org"
           ? { tier: "parent" as const, scopeId: u.orgId, regionId }
           : { tier: "region" as const, scopeId: regionId, regionId };
-        return { displayName: str(f, "displayName"), roles: f.getAll("roles") as Role[], scope };
+        return { displayName: str(f, "displayName"), roles, scope };
       };
     } else if (u.namespace === "customer") {
       const nodes = await api.listAccountTree(db, u.orgId);
       const scope = h("div", { class: "group" });
       customerScope(scope, () => nodes);
       const sees = scope.querySelector<HTMLSelectElement>("select[name=node]")!;
-      sees.value = u.scopeTier === "parent" ? WHOLE : u.scopeId;
+      const wasNode = u.scopeTier === "parent" ? WHOLE : u.scopeId;
+      keepOption(sees, wasNode, u.scopeName ?? u.scopeId);
       sees.dispatchEvent(new Event("change"));
-      if (u.scopeTier === "parent") scope.querySelector<HTMLSelectElement>("select[name=wholeRegion]")!.value = u.regionId;
+      if (u.scopeTier === "parent") keepOption(scope.querySelector<HTMLSelectElement>("select[name=wholeRegion]")!, u.regionId, u.regionCode);
       body.push(field("Customer", h("input", { value: u.orgName, readonly: true, class: "readonly" })), scope);
       build = (f) => {
+        if (str(f, "node") === wasNode && (wasNode !== WHOLE || str(f, "wholeRegion") === u.regionId)) return { displayName: str(f, "displayName") };
         const p = customerPlacement(f, nodes, u.orgId);
         return { displayName: str(f, "displayName"), scope: { tier: p.tier, scopeId: p.nodeId, regionId: p.regionId } };
       };
@@ -362,7 +392,12 @@ const editForm = async (u: UserRecord): Promise<void> => {
 
 // ── Connections + database switch ─────────────────────────────────────────
 const connectionForm = (then?: DbName): void => {
-  const local = input("local", { value: LOCAL_DEFAULT, autocomplete: "off", spellcheck: "false" });
+  // Never the stored string: the default is prefilled; a custom one is only described.
+  const local = h("input", {
+    name: "local", autocomplete: "off", spellcheck: "false",
+    value: state.localIsDefault ? LOCAL_DEFAULT : undefined,
+    placeholder: state.localIsDefault ? undefined : "Custom connection saved — leave blank to keep it",
+  });
   const production = h("input", {
     name: "production", autocomplete: "off", spellcheck: "false", type: "password",
     placeholder: state.production ? "Configured — enter a new string to replace it" : "postgres://…",
@@ -376,9 +411,9 @@ const connectionForm = (then?: DbName): void => {
     const prod = str(f, "production").trim();
     const loc = str(f, "local").trim();
     if (prod) { await api.setConnection("production", prod); state.production = true; }
-    if (loc && loc !== LOCAL_DEFAULT) await api.setConnection("local", loc);
+    if (loc) { await api.setConnection("local", loc); state.localIsDefault = loc === LOCAL_DEFAULT; }
     if (then) await switchTo(then);
-    else if ((prod && state.db === "production") || (loc !== LOCAL_DEFAULT && state.db === "local")) await switchTo(state.db);
+    else if ((prod && state.db === "production") || (loc && state.db === "local")) await switchTo(state.db);
   });
 };
 
@@ -408,6 +443,7 @@ $<HTMLInputElement>("inactive").addEventListener("change", (e) => { state.showIn
 const start = async (): Promise<void> => {
   const c = await api.connections();
   state.production = c.production;
+  state.localIsDefault = c.localIsDefault;
   render();
   await reload();
   if (c.error) banner(c.error);

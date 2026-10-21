@@ -63,9 +63,16 @@ const toRecord = (r: UserRow): UserRecord => ({
   active: r.active,
 });
 
-const failure = (e: unknown): Error => {
+const LOST = "Lost the connection to the database.";
+const GONE = "That login no longer exists";
+const NOT_THIS_CUSTOMER = "That site or location doesn't belong to the chosen customer";
+
+/** Never an empty message: a refused connect (autoSelectFamily) is an AggregateError whose own message is "". */
+export const failure = (e: unknown): Error => {
   if (e instanceof LoginInputError || e instanceof LoginsDbError) return e;
-  return new LoginsDbError(e instanceof Error ? e.message : String(e));
+  if (!(e instanceof Error)) return new LoginsDbError(String(e) || LOST);
+  const inner = e instanceof AggregateError ? e.errors.map((x: unknown) => (x instanceof Error ? x.message : String(x))).filter(Boolean).join("; ") : "";
+  return new LoginsDbError(e.message || inner || (e as { code?: string }).code || LOST);
 };
 
 /** pg emits 'error' on the pool when the server drops an idle connection; unhandled, that kills the process. pg discards the client and the next query opens a fresh one. */
@@ -100,6 +107,14 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       throw e;
     }
   });
+
+  /** A customer's scope node must be its own org's (whole company: the org itself). Read bound — unbound cannot see accounts. */
+  const checkCustomerScope = async (orgId: string, tier: Tier, scopeId: string): Promise<void> => {
+    const ok = tier === "parent"
+      ? scopeId === orgId
+      : (await read(`SELECT 1 FROM accounts WHERE id = $1 AND org_id = $2 AND tier = $3`, [scopeId, orgId, tier])).length > 0;
+    if (!ok) throw new LoginInputError(NOT_THIS_CUSTOMER);
+  };
 
   const revoke = async (q: <R>(sql: string, params?: readonly unknown[]) => Promise<readonly R[]>, userId: string): Promise<number> =>
     (await q<{ id: string }>(`${REVOKE_SESSIONS} RETURNING id`, [userId])).length;
@@ -138,46 +153,60 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       `SELECT id, tier, name, parent_id, region_id FROM accounts WHERE org_id = $1 AND active ORDER BY name`, [orgId]))
       .map((n) => ({ id: n.id, tier: n.tier, name: n.name, parentId: n.parent_id, regionId: n.region_id })),
 
-    addLogin: (n) => write(async (q) => {
-      const row = buildUserRow(n);
-      try {
-        const [made] = await q<{ id: string }>(
-          `INSERT INTO users (org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, firm_id, crew_id, password_hash)
-           VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11) RETURNING id`,
-          [row.org_id, row.region_id, row.namespace, row.email, row.display_name, JSON.stringify(row.roles), row.scope_tier, row.scope_id, row.firm_id, row.crew_id, row.password_hash]);
-        return { id: made!.id };
-      } catch (e) {
-        if ((e as { code?: string }).code === "23505") throw new LoginInputError("A login with that email already exists");
-        throw e;
-      }
-    }),
+    addLogin: async (n) => {
+      if (n.kind === "customer") await checkCustomerScope(n.orgId, n.tier, n.nodeId);
+      return write(async (q) => {
+        const row = buildUserRow(n);
+        try {
+          const [made] = await q<{ id: string }>(
+            `INSERT INTO users (org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, firm_id, crew_id, password_hash)
+             VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11) RETURNING id`,
+            [row.org_id, row.region_id, row.namespace, row.email, row.display_name, JSON.stringify(row.roles), row.scope_tier, row.scope_id, row.firm_id, row.crew_id, row.password_hash]);
+          return { id: made!.id };
+        } catch (e) {
+          if ((e as { code?: string }).code === "23505") throw new LoginInputError("A login with that email already exists");
+          throw e;
+        }
+      });
+    },
 
     resetPassword: (userId, password) => write(async (q) => {
       checkPassword(password);
-      await q(`UPDATE users SET password_hash = $2 WHERE id = $1`, [userId, hashPassword(password)]);
+      const hit = await q(`UPDATE users SET password_hash = $2 WHERE id = $1 RETURNING id`, [userId, hashPassword(password)]);
+      if (hit.length === 0) throw new LoginInputError(GONE);
       return { revokedSessions: await revoke(q, userId) };
     }),
 
-    editLogin: (userId, edit) => write(async (q) => {
-      const [cur] = await q<{ roles: Role[]; region_id: string; scope_tier: Tier; scope_id: string; org_id: string; crew_id: string | null }>(
-        `SELECT roles, region_id, scope_tier, scope_id, org_id, crew_id FROM users WHERE id = $1 FOR UPDATE`, [userId]);
-      if (!cur) throw new LoginInputError("That login no longer exists");
-      const before: Access = { roles: cur.roles, regionId: cur.region_id, scopeTier: cur.scope_tier, scopeId: cur.scope_id, orgId: cur.org_id, crewId: cur.crew_id };
-      let after: Access = { ...before, roles: edit.roles ?? before.roles };
-      if (edit.scope) after = { ...after, scopeTier: edit.scope.tier, scopeId: edit.scope.scopeId, regionId: edit.scope.regionId };
-      if (edit.crew) after = { ...after, crewId: edit.crew.id, regionId: edit.crew.homeRegionId, scopeTier: "region", scopeId: edit.crew.homeRegionId };
-      await q(
-        `UPDATE users SET display_name = $2, roles = $3::jsonb, region_id = $4, scope_tier = $5, scope_id = $6, crew_id = $7 WHERE id = $1`,
-        [userId, edit.displayName, JSON.stringify(after.roles), after.regionId, after.scopeTier, after.scopeId, after.crewId]);
-      return { revokedSessions: accessChanged(before, after) ? await revoke(q, userId) : 0 };
-    }),
+    editLogin: async (userId, edit) => {
+      if (edit.scope) {
+        const [who] = await read<{ namespace: string; org_id: string }>(`SELECT namespace, org_id FROM users WHERE id = $1`, [userId]);
+        if (who?.namespace === "customer") await checkCustomerScope(who.org_id, edit.scope.tier, edit.scope.scopeId);
+      }
+      return write(async (q) => {
+        const [cur] = await q<{ roles: Role[]; region_id: string; scope_tier: Tier; scope_id: string; org_id: string; crew_id: string | null }>(
+          `SELECT roles, region_id, scope_tier, scope_id, org_id, crew_id FROM users WHERE id = $1 FOR UPDATE`, [userId]);
+        if (!cur) throw new LoginInputError(GONE);
+        const before: Access = { roles: cur.roles, regionId: cur.region_id, scopeTier: cur.scope_tier, scopeId: cur.scope_id, orgId: cur.org_id, crewId: cur.crew_id };
+        let after: Access = { ...before, roles: edit.roles ?? before.roles };
+        if (edit.scope) after = { ...after, scopeTier: edit.scope.tier, scopeId: edit.scope.scopeId, regionId: edit.scope.regionId };
+        if (edit.crew) after = { ...after, crewId: edit.crew.id, regionId: edit.crew.homeRegionId, scopeTier: "region", scopeId: edit.crew.homeRegionId };
+        await q(
+          `UPDATE users SET display_name = $2, roles = $3::jsonb, region_id = $4, scope_tier = $5, scope_id = $6, crew_id = $7 WHERE id = $1`,
+          [userId, edit.displayName, JSON.stringify(after.roles), after.regionId, after.scopeTier, after.scopeId, after.crewId]);
+        return { revokedSessions: accessChanged(before, after) ? await revoke(q, userId) : 0 };
+      });
+    },
 
     deactivate: (userId) => write(async (q) => {
-      await q(`UPDATE users SET active = false WHERE id = $1`, [userId]);
+      const hit = await q(`UPDATE users SET active = false WHERE id = $1 RETURNING id`, [userId]);
+      if (hit.length === 0) throw new LoginInputError(GONE);
       return { revokedSessions: await revoke(q, userId) };
     }),
 
-    reactivate: (userId) => write(async (q) => { await q(`UPDATE users SET active = true WHERE id = $1`, [userId]); }),
+    reactivate: (userId) => write(async (q) => {
+      const hit = await q(`UPDATE users SET active = true WHERE id = $1 RETURNING id`, [userId]);
+      if (hit.length === 0) throw new LoginInputError(GONE);
+    }),
 
     close: () => pool.end(),
   };

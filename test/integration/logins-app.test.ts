@@ -177,6 +177,19 @@ test("remove ends a technician's device session", { skip }, async () => {
   assert.notEqual((await admin(`SELECT revoked_at FROM sessions WHERE id = $1`, [session]))[0].revoked_at, null);
 });
 
+test("addLogin refuses a customer scoped to another customer's node", { skip }, async () => {
+  const otherOrg = (await admin(`INSERT INTO organizations (name, kind) VALUES ($1,'customer') RETURNING id`, [`Other ${RUN}`]))[0].id;
+  await assert.rejects(
+    db.addLogin({ kind: "customer", email: email("cross"), displayName: "Cross", password: PASSWORD, orgId: otherOrg, tier: "location", nodeId: locationId, regionId: REGION_SOUTH }),
+    (e: unknown) => e instanceof LoginInputError && e.message === "That site or location doesn't belong to the chosen customer",
+  );
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM users WHERE email = $1`, [email("cross")]))[0].n, 0);
+});
+
+test("a write to a login that does not exist says so", { skip }, async () => {
+  await assert.rejects(db.deactivate(crypto.randomUUID()), (e: unknown) => e instanceof LoginInputError && e.message === "That login no longer exists");
+});
+
 test("a dropped idle connection is swallowed, and the next query still works", { skip }, async () => {
   const p = createPool(URL_!, "ac-logins-app-idle-test");
   try {

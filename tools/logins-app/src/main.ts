@@ -52,7 +52,7 @@ const select = async (name: DbName): Promise<void> => {
 type Handlers = { [K in keyof Api]: (...args: Parameters<Api[K]>) => ReturnType<Api[K]> };
 
 const handlers: Handlers = {
-  connections: async () => ({ production: Boolean(conns.production), local: Boolean(conns.local), error: connectionsError }),
+  connections: async () => ({ production: Boolean(conns.production), local: Boolean(conns.local), localIsDefault: conns.local === LOCAL_DEFAULT, error: connectionsError }),
   setConnection: async (name, url) => {
     conns = { ...conns, [name]: url.trim() };
     saveConnections(CONFIG_DIR, conns);
@@ -79,7 +79,7 @@ for (const [name, f] of Object.entries(handlers) as [string, (...a: unknown[]) =
     try {
       return await f(...args);
     } catch (e) {
-      throw new Error(e instanceof Error ? e.message : String(e));
+      throw new Error((e instanceof Error ? e.message : String(e)) || "Lost the connection to the database.");
     }
   });
 }
