@@ -4,6 +4,7 @@ import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
 import { MIN_TEST_LOGIN_PASSWORD } from "../../ci/test-logins.ts";
 import type { UserRecord } from "./kinds.ts";
+import { LoginInputError } from "./errors.ts";
 
 type Base = { readonly email: string; readonly displayName: string; readonly password: string };
 
@@ -20,7 +21,7 @@ export type UsersRow = {
   readonly password_hash: string;
 };
 
-export class LoginInputError extends Error {}
+export { LoginInputError };
 
 export const checkPassword = (password: string): void => {
   if (password.length < MIN_TEST_LOGIN_PASSWORD) {
