@@ -1,6 +1,6 @@
 # Residential and commercial customers
 
-**2026-10-21 · Scope · Owner: unassigned**
+**2026-10-21 · Scope · Owner: unassigned · Partner answers recorded 2026-10-21 (R1, R2, R4–R6); R3 open**
 
 Today there is one kind of customer. Everything built so far — the S6 work
 orders home, Intake, photos, Open job — was shaped by commercial accounts:
@@ -75,47 +75,89 @@ is **billed**:
    need outbound email, which does not exist (R3). Commercial keeps office-made
    logins until its own IdP federation (OPEN-S6-IDP).
 
-## Decisions for the partners
+## Decisions
 
-| # | Question | Default if nobody decides |
+### Answered (2026-10-21)
+
+| # | Question | Answer | What it changes |
+|---|---|---|---|
+| R1 | Can a customer's segment change later? | **No.** | `segment` is set at creation and never updated — a trigger refuses the change (AC422), so a landlord's homes becoming a portfolio is a new commercial customer, not an edit. |
+| R2 | One membership plan, or tiers? | **Several tiers.** | A **plan catalogue** (below) instead of typing a fee per home. |
+| R4 | Self-serve sign-up, or invite only? | **Invite only.** | No public sign-up write; S1 stays lead-only. A homeowner's first login comes from an invite the office sends. |
+| R5 | A residential response-time default? | **Yes.** | Each plan tier carries its own response time; a home with no membership (one-time work) gets a residential default. The values are still to be set (proposal: emergency same day, otherwise next business day). |
+| R6 | Several logins per household? | **Yes — with different jobs.** E.g. one parent pays the balance, the other submits requests. | **Customer roles** (below), not just more logins. |
+
+### Still open
+
+| # | Question | Blocks |
 |---|---|---|
-| R1 | Is the segment set by the office at creation, or ever changed later (a landlord's homes becoming a portfolio account)? | Set at creation; changing it is an S2 edit, audited, and never moves rows |
-| R2 | Membership plans: one plan, or tiers (e.g. Basic/Plus with different included visits and response times)? | One plan per contract, its fee and visits as terms; tiers are just different contracts |
-| R3 | Email provider for invites and resets (Cloudflare Email, Postmark, SES…) and the sending domain | Blocks (7). Without it, the office keeps making residential logins by hand |
-| R4 | Does a homeowner sign up from S1 without a lead call (self-serve), or only by invite after the office converts the lead? | Invite only. Self-serve sign-up is a public write with a credential at the end of it — OPEN-S1-ABUSE applies twice |
-| R5 | Residential response time: the same `sla_response` register values, or a residential default (e.g. next business day, emergency same day)? | Same register; set per membership contract |
-| R6 | One login per household, or several (two homeowners, a tenant)? | Several, all at the parent tier — a household sees one home |
+| R3 | Email provider (Cloudflare Email, Postmark, SES…) and the sending domain | Invites and password reset — and with R4, every homeowner login |
+| R5a | The residential default response time, and each tier's | The plan catalogue's values (not its build) |
+| R7 | Who may invite a second household member: only the office, or also the household member who pays? | The invite screen's placement (S2 only, or S6 too) |
+
+### The plan catalogue (R2, R5)
+
+`membership_plans` — authored in S2, one row per tier: name (e.g. Basic,
+Plus, Premium), monthly or annual fee, included visits per year, response
+time, PM visits per year, active. A residential membership contract names
+its plan; when the contract is signed its terms are **written from the plan**
+as ordinary term overrides on that contract. The resolver, the SLA
+derivation and the billing path keep reading terms exactly as they do now —
+the plan is where the office picks values, never a second source the
+runtime consults. Changing a plan's price changes new contracts, not signed
+ones.
+
+### Household roles (R6)
+
+Customer logins carry no roles today. Two are added, and a login may hold
+both:
+
+| Role | May |
+|---|---|
+| `payer` | see invoices and balances; pay (when payments exist) |
+| `requester` | request service, attach photos, message on a job |
+
+Everyone in the household reads the home, its work orders and its
+agreements. Writes are gated by role at the unit of work, the same way S2–S4
+roles gate staff writes, so a request from a payer-only login is refused at
+the gateway, not hidden in the bundle. The first login on a home holds both.
+This serves commercial accounts unchanged and for free: the AP clerk is a
+`payer`, the facility manager a `requester`.
 
 ## Work
 
 | Piece | Size | Depends on |
 |---|---|---|
-| Migration: `organizations.segment`, backfill `commercial`, check constraint | S | R1 |
+| Migration: `organizations.segment`, backfill `commercial`, check constraint, immutability trigger (R1) | S | — |
 | `customers.createResidential` + S2 "New residential customer" form | S | — |
 | `leads.convert` + S2 lead list action | S | createResidential |
-| Membership terms in the register (+ R_term_registry), path tests at a real fee | S | R2, partner sign-off on the register |
-| S6 residential layout (home card, membership card, work orders), segment in the hierarchy context | M | segment |
+| Membership terms in the register (+ R_term_registry), path tests at a real fee | S | partner sign-off on the register entries |
+| Plan catalogue: `membership_plans`, S2 plans screen, contract → plan, terms written from the plan at signature | M | the terms above; R5a for the values |
+| Residential default response time for homes with no membership | S | R5a |
+| Household roles `payer` / `requester`: registry, role gate on S6 writes, AC Logins app and S2 assign them | S | — |
+| S6 residential layout (home card, membership card with tier and visits used, work orders); writes shown or hidden by role | M | segment, roles |
 | S2/S3 segment column, filter and mark | S | segment |
-| Outbound email module + invite and password-reset operations, S6 set-password screen | M | R3 |
-| Integration tests: one-step creation produces a valid one-branch tree, conversion is once-only, a residential login sees only its home, the membership bills its fee and overage | S | the above |
+| Outbound email module + invite and password-reset operations, S6 set-password screen | M | R3 (and R7 for where invites are sent from) |
+| Integration tests: one-step tree, segment immutable, conversion once-only, a payer-only login refused a request, a residential login sees only its home, a tier's terms land on its contract and the membership bills its fee and overage | M | the above |
 
-Roughly **2½ weeks** for one builder without the email work, **3½** with it.
+Roughly **3½ weeks** for one builder without the email work, **4½** with it.
 
 ## Recommended order
 
-1. **Segment + one-step creation + lead conversion.** Small, unblocked, and the
-   office can start carrying homeowners as real customers immediately — they
-   already work in Intake and Open job on the one-branch tree.
-2. **S6 residential layout and the S2/S3 marks.** The homeowner's portal stops
-   looking like a facilities account.
-3. **Membership terms**, once the partners sign off on the register entries
-   (R2). Until then, membership contracts should not be invoiced.
-4. **Email, invite and reset**, once R3 is decided. Until then, residential
-   logins are made in the AC Logins app.
+1. **Segment (immutable) + one-step creation + lead conversion + household
+   roles.** Unblocked. The office can carry homeowners as real customers, and
+   the roles exist before the first second login does.
+2. **S6 residential layout and the S2/S3 marks.**
+3. **Membership terms and the plan catalogue**, once the partners sign off on
+   the register entries; values once R5a is set. Until then, membership
+   contracts should not be invoiced.
+4. **Email, invite and reset** once R3 (and R7) are decided. Invite-only (R4)
+   means this is the door every homeowner comes through — until it exists,
+   residential logins are made in the AC Logins app.
 
 ## Non-goals
 
 - A new tier, or a second hierarchy for homes.
 - Segment-based row security. Who sees what stays the tier and scope rules.
 - Invoicing and payment for memberships — that is the payments scope (2026-10-21 §2), which this depends on for actual billing.
-- Self-serve sign-up from S1 (R4) in the first pass.
+- Self-serve sign-up from S1 — decided out (R4).
