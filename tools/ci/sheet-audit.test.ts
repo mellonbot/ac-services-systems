@@ -36,7 +36,7 @@ test("the component stylesheet is clean at every density it serves", () => {
  * The chrome packages/ui draws — nav, link, form, field, input, notice, facts
  * — is drawn once. A surface that redeclares one of these families has forked
  * it, and a fork is where the next fill-as-word comes from. Modifiers
- * (`.s2-form--inline`) and surface-owned parts (`.s2-form__actions`) are the
+ * and surface-owned parts (`.s2-form__actions`) are the
  * surface's arrangement and are not caught here; S1's masthead row is its own
  * thing, not the segmented nav, and is exempt by name.
  */
@@ -55,4 +55,24 @@ test("no surface stylesheet redeclares the chrome the component sheet owns", asy
     }
   }
   assert.deepEqual(forks, []);
+});
+
+/**
+ * The other direction: a surface reaching into the component sheet's classes
+ * (`.s2-app .ac-grid__td{…}`) restyles the chrome for one surface without
+ * forking its name, which the test above cannot see. A layout the chrome lacks
+ * belongs in packages/ui as a prop or modifier. S1's masthead width is the
+ * marketing column's measure, not a restyle, and is exempt by name.
+ */
+test("no surface stylesheet restyles a class the component sheet owns", async () => {
+  const reaches: string[] = [];
+  for (const id of SURFACE_IDS) {
+    const sheet = (await surfaceSheet(SURFACES[id].app)).replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const m of sheet.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
+      const selector = m[1]!.trim();
+      if (id === "S1" && selector === ".ac-mast") continue;
+      for (const hit of selector.matchAll(/\.ac-[a-z][\w-]*/g)) reaches.push(`${SURFACES[id].app}: ${selector} restyles ${hit[0]}`);
+    }
+  }
+  assert.deepEqual(reaches, []);
 });

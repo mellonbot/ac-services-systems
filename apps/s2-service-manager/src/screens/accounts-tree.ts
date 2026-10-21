@@ -34,6 +34,7 @@ export const accountsTree: Screen = (ctx, params) => {
   const orgGrid = (list: readonly OrganizationWire[]): VNode =>
     DataGrid({
       density: ctx.density,
+      stack: true,
       caption: "Customers",
       columns: [
         { key: "name", header: "Customer", cell: (o: OrganizationWire) => linkTo(ctx, "accounts.tree", { orgId: o.id }, o.name) },
@@ -52,6 +53,7 @@ export const accountsTree: Screen = (ctx, params) => {
     const ordered = orderTree(nodes);
     return panel(DataGrid({
       density: ctx.density,
+      stack: true,
       columns: [
         { key: "name", header: "Node", cell: (n: AccountWire) => html`<span class="s2-node" data-depth=${n.path.length - 1} data-tier=${n.tier}>${n.name}</span>` },
         { key: "tier", header: "Tier" },

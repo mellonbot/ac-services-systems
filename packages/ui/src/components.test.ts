@@ -5,6 +5,7 @@ import { html, admits } from "./render.ts";
 import { StatusPill } from "./components/status-pill.ts";
 import { PrimaryAction } from "./components/primary-action.ts";
 import { DataGrid } from "./components/data-grid.ts";
+import { UI_CSS } from "./styles.ts";
 import { ComplianceBadge } from "./components/compliance-badge.ts";
 import { RefusalCard, refusalHeading, AXIS_SENTENCE } from "./components/refusal-card.ts";
 import { RefusalNotice } from "./components/refusal-notice.ts";
@@ -252,4 +253,19 @@ test("RefusalNotice can be dismissed, as a link-button rather than a filled cont
   const out = render(RefusalNotice({ density: "comfort", refusal: { kind: "no_route", message: "Unknown." }, onDismiss: () => {} }) ?? html``);
   assert.match(out, /<button type="button" class="ac-link ac-link--button"[^>]*>Dismiss<\/button>/);
   assert.doesNotMatch(render(RefusalNotice({ density: "comfort", refusal: { kind: "no_route", message: "Unknown." } }) ?? html``), /Dismiss|ac-notice__routes/);
+});
+
+test("a grid stacks on a phone only when the caller asks, and the sheet draws that mode", () => {
+  const grid = (stack?: boolean) => render(DataGrid({ density: "console", columns: [{ key: "n", header: "Name" }], rows: [{ n: "A" }], rowKey: (r: { n: string }) => r.n, ...(stack ? { stack } : {}) }));
+  assert.match(grid(true), /<table class="ac-grid" data-density="console" data-stack="narrow"/);
+  assert.doesNotMatch(grid(), /data-stack/);
+  assert.match(grid(true), /data-label="Name"/);
+  assert.match(UI_CSS, /@media \(max-width:760px\)\{\n  \.ac-grid\[data-stack="narrow"\]\{display:block/);
+  assert.match(UI_CSS, /\.ac-grid\[data-stack="narrow"\] \.ac-grid__td::before\{content:attr\(data-label\)/);
+});
+
+test("an inline form lays its fields in a row, declared after the base form so the row wins the cascade", () => {
+  assert.ok(UI_CSS.indexOf(".ac-form--inline{") > UI_CSS.indexOf("\n.ac-form{display:flex"), "modifier precedes the base rule");
+  assert.match(UI_CSS, /\.ac-form--inline\{display:flex;flex-direction:row;flex-wrap:wrap;gap:var\(--space-4\)/);
+  assert.match(UI_CSS, /\.ac-form--inline \.ac-field\{flex:1 1 16ch/);
 });

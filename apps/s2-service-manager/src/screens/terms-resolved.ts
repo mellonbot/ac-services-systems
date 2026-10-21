@@ -73,7 +73,8 @@ export const termsResolved: Screen = (ctx, params) => {
     const refused = Object.entries(out.refused);
     return panel(html`
       ${DataGrid({
-        density: ctx.density, caption: `Resolved as of ${rows[0]?.asOf ?? "today"}`,
+        density: ctx.density,
+        stack: true, caption: `Resolved as of ${rows[0]?.asOf ?? "today"}`,
         columns: [
           { key: "termKey", header: "Term" },
           { key: "value", header: "Value", cell: (r: ResolutionWire) => String(r.value) },
@@ -94,7 +95,7 @@ export const termsResolved: Screen = (ctx, params) => {
         : null}`);
   };
 
-  const picker = (nodes: readonly AccountWire[], termKeys: readonly string[]): VNode => html`<form class="ac-form s2-form--inline" onSubmit=${(e: Event) => e.preventDefault()} id="resolve-form">
+  const picker = (nodes: readonly AccountWire[], termKeys: readonly string[]): VNode => html`<form class="ac-form ac-form--inline" onSubmit=${(e: Event) => e.preventDefault()} id="resolve-form">
     <label class="ac-field">
       <span>At which node</span>
       <select name="nodeId" class="ac-input" onChange=${(e: Event) => { q.value = { ...q.value, nodeId: (e.currentTarget as HTMLSelectElement).value, open: "" }; }}>

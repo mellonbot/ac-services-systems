@@ -61,6 +61,7 @@ export const network: Screen = (ctx, params) => {
   const firmGrid = (list: readonly FirmWire[]): VNode => panel(html`
     ${DataGrid({
       density: ctx.density,
+      stack: true,
       columns: [
         { key: "legalName", header: "Firm", cell: (f: FirmWire) => linkTo(ctx, "network", { firmId: f.id }, f.legalName) },
         { key: "status", header: "Status", cell: (f: FirmWire) => stateMark(f.status) },
@@ -102,7 +103,8 @@ export const network: Screen = (ctx, params) => {
   const crewGrid = (crews: readonly CrewWire[], regionList: readonly RegionWire[], caption: string, emptyText: string): VNode => {
     const regionName = (id: string) => regionList.find((r) => r.id === id)?.name ?? id;
     return DataGrid({
-      density: ctx.density, caption,
+      density: ctx.density,
+      stack: true, caption,
       columns: [
         { key: "label", header: "Crew", cell: (c: CrewWire) => html`<span>${c.label}${c.active ? "" : html` <small class="s2-muted">inactive</small>`}</span>` },
         { key: "homeRegionId", header: "Home region", cell: (c: CrewWire) => regionName(c.homeRegionId) },
@@ -125,7 +127,7 @@ export const network: Screen = (ctx, params) => {
         <dt>Settlement terms</dt><dd>${f.settlementTermsDays} days (D13)</dd>
         <dt>MSA</dt><dd>${f.msaSignedAt
           ? `signed ${f.msaSignedAt}`
-          : html`<form class="s2-form--inline" onSubmit=${(e: Event) => { e.preventDefault(); const d = new FormData(e.currentTarget as HTMLFormElement).get("msaSignedAt"); signMsa(f, String(d ?? "")); }}>
+          : html`<form class="ac-form--inline" id="msa-form" onSubmit=${(e: Event) => { e.preventDefault(); const d = new FormData(e.currentTarget as HTMLFormElement).get("msaSignedAt"); signMsa(f, String(d ?? "")); }}>
               <span class="s2-muted">not signed — a firm is not activated without one</span>
               <input class="ac-input" type="date" name="msaSignedAt" required aria-label="MSA signed on" />
               <button type="submit" class="s2-mutation" disabled=${busy}>Record signature</button>

@@ -74,7 +74,8 @@ export const networkRates: Screen = (ctx, params) => {
 
   const grid = (list: readonly RateCardWire[]): VNode =>
     DataGrid({
-      density: ctx.density, caption: "Rates over time",
+      density: ctx.density,
+      stack: true, caption: "Rates over time",
       columns: [
         { key: "serviceCode", header: "Service code" },
         { key: "rateMinor", header: "Rate", align: "end", numeric: true, cell: (r: RateCardWire) => html`<span>${r.rateMinor} <small class="s2-muted">${readable(r.rateMinor, r.currency)}</small></span>` },

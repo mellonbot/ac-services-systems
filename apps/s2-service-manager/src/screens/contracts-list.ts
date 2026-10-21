@@ -44,7 +44,8 @@ export const contractsList: Screen = (ctx, params) => {
 
   const orgGrid = (list: readonly OrganizationWire[]): VNode =>
     DataGrid({
-      density: ctx.density, caption: "Customers",
+      density: ctx.density,
+      stack: true, caption: "Customers",
       columns: [{ key: "name", header: "Customer", cell: (o: OrganizationWire) => linkTo(ctx, "contracts.list", { orgId: o.id }, o.name) }],
       rows: list, rowKey: (o: OrganizationWire) => o.id, selectedKey: orgId ?? "",
       onSelect: (o: OrganizationWire) => ctx.router.navigate("contracts.list", { orgId: o.id }),
@@ -70,6 +71,7 @@ export const contractsList: Screen = (ctx, params) => {
   const grid = (contracts: readonly ContractWire[], nodes: readonly AccountWire[], org: OrganizationWire | undefined): VNode => panel(html`
       ${DataGrid({
         density: ctx.density,
+        stack: true,
         columns: [
           { key: "scopeId", header: "Binds to", cell: (c: ContractWire) => html`<span data-tier=${c.scopeTier}>${scopeName(c, nodes, org)} <small class="s2-muted">${c.scopeTier}</small></span>` },
           { key: "kind", header: "Kind" },

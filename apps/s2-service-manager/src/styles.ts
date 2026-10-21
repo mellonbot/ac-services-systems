@@ -49,7 +49,6 @@ export const S2_CSS = `
 .s2-rationale{margin:0 0 var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm)}
 .s2-purchasing{display:flex;flex-direction:column;gap:var(--space-3)}
 .s2-list{margin:0;padding-inline-start:var(--space-4)}
-.s2-form--inline{display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:end}
 .s2-trace{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
 .s2-trace__step{display:grid;grid-template-columns:minmax(7rem,1fr) max-content minmax(8rem,1fr);gap:var(--space-1) var(--space-3);align-items:baseline;padding-block:var(--space-1);border-bottom:1px solid var(--color-border)}
 .s2-trace__outcome{font-variant-caps:all-small-caps;letter-spacing:var(--track-normal)}
@@ -68,19 +67,11 @@ export const S2_CSS = `
   .s2-col--orgs{position:static}
   .s2-form__actions{align-items:stretch;flex-direction:column}
   .s2-context{grid-template-columns:minmax(0,1fr)}
-  .s2-app .ac-grid,.s2-app .s2-trace-table{display:block;width:100%;max-width:100%;overflow-x:auto}
-  .s2-app .ac-grid thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-  .s2-app .ac-grid tbody,.s2-app .ac-grid__row{display:block}
-  .s2-app .ac-grid__row{padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}
-  .s2-app .ac-grid__td{display:grid;grid-template-columns:minmax(7rem,1fr) minmax(0,2fr);gap:var(--space-3);align-items:baseline;justify-items:start;height:auto;min-height:0;padding:var(--space-1) var(--space-3);border-bottom:0;text-align:start;white-space:normal;overflow-wrap:anywhere}
-  .s2-app .ac-grid__td::before{content:attr(data-label);color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
-  .s2-app .ac-grid__empty td{display:block}
+  .s2-app .s2-trace-table{display:block;width:100%;max-width:100%;overflow-x:auto}
   .s2-app .s2-trace__step{grid-template-columns:minmax(0,1fr) max-content}
 }
 
 /* Rev A: heads, panels and tiles are drawn by packages/ui (pageHead, panel, statStrip); this only arranges. */
-.s2-form--inline{flex-direction:row;flex-wrap:wrap;align-items:end;max-width:none}
-.s2-form--inline .ac-field{flex:1 1 16ch;align-items:stretch}
 .s2-two-col>*{min-width:0}
 
 /* Persistent location: the operator's resolved scope stays separate from the

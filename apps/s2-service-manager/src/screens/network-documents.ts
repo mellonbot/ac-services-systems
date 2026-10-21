@@ -79,7 +79,8 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
 
   const grid = (list: readonly CredentialWire[]): VNode =>
     DataGrid({
-      density: ctx.density, caption: "Documents on file",
+      density: ctx.density,
+      stack: true, caption: "Documents on file",
       columns: [
         { key: "kind", header: "Kind", cell: (c: CredentialWire) => c.kind.replace(/_/g, " ") },
         { key: "identifier", header: "Identifier" },

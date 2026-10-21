@@ -32,6 +32,8 @@ export type DataGridProps<Row> = {
   readonly selectedKey?: string;
   readonly emptyText?: string;
   readonly caption?: string;
+  /** Below 760px each row becomes a block of label/value pairs, labelled from the column headers. For screens a phone opens. */
+  readonly stack?: boolean;
 };
 
 /**
@@ -56,7 +58,7 @@ const view = <Row,>(p: ViewProps<typeof DataGridSpec, DataGridProps<Row>>): VNod
   // role="grid" plus aria-selected is the pattern that says selectable, and it
   // only appears when the caller actually wired onSelect.
   const interactive = p.onSelect !== undefined;
-  return html`<table class="ac-grid" data-density=${p.density} role=${interactive ? "grid" : undefined}>
+  return html`<table class="ac-grid" data-density=${p.density} data-stack=${p.stack ? "narrow" : undefined} role=${interactive ? "grid" : undefined}>
     ${p.caption ? html`<caption class="ac-grid__caption">${p.caption}</caption>` : null}
     <thead><tr>
       ${p.columns.map((c) => html`<th scope="col" class="ac-grid__th" data-align=${c.align ?? "start"} data-numeric=${c.numeric ? "true" : undefined} aria-sort=${ariaSort(c)}>
