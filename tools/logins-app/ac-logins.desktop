@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=AC Logins
+Comment=List and manage AC Services logins
+Exec=bash -lc "cd \\"<APP_DIR>\\" && source ~/.nvm/nvm.sh && nvm use 24 >/dev/null && npm start"
+Terminal=false
+Categories=Development;
