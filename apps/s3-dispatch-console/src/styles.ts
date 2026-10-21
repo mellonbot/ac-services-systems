@@ -185,7 +185,7 @@ export const S3_CSS = `
 
 /* ---- Manager Dashboard: the company on one page — waits, attention, the completed/invoiced trend, branches, team ---- */
 .s3-mgr-example{margin:calc(-1 * var(--space-2)) 0 var(--space-3);font-size:var(--text-xs)}
-#mgr-figures{grid-template-columns:repeat(3,minmax(0,1fr))}
+#mgr-figures{grid-template-columns:repeat(4,minmax(0,1fr))}
 .s3-mgr-pair{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:var(--space-4);align-items:stretch;margin:0 0 var(--space-4)}
 .s3-mgr-bar{display:block;flex:1;min-inline-size:4rem;block-size:8px;border-radius:var(--radius-pill);background:var(--color-surface-sunken)}
 .s3-mgr-bar__fill{display:block;block-size:100%;border-radius:var(--radius-pill);background:var(--color-action-text)}

@@ -8,8 +8,9 @@
  * rows seeded here.
  *
  * What it holds:
- *   - leadership at parent scope reads the figures: billed and completed this
- *     month against the same point last month, first-visit fixes, days per
+ *   - leadership at parent scope reads the figures: billed and collected (from
+ *     the QuickBooks mirror) and completed this month against the same point
+ *     last month, invoiced → paid, first-visit fixes, days per
  *     step, labour, unbilled work by state, urgent work with no crew by
  *     region, credential standing, eight weeks of completed vs. invoiced,
  *     branches and the team;
@@ -26,7 +27,7 @@ import { fileURLToPath } from "node:url";
 import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
 import { hashPassword } from "../../apps/gateway/src/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
-import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
+import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH, REGION_WEST } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 
 const GIVEN = process.env.DATABASE_URL;
@@ -39,7 +40,7 @@ const PORT = 26080 + Math.floor(Math.random() * 800);
 const BASE = `http://127.0.0.1:${PORT}`;
 const PASSWORD = "correct horse battery staple";
 const U = (n: number) => `d6000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
-const ORG = U(1), RNODE_S = U(2), LOC_S = U(3), SITE_S = U(4), RNODE_W = U(5), LOC_W = U(6), SITE_W = U(7), CONTRACT = U(8);
+const ORG = U(1), RNODE_S = U(2), LOC_S = U(3), SITE_S = U(4), RNODE_W = U(5), LOC_W = U(6), SITE_W = U(7);
 const CREW_A = U(10), CREW_B = U(11);
 const EXEC = U(20), LEAD = U(21), DISP = U(22), TECH = U(23);
 const J = { oneVisit: U(30), twoVisits: U(31), lastMonth: U(32), urgentWest: U(33), routine: U(34), kickedBack: U(35), onSite: U(36) };
@@ -132,13 +133,19 @@ before(async () => {
   await admin(`INSERT INTO time_entries (org_id, region_id, job_id, crew_id, span, kind, mutation_id)
     VALUES ($1,$2,$3,$4, tstzrange(now() - interval '30 minutes', now(), '[)'), 'labor', 'te-1')`, [ORG, REGION_SOUTH, J.onSite, CREW_A]);
 
-  // Money: this month's invoice for the one-visit job, and last month's at the same point.
-  await admin(`INSERT INTO contracts (id, org_id, region_id, scope_tier, scope_id, kind, billing_path, signed_at, effective, diagnostic_data_rights_reserved, state)
-    VALUES ($1,$2,$3,'parent',$2,'msa','enterprise_sla', now() - interval '200 days', daterange(current_date - 200, NULL), false, 'active')`, [CONTRACT, ORG, REGION_SOUTH]);
-  for (const [minor, at] of [[250000, THIS], [200000, PRIOR]] as const) {
-    await admin(`INSERT INTO invoices (org_id, region_id, bill_to_tier, bill_to_id, contract_id, billing_path, total_minor, currency, issued_at, due_at)
-      VALUES ($1,$2,'parent',$1,$3,'enterprise_sla', $4, 'USD', ${at}, ${at} + interval '30 days')`, [ORG, REGION_SOUTH, CONTRACT, minor]);
-  }
+  // Money is QuickBooks' (0018), through the worker's mirror. This month: an invoice on the 1st, paid in full today.
+  // Last month: an invoice on its 1st, part-paid by the same point last month. The mirror last ran a minute ago.
+  const ledgerInvoice = (qbo: string, txn: string, total: number, balance: number) => admin(
+    `INSERT INTO ledger_invoices (org_id, region_id, realm_id, qbo_id, memo, job_id, txn_date, total_minor, balance_minor, currency, qbo_updated_at, synced_at)
+     VALUES ($1,$2,'9130',$3,$4,$5, ${txn}, $6, $7, 'USD', now(), now())`, [ORG, REGION_SOUTH, qbo, `Job ${J.oneVisit}`, J.oneVisit, total, balance]);
+  const ledgerPayment = (qbo: string, invoice: string, amount: number, on: string) => admin(
+    `INSERT INTO ledger_payments (org_id, region_id, realm_id, qbo_id, invoice_qbo_id, amount_minor, currency, received_on, qbo_updated_at, synced_at)
+     VALUES ($1,$2,'9130',$3,$4,$5,'USD', ${on}, now(), now())`, [ORG, REGION_SOUTH, qbo, invoice, amount]);
+  await ledgerInvoice("i-this", "date_trunc('month', now())::date", 250000, 0);
+  await ledgerInvoice("i-last", "(date_trunc('month', now()) - interval '1 month')::date", 200000, 100000);
+  await ledgerPayment("p-this", "i-this", 250000, "current_date");
+  await ledgerPayment("p-last", "i-last", 100000, "(now() - interval '1 month')::date");
+  await admin(`INSERT INTO ledger_sync_state (org_id, region_id, realm_id, cursor, synced_at) VALUES ($1,$2,'9130', now(), now() - interval '1 minute')`, [INTERNAL_ORG_ID, UNASSIGNED_REGION_ID]);
 
   const hash = hashPassword(PASSWORD);
   await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active, crew_id)
@@ -178,6 +185,8 @@ const near = (actual: number | null, expected: number, what: string) => assert.o
 test("leadership at parent scope reads the company: every figure is the seeded rows", { skip }, async () => {
   const out = await (await s3("exec.mgr@ac.test")).gateway.managerOverview();
   assert.deepEqual(out.billed, [{ currency: "USD", minor: "250000", priorMinor: "200000" }]);
+  assert.deepEqual(out.collected, [{ currency: "USD", minor: "250000", priorMinor: "100000" }]);
+  assert.ok(out.ledgerSyncedAt && Date.now() - Date.parse(out.ledgerSyncedAt) < 10 * 60_000, "when the QuickBooks mirror last ran");
   assert.deepEqual(out.completed, { now: 2, prior: 1 });
   assert.equal(out.fixedFirstVisit, 1, "one visit and no return trip owed; the two-visit job is not a first-visit fix");
 
@@ -187,6 +196,9 @@ test("leadership at parent scope reads the company: every figure is the seeded r
   near(wait.scheduled_to_on_site!.avgDays, 1.5, "scheduled → on site");
   near(wait.on_site_to_finished!.avgDays, 1, "on site → finished");
   assert.equal(wait.finished_to_invoiced!.jobs, 1);
+  const [{ days }] = await admin("SELECT (current_date - date_trunc('month', now())::date)::int AS days");
+  near(wait.invoiced_to_paid!.avgDays, days, "invoiced → paid: the 1st to today");
+  assert.equal(wait.invoiced_to_paid!.jobs, 1, "the part-paid invoice is not settled");
   assert.ok(wait.finished_to_invoiced!.avgDays! > 0);
 
   assert.equal(out.labor.techs, 2);

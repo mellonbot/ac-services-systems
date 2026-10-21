@@ -106,6 +106,17 @@ Roughly **1½ weeks** for one builder, most of it in the binary carrier.
 
 ## 2. Paying an invoice
 
+> **Y1 decided (2026-10-21): QuickBooks Online is the ledger of record.**
+> Invoices are written in QuickBooks; customers pay through QuickBooks' own
+> pay link (QuickBooks Payments); the office writes the job in the invoice's
+> memo. So the platform takes no payment and keeps no AR ledger of its own —
+> the WS-E path below is not taken. Built so far: the worker's mirror
+> (migration 0018, `apps/worker/src/ledger.ts`) and the money it puts on the
+> Manager Dashboard (billed, collected, invoiced → paid). Still open: S6's
+> **Pay invoice** opening QuickBooks' pay link (needs the invoice link from
+> QuickBooks and a customer-scoped read of the mirror), and Y3 is answered by
+> Y1 — the processor is QuickBooks Payments.
+
 ### What exists
 
 | Piece | State | Where |

@@ -366,7 +366,7 @@ export const OPERATIONS = {
   "manager.overview": {
     id: "manager.overview", method: "GET", path: "/s3/manager", kind: "query", auth: "bearer",
     surfaces: ["S3"], carrier: "none", sdkMethod: "managerOverview",
-    summary: "The company on one page for leadership: billed and completed this month against the same point last month, first-visit fixes, days per step from request to invoiced, labour against paid time, unbilled and unassigned work, expiring credentials, eight weeks of completed vs. invoiced, each branch, and the team. Org-wide, so only a principal or ops_leadership login at parent scope may call it (seesManagerOverview); anyone else is refused 403.",
+    summary: "The company on one page for leadership: billed and collected (from the QuickBooks mirror) and completed this month against the same point last month, first-visit fixes, days per step from request to paid, labour against paid time, unbilled and unassigned work, expiring credentials, eight weeks of completed vs. invoiced, each branch, and the team. Org-wide, so only a principal or ops_leadership login at parent scope may call it (seesManagerOverview); anyone else is refused 403.",
   },
   "jobs.setReturnTrip": {
     id: "jobs.setReturnTrip", method: "POST", path: "/s3/jobs/return-trip", kind: "mutation", auth: "bearer",
@@ -1261,16 +1261,19 @@ export const MANAGER_ROLES = ["principal", "ops_leadership"] as const;
 export const seesManagerOverview = (p: { readonly roles: readonly string[]; readonly scopeTier: string }): boolean =>
   p.scopeTier === "parent" && p.roles.some((r) => (MANAGER_ROLES as readonly string[]).includes(r));
 
-export type ManagerWaitStep = "request_to_scheduled" | "scheduled_to_on_site" | "on_site_to_finished" | "finished_to_invoiced";
+export type ManagerWaitStep = "request_to_scheduled" | "scheduled_to_on_site" | "on_site_to_finished" | "finished_to_invoiced" | "invoiced_to_paid";
 export type CredentialStanding = "ok" | "at_risk" | "breached";
 export type ManagerOverviewOutput = {
   readonly asOf: string;
-  /** Month to date, and the same span of last month. Money is minor units as text, per currency. */
+  /** When the QuickBooks mirror last synced (0018); null when it never has — billed and collected are then unknown, not zero. */
+  readonly ledgerSyncedAt: string | null;
+  /** From QuickBooks, month to date by day against last month to the same day. Minor units as text, per currency. */
   readonly billed: readonly { readonly currency: string; readonly minor: string; readonly priorMinor: string }[];
+  readonly collected: readonly { readonly currency: string; readonly minor: string; readonly priorMinor: string }[];
   readonly completed: { readonly now: number; readonly prior: number };
   /** Of the jobs completed this month, those with one visit and no return trip owed. */
   readonly fixedFirstVisit: number;
-  /** Average days for the jobs that finished each step in the last 30 days; null when none did. */
+  /** Average days for the jobs that finished each step in the last 30 days; null when none did. invoiced_to_paid counts QuickBooks invoices settled in the last 30 days. */
   readonly waits: readonly { readonly step: ManagerWaitStep; readonly avgDays: number | null; readonly jobs: number }[];
   /** Labour logged by active employed crews over the last 7 days, and how many such crews there are. */
   readonly labor: { readonly hours: number; readonly techs: number };

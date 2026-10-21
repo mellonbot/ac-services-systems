@@ -4,10 +4,10 @@ import { UNASSIGNED_REGION_ID } from "../../../../packages/schema/src/tenancy.ts
 
 /**
  * manager.overview — S3's Manager Dashboard, read live from the operational
- * tables. The caller is already leadership at parent scope (main.ts refuses
- * anyone else), so RLS shows every region and every customer's work: jobs,
- * their events and invoices carry the CUSTOMER's org, and the whole book is
- * what a manager reads. Crews and internal users carry the company's own
+ * tables and the QuickBooks mirror (0018). The caller is already leadership
+ * at parent scope (main.ts refuses anyone else), so RLS shows every region
+ * and every customer's work: jobs, their events and the ledger carry the
+ * CUSTOMER's org, and the whole book is what a manager reads. Crews and internal users carry the company's own
  * org, and those two reads are bound to the caller's.
  *
  * Every clock is the database's `now()`: one transaction, one instant.
@@ -24,13 +24,28 @@ export const managerOverview = async (uow: UnitOfWork, orgId: string, now: Date)
   const q = <T>(sql: string) => uow.tx.query<T>(sql);
   const ours = <T>(sql: string) => uow.tx.query<T>(sql, [orgId]);
 
-  const billed = await q<{ currency: string; minor: string; prior_minor: string }>(
+  // Money is QuickBooks' (0018): billed by invoice date, collected by payment date, by the day — this month to
+  // date against last month to the same day.
+  const DAY = "current_date", MONTH_DAY = `${MONTH}::date`, LAST = `(${MONTH} - interval '1 month')::date`, LAST_DAY = "(now() - interval '1 month')::date";
+  const money = (table: "ledger_invoices" | "ledger_payments", amount: string, on: string) => q<{ currency: string; minor: string; prior_minor: string }>(
     `SELECT currency,
-            COALESCE(sum(total_minor) FILTER (WHERE issued_at >= ${MONTH}), 0)::text AS minor,
-            COALESCE(sum(total_minor) FILTER (WHERE issued_at < now() - interval '1 month'), 0)::text AS prior_minor
-       FROM invoices
-      WHERE issued_at >= ${MONTH} - interval '1 month'
+            COALESCE(sum(${amount}) FILTER (WHERE ${on} BETWEEN ${MONTH_DAY} AND ${DAY}), 0)::text AS minor,
+            COALESCE(sum(${amount}) FILTER (WHERE ${on} BETWEEN ${LAST} AND ${LAST_DAY}), 0)::text AS prior_minor
+       FROM ${table}
+      WHERE ${on} >= ${LAST}
       GROUP BY currency ORDER BY currency`);
+  const billed = await money("ledger_invoices", "total_minor", "txn_date");
+  const collected = await money("ledger_payments", "amount_minor", "received_on");
+
+  // Invoiced → paid: an invoice QuickBooks shows settled, from its date to the payment that settled it.
+  const [paid] = await q<{ avg: number | null; n: number }>(
+    `WITH settled AS (
+       SELECT i.txn_date, max(p.received_on) AS paid_on
+         FROM ledger_invoices i JOIN ledger_payments p ON p.realm_id = i.realm_id AND p.invoice_qbo_id = i.qbo_id
+        WHERE i.balance_minor = 0 AND i.total_minor > 0 AND p.amount_minor > 0
+        GROUP BY i.id, i.txn_date)
+     SELECT avg(paid_on - txn_date)::float8 AS avg, count(*)::int AS n FROM settled WHERE paid_on >= ${DAY} - 30`);
+  const [sync] = await q<{ synced_at: string | null }>("SELECT max(synced_at) AS synced_at FROM ledger_sync_state");
 
   // A job counts once, at its first completion in the window.
   const [done] = await q<{ now: number; prior: number; fixed: number }>(
@@ -108,10 +123,13 @@ export const managerOverview = async (uow: UnitOfWork, orgId: string, now: Date)
   const step = (s: ManagerWaitStep) => ({ step: s, avgDays: w?.[`${s}_avg`] ?? null, jobs: w?.[`${s}_n`] ?? 0 });
   return {
     asOf: now.toISOString(),
+    ledgerSyncedAt: sync?.synced_at ? new Date(sync.synced_at).toISOString() : null,
     billed: billed.map((b) => ({ currency: b.currency, minor: b.minor, priorMinor: b.prior_minor })),
+    collected: collected.map((c) => ({ currency: c.currency, minor: c.minor, priorMinor: c.prior_minor })),
     completed: { now: done?.now ?? 0, prior: done?.prior ?? 0 },
     fixedFirstVisit: done?.fixed ?? 0,
-    waits: [step("request_to_scheduled"), step("scheduled_to_on_site"), step("on_site_to_finished"), step("finished_to_invoiced")],
+    waits: [step("request_to_scheduled"), step("scheduled_to_on_site"), step("on_site_to_finished"), step("finished_to_invoiced"),
+      { step: "invoiced_to_paid", avgDays: paid?.avg ?? null, jobs: paid?.n ?? 0 }],
     labor: { hours: employed.reduce((h, c) => h + c.labor_7d, 0), techs: employed.length },
     unbilled: {
       complete: unbilledIn("complete"), needsPricing: unbilledIn("needs_pricing"), awaitingPo: unbilledIn("awaiting_po"),

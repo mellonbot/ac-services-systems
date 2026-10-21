@@ -29,6 +29,17 @@ What is still held elsewhere, and why:
   (`https://<account>.r2.cloudflarestorage.com`), `AC_STORAGE_BUCKET`,
   `AC_STORAGE_KEY_ID`, `AC_STORAGE_SECRET`. Until then photo uploads are
   refused as `storage_not_configured`; the request itself is still taken.
+- **quickbooks** — QuickBooks Online is the ledger of record; the worker
+  mirrors its invoices and payments every five minutes (`apps/worker/src/ledger.ts`,
+  migration 0018). Create an app in the Intuit Developer portal (scope
+  `com.intuit.quickbooks.accounting`), authorize it on the company once — the
+  OAuth Playground hands back a refresh token — then `wrangler secret put`
+  `AC_QBO_ENV` (`sandbox` or `production`), `AC_QBO_CLIENT_ID`,
+  `AC_QBO_CLIENT_SECRET`, `AC_QBO_REALM_ID` (the company id),
+  `AC_QBO_REFRESH_TOKEN` and `AC_QBO_TOKEN_KEY` (`openssl rand -base64 32`;
+  it encrypts the rotated token at rest). The worker stores each rotated token
+  itself; set `AC_QBO_REFRESH_TOKEN` again only to reconnect. Until all six
+  are set the sync is off and the Manager Dashboard says so.
 - **network** — regions are the shard boundary. A container per region
   (`AC_REGION_ID`) is a second Durable Object name in `worker.mjs` when Tier 3
   arrives; nothing structural changes.

@@ -397,7 +397,7 @@ export const createGatewayClient = (transport: Transport) => ({
 
   /** `GET /s3/manager` · query · bearer · surfaces: S3
    *
-   * The company on one page for leadership: billed and completed this month against the same point last month, first-visit fixes, days per step from request to invoiced, labour against paid time, unbilled and unassigned work, expiring credentials, eight weeks of completed vs. invoiced, each branch, and the team. Org-wide, so only a principal or ops_leadership login at parent scope may call it (seesManagerOverview); anyone else is refused 403. */
+   * The company on one page for leadership: billed and collected (from the QuickBooks mirror) and completed this month against the same point last month, first-visit fixes, days per step from request to paid, labour against paid time, unbilled and unassigned work, expiring credentials, eight weeks of completed vs. invoiced, each branch, and the team. Org-wide, so only a principal or ops_leadership login at parent scope may call it (seesManagerOverview); anyone else is refused 403. */
   managerOverview(): Promise<OperationIO["manager.overview"]["output"]> {
     return transport.request(OPERATIONS["manager.overview"], undefined) as Promise<OperationIO["manager.overview"]["output"]>;
   },

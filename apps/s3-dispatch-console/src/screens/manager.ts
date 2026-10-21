@@ -11,8 +11,12 @@ import { initials } from "./jobs.ts";
  * it to leadership at company scope only (seesManagerOverview), and the tab
  * is hidden from anyone it would refuse.
  *
- * Not drawn, because nothing records them yet: cash collected and invoiced →
- * paid (no payments), customer rating (no reviews), onboarding paperwork.
+ * Money is QuickBooks Online's, the ledger of record, through the worker's
+ * mirror (0018): billed, collected and invoiced → paid. Until the mirror has
+ * synced, those say "QuickBooks not connected" rather than $0.
+ *
+ * Not drawn, because nothing records them yet: customer rating (no reviews),
+ * onboarding paperwork.
  * Utilization is labour hours over 40 per technician-week, said on the tile:
  * there is no record of paid hours to divide by.
  */
@@ -27,6 +31,7 @@ const WAIT_STEPS: Readonly<Record<ManagerWaitStep, { step: string; sub: string; 
   scheduled_to_on_site: { step: "Scheduled to on site", sub: "Waiting for the visit" },
   on_site_to_finished: { step: "On site to finished", sub: "Work on the job" },
   finished_to_invoiced: { step: "Finished to invoiced", sub: "Pricing, review, send · goal 3 days", goal: 3 },
+  invoiced_to_paid: { step: "Invoiced to paid", sub: "Waiting on the customer · from QuickBooks" },
 };
 
 const ROLE_TITLE: Readonly<Record<string, string>> = {
@@ -55,13 +60,23 @@ const goalTile = (o: Overview, s: ManagerWaitStep, label: string, overTone: "at_
   return { n: days(w.avgDays), label, sub: `${over ? overWord : "On target"} · goal ${goal} days`, tone: over ? overTone : "ok" };
 };
 
+const sameCurrency = (a: Overview["billed"], currency: string) => a.find((x) => x.currency === currency);
+const total = (a: Overview["billed"]) => a.length ? a.map((b) => money(b.minor, b.currency)).join(" · ") : money("0", "USD");
+const vsLastMonth = (now: string, prior: string, nothing: string) =>
+  Number(prior) > 0 ? `${signed(Math.round(((Number(now) - Number(prior)) / Number(prior)) * 100))}% vs. same point last month` : nothing;
+
 export const figures = (o: Overview): StatTile[] => {
-  const first = o.billed[0];
-  const billedSub = !first ? "Nothing invoiced yet this month"
-    : Number(first.priorMinor) > 0 ? `${signed(Math.round(((Number(first.minor) - Number(first.priorMinor)) / Number(first.priorMinor)) * 100))}% vs. same point last month`
-    : "Nothing invoiced by this point last month";
+  const ledger = (label: string, tile: () => StatTile): StatTile =>
+    o.ledgerSyncedAt ? tile() : { n: "—", label, sub: "QuickBooks not connected" };
   return [
-    { n: o.billed.length ? o.billed.map((b) => money(b.minor, b.currency)).join(" · ") : money("0", "USD"), label: "Billed this month", sub: billedSub },
+    ledger("Billed this month", () => {
+      const b = o.billed[0];
+      return { n: total(o.billed), label: "Billed this month", sub: b ? vsLastMonth(b.minor, b.priorMinor, "Nothing invoiced by this point last month") : "Nothing invoiced yet this month" };
+    }),
+    ledger("Cash collected", () => {
+      const c = o.collected[0], b = c && sameCurrency(o.billed, c.currency);
+      return { n: total(o.collected), label: "Cash collected", sub: !c ? "Nothing collected yet this month" : b && Number(b.minor) > 0 ? `${pct(Number(c.minor), Number(b.minor))} of what was billed` : "Nothing billed yet this month" };
+    }),
     { n: String(o.completed.now), label: "Jobs completed", sub: `${signed(o.completed.now - o.completed.prior)} vs. same point last month` },
     { n: o.completed.now ? pct(o.fixedFirstVisit, o.completed.now) : "—", label: "Fixed on first visit", sub: `${o.fixedFirstVisit} of ${o.completed.now} completed this month` },
     goalTile(o, "request_to_scheduled", "Request to scheduled", "at_risk", "Over goal"),
@@ -207,9 +222,9 @@ const teamPanel = (store: Store, team: readonly Person[]): VNode => {
 export const manager: Screen = (ctx) => {
   const overview = ctx.store.read(keyOf("manager.overview", {}), () => ctx.shell.gateway.managerOverview());
   return html`<section class="s3-mgr">
-    ${pageHead("Manager Dashboard", "The health of the whole company on one page: how work flows from request to invoiced, where it gets stuck, how each branch is doing, and who is on the team.")}
+    ${pageHead("Manager Dashboard", "The health of the whole company on one page: how work flows from request to paid, where it gets stuck, how each branch is doing, and who is on the team.")}
     ${whenReady(ctx, overview.value, (o) => html`
-      <p class="s3-mgr-example s3-muted">As of ${new Date(o.asOf).toLocaleString()}. Months and weeks run in UTC; weeks start Monday.</p>
+      <p class="s3-mgr-example s3-muted">As of ${new Date(o.asOf).toLocaleString()}. ${o.ledgerSyncedAt ? `QuickBooks last synced ${new Date(o.ledgerSyncedAt).toLocaleString()}.` : "QuickBooks is not connected: billed, collected and invoiced → paid are unknown."} Months and weeks run in UTC; weeks start Monday.</p>
       ${statStrip(figures(o), "mgr-figures")}
       <div class="s3-mgr-pair">${waitsPanel(o)}${attentionPanel(o)}</div>
       <div class="s3-mgr-pair">

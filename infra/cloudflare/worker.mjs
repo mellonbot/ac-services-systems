@@ -28,7 +28,9 @@ const READY_ATTEMPTS = 300; // × 200 ms = 60 s for a cold start (pnpm-free imag
 const REQUIRED = ["DATABASE_URL", "AC_SIGNING_KEY_PEM", "AC_SITE"];
 const PASSTHROUGH = ["AC_SIGNING_KID", "AC_IMAGERY_URL", "AC_IMAGERY_ATTRIBUTION", "TOKEN_TTL_SECONDS", "ANONYMOUS_TTL_SECONDS", "AC_REGION_ID",
   // Object storage for photos (0017) — the R2 bucket over its S3 API. All four or none.
-  "AC_STORAGE_ENDPOINT", "AC_STORAGE_BUCKET", "AC_STORAGE_KEY_ID", "AC_STORAGE_SECRET", "AC_STORAGE_REGION"];
+  "AC_STORAGE_ENDPOINT", "AC_STORAGE_BUCKET", "AC_STORAGE_KEY_ID", "AC_STORAGE_SECRET", "AC_STORAGE_REGION",
+  // The QuickBooks Online mirror (0018), read by the worker. All six or none.
+  "AC_QBO_ENV", "AC_QBO_CLIENT_ID", "AC_QBO_CLIENT_SECRET", "AC_QBO_REALM_ID", "AC_QBO_REFRESH_TOKEN", "AC_QBO_TOKEN_KEY"];
 
 export class Gateway extends DurableObject {
   #starting;

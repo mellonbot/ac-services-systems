@@ -344,6 +344,11 @@ test("manager dashboard: attention lists only what is non-zero, and the goal til
   assert.equal(tiles["Finished to invoiced"]!.tone, "breached");
   assert.equal(tiles["Jobs completed"]!.tone, undefined, "a plain count stays ink");
   assert.equal(tiles["Billed this month"]!.n, "$184,200");
+  assert.equal(tiles["Cash collected"]!.n, "$131,900");
+  assert.equal(tiles["Cash collected"]!.sub, "72% of what was billed");
+  const offline = Object.fromEntries(figures({ ...o, ledgerSyncedAt: null }).map((t) => [t.label, t]));
+  assert.deepEqual([offline["Billed this month"]!.n, offline["Cash collected"]!.n, offline["Cash collected"]!.sub], ["—", "—", "QuickBooks not connected"],
+    "no sync yet is unknown money, not $0");
   const none = figures({ ...o, waits: o.waits.map((w) => ({ ...w, avgDays: null, jobs: 0 })), completed: { now: 0, prior: 0 } });
   assert.equal(none.find((t) => t.label === "Finished to invoiced")!.n, "—");
   assert.equal(none.find((t) => t.label === "Fixed on first visit")!.n, "—");

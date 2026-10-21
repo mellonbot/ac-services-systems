@@ -46,12 +46,15 @@ test("manager.overview: crews and the team are the caller's org; the customers' 
   assert.equal(bound.length, 2);
   assert.ok(bound.some((c) => c.sql.includes("FROM crews c")) && bound.some((c) => c.sql.includes("FROM users u")));
   for (const c of bound) assert.match(c.sql, /org_id = \$1/);
-  for (const c of reads.filter((r) => /FROM (invoices|jobs|job_state_events)/.test(r.sql))) assert.doesNotMatch(c.sql, /org_id = \$1/, "a job's org is its customer's");
+  for (const c of reads.filter((r) => /FROM (ledger_invoices|ledger_payments|jobs|job_state_events)/.test(r.sql))) assert.doesNotMatch(c.sql, /org_id = \$1/, "a job's org, and its invoice's, is its customer's");
 });
 
 test("manager.overview: rows fold into the wire — unbilled by state, urgent work by region, crews into branches and team", async () => {
   const s = scripted({
-    "FROM invoices": [{ currency: "USD", minor: "18420000", prior_minor: "17380000" }],
+    "WHERE txn_date >=": [{ currency: "USD", minor: "18420000", prior_minor: "17380000" }],
+    "WHERE received_on >=": [{ currency: "USD", minor: "13190000", prior_minor: "12650000" }],
+    "WITH settled": [{ avg: 21.5, n: 54 }],
+    "FROM ledger_sync_state": [{ synced_at: "2026-10-13T11:55:00.000Z" }],
     "WITH done AS": [{ now: 142, prior: 133, fixed: 124 }],
     "WITH f AS": [{ request_to_scheduled_avg: 1.4, request_to_scheduled_n: 40, scheduled_to_on_site_avg: null, scheduled_to_on_site_n: 0,
       on_site_to_finished_avg: 0.8, on_site_to_finished_n: 38, finished_to_invoiced_avg: 18.2, finished_to_invoiced_n: 30 }],
@@ -76,10 +79,13 @@ test("manager.overview: rows fold into the wire — unbilled by state, urgent wo
   const out = await managerOverview(await uowOf(s.tx), INTERNAL_ORG_ID, new Date("2026-10-13T12:00:00Z"));
   assert.equal(out.asOf, "2026-10-13T12:00:00.000Z");
   assert.deepEqual(out.billed, [{ currency: "USD", minor: "18420000", priorMinor: "17380000" }]);
+  assert.deepEqual(out.collected, [{ currency: "USD", minor: "13190000", priorMinor: "12650000" }]);
+  assert.equal(out.ledgerSyncedAt, "2026-10-13T11:55:00.000Z");
   assert.deepEqual(out.completed, { now: 142, prior: 133 });
   assert.equal(out.fixedFirstVisit, 124);
   assert.deepEqual(out.waits.map((w) => [w.step, w.avgDays, w.jobs]), [
     ["request_to_scheduled", 1.4, 40], ["scheduled_to_on_site", null, 0], ["on_site_to_finished", 0.8, 38], ["finished_to_invoiced", 18.2, 30],
+    ["invoiced_to_paid", 21.5, 54],
   ]);
   assert.deepEqual(out.labor, { hours: 50, techs: 2 }, "a subcontracted crew is not our technician");
   assert.deepEqual(out.unbilled, { complete: 5, needsPricing: 2, awaitingPo: 0, awaitingPictures: 0, invoiceTrouble: 0 });

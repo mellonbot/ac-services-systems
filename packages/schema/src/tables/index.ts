@@ -10,6 +10,7 @@ import * as sync from "./sync.ts";
 import * as platform from "./platform.ts";
 import * as hq from "./hq.ts";
 import * as procurement from "./procurement.ts";
+import * as ledger from "./ledger.ts";
 import type { Table } from "../tenancy.ts";
 
 /**
@@ -80,6 +81,10 @@ export const ALL_TABLES: readonly Table[] = Object.freeze([
   platform.sla_timers,
   // item 10: S4's rollup
   hq.hq_metrics,
+  // 0018: the QuickBooks mirror
+  ledger.ledger_invoices,
+  ledger.ledger_payments,
+  ledger.ledger_sync_state,
   // item 11: procurement — the office's purchasing and the vendor's side of it (S7)
   procurement.vendors,
   procurement.receiving_points,

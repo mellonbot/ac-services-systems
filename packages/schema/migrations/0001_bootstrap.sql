@@ -861,6 +861,65 @@ CREATE INDEX IF NOT EXISTS hq_metrics_region_id_idx ON hq_metrics (region_id);
 CREATE INDEX IF NOT EXISTS hq_metrics_day_idx ON hq_metrics (day);
 CREATE INDEX IF NOT EXISTS hq_metrics_metric_day_idx ON hq_metrics (metric, day);
 
+CREATE TABLE IF NOT EXISTS ledger_invoices (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  realm_id text NOT NULL,
+  qbo_id text NOT NULL,
+  doc_number text,
+  customer_name text,
+  memo text,
+  job_id uuid REFERENCES jobs(id),
+  txn_date date NOT NULL,
+  due_date date,
+  total_minor bigint NOT NULL,
+  balance_minor bigint NOT NULL,
+  currency text NOT NULL REFERENCES currencies(code),
+  qbo_updated_at timestamptz NOT NULL,
+  synced_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (realm_id, qbo_id)
+);
+CREATE INDEX IF NOT EXISTS ledger_invoices_region_id_idx ON ledger_invoices (region_id);
+CREATE INDEX IF NOT EXISTS ledger_invoices_job_id_idx ON ledger_invoices (job_id);
+CREATE INDEX IF NOT EXISTS ledger_invoices_txn_date_idx ON ledger_invoices (txn_date);
+
+CREATE TABLE IF NOT EXISTS ledger_payments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  realm_id text NOT NULL,
+  qbo_id text NOT NULL,
+  invoice_qbo_id text NOT NULL,
+  amount_minor bigint NOT NULL,
+  currency text NOT NULL REFERENCES currencies(code),
+  received_on date NOT NULL,
+  qbo_updated_at timestamptz NOT NULL,
+  synced_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (realm_id, qbo_id, invoice_qbo_id)
+);
+CREATE INDEX IF NOT EXISTS ledger_payments_region_id_idx ON ledger_payments (region_id);
+CREATE INDEX IF NOT EXISTS ledger_payments_realm_id_invoice_qbo_id_idx ON ledger_payments (realm_id, invoice_qbo_id);
+CREATE INDEX IF NOT EXISTS ledger_payments_received_on_idx ON ledger_payments (received_on);
+
+CREATE TABLE IF NOT EXISTS ledger_sync_state (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  realm_id text NOT NULL,
+  cursor timestamptz,
+  refresh_token_enc text,
+  synced_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (realm_id)
+);
+CREATE INDEX IF NOT EXISTS ledger_sync_state_region_id_idx ON ledger_sync_state (region_id);
+
 CREATE TABLE IF NOT EXISTS vendors (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   org_id uuid NOT NULL REFERENCES organizations(id),

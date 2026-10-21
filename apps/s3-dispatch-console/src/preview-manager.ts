@@ -15,7 +15,9 @@ const DFW = "region-preview", HOU = "region-houston", OKC = "region-okc";
 
 export const previewManagerOverview = (): ManagerOverviewOutput => ({
   asOf: new Date().toISOString(),
+  ledgerSyncedAt: new Date().toISOString(),
   billed: [{ currency: "USD", minor: "18420000", priorMinor: "17380000" }],
+  collected: [{ currency: "USD", minor: "13190000", priorMinor: "12650000" }],
   completed: { now: 142, prior: 133 },
   fixedFirstVisit: 124,
   waits: [
@@ -23,6 +25,7 @@ export const previewManagerOverview = (): ManagerOverviewOutput => ({
     { step: "scheduled_to_on_site", avgDays: 2.3, jobs: 148 },
     { step: "on_site_to_finished", avgDays: 0.8, jobs: 142 },
     { step: "finished_to_invoiced", avgDays: 18.2, jobs: 60 },
+    { step: "invoiced_to_paid", avgDays: 21.5, jobs: 54 },
   ],
   labor: { hours: 503, techs: 17 },
   unbilled: { complete: 5, needsPricing: 57, awaitingPo: 0, awaitingPictures: 0, invoiceTrouble: 20 },

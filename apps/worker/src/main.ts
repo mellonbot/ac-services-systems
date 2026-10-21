@@ -3,6 +3,7 @@ import { relayOnce, notifyPublisher } from "./relay.ts";
 import { sweepCredentialExpiry, sweepSlaCascade, workerScope } from "./sweeps.ts";
 import { sweepHqRollup } from "./rollup.ts";
 import { HQ_REFRESH_MINUTES } from "../../../packages/contracts/src/hq.ts";
+import { ledgerConfigFromEnv, sweepLedger } from "./ledger.ts";
 
 /**
  * THE WORKER. Runs as ac_worker. Three loops, each its own transaction, each
@@ -56,5 +57,10 @@ if (!REGION) every(HQ_REFRESH_MINUTES * 60_000, "hq-rollup", async () => {
   const tx = await bound();
   try { return await sweepHqRollup(tx, new Date()); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
 });
+
+// 0018: the QuickBooks mirror. Company-wide like the rollup; off until all six AC_QBO_* secrets are set.
+const LEDGER = ledgerConfigFromEnv(process.env);
+if (!REGION && LEDGER) every(5 * 60_000, "ledger-sync", () => sweepLedger(bound, LEDGER, (url, init) => fetch(url, init), new Date()));
+if (!REGION && !LEDGER) console.log("ledger-sync off: AC_QBO_* not set");
 
 console.log(`worker up${REGION ? ` (region ${REGION})` : ""}`);
