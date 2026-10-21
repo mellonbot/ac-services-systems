@@ -327,6 +327,38 @@ test("reactivateCompany works", { skip }, async () => {
   await assert.rejects(db.reactivateCompany(randomUUID()), refusedWith(/That company no longer exists/));
 });
 
+test("reactivateCompany refuses a label an active company now holds", { skip }, async () => {
+  const a = await db.addCompany({ type: "ours", name: `Twin ${RUN}`, regionId: REGION_SOUTH });
+  await db.removeCompany(a.id);
+  await db.addCompany({ type: "ours", name: ` twin  ${RUN}`, regionId: REGION_SOUTH });
+  await assert.rejects(db.reactivateCompany(a.id), refusedWith(/A company named .* already exists/));
+  assert.equal((await crewRows(a.id))[0].active, false);
+});
+
+test("addCompany rejects (not throws) on an empty name", { skip }, async () => {
+  await assert.rejects(db.addCompany({ type: "ours", name: "", regionId: REGION_SOUTH }), refusedWith(/name/));
+});
+
+test("a crew move revokes the technician's sessions under the office binding", { skip }, async () => {
+  const from = await db.addCompany({ type: "ours", name: `Move From ${RUN}`, regionId: REGION_SOUTH });
+  const to = await db.addCompany({ type: "ours", name: `Move To ${RUN}`, regionId: REGION_SOUTH });
+  const t = await tech("move-tech", from.id);
+  const device = (await admin(
+    `INSERT INTO devices (org_id, region_id, hardware_id, kind, public_key) VALUES ($1,$2,$3,'android_pilot',$4) RETURNING id`,
+    [INTERNAL, REGION_SOUTH, `hw-move-${RUN}`, Buffer.from("k")]))[0].id;
+  const grant = (await admin(
+    `INSERT INTO device_grants (org_id, region_id, device_id, crew_id, technician_id, service_window, granted_by)
+     VALUES ($1,$2,$3,$4,$5, tstzrange(now() - interval '1 hour', now() + interval '8 hours'), $5) RETURNING id`,
+    [INTERNAL, REGION_SOUTH, device, from.id, t.id]))[0].id;
+  const session = (await admin(
+    `INSERT INTO sessions (org_id, region_id, principal_kind, principal_id, expires_at, surface_id) VALUES ($1,$2,'device_grant',$3, now() + interval '8 hours','S5') RETURNING id`,
+    [INTERNAL, REGION_SOUTH, grant]))[0].id;
+  const r = await db.editLogin(t.id, { displayName: "move-tech", crew: { id: to.id, homeRegionId: REGION_SOUTH } });
+  assert.ok(r.revokedSessions >= 1);
+  assert.notEqual((await admin(`SELECT revoked_at FROM sessions WHERE id = $1`, [session]))[0].revoked_at, null);
+  assert.equal((await admin(`SELECT crew_id FROM users WHERE id = $1`, [t.id]))[0].crew_id, to.id);
+});
+
 test("a contractor technician signs in on S5", { skip }, async () => {
   const company = await db.addCompany({ type: "contractor", name: `Field Contractor ${RUN}`, firm: newFirm(`Field Firm ${RUN} LLC`) });
   const t = await tech("contractor-tech", company.id);

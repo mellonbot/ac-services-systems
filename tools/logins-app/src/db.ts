@@ -224,7 +224,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       }));
     },
 
-    addCompany: (n) => {
+    addCompany: async (n) => {
       // Rows are built (and validated) before any connection is taken; the checks that need the database run in the same transaction as the inserts.
       const newFirm = n.type === "contractor" && !("existing" in n.firm) ? n.firm : null;
       const firmRows = newFirm ? buildFirmRows(randomUUID(), newFirm) : null;
@@ -278,10 +278,13 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
     }),
 
     reactivateCompany: (id) => writeAsOffice(async (q) => {
-      const [c] = await q<{ firm_status: Firm["status"] | null; legal_name: string | null }>(
-        `SELECT f.status AS firm_status, f.legal_name FROM crews c LEFT JOIN subcontractor_firms f ON f.id = c.firm_id WHERE c.id = $1 FOR UPDATE OF c`, [id]);
+      const [c] = await q<{ label: string; firm_status: Firm["status"] | null; legal_name: string | null }>(
+        `SELECT c.label, f.status AS firm_status, f.legal_name FROM crews c LEFT JOIN subcontractor_firms f ON f.id = c.firm_id WHERE c.id = $1 FOR UPDATE OF c`, [id]);
       if (!c) throw new LoginInputError(COMPANY_GONE);
       if (c.firm_status === "terminated") throw new LoginInputError(terminatedMessage(c.legal_name!));
+      if ((await q(`SELECT 1 FROM crews WHERE active AND id <> $1 AND ${NORMALISED("label")} = lower($2)`, [id, normaliseName(c.label)])).length > 0) {
+        throw new LoginInputError(`A company named ${normaliseName(c.label)} already exists`);
+      }
       await q(`UPDATE crews SET active = true WHERE id = $1`, [id]);
     }),
 
