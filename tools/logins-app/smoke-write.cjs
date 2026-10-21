@@ -1,7 +1,7 @@
 // One-off write smoke, LOCAL ac_dev only — not part of dist. Drives the real window:
 // Customer Portal → Add (whole company) → Edit name → Remove, checking each step in SQL.
 // Run after `npm run build`: `npx electron smoke-write.cjs` (needs the ac-pg docker container).
-const { app, BrowserWindow } = require("electron");
+const { app } = require("electron");
 const { execFileSync } = require("node:child_process");
 
 const sql = (q) => execFileSync("docker", ["exec", "ac-pg", "psql", "-U", "postgres", "-d", "ac_dev", "-At", "-c", q], { encoding: "utf8" }).trim();

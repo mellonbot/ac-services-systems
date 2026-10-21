@@ -52,8 +52,13 @@ export default tseslint.config(
   {
     // The storage package IS the interface, and build tooling reads the repo by
     // definition. Neither is product code reaching around the abstraction.
-    files: ["packages/storage/**/*.ts", "tools/**/*.ts", "tools/**/*.js"],
+    files: ["packages/storage/**/*.ts", "tools/**/*.ts", "tools/**/*.js", "tools/**/*.mjs"],
     rules: { "ac/no-storage-bypass": "off" },
+  },
+  {
+    // Electron loads this smoke script as CommonJS; require() is how it imports.
+    files: ["tools/logins-app/**/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
   },
   {
     // figures.test.ts reads docs/BRAND.md and brand.ts to prove the prose
