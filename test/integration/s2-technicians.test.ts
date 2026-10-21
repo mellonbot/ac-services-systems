@@ -29,7 +29,7 @@ if (!URL_) test("technician roster over the wire", { skip }, () => {});
 const PORT = 23080 + Math.floor(Math.random() * 1000);
 const BASE = `http://127.0.0.1:${PORT}`;
 const U = (n: number) => `7e000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
-const USER_OWNER = U(1), USER_OFFICE = U(2);
+const USER_OWNER = U(1), USER_OFFICE = U(2), USER_PRINCIPAL = U(3);
 const PASSWORD = "correct horse battery staple";
 const RUN = `tech-${Date.now().toString(36)}`;
 const HOME = { line1: "905 Hemphill St", city: "Fort Worth", state: "TX", postal: "76104" };
@@ -59,8 +59,9 @@ before(async () => {
   const hash = hashPassword(PASSWORD);
   await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
     VALUES ($1,$2,$3,'internal','owner.tech@ac.test','Account Owner','["account_owner"]','parent',$2,$4,true),
-           ($5,$2,$3,'internal','office.tech@ac.test','Office Manager','["office_manager"]','parent',$2,$4,true)
-    ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, active = true`, [USER_OWNER, INTERNAL_ORG_ID, REGION_SOUTH, hash, USER_OFFICE]);
+           ($5,$2,$3,'internal','office.tech@ac.test','Office Manager','["office_manager"]','parent',$2,$4,true),
+           ($6,$2,$3,'internal','principal.tech@ac.test','Principal','["principal"]','parent',$2,$4,true)
+    ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, active = true`, [USER_OWNER, INTERNAL_ORG_ID, REGION_SOUTH, hash, USER_OFFICE, USER_PRINCIPAL]);
 
   gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
     env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test" }, stdio: ["ignore", "pipe", "pipe"],
@@ -128,6 +129,16 @@ test("an office manager reads the row with the address restricted, and is refuse
   const after = (await admin(`SELECT home_address, specialties FROM technicians WHERE id = $1`, [tech]))[0]!;
   assert.deepEqual(after.home_address, HOME, "an office manager's edit leaves the address where it was");
   assert.deepEqual(after.specialties, ["refrigeration"]);
+});
+
+test("a principal reads the address as an account owner does, and may change it", { skip }, async () => {
+  const principal = await shellAs("principal.tech@ac.test");
+  const seen = (await principal.gateway.listTechnicians({ firmId: firm })).technicians[0]!;
+  assert.deepEqual(seen.homeAddress, HOME);
+  assert.equal(seen.addressRestricted, false);
+  await principal.gateway.updateTechnician({ technicianId: tech, homeAddress: { ...HOME, line2: "Unit B" } });
+  assert.deepEqual((await admin(`SELECT home_address FROM technicians WHERE id = $1`, [tech]))[0]!.home_address, { ...HOME, line2: "Unit B" });
+  await principal.gateway.updateTechnician({ technicianId: tech, homeAddress: HOME });
 });
 
 test("a crew of another employer is refused by the handler, and by 0020's trigger on a path that skips it", { skip }, async () => {

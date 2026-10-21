@@ -39,7 +39,7 @@ const as = (roles: string[]): Principal => ({
   namespace: "internal", subjectId: U(1), orgId: INTERNAL_ORG_ID, regionId: REGION, scopeTier: "parent", scopeId: INTERNAL_ORG_ID,
   roles, firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "sess-1",
 });
-const owner = as(["account_owner"]), office = as(["office_manager"]);
+const owner = as(["account_owner"]), principalRole = as(["principal"]), office = as(["office_manager"]);
 let seq = 0;
 const uowFor = async (tx: Tx, p: Principal) =>
   createUnitOfWork({ surfaceId: "S2", principal: p, requestId: "r", now: () => new Date("2026-10-21T15:00:00Z"), newId: () => U(200 + ++seq) }, tx);
@@ -80,6 +80,16 @@ test("a firm's technician is the firm's row; the audit says an address was recor
   assert.equal(events[0]!.topic, "technician.recorded");
   assert.doesNotMatch(JSON.stringify(audits), /Elm St|Garland|75040/, "no address value in the audit row");
   assert.doesNotMatch(JSON.stringify(events), /Elm St|Garland|75040/, "no address value on the event");
+});
+
+test("a principal reads, records and changes the home address as an account owner does", async () => {
+  const seen = await listTechnicians(await uowFor(db().tx, principalRole), {}, principalRole);
+  assert.deepEqual(seen.technicians[0]!.homeAddress, HOME);
+  assert.equal(seen.technicians[0]!.addressRestricted, false);
+  const s = db();
+  await recordTechnician(await uowFor(s.tx, principalRole), { name: "Ana Reyes", homeAddress: HOME, specialties: [], homeRegionId: REGION }, principalRole, newId);
+  assert.ok(s.queries.some((q) => q.sql.startsWith("INSERT INTO technicians") && q.params[7] === JSON.stringify(HOME)));
+  await updateTechnician(await uowFor(db().tx, principalRole), { technicianId: TECH, homeAddress: null }, principalRole);
 });
 
 test("only an account owner records or changes a home address — refused by name, not silently dropped", async () => {

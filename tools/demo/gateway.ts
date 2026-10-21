@@ -10,7 +10,7 @@
  * (term resolution, override admission, the compliance gate, context
  * resolution) the real module is imported and run.
  */
-import { OPERATIONS, OFFICE_JOB_TRANSITIONS, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, routeKey, type OperationId } from "../../packages/contracts/src/operations.ts";
+import { OPERATIONS, OFFICE_JOB_TRANSITIONS, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, routeKey, mayReadTechnicianAddress, type OperationId } from "../../packages/contracts/src/operations.ts";
 import type * as W from "../../packages/contracts/src/operations.ts";
 import { SURFACES, type SurfaceId } from "../../packages/contracts/src/surfaces.ts";
 import type { Principal } from "../../packages/contracts/src/scope.ts";
@@ -164,7 +164,7 @@ const crews: Crew[] = [
   { id: C.fr1, label: "Front Range — Crew 1", employmentType: "subcontracted", firmId: FIRM_C, homeRegionId: REGION_MOUNTAIN, active: true },
 ];
 
-/** 0020 — the roster. Fictional people; 555 numbers. The address is served to account owners only, as the gateway does. */
+/** 0020 — the roster. Fictional people; 555 numbers. The address is served to account owners and principals only, as the gateway does. */
 type Tech = Omit<W.TechnicianWire, "addressRestricted">;
 const tech = (name: string, firmId: string | null, crewId: string, phone: string, line1: string, city: string, postal: string, specialties: W.TechnicianSpecialty[]): Tech =>
   ({ id: uid("t"), firmId, crewId, name, phone, homeAddress: { line1, city, state: "TX", postal }, specialties, homeRegionId: REGION_SOUTH, active: true });
@@ -177,7 +177,7 @@ const technicians: Tech[] = [
   tech("Dee Alvarez", FIRM_B, C.gc1, "(469) 555-0130", "618 Sunnyvale St", "Irving", "75061", ["refrigeration"]),
 ];
 const techWire = (t: Tech, p: Principal): W.TechnicianWire => {
-  const sees = p.roles.includes("account_owner");
+  const sees = mayReadTechnicianAddress(p.roles);
   return { ...t, homeAddress: sees ? t.homeAddress : null, addressRestricted: !sees };
 };
 
@@ -874,7 +874,7 @@ const H: Partial<Record<OperationId, Handler>> = {
   },
   "technicians.record": (i: W.RecordTechnicianInput, { surface, p }) => {
     need(i.name?.trim(), "name is required", "empty_name");
-    if (i.homeAddress && !p.roles.includes("account_owner")) throw input422("home addresses are recorded and read by account owners only — leave the address for an account owner to enter", "address_restricted");
+    if (i.homeAddress && !mayReadTechnicianAddress(p.roles)) throw input422("home addresses are recorded and read by account owners and principals only — leave the address for one of them to enter", "address_restricted");
     const firm = i.firmId ? firms.find((f) => f.id === i.firmId) : null;
     if (i.firmId) need(firm, `no firm ${i.firmId} visible in this scope`, "unknown_firm");
     if (firm?.status === "terminated") throw input422(`firm ${firm.legalName} is terminated — it fields no technicians for us`, "firm_ended");
@@ -886,7 +886,7 @@ const H: Partial<Record<OperationId, Handler>> = {
   "technicians.update": (i: W.UpdateTechnicianInput, { surface, p }) => {
     const t = technicians.find((x) => x.id === i.technicianId);
     need(t, `no technician ${i.technicianId} visible in this scope`, "unknown_technician");
-    if (i.homeAddress !== undefined && !p.roles.includes("account_owner")) throw input422("home addresses are recorded and read by account owners only", "address_restricted");
+    if (i.homeAddress !== undefined && !mayReadTechnicianAddress(p.roles)) throw input422("home addresses are recorded and read by account owners and principals only", "address_restricted");
     if (i.crewId) need(crews.find((c) => c.id === i.crewId)?.firmId === t!.firmId, "put a technician on a crew of the employer they work for", "crew_employer_mismatch");
     Object.assign(t!, {
       ...(i.name !== undefined ? { name: i.name.trim() } : {}), ...(i.phone !== undefined ? { phone: i.phone.trim() || null } : {}),

@@ -252,17 +252,17 @@ export const OPERATIONS = {
   "technicians.list": {
     id: "technicians.list", method: "GET", path: "/network/technicians", kind: "query", auth: "bearer",
     surfaces: ["S2"], carrier: "query", sdkMethod: "listTechnicians",
-    summary: "The technician roster — name, phone, specialties, crew, and the home address for an account owner (restricted for every other role). Optionally one firm's.",
+    summary: "The technician roster — name, phone, specialties, crew, and the home address for an account owner or principal (restricted for every other role). Optionally one firm's.",
   },
   "technicians.record": {
     id: "technicians.record", method: "POST", path: "/s2/network/technicians", kind: "mutation", auth: "bearer",
     surfaces: ["S2"], carrier: "body", sdkMethod: "recordTechnician",
-    summary: "Add a technician: ours (no firm) or a firm's. A crew named belongs to the same employer. Only an account owner may record a home address.",
+    summary: "Add a technician: ours (no firm) or a firm's. A crew named belongs to the same employer. Only an account owner or principal may record a home address.",
   },
   "technicians.update": {
     id: "technicians.update", method: "POST", path: "/s2/network/technicians/update", kind: "mutation", auth: "bearer",
     surfaces: ["S2"], carrier: "body", sdkMethod: "updateTechnician",
-    summary: "Name, phone, specialties, crew, active — and the home address, by an account owner only. Never the employer: a technician who changes firm is a new row.",
+    summary: "Name, phone, specialties, crew, active — and the home address, by an account owner or principal only. Never the employer: a technician who changes firm is a new row.",
   },
   "credentials.list": {
     id: "credentials.list", method: "GET", path: "/network/credentials", kind: "query", auth: "bearer",
@@ -1097,6 +1097,10 @@ export type CreateCrewOutput = { readonly id: string; readonly regionId: string;
 export type UpdateCrewInput = { readonly crewId: string; readonly label?: string; readonly active?: boolean };
 export type UpdateCrewOutput = { readonly id: string; readonly eventId: string };
 
+/** 0020: the office roles that read and write a technician's home address. Every other role reads it as restricted. One list, read by the gateway, S2 and the demo. */
+export const TECHNICIAN_ADDRESS_ROLES = ["account_owner", "principal"] as const;
+export const mayReadTechnicianAddress = (roles: readonly string[]): boolean => roles.some((r) => (TECHNICIAN_ADDRESS_ROLES as readonly string[]).includes(r));
+
 /** 0020. Mirrors TECHNICIAN_SPECIALTIES in packages/schema (the column's CHECK); a test holds them equal. */
 export const TECHNICIAN_SPECIALTIES = ["residential_hvac", "light_commercial", "commercial_rtu", "refrigeration", "chillers_boilers", "controls_bas", "install", "ductwork"] as const;
 export type TechnicianSpecialty = (typeof TECHNICIAN_SPECIALTIES)[number];
@@ -1109,7 +1113,7 @@ export type TechnicianWire = {
   readonly phone: string | null;
   /** Null when none is recorded OR when this principal may not read it — `addressRestricted` says which. */
   readonly homeAddress: AddressWire | null;
-  /** True for every role but account_owner: the address exists or not, and this reader is not told. */
+  /** True for every role outside TECHNICIAN_ADDRESS_ROLES: the address exists or not, and this reader is not told. */
   readonly addressRestricted: boolean;
   readonly specialties: readonly TechnicianSpecialty[];
   readonly homeRegionId: string;
@@ -1123,7 +1127,7 @@ export type RecordTechnicianInput = {
   readonly firmId?: string;
   readonly crewId?: string;
   readonly phone?: string;
-  /** Account owners only. */
+  /** Account owners and principals only. */
   readonly homeAddress?: AddressWire;
   readonly specialties: readonly TechnicianSpecialty[];
   /** OUR region they work from; the row's tenancy region. */
@@ -1135,7 +1139,7 @@ export type UpdateTechnicianInput = {
   readonly name?: string;
   /** Empty string clears it. */
   readonly phone?: string;
-  /** Account owners only. Null clears it. */
+  /** Account owners and principals only. Null clears it. */
   readonly homeAddress?: AddressWire | null;
   readonly specialties?: readonly TechnicianSpecialty[];
   /** Null takes them off their crew. */

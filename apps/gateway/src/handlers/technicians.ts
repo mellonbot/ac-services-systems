@@ -4,7 +4,7 @@ import { requireUuid, requireText } from "./jobs.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import {
-  TECHNICIAN_SPECIALTIES,
+  TECHNICIAN_SPECIALTIES, mayReadTechnicianAddress,
   type AddressWire, type TechnicianSpecialty, type TechnicianWire,
   type ListTechniciansInput, type ListTechniciansOutput, type RecordTechnicianInput, type RecordTechnicianOutput,
   type UpdateTechnicianInput, type UpdateTechnicianOutput,
@@ -19,14 +19,14 @@ import {
  *     who changes firm is a new row, the same rule a crew follows.
  *   - A CREW NAMED BELONGS TO THE SAME EMPLOYER. Said here by name; 0020's
  *     ac_technician_crew_is_the_employers says it for every other path.
- *   - THE HOME ADDRESS IS AN ACCOUNT OWNER'S. Every other office role reads it
+ *   - THE HOME ADDRESS IS AN ACCOUNT OWNER'S OR A PRINCIPAL'S (TECHNICIAN_ADDRESS_ROLES). Every other office role reads it
  *     as restricted (the row says so; whether one exists is not disclosed) and
  *     may not write it. Address values never enter the audit row or the event
  *     payload — the audit records that the field changed, not to what.
  */
 const ADDRESS_KEYS = ["line1", "line2", "city", "state", "postal", "country"] as const;
 
-export const mayReadAddress = (p: Pick<Principal, "roles">): boolean => p.roles.includes("account_owner");
+export const mayReadAddress = (p: Pick<Principal, "roles">): boolean => mayReadTechnicianAddress(p.roles);
 
 const optionalPhone = (v: unknown): string | null => {
   if (v === undefined || v === "") return null;
@@ -55,7 +55,7 @@ const requireSpecialties = (v: unknown): TechnicianSpecialty[] => {
 };
 
 const addressRefused = () =>
-  new InputRefused("home addresses are recorded and read by account owners only — leave the address for an account owner to enter", "address_restricted");
+  new InputRefused("home addresses are recorded and read by account owners and principals only — leave the address for one of them to enter", "address_restricted");
 
 type TechRow = {
   id: string; org_id: string; region_id: string; firm_id: string | null; crew_id: string | null; name: string; phone: string | null;
