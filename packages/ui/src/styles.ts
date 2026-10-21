@@ -288,6 +288,17 @@ ac-degraded[hidden]{display:none}
 /* A notice is a state with a sentence beside it: outlined in the state's own
    ink, with the 3px top rule a refusal card carries. It is state-bearing, so
    no accent role enters it (STATE_BEARING_SELECTORS). */
+/* The customer card: S6's account / home card, drawn once. A card on the page ground — one radius, one elevation, no new ink. */
+.ac-customer-card{display:flex;flex-direction:column;gap:var(--space-2);width:var(--measure-short);max-width:100%;padding:var(--space-4);background:var(--color-surface);border:1px solid var(--color-border-hard);border-radius:var(--radius-card);box-shadow:var(--elevation-card);color:var(--color-text)}
+.ac-customer-card__head{display:flex;flex-direction:column;gap:2px}
+.ac-customer-card__name{margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
+.ac-customer-card__sub,.ac-customer-card__muted{margin:0;color:var(--color-text-muted);font-size:var(--text-sm)}
+.ac-customer-card__address,.ac-customer-card__membership{margin:0}
+.ac-customer-card__units{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.ac-customer-card__units li{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);padding:var(--space-2) 0;border-top:1px solid var(--color-border)}
+.ac-customer-card__unit{font-weight:600}
+.ac-customer-card__plans{display:flex;flex-wrap:wrap;gap:var(--space-1)}
+.ac-customer-card__plan{display:inline-flex;align-items:center;padding:0 var(--space-2);border:1px solid var(--color-border-hard);border-radius:var(--radius-pill);font-size:var(--text-sm)}
 .ac-notice{margin:0;padding:var(--space-3);max-width:var(--measure-text);background:var(--color-surface);border:1px solid var(--notice-color,var(--color-border-hard));border-top:3px solid var(--notice-color,var(--color-border-hard));border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 .ac-notice[data-tone="ok"]{--notice-color:var(--color-status-ok)}
 .ac-notice[data-tone="at_risk"]{--notice-color:var(--color-status-at-risk)}

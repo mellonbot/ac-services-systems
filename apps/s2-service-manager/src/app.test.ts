@@ -4,7 +4,7 @@ import { renderToString as render } from "../../../packages/ui/src/testing.ts";
 import { createApp, gatewayOrigin, SCREEN_VIEWS } from "./app.ts";
 import { SCREENS } from "./screens.ts";
 import { confirmPanel } from "./screens/common.ts";
-import { orderTree, showSegment } from "./screens/accounts-tree.ts";
+import { orderTree, showSegment, showCustomerCard } from "./screens/accounts-tree.ts";
 import { parentCandidates } from "./screens/accounts-move.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { Principal, AccountWire, HierarchyContext } from "../../../packages/contracts/src/index.ts";
@@ -56,6 +56,13 @@ const fakeGateway = () => {
     if (path === OPERATIONS["organizations.list"].path) return reply(200, { organizations: [{ id: ORG, name: "Amped Fitness Inc.", kind: "customer", segment: "commercial", externalRef: null, active: true, regionNodeCount: 2 },
       { id: "0e000000-0000-4000-8000-000000000099", name: "Turner residence", kind: "customer", segment: "residential", externalRef: null, active: true, regionNodeCount: 1 }] });
     if (path === OPERATIONS["accounts.list"].path) return reply(200, { nodes: NODES });
+    if (path === OPERATIONS["contracts.list"].path) {
+      const residential = new URL(url).searchParams.get("orgId") !== ORG;
+      return reply(200, { contracts: [{ id: U(70), scopeTier: "parent", scopeId: ORG, kind: "msa", parentContractId: null, billingPath: residential ? "residential_membership" : "enterprise_sla", regionId: SOUTH, signedAt: "2025-07-09", effectiveFrom: "2025-07-09", effectiveTo: null, diagnosticDataRightsReserved: true, documentKey: null, state: "active" }] });
+    }
+    if (path === OPERATIONS["equipment.list"].path) return reply(200, { equipment: [
+      { id: U(80), siteId: ROOF, kind: "heat_pump", label: null, manufacturer: "Trane", model: "XR15", serial: null, installedOn: null, tonnageMilli: "3000", active: true, lastServicedAt: null, lastServicedJobId: null, lastServicedServiceCode: null, jobCount: 0 },
+    ] });
     if (path === OPERATIONS["firms.list"].path) return reply(200, { firms: [
       { id: U(60), legalName: "Cool Air Partners LLC", status: "active", regionId: SOUTH, settlementTermsDays: 30, msaSignedAt: "2026-09-01", diagnosticDataRightsReserved: true, w9DocumentKey: null, crewCount: 2, activeCrewCount: 2 },
       { id: U(61), legalName: "North Texas Mechanical", status: "onboarding", regionId: SOUTH, settlementTermsDays: 45, msaSignedAt: null, diagnosticDataRightsReserved: false, w9DocumentKey: null, crewCount: 0, activeCrewCount: 0 },
@@ -168,6 +175,37 @@ test("Technician Network: AC Services DFW first, then a tab per firm that can st
   assert.match(own, /data-current="true" aria-current="page" href="\/network">AC Services DFW/);
   assert.match(own, /<h1 class="ac-page-head__title">Technician Network<\/h1>/);
   assert.match(own, /<li>Technician Network<\/li><li aria-current="location">AC Services DFW<\/li>/);
+});
+
+test("hovering a customer shows S6's card for it: a commercial account's sites and plan, a homeowner's home, units and membership", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  const cardOf = async (orgId: string) => {
+    showCustomerCard(orgId);
+    for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+    const out = render(app.view());
+    return out.includes('role="tooltip"') ? out.split('role="tooltip"')[1]!.split("</article>")[0]! : "";
+  };
+  render(app.view()); await settle();
+
+  const commercial = await cardOf(ORG);
+  assert.match(commercial, /Amped Fitness Inc\./);
+  assert.match(commercial, /Commercial/);
+  assert.match(commercial, /<span class="ac-num">1<\/span> site across <span class="ac-num">1<\/span> location/);
+  assert.match(commercial, /Enterprise SLA/);
+
+  const home = await cardOf("0e000000-0000-4000-8000-000000000099");
+  assert.match(home, /Turner residence/);
+  assert.match(home, /Residential/);
+  assert.match(home, /Heat pump/);
+  assert.match(home, /Trane XR15/);
+  assert.match(home, /Premium Cool Club<\/strong> · member since/);
+
+  showCustomerCard(null);
+  assert.doesNotMatch(render(app.view()), /role="tooltip"/);
+  // The name carries the hover AND the focus handlers — keyboard users get the card too.
+  assert.match(render(app.view()), /<a class="ac-link" href="\/accounts\/a2000000-0000-0000-0000-000000000001"/);
 });
 
 test("the tree screen: customers on the left, the selected tree ordered region → location → site with OUR region on every row", async () => {

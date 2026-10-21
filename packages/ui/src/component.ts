@@ -66,7 +66,13 @@ export const RefusalNoticeSpec = declare({
   notes: "RefusalCard's plain sibling: the same heading, the gateway's message verbatim, a way forward — and none of the axis, tiers or code, which are the office's to act on. For every reader who cannot act on a refusal: a customer, a firm, a vendor, a stranger, a crew, and the read-only dashboard.",
 });
 
+export const CustomerCardSpec = declare({
+  name: "CustomerCard",
+  densities: ["console", "comfort"] as const,
+  notes: "What the customer sees of themselves — S6's account card for a commercial customer, its home card for a homeowner — drawn once, so the office's hover in S2 shows the same card. Read-only. No field variant: a crew reads the job, not the account.",
+});
+
 /** Every spec, for the guard and the docs. */
 export const COMPONENT_SPECS = Object.freeze([
-  DataGridSpec, ComplianceBadgeSpec, StatusPillSpec, PrimaryActionSpec, RefusalCardSpec, DegradedBannerSpec, RefusalNoticeSpec,
+  DataGridSpec, ComplianceBadgeSpec, StatusPillSpec, PrimaryActionSpec, RefusalCardSpec, DegradedBannerSpec, RefusalNoticeSpec, CustomerCardSpec,
 ] as const);

@@ -42,6 +42,8 @@ export const S2_CSS = `
 .s2-terms dd{margin:0}
 .s2-firm{display:flex;flex-direction:column;gap:var(--space-3)}
 .s2-muted{color:var(--color-text-muted)}
+/* The customer card beside a hovered or focused name in the Accounts list. Positioned from the name's own box; never takes the pointer, so it cannot trap a hover. */
+.s2-hovercard{position:fixed;z-index:20;pointer-events:none}
 /* Every numeral in the company is instrument face with tabular figures — a phone number included — and does not break mid-number. */
 .s2-num{font-family:var(--font-instrument);font-variant-numeric:tabular-nums;white-space:nowrap}
 .s2-chips{display:flex;flex-wrap:wrap;gap:var(--space-1)}

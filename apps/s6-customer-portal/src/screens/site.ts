@@ -29,10 +29,8 @@ import { slaStatus, isOpen, STATE_WORD } from "./work.ts";
  * ordinary state the card draws — the address is the fact, the picture is
  * a courtesy — so a portal with no provider configured is complete, not broken.
  */
-export const KIND_WORD: Readonly<Record<EquipmentKind, string>> = {
-  rtu: "Rooftop unit", split: "Split system", package: "Package unit", ahu: "Air handler", chiller: "Chiller", boiler: "Boiler",
-  heat_pump: "Heat pump", mini_split: "Mini-split", vrf: "VRF", exhaust: "Exhaust fan", mau: "Make-up air", controls: "Controls", other: "Other equipment",
-};
+import { KIND_WORD, addressLines } from "../../../../packages/ui/src/index.ts";
+export { KIND_WORD, addressLines };
 /** The short form for the count line — "3 RTU · 1 AHU". */
 export const KIND_ABBR: Readonly<Record<EquipmentKind, string>> = {
   rtu: "RTU", split: "Split", package: "Pkg", ahu: "AHU", chiller: "Chiller", boiler: "Boiler", heat_pump: "HP", mini_split: "Mini-split",
@@ -61,11 +59,6 @@ export const tons = (milli: string | null): string => {
   return frac ? `${n / 1000n}.${frac}` : `${n / 1000n}`;
 };
 
-export const addressLines = (a: AddressWire | null): readonly string[] => {
-  if (!a) return [];
-  const cityLine = [a.city, [a.state, a.postal].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-  return [a.line1, a.line2, cityLine, a.country].filter((s): s is string => Boolean(s && s.trim()));
-};
 
 /** One row of the ledger, whatever it came from. Newest first. */
 export type LedgerEntry = {
