@@ -1,4 +1,4 @@
-import { html, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { RateCardWire, FirmWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen } from "./common.ts";
@@ -88,14 +88,10 @@ export const networkRates: Screen = (ctx, params) => {
   return html`<section class="s2-form-screen">
     ${whenReady(ctx, firms.value, (f) => {
       const firm = f.firms.find((x: FirmWire) => x.id === firmId);
-      return html`<header class="s2-tree__head">
-        <h2 class="s2-h2">${firm?.legalName ?? "Firm"} — rate card</h2>
-        ${linkTo(ctx, "network", { firmId }, "Back to the firm")}
-      </header>`;
+      return pageHead(`${firm?.legalName ?? "Firm"} — rate card`, "A firm's rates over time, each with its window; setting a rate from a day closes the one in effect and opens the new one.", linkTo(ctx, "network", { firmId }, "Back to the firm"));
     })}
-    ${whenReady(ctx, cards.value, (c) => grid(c.rateCards))}
-    <h3 class="s2-h2">Set a rate from a day</h3>
-    <form class="ac-form" onSubmit=${submit} id="rate-form">
+    ${panel(whenReady(ctx, cards.value, (c) => grid(c.rateCards)))}
+    ${panel(html`<form class="ac-form" onSubmit=${submit} id="rate-form">
       <label class="ac-field"><span>Service code</span><input class="ac-input" name="serviceCode" required placeholder="HVAC_REPAIR" /></label>
       <label class="ac-field">
         <span>Rate (minor units)</span>
@@ -108,7 +104,7 @@ export const networkRates: Screen = (ctx, params) => {
       <div class="s2-form__actions">
         ${submitAction(ctx, outcome.value.busy ? "Setting…" : "Set rate", "set-rate")}
       </div>
-    </form>
+    </form>`, "Set a rate from a day")}
     ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: false }; } }]) : null}
   </section>`;
 };

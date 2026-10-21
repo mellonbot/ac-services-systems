@@ -131,6 +131,8 @@ test("the board shows every job with its SLA glyph, its crew, and offers Dispatc
   assert.match(out, /Technician location unavailable/);
   assert.match(out, /No routes or vehicle positions are being inferred/);
   assert.match(out, /aria-label="Filter jobs"/);
+  assert.equal((out.match(/class="ac-page-head"/g) ?? []).length, 1, "one page head");
+  assert.match(out, /<h1 class="ac-page-head__title">Dispatch Board<\/h1>/);
   assert.doesNotMatch(out, />Field App</);
   assert.doesNotMatch(out, />Customer Portal</);
   assert.doesNotMatch(out, /data-latitude|data-longitude|latitude|longitude/i);
@@ -176,6 +178,8 @@ test("dispatch: the dry run renders as ComplianceBadge with the gate's own reaso
   assert.match(out, /Crew B1/);
   assert.match(out, /Cleared/);
   assert.match(out, /Not cleared — expired in window/);
+  assert.match(out, /<h1 class="ac-page-head__title">Dispatch — hvac_repair<\/h1>/);
+  assert.match(out, /<h2 class="ac-panel__title">Candidate crews<\/h2>/);
   assert.match(out, new RegExp(`href="/customer/site/${SITE}"[^>]*>Austin — Roof</a>`));
   assert.match(out, new RegExp(`id="assign-${CREW_A}"`));
   assert.doesNotMatch(out, new RegExp(`id="assign-${CREW_B}"`), "an uncleared crew has no Assign button — there is no override path here or at the gateway");
@@ -226,6 +230,7 @@ test("the dark dispatch bar is the only navigation, and its Sign out ends the se
   const page = render(app.view());
   assert.equal((page.match(/class="dispatch-header"/g) ?? []).length, 1, "one bar");
   assert.equal(page.includes('class="ac-nav"'), false, "the old nav above it is gone");
+  assert.match(page, /<nav class="ac-seg" aria-label="Dispatch navigation"><a class="ac-seg__item" href="[^"]*\/board" data-current="true" aria-current="page"/, "the bar's nav is the segmented control, the board raised");
   assert.match(page, /dispatcher · AC Services/, "who is signed in stays on screen");
   const signOut = nodesIn(app.view()).filter((n) => n.props?.class === "dispatch-header__logout");
   assert.equal(signOut.length, 1, "one Sign out");

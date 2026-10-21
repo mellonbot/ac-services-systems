@@ -84,6 +84,10 @@ test("PURCHASING: orders with their state in words, vendors, and receiving point
   assert.match(out, /Acknowledged/);
   assert.match(out, /Coolair Supply/);
   assert.match(out, /id="vendor-form"/);
+  assert.equal(out.match(/<h1/g)?.length, 1, "one page head per screen");
+  assert.match(out, /<h2 class="ac-panel__title">Purchase orders<\/h2>/);
+  assert.match(out, /<h2 class="ac-panel__title">Vendors<\/h2>/);
+  assert.match(out, /<h2 class="ac-panel__title">Receiving points<\/h2>/);
 });
 
 test("VENDOR: the proposal waits on the office; only items with an accepted price can be ordered", async () => {
@@ -94,6 +98,8 @@ test("VENDOR: the proposal waits on the office; only items with an accepted pric
   assert.match(out, /46\.00 USD from 2026-10-01/);
   assert.match(out, />Accept</);
   assert.match(out, /CAP-45-5 — Run capacitor 45\/5 at 42\.50 USD/);
+  assert.equal(out.match(/<h1/g)?.length, 1, "one page head per screen");
+  assert.match(out, /<header class="ac-page-head">[\s\S]*Coolair Supply — catalogue/);
   assert.doesNotMatch(out, /FLT-20 — Filter 20x25 at/, "an item with no accepted price is not orderable");
   assert.ok(g.calls.every((c) => c.path !== OPERATIONS["prices.decide"].path), "nothing decided until the office presses Accept");
 });
@@ -113,4 +119,6 @@ test("ORDER: per-line ordered, shipped, received, invoiced; a receipt form for w
   assert.match(out, /UPS 1Z999/);
   assert.match(out, /id="return-form"/, "received goods can be returned");
   assert.doesNotMatch(out, /id="issue-po"/, "an acknowledged order is not issued again");
+  assert.equal(out.match(/<h1/g)?.length, 1, "one page head per screen");
+  for (const h of ["Receive goods", "Shipments", "Vendor invoices", "Returns"]) assert.match(out, new RegExp(`<h2 class="ac-panel__title">${h}</h2>`));
 });

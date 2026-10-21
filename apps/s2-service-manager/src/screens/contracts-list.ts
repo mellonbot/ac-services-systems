@@ -1,4 +1,4 @@
-import { html, pageHead, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, ContractWire, ContractState, OrganizationWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { signal } from "../../../../packages/ui/src/index.ts";
 import { keyOf } from "../state.ts";
@@ -67,16 +67,7 @@ export const contractsList: Screen = (ctx, params) => {
   const scopeName = (c: ContractWire, nodes: readonly AccountWire[], org: OrganizationWire | undefined): string =>
     c.scopeTier === "parent" ? (org?.name ?? c.scopeId) : (nodes.find((n) => n.id === c.scopeId)?.name ?? c.scopeId);
 
-  const grid = (contracts: readonly ContractWire[], nodes: readonly AccountWire[], org: OrganizationWire | undefined): VNode => html`
-    <section class="s2-contracts" aria-label="Agreements">
-      <header class="s2-tree__head">
-        <h2 class="s2-h2">${org?.name ?? "Customer"} — agreements</h2>
-        <span class="s2-row-actions">
-          ${linkTo(ctx, "contracts.new", { orgId: orgId! }, "+ Agreement", "ac-action s2-link--action")}
-          ${linkTo(ctx, "terms.override", { orgId: orgId! }, "Term overrides")}
-          ${linkTo(ctx, "terms.resolved", { orgId: orgId! }, "Resolved terms")}
-        </span>
-      </header>
+  const grid = (contracts: readonly ContractWire[], nodes: readonly AccountWire[], org: OrganizationWire | undefined): VNode => panel(html`
       ${DataGrid({
         density: ctx.density,
         columns: [
@@ -115,12 +106,20 @@ export const contractsList: Screen = (ctx, params) => {
         rows: contracts, rowKey: (c: ContractWire) => c.id,
         emptyText: "No agreements recorded for this customer yet.",
       })}
-      ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: "", pending: null }; } }]) : null}
-    </section>`;
+      ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: "", pending: null }; } }]) : null}`,
+    `${org?.name ?? "Customer"} — agreements`, undefined,
+    html`<span class="s2-row-actions">
+      ${linkTo(ctx, "contracts.new", { orgId: orgId! }, "+ Agreement", "ac-action s2-link--action")}
+      ${linkTo(ctx, "terms.override", { orgId: orgId! }, "Term overrides")}
+      ${linkTo(ctx, "terms.resolved", { orgId: orgId! }, "Resolved terms")}
+    </span>`, "agreements");
+
+  const head = pageHead("Agreements", "The signed agreements for each customer and where each one stands. Terms set in an agreement flow down its tree unless a closer node overrides them.");
+  const orgPanel = panel(whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations)));
 
   if (!orgId) {
-    return html`<div class="s2-two-col">
-      <aside class="s2-col--orgs">${whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations))}</aside>
+    return html`${head}<div class="s2-two-col">
+      <aside class="s2-col--orgs">${orgPanel}</aside>
       <p class="s2-empty">Pick a customer to see what they are served under.</p>
     </div>`;
   }
@@ -128,8 +127,8 @@ export const contractsList: Screen = (ctx, params) => {
   const contracts = store.read(keyOf("contracts.list", { orgId }), () => shell.gateway.listContracts({ orgId }));
   const tree = store.read(keyOf("accounts.list", { orgId }), () => shell.gateway.listAccounts({ orgId }));
 
-  return html`${pageHead("Agreements", "The signed agreements for each customer and where each one stands. Terms set in an agreement flow down its tree unless a closer node overrides them.")}<div class="s2-two-col">
-    <aside class="s2-col--orgs">${whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations))}</aside>
+  return html`${head}<div class="s2-two-col">
+    <aside class="s2-col--orgs">${orgPanel}</aside>
     ${whenReady(ctx, contracts.value, (c) =>
       whenReady(ctx, tree.value, (t) =>
         whenReady(ctx, orgs.value, (o) => grid(c.contracts, t.nodes, o.organizations.find((x) => x.id === orgId)))))}

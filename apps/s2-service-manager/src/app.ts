@@ -1,4 +1,4 @@
-import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, pageHead, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type AccountWire, type CrewWire, type FirmWire, type OrganizationWire, type PurchaseOrderDetailOutput, type Refusal, type VendorWire } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -279,7 +279,7 @@ export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: 
     login(String(f.get("email") ?? ""), String(f.get("password") ?? ""));
   };
   return html`<section class="s2-login">
-    <h1 class="s2-h1">${SURFACE.name}</h1>
+    ${pageHead(SURFACE.name, "Sign in to keep customer records, the subcontractor network and purchasing.")}
     <form class="ac-form" onSubmit=${submit} id="login-form">
       <label class="ac-field"><span>Email</span><input class="ac-input" name="email" type="email" required autocomplete="username" /></label>
       <label class="ac-field"><span>Password</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>

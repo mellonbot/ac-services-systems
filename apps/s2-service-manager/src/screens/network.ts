@@ -1,4 +1,4 @@
-import { html, pageHead, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { FirmWire, FirmStatus, CrewWire, CrewDocumentSummary, RegionWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, linkTo, confirmPanel, type Screen, type ScreenContext } from "./common.ts";
@@ -58,11 +58,7 @@ export const network: Screen = (ctx, params) => {
   const firms = store.read(keyOf("firms.list"), () => shell.gateway.listFirms({}));
   const regions = store.read(keyOf("regions.list"), () => shell.gateway.listRegions());
 
-  const firmGrid = (list: readonly FirmWire[]): VNode => html`<section aria-label="Firms">
-    <header class="s2-tree__head">
-      <h2 class="s2-h2">Firms</h2>
-      ${linkTo(ctx, "network.firm.new", {}, "+ Firm", "ac-action s2-link--action")}
-    </header>
+  const firmGrid = (list: readonly FirmWire[]): VNode => panel(html`
     ${DataGrid({
       density: ctx.density,
       columns: [
@@ -74,8 +70,8 @@ export const network: Screen = (ctx, params) => {
       onSelect: (f: FirmWire) => ctx.router.navigate("network", { firmId: f.id }),
       emptyText: "No firms recorded yet.",
     })}
-    <p class="s2-muted">${linkTo(ctx, "network", {}, "Our crews")}</p>
-  </section>`;
+    <p class="s2-muted">${linkTo(ctx, "network", {}, "Our crews")}</p>`,
+    "Firms", undefined, linkTo(ctx, "network.firm.new", {}, "+ Firm", "ac-action s2-link--action"), "firms");
 
   const step = async (f: FirmWire, to: Exclude<FirmStatus, "onboarding">) => {
     if (ctx.degraded || outcome.value.busy) return;
@@ -123,30 +119,8 @@ export const network: Screen = (ctx, params) => {
   const firmDetail = (f: FirmWire, regionList: readonly RegionWire[]): VNode => {
     const crews = store.read(keyOf("crews.list", { firmId: f.id }), () => shell.gateway.listCrews({ firmId: f.id }));
     const busy = ctx.degraded || outcome.value.busy === f.id;
-    return html`<section class="s2-firm" aria-label="Firm">
-      <header class="s2-tree__head">
-        <h2 class="s2-h2">${f.legalName} ${stateMark(f.status)}</h2>
-        <span class="s2-row-actions">
-          ${NEXT_FIRM[f.status].map((to) => {
-            const pending = outcome.value.pending?.id === f.id && outcome.value.pending.to === to;
-            const destructive = to === "terminated" || to === "suspended";
-            return html`<button type="button" class=${`s2-mutation${destructive ? " s2-mutation--danger" : ""}`} id=${`step-${to}`} aria-expanded=${pending} aria-controls=${pending ? `confirm-firm-${f.id}` : undefined} disabled=${busy || outcome.value.pending !== null} onClick=${() => { outcome.value = { ...outcome.value, pending: { id: f.id, to } }; }}>${STEP_LABEL[to]}</button>
-              ${pending ? confirmPanel({
-                id: `confirm-firm-${f.id}`,
-                title: `${STEP_LABEL[to]} this firm?`,
-                detail: `${f.legalName} · currently ${f.status}. This changes the firm's recorded operating state.`,
-                confirmLabel: `${STEP_LABEL[to]} firm`,
-                danger: destructive,
-                busy: outcome.value.busy === f.id,
-                disabled: ctx.degraded,
-                onConfirm: () => { void step(f, to); },
-                onCancel: () => { outcome.value = { ...outcome.value, pending: null }; },
-              }) : null}`;
-          })}
-          ${linkTo(ctx, "network.rates", { firmId: f.id }, "Rate card")}
-        </span>
-      </header>
-      <dl class="s2-terms">
+    return html`<div class="s2-firm">
+      ${panel(html`<dl class="s2-terms">
         <dt>Dispatched from</dt><dd>${regionList.find((r) => r.id === f.regionId)?.name ?? f.regionId}</dd>
         <dt>Settlement terms</dt><dd>${f.settlementTermsDays} days (D13)</dd>
         <dt>MSA</dt><dd>${f.msaSignedAt
@@ -158,26 +132,36 @@ export const network: Screen = (ctx, params) => {
             </form>`}</dd>
         <dt>Data rights (OQ5)</dt><dd>${StatusPill({ density: ctx.density, status: f.diagnosticDataRightsReserved ? "ok" : "at_risk", label: f.diagnosticDataRightsReserved ? "Reserved" : "Not reserved" })}</dd>
         <dt>W-9</dt><dd>${f.w9DocumentKey ?? html`<span class="s2-muted">not on file</span>`}</dd>
-      </dl>
-      <header class="s2-tree__head">
-        <h3 class="s2-h2">Crews</h3>
-        ${f.status === "terminated" ? null : linkTo(ctx, "network.crew.new", { firmId: f.id }, "+ Crew", "ac-action s2-link--action")}
-      </header>
-      ${whenReady(ctx, crews.value, (c) => crewGrid(c.crews, regionList, "", "No crews rostered under this firm."))}
+      </dl>`, html`${f.legalName} ${stateMark(f.status)}`, undefined, html`<span class="s2-row-actions">
+        ${NEXT_FIRM[f.status].map((to) => {
+          const pending = outcome.value.pending?.id === f.id && outcome.value.pending.to === to;
+          const destructive = to === "terminated" || to === "suspended";
+          return html`<button type="button" class=${`s2-mutation${destructive ? " s2-mutation--danger" : ""}`} id=${`step-${to}`} aria-expanded=${pending} aria-controls=${pending ? `confirm-firm-${f.id}` : undefined} disabled=${busy || outcome.value.pending !== null} onClick=${() => { outcome.value = { ...outcome.value, pending: { id: f.id, to } }; }}>${STEP_LABEL[to]}</button>
+            ${pending ? confirmPanel({
+              id: `confirm-firm-${f.id}`,
+              title: `${STEP_LABEL[to]} this firm?`,
+              detail: `${f.legalName} · currently ${f.status}. This changes the firm's recorded operating state.`,
+              confirmLabel: `${STEP_LABEL[to]} firm`,
+              danger: destructive,
+              busy: outcome.value.busy === f.id,
+              disabled: ctx.degraded,
+              onConfirm: () => { void step(f, to); },
+              onCancel: () => { outcome.value = { ...outcome.value, pending: null }; },
+            }) : null}`;
+        })}
+        ${linkTo(ctx, "network.rates", { firmId: f.id }, "Rate card")}
+      </span>`, "firm")}
+      ${panel(whenReady(ctx, crews.value, (c) => crewGrid(c.crews, regionList, "", "No crews rostered under this firm.")),
+        "Crews", undefined, f.status === "terminated" ? null : linkTo(ctx, "network.crew.new", { firmId: f.id }, "+ Crew", "ac-action s2-link--action"))}
       ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, refusalRoutes(ctx, outcome.value.refusal)) : null}
-    </section>`;
+    </div>`;
   };
 
   const ourCrews = (regionList: readonly RegionWire[]): VNode => {
     const crews = store.read(keyOf("crews.list"), () => shell.gateway.listCrews({}));
-    return html`<section aria-label="Our crews">
-      <header class="s2-tree__head">
-        <h2 class="s2-h2">Our crews</h2>
-        ${linkTo(ctx, "network.crew.new", {}, "+ Crew", "ac-action s2-link--action")}
-      </header>
-      <p class="s2-muted">Employed crews. A firm's crews are under the firm; the field layer sees neither distinction.</p>
-      ${whenReady(ctx, crews.value, (c) => crewGrid(c.crews.filter((x) => x.firmId === null), regionList, "", "No employed crews recorded yet."))}
-    </section>`;
+    return panel(whenReady(ctx, crews.value, (c) => crewGrid(c.crews.filter((x) => x.firmId === null), regionList, "", "No employed crews recorded yet.")),
+      "Our crews", "Employed crews. A firm's crews are under the firm; the field layer sees neither distinction.",
+      linkTo(ctx, "network.crew.new", {}, "+ Crew", "ac-action s2-link--action"), "our-crews");
   };
 
   return html`${pageHead("Network", "The subcontractor firms we dispatch, their crews, and whether each crew's documents clear the gate today.")}<div class="s2-two-col">

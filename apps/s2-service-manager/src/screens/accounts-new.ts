@@ -1,4 +1,4 @@
-import { html, signal, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, CreateAccountInput, Refusal, RegionWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
@@ -74,7 +74,7 @@ export const accountsNew: Screen = (ctx, params) => {
   const tree = parentId ? store.read(keyOf("accounts.list", { orgId }), () => shell.gateway.listAccounts({ orgId })) : null;
 
   return html`<section class="s2-form-screen">
-    <h2 class="s2-h2">New ${tier}</h2>
+    ${pageHead(`New ${tier}`, "Add a node to this customer's tree; a region node binds to one of our regions, and below it the region follows the parent.")}
     ${tree ? whenReady(ctx, tree.value, (t) => whenReady(ctx, regions.value, (r) => parentLine(t.nodes, r.regions))) : null}
     <form class="ac-form" onSubmit=${submit} id="account-form">
       <label class="ac-field"><span>Name</span><input class="ac-input" name="name" required autocomplete="off" /></label>

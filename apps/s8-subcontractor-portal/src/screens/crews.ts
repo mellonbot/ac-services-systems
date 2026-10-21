@@ -1,4 +1,4 @@
-import { html, pageHead, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { CrewWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { whenReady, readCrews, readFirm, firmOf, readiness, submitAction, refusalView, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
@@ -58,8 +58,8 @@ export const crews: Screen = (ctx) => {
 
   const o = outcome.value;
   return html`<section class="s8-crews">
-    ${pageHead("Crews", "Your roster. A crew is dispatched when every document the gate requires is on file, verified by Rankine, and in date for the whole service window.")}
-    ${whenReady(ctx, list.value, (out) => DataGrid<CrewWire>({
+    ${pageHead("Crews", "Your roster: a crew is dispatched when every document the gate requires is on file, verified by Rankine, and in date for the whole service window.")}
+    ${panel(whenReady(ctx, list.value, (out) => DataGrid<CrewWire>({
       density: ctx.density,
       caption: "Crews on your roster",
       emptyText: "No crews yet. Enroll one below, then file its documents.",
@@ -74,12 +74,11 @@ export const crews: Screen = (ctx) => {
             ${c.active ? html`<button type="button" class="ac-link ac-link--button" data-retire=${c.id} onClick=${() => retire(c)} disabled=${ctx.degraded || o.kind === "busy"}>Retire</button>` : null}
           </span>` },
       ],
-    }) ?? html``, () => ctx.store.invalidate("crews.list"))}
+    }) ?? html``, () => ctx.store.invalidate("crews.list")))}
 
     ${outcomeView(ctx, o)}
 
-    <h2 class="s8-h2">Enroll a crew</h2>
-    ${firmRes.value.state === "ready" && !mayRoster
+    ${panel(firmRes.value.state === "ready" && !mayRoster
       ? html`<p class="s8-muted" id="enroll-closed">Your firm is ${f?.status ?? "not on record"}; the roster does not change until the office ${f?.status === "suspended" ? "lifts the suspension" : "records otherwise"}.</p>`
       : html`<form class="ac-form" id="enroll-form" onSubmit=${enroll}>
         <label class="ac-field"><span>Crew name</span>
@@ -87,7 +86,7 @@ export const crews: Screen = (ctx) => {
         </label>
         <p class="s8-muted">Subcontracted, under ${f?.legalName ?? "your firm"}, dispatched from your region — none of that is typed here.</p>
         ${submitAction(ctx, o.kind === "busy" ? "Sending…" : "Enroll", "enroll-send", o.kind === "busy")}
-      </form>`}
+      </form>`, "Enroll a crew")}
   </section>`;
 };
 

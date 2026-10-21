@@ -1,4 +1,4 @@
-import { html, statStrip, pageHead, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, statStrip, pageHead, panel, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { PurchaseOrderWire, PoLineWire, VendorInvoiceWire, RmaWire, PurchaseOrderDetailOutput } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import {
@@ -23,7 +23,7 @@ export const orders: Screen = (ctx) => {
       { n: o.orders.filter((x) => x.state === "received").length, label: "Received in full", tone: "ok" },
       { n: o.orders.length, label: "All orders" },
     ], "order-stats"))}
-    ${whenReady(ctx, list.value, (o) => html`<div class="s7-scroll">${DataGrid({
+    ${panel(whenReady(ctx, list.value, (o) => html`<div class="s7-scroll">${DataGrid({
       density: ctx.density, caption: "Newest first", rows: o.orders, rowKey: (r: PurchaseOrderWire) => r.id,
       emptyText: "No orders yet. An order appears here when Rankine issues it.",
       columns: [
@@ -34,7 +34,7 @@ export const orders: Screen = (ctx) => {
         { key: "total", header: "Total", align: "end", numeric: true, cell: (r: PurchaseOrderWire) => html`<span class="s7-num">${money(r.totalMinor, r.currency)}</span>` },
         { key: "state", header: "State", cell: (r: PurchaseOrderWire) => poPill(ctx, r.state) },
       ],
-    })}</div>`)}
+    })}</div>`))}
   </section>`;
 };
 
@@ -51,16 +51,15 @@ const acknowledgeForm = (ctx: ScreenContext, d: PurchaseOrderDetailOutput): VNod
       return `Acknowledged. Rankine has your ship date of ${v.promisedShipOn}.`;
     }, REFRESH);
   };
-  return html`<h2 class="s7-h2">Acknowledge this order</h2>
-    <form class="ac-form s7-form--row" onSubmit=${submit} id="ack-form">
+  return panel(html`<form class="ac-form s7-form--row" onSubmit=${submit} id="ack-form">
       <label class="ac-field"><span>It will ship on</span><input class="ac-input" type="date" name="promisedShipOn" min=${today()} required /></label>
       ${submitAction(ctx, ack, "Acknowledge", "acknowledge")}
-    </form>`;
+    </form>`, "Acknowledge this order");
 };
 
 const shipForm = (ctx: ScreenContext, d: PurchaseOrderDetailOutput): VNode => {
   const open = d.lines.filter((l) => BigInt(l.shippedMilli) < BigInt(l.quantityMilli));
-  if (open.length === 0) return html`<p class="s7-muted">Everything on this order has shipped.</p>`;
+  if (open.length === 0) return panel(html`<p class="s7-muted">Everything on this order has shipped.</p>`);
   const submit = (e: Event) => {
     e.preventDefault();
     const v = formValues(e.currentTarget as HTMLFormElement);
@@ -71,8 +70,7 @@ const shipForm = (ctx: ScreenContext, d: PurchaseOrderDetailOutput): VNode => {
       return "Shipment recorded. Rankine sees it on the order.";
     }, REFRESH);
   };
-  return html`<h2 class="s7-h2">Record a shipment</h2>
-    <form class="ac-form" onSubmit=${submit} id="ship-form">
+  return panel(html`<form class="ac-form" onSubmit=${submit} id="ship-form">
       <div class="s7-row">
         <label class="ac-field"><span>Shipped on</span><input class="ac-input" type="date" name="shippedOn" defaultValue=${today()} required /></label>
         <label class="ac-field"><span>Carrier</span><input class="ac-input" name="carrier" required /></label>
@@ -81,12 +79,12 @@ const shipForm = (ctx: ScreenContext, d: PurchaseOrderDetailOutput): VNode => {
       ${open.map((l) => html`<label class="ac-field"><span>Line ${l.lineNo} · ${l.vendorSku} — ${qty((BigInt(l.quantityMilli) - BigInt(l.shippedMilli)).toString())} ${l.uom} still to ship</span>
         <input class="ac-input" name=${`ship:${l.id}`} inputmode="decimal" defaultValue=${qty((BigInt(l.quantityMilli) - BigInt(l.shippedMilli)).toString())} /></label>`)}
       ${submitAction(ctx, ship, "Record shipment", "record-shipment")}
-    </form>`;
+    </form>`, "Record a shipment");
 };
 
 const invoiceForm = (ctx: ScreenContext, d: PurchaseOrderDetailOutput): VNode => {
   const billable = d.lines.filter((l) => BigInt(l.receivedMilli) > BigInt(l.invoicedMilli));
-  if (billable.length === 0) return html`<p class="s7-muted">Nothing received is waiting to be invoiced. You can invoice once Rankine records a receipt.</p>`;
+  if (billable.length === 0) return panel(html`<p class="s7-muted">Nothing received is waiting to be invoiced. You can invoice once Rankine records a receipt.</p>`);
   const submit = (e: Event) => {
     e.preventDefault();
     const v = formValues(e.currentTarget as HTMLFormElement);
@@ -99,8 +97,7 @@ const invoiceForm = (ctx: ScreenContext, d: PurchaseOrderDetailOutput): VNode =>
         : `Invoice ${v.invoiceNumber} is held: ${out.matchNotes.map((n) => n.message).join("; ")}.`;
     }, REFRESH);
   };
-  return html`<h2 class="s7-h2">Submit an invoice</h2>
-    <form class="ac-form" onSubmit=${submit} id="invoice-form">
+  return panel(html`<form class="ac-form" onSubmit=${submit} id="invoice-form">
       <div class="s7-row">
         <label class="ac-field"><span>Invoice number</span><input class="ac-input" name="invoiceNumber" required /></label>
         <label class="ac-field"><span>Invoice date</span><input class="ac-input" type="date" name="invoiceDate" defaultValue=${today()} required /></label>
@@ -112,7 +109,7 @@ const invoiceForm = (ctx: ScreenContext, d: PurchaseOrderDetailOutput): VNode =>
       </div>`)}
       <small class="s7-muted">Rankine matches every invoice to the order's price and to what it received. A difference holds the invoice, with the reason, until the office resolves it.</small>
       ${submitAction(ctx, inv, "Submit invoice", "submit-invoice")}
-    </form>`;
+    </form>`, "Submit an invoice");
 };
 
 const returnsBlock = (ctx: ScreenContext, d: PurchaseOrderDetailOutput): VNode => {
@@ -153,14 +150,14 @@ export const order: Screen = (ctx, params) => {
     ${whenReady(ctx, detail.value, (d) => {
       const o = d.order, rp = d.receivingPoint;
       return html`
-        <h1 class="s7-h1">${o.number} ${poPill(ctx, o.state)}</h1>
-        <dl class="ac-facts">
+        ${pageHead(o.number, "One order from Rankine: where it goes, what it asks for, and what is left for you to do on it.", poPill(ctx, o.state))}
+        ${panel(html`<dl class="ac-facts">
           <div><dt>Deliver to</dt><dd>${rp ? html`${rp.code} · ${TIER_WORD[rp.tier]}<br /><span class="s7-muted">${[rp.address.line1, rp.address.city, rp.address.state, rp.address.postal].filter(Boolean).join(", ")}</span>` : "—"}</dd></div>
           <div><dt>Total</dt><dd class="s7-num">${money(o.totalMinor, o.currency)}</dd></div>
           <div><dt>Issued</dt><dd>${o.issuedAt ? o.issuedAt.slice(0, 10) : "—"}</dd></div>
           <div><dt>Ships by</dt><dd>${o.promisedShipOn ?? "Not yet promised"}</dd></div>
-        </dl>
-        <div class="s7-scroll">${DataGrid({
+        </dl>`)}
+        ${panel(html`<div class="s7-scroll">${DataGrid({
           density: ctx.density, caption: "Lines", rows: d.lines, rowKey: (l: PoLineWire) => l.id,
           columns: [
             { key: "no", header: "#", cell: (l: PoLineWire) => String(l.lineNo) },
@@ -172,17 +169,16 @@ export const order: Screen = (ctx, params) => {
             { key: "received", header: "Received", align: "end", numeric: true, cell: (l: PoLineWire) => qty(l.receivedMilli) },
             { key: "invoiced", header: "Invoiced", align: "end", numeric: true, cell: (l: PoLineWire) => qty(l.invoicedMilli) },
           ],
-        })}</div>
+        })}</div>`)}
         ${o.state === "issued" ? acknowledgeForm(ctx, d) : null}
         ${outcomeView(ack, "ack-outcome")}
         ${o.state === "acknowledged" ? shipForm(ctx, d) : null}
         ${outcomeView(ship, "ship-outcome")}
-        ${d.shipments.length ? html`<h2 class="s7-h2">Shipments</h2><ul>${d.shipments.map((s) => html`<li>${s.shippedOn} · ${s.carrier}${s.tracking ? ` · ${s.tracking}` : ""}</li>`)}</ul>` : null}
+        ${d.shipments.length ? panel(html`<ul class="s7-list">${d.shipments.map((s) => html`<li>${s.shippedOn} · ${s.carrier}${s.tracking ? ` · ${s.tracking}` : ""}</li>`)}</ul>`, "Shipments") : null}
         ${["acknowledged", "received"].includes(o.state) ? invoiceForm(ctx, d) : null}
         ${outcomeView(inv, "invoice-outcome")}
-        ${d.invoices.length ? html`<h2 class="s7-h2">Invoices on this order</h2>${invoiceList(ctx, d.invoices)}` : null}
-        <h2 class="s7-h2">Returns</h2>
-        ${returnsBlock(ctx, d)}
+        ${d.invoices.length ? panel(invoiceList(ctx, d.invoices), "Invoices on this order") : null}
+        ${panel(returnsBlock(ctx, d), "Returns")}
         ${outcomeView(rma, "rma-outcome")}`;
     })}
   </section>`;

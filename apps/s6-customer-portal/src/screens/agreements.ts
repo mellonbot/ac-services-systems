@@ -1,4 +1,4 @@
-import { html, pageHead, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
 import type { ContractWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, type Screen } from "./common.ts";
@@ -33,7 +33,7 @@ export const agreements: Screen = (ctx) => {
   };
   return html`<section class="s6-agreements">
     ${pageHead("Agreements", "The agreements your account is served under, where each applies, and whether it is in force.")}
-    ${whenReady(ctx, contracts.value, (out) => DataGrid<ContractWire>({
+    ${panel(whenReady(ctx, contracts.value, (out) => DataGrid<ContractWire>({
       density: ctx.density,
       caption: "Agreements recorded for this account",
       emptyText: "No agreements recorded for this account.",
@@ -48,6 +48,6 @@ export const agreements: Screen = (ctx) => {
         { key: "data", header: "Diagnostic data", cell: (c) => (c.diagnosticDataRightsReserved ? "Rights reserved to Rankine" : "Rights not reserved") },
         { key: "terms", header: "", cell: (c) => linkTo(ctx, "terms", { tier: c.scopeTier, nodeId: c.scopeId }, "Terms at this scope") },
       ],
-    }) ?? html``, () => ctx.store.invalidate("contracts.list"))}
+    }) ?? html``, () => ctx.store.invalidate("contracts.list")))}
   </section>`;
 };

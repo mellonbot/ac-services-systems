@@ -1,4 +1,4 @@
-import { html, signal, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { Refusal, RegionWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen } from "./common.ts";
@@ -52,7 +52,7 @@ export const organizationsNew: Screen = (ctx) => {
   </form>`;
 
   return html`<section class="s2-form-screen">
-    <h2 class="s2-h2">New customer</h2>
+    ${pageHead("New customer", "Record a new customer parent together with its first region node, in one step.")}
     ${whenReady(ctx, regions.value, (r) => form(r.regions), () => store.invalidate("regions.list"))}
     ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Back", onSelect: () => ctx.router.navigate("accounts.tree", {}) }]) : null}
   </section>`;

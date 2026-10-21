@@ -1,4 +1,4 @@
-import { html, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, ResolutionWire, ResolvedTermsOutput, TraceStepWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, linkTo, type Screen } from "./common.ts";
@@ -71,7 +71,7 @@ export const termsResolved: Screen = (ctx, params) => {
   const table = (out: ResolvedTermsOutput): VNode => {
     const rows = Object.values(out.resolved);
     const refused = Object.entries(out.refused);
-    return html`<section>
+    return panel(html`
       ${DataGrid({
         density: ctx.density, caption: `Resolved as of ${rows[0]?.asOf ?? "today"}`,
         columns: [
@@ -91,8 +91,7 @@ export const termsResolved: Screen = (ctx, params) => {
       ${s.open && out.resolved[s.open] ? html`<table class="s2-trace-table"><tbody>${tracePanel(out.resolved[s.open]!)}</tbody></table>` : null}
       ${refused.length
         ? html`<ul class="s2-refused">${refused.map(([k, e]) => html`<li><strong>${k}</strong> — ${e.message} <small>(${e.code})</small></li>`)}</ul>`
-        : null}
-    </section>`;
+        : null}`);
   };
 
   const picker = (nodes: readonly AccountWire[], termKeys: readonly string[]): VNode => html`<form class="ac-form s2-form--inline" onSubmit=${(e: Event) => e.preventDefault()} id="resolve-form">
@@ -118,10 +117,7 @@ export const termsResolved: Screen = (ctx, params) => {
   </form>`;
 
   return html`<section class="s2-form-screen">
-    <header class="s2-tree__head">
-      <h2 class="s2-h2">Resolved terms</h2>
-      ${linkTo(ctx, "contracts.list", { orgId }, "Back to agreements")}
-    </header>
+    ${pageHead("Resolved terms", "Every term resolved at a node as of a date, with the trace that shows which rung set it.", linkTo(ctx, "contracts.list", { orgId }, "Back to agreements"))}
     ${whenReady(ctx, tree.value, (t) => whenReady(ctx, register.value, (r) => picker(t.nodes, r.terms.map((p) => p.key))))}
     ${whenReady(ctx, tree.value, (t) => {
       const n = node(t.nodes);

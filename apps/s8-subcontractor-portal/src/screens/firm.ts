@@ -1,4 +1,4 @@
-import { html, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
 import type { FirmStatus } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readFirm, readCrews, firmOf, readiness, linkTo, day, money, type Screen } from "./common.ts";
@@ -23,14 +23,15 @@ export const firm: Screen = (ctx) => {
   const crews = readCrews(ctx);
   const statements = ctx.store.read(keyOf("settlements.list", {}), () => ctx.shell.gateway.listSettlements({}));
   const jobs = ctx.store.read(keyOf("jobs.list", {}), () => ctx.shell.gateway.listJobs({}));
+  const name = firmRes.value.state === "ready" ? firmOf(firmRes.value.value)?.legalName : null;
 
   return html`<section class="s8-firm">
+    ${pageHead(name ?? "Your firm", "Where your firm stands with Rankine, and what its crews, work and statements need from you.")}
     ${whenReady(ctx, firmRes.value, (out) => {
       const f = firmOf(out);
       if (!f) return html`<p class="s8-empty">No firm is on record for this account.</p>`;
       const st = STATUS[f.status];
       return html`
-        <h1 class="s8-h1">${f.legalName}</h1>
         <p class="s8-scope">${StatusPill({ density: ctx.density, status: st.status, label: st.word }) ?? html``} <span>${st.sentence}</span></p>
         <dl class="ac-facts">
           <div><dt>Master agreement</dt><dd>${f.msaSignedAt ? `Signed ${day(f.msaSignedAt)}` : "Not yet signed"}</dd></div>
@@ -40,8 +41,7 @@ export const firm: Screen = (ctx) => {
         </dl>`;
     }, () => ctx.store.invalidate("firms.list"))}
 
-    <h2 class="s8-h2">Crews</h2>
-    ${whenReady(ctx, crews.value, (out) => {
+    ${panel(whenReady(ctx, crews.value, (out) => {
       const active = out.crews.filter((c) => c.active);
       const ready = active.filter((c) => readiness(c).status === "ok").length;
       const waiting = active.filter((c) => readiness(c).status === "at_risk").length;
@@ -51,18 +51,14 @@ export const firm: Screen = (ctx) => {
         <span data-count="ready">${ready} ready to dispatch,</span>
         <span data-count="waiting">${waiting} awaiting verification,</span>
         <span data-count="blocked">${blocked} missing or expired documents.</span>
-        ${linkTo(ctx, "crews", {}, "Roster and documents")}
       </p>`;
-    }, () => ctx.store.invalidate("crews.list"))}
+    }, () => ctx.store.invalidate("crews.list")), "Crews", undefined, linkTo(ctx, "crews", {}, "Roster and documents"))}
 
-    <h2 class="s8-h2">Work</h2>
-    ${whenReady(ctx, jobs.value, (out) => html`<p class="s8-summary" id="work-summary">
+    ${panel(whenReady(ctx, jobs.value, (out) => html`<p class="s8-summary" id="work-summary">
       <strong>${out.jobs.filter((j) => !["complete", "invoiced", "cancelled"].includes(j.state)).length}</strong><span>open job${out.jobs.length === 1 ? "" : "s"} your crews are on.</span>
-      ${linkTo(ctx, "work", {}, "See work")}
-    </p>`, () => ctx.store.invalidate("jobs.list"))}
+    </p>`, () => ctx.store.invalidate("jobs.list")), "Work", undefined, linkTo(ctx, "work", {}, "See work"))}
 
-    <h2 class="s8-h2">Statements</h2>
-    ${whenReady(ctx, statements.value, (out) => {
+    ${panel(whenReady(ctx, statements.value, (out) => {
       const open = out.settlements.filter((s) => s.state === "issued");
       const disputed = out.settlements.filter((s) => s.state === "disputed");
       return html`<p class="s8-summary" id="statement-summary">
@@ -70,8 +66,7 @@ export const firm: Screen = (ctx) => {
           ? html`<span>No statement is waiting on you.</span>`
           : html`<strong>${open.length}</strong><span>statement${open.length === 1 ? "" : "s"} waiting for your acknowledgement — ${open.map((s) => money(s.totalMinor, s.currency)).join(", ")}.</span>`}
         ${disputed.length ? html` <span>${disputed.length} in dispute with the office.</span>` : null}
-        ${linkTo(ctx, "statements", {}, "Statements")}
       </p>`;
-    }, () => ctx.store.invalidate("settlements.list"))}
+    }, () => ctx.store.invalidate("settlements.list")), "Statements", undefined, linkTo(ctx, "statements", {}, "Statements"))}
   </section>`;
 };

@@ -1,4 +1,4 @@
-import { html, signal, DataGrid, RefusalCard, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, signal, DataGrid, RefusalCard, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, ContractWire, Refusal, TermOverrideWire, TermPolicy, Tier } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, submitAction, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
@@ -182,12 +182,12 @@ export const termsOverride: Screen = (ctx, params) => {
   };
 
   return html`<section class="s2-form-screen">
-    <h2 class="s2-h2">Term overrides</h2>
+    ${pageHead("Term overrides", "Author a term override under the agreement that agreed to it, on a form drawn from the term register.")}
     ${whenReady(ctx, register.value, (r) =>
       whenReady(ctx, contracts.value, (c) =>
         whenReady(ctx, tree.value, (t) => authorForm(r.terms, c.contracts, t.nodes))))}
     ${f.refusal ? overrideRefusal(ctx, f, orgId) : null}
-    ${whenReady(ctx, overrides.value, (o) => whenReady(ctx, tree.value, (t) => existingGrid(o.overrides, t.nodes)))}
+    ${panel(whenReady(ctx, overrides.value, (o) => whenReady(ctx, tree.value, (t) => existingGrid(o.overrides, t.nodes))))}
   </section>`;
 };
 

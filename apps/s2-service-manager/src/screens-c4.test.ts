@@ -151,6 +151,9 @@ test("the network lists firms with their filing state and offers only admitted s
   assert.doesNotMatch(html, /id="step-active"/, "an active firm is not offered activation");
   assert.match(html, /30 days \(D13\)/);
   assert.match(html, /Reserved/);
+  assert.equal(html.match(/<h1/g)?.length, 1, "one page head per screen");
+  assert.match(html, /<section class="ac-panel" id="firm" aria-labelledby="firm__title">/);
+  assert.match(html, /<h2 class="ac-panel__title">Crews<\/h2>/);
 });
 
 test("an unsigned MSA is shown as the thing standing between the firm and activation, with the way to fix it", async () => {

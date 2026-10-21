@@ -1,4 +1,4 @@
-import { html, StatusPill, DataGrid, type VNode, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, StatusPill, DataGrid, pageHead, panel, statStrip, type VNode, type Status } from "../../../../packages/ui/src/index.ts";
 import { HQ_AREAS, HQ_AREA_TITLES, type HqArea, type HqRegionWire } from "../../../../packages/contracts/src/index.ts";
 import {
   whenReady, readMetrics, figures, metShare, clearedShare, count, pct, money, densityStatus, asOfLine, linkTo, regionName,
@@ -39,13 +39,11 @@ export const headline = (f: Figures): Readonly<Record<HqArea, readonly Tile[]>> 
   };
 };
 
-const tiles = (ctx: ScreenContext, list: readonly Tile[]): VNode => html`<dl class="s4-tiles">
-  ${list.map((t) => html`<div class="s4-tile">
-    <dt>${t.label}</dt>
-    <dd><span class="s4-figure">${t.figure}</span>${t.state ? StatusPill({ density: ctx.density, status: t.state.status, label: t.state.word }) : null}</dd>
-    ${t.sub ? html`<dd class="s4-sub">${t.sub}</dd>` : null}
-  </div>`)}
-</dl>`;
+const tiles = (ctx: ScreenContext, list: readonly Tile[]): VNode => statStrip(list.map((t) => ({
+  n: t.state ? html`${t.figure} ${StatusPill({ density: ctx.density, status: t.state.status, label: t.state.word })}` : t.figure,
+  label: t.label,
+  ...(t.sub ? { sub: t.sub } : {}),
+})));
 
 /** Regions side by side. Rows are what the gateway returned; nothing is filtered here. */
 export const regionGrid = (ctx: ScreenContext, f: Figures): VNode => {
@@ -76,15 +74,12 @@ export const overview: Screen = (ctx) => {
       const f = figures(out);
       const h = headline(f);
       return html`
-        <div class="s4-head"><h1 class="s4-h1">Rankine Operating Company</h1>${asOfLine(ctx, out)}</div>
+        ${pageHead("Rankine Operating Company", "The company's figures by area, summary before detail, with every region side by side below.", asOfLine(ctx, out))}
         ${out.day === null ? html`<p class="s4-empty">No figures yet. The worker computes them every ${out.refreshMinutes} minutes; the first run fills this page.</p>` : html`
           <div class="s4-areas">
-            ${HQ_AREAS.map((a) => html`<section class="s4-area" id=${`area-${a}`}>
-              <div class="s4-area__head"><h2 class="s4-h2">${HQ_AREA_TITLES[a]}</h2>${linkTo(ctx, "area", { area: a }, "By region")}</div>
-              ${tiles(ctx, h[a])}
-            </section>`)}
+            ${HQ_AREAS.map((a) => panel(tiles(ctx, h[a]), HQ_AREA_TITLES[a], undefined, linkTo(ctx, "area", { area: a }, "By region"), `area-${a}`))}
           </div>
-          ${regionGrid(ctx, f)}`}
+          ${panel(regionGrid(ctx, f))}`}
         <p class="s4-readonly">Read only. Nothing on this dashboard changes an operation; the regions run their own work in Service Manager and Dispatch.</p>`;
     }, () => ctx.store.invalidate("hq."))}
   </section>`;

@@ -10,9 +10,6 @@ export const S2_CSS = `
 .s2-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2)}
 .s2-two-col{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,3fr);gap:var(--space-6);align-items:start}
 .s2-col--orgs{position:sticky;top:var(--space-3)}
-.s2-h1{margin:0 0 var(--space-4);font-size:var(--text-xl)}
-.s2-h2{margin:0;font-size:var(--text-lg)}
-.s2-tree__head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);margin-bottom:var(--space-2)}
 .s2-node{display:inline-block;padding-inline-start:calc(var(--depth,0) * var(--space-6))}
 .s2-node[data-depth="1"]{--depth:1}
 .s2-node[data-depth="2"]{--depth:2}
@@ -20,7 +17,6 @@ export const S2_CSS = `
 .s2-node[data-tier="site"]{color:var(--color-text-muted)}
 .s2-row-actions{display:inline-flex;gap:var(--space-3);white-space:nowrap}
 .s2-link--action{display:inline-flex;align-items:center;text-decoration:none}
-.s2-aside-actions{margin:var(--space-3) 0 0}
 .s2-empty,.s2-loading{color:var(--color-text-muted)}
 .s2-form-screen{max-width:64ch;display:flex;flex-direction:column;gap:var(--space-3)}
 .s2-fieldset small{color:var(--color-text-muted);font-size:var(--text-sm)}
@@ -39,7 +35,7 @@ export const S2_CSS = `
    above; the colour roles stay the neutral ones, because filing state is not
    operational health and must not borrow the status ramp. */
 .s2-state[data-tone="held"]{border-style:dotted;color:var(--color-text-muted)}
-.s2-terms{display:grid;grid-template-columns:auto 1fr;gap:var(--space-2) var(--space-4);margin:0 0 var(--space-4);align-items:baseline}
+.s2-terms{display:grid;grid-template-columns:auto 1fr;gap:var(--space-2) var(--space-4);margin:0;align-items:baseline}
 .s2-terms dt{color:var(--color-text-muted);font-size:var(--text-sm)}
 .s2-terms dd{margin:0}
 .s2-firm{display:flex;flex-direction:column;gap:var(--space-3)}
@@ -52,21 +48,22 @@ export const S2_CSS = `
 .s2-policy[data-combine="ratchet"]{color:var(--color-text)}
 .s2-rationale{margin:0 0 var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm)}
 .s2-purchasing{display:flex;flex-direction:column;gap:var(--space-3)}
-.s2-list{margin:0;padding-inline-start:1.2em}
+.s2-list{margin:0;padding-inline-start:var(--space-4)}
 .s2-form--inline{display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:end}
 .s2-trace{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
 .s2-trace__step{display:grid;grid-template-columns:minmax(7rem,1fr) max-content minmax(8rem,1fr);gap:var(--space-1) var(--space-3);align-items:baseline;padding-block:var(--space-1);border-bottom:1px solid var(--color-border)}
-.s2-trace__outcome{font-variant-caps:all-small-caps;letter-spacing:.04em}
+.s2-trace__outcome{font-variant-caps:all-small-caps;letter-spacing:var(--track-normal)}
 .s2-trace__step[data-outcome="won"] .s2-trace__outcome{color:var(--color-action-text)}
 .s2-trace__step[data-outcome="not_walked"]{color:var(--color-text-muted)}
 .s2-trace__tier{font-weight:600}
+.s2-trace__value{font-family:var(--font-instrument);font-variant-numeric:tabular-nums}
 .s2-trace__note{grid-column:1/-1;color:var(--color-text-muted)}
 .s2-trace-table{width:100%;border-collapse:collapse}
 .s2-refused{margin:var(--space-3) 0 0;padding-inline-start:var(--space-4);color:var(--color-status-at-risk)}
 @media (max-width:760px){
   .s2-nav__group{flex:1 1 14rem}
   .s2-nav__group-links{flex-wrap:wrap}
-  .s2-notice__dismiss{min-height:44px;display:inline-flex;align-items:center}
+  .s2-notice__dismiss{min-height:var(--space-12);display:inline-flex;align-items:center}
   .s2-two-col{grid-template-columns:minmax(0,1fr)}
   .s2-col--orgs{position:static}
   .s2-form__actions{align-items:stretch;flex-direction:column}
@@ -81,9 +78,7 @@ export const S2_CSS = `
   .s2-app .s2-trace__step{grid-template-columns:minmax(0,1fr) max-content}
 }
 
-/* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */
-.s2-h1{font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);text-transform:none;line-height:1.15}
-.s2-h2{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-tight);text-transform:none}
+/* Rev A: heads, panels and tiles are drawn by packages/ui (pageHead, panel, statStrip); this only arranges. */
 .s2-form--inline{flex-direction:row;flex-wrap:wrap;align-items:end;max-width:none}
 .s2-form--inline .ac-field{flex:1 1 16ch;align-items:stretch}
 .s2-two-col>*{min-width:0}
@@ -92,7 +87,7 @@ export const S2_CSS = `
    customer, firm, or order currently open in the workspace. */
 .s2-nav__group{display:flex;flex-direction:column;gap:var(--space-1);padding-inline:var(--space-2);min-width:0}
 .s2-nav__group-label,.s2-context__label{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
-.s2-nav__group-links{display:flex;align-items:center;gap:4px}
+.s2-nav__group-links{display:flex;align-items:center;gap:var(--space-1)}
 .s2-context{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-3) var(--space-6);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
 .s2-context__scope,.s2-context__current{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
 .s2-context ol{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-2);list-style:none;margin:0;padding:0;min-width:0}
@@ -102,8 +97,8 @@ export const S2_CSS = `
 .s2-context li small{color:var(--color-text-muted);font-size:var(--text-xs)}
 .s2-mutation{appearance:none;display:inline-flex;align-items:center;justify-content:center;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action-text);font:inherit;font-weight:600;cursor:pointer}
 .s2-mutation:hover:not(:disabled){background:var(--color-surface-sunken)}
-.s2-mutation:focus-visible,.s2-help summary:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
-.s2-mutation:disabled{opacity:.55;cursor:not-allowed}
+.s2-mutation:focus-visible,.s2-help summary:focus-visible{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}
+.s2-mutation:disabled{opacity:0.55;cursor:not-allowed}
 .s2-mutation--danger{border-color:var(--color-status-breached);color:var(--color-status-breached)}
 .s2-mutation--quiet{color:var(--color-text-muted)}
 .s2-confirm{display:flex;flex-direction:column;gap:var(--space-1);min-width:min(32ch,100%);max-width:48ch;padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}

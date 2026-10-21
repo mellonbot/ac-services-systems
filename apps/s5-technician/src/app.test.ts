@@ -246,7 +246,7 @@ test("a transport failure leaves the mutation queued rather than losing it, and 
   app.tick();
   assert.equal(app.degraded.value, true);
   const out = render(app.view());
-  assert.match(out, /1 change waiting to sync — offline\./);
+  assert.match(out, /<span class="ac-num">1<\/span> change waiting to sync — offline\./);
 });
 
 test("a rejected mutation is surfaced as attention, not silently retried, and can be dismissed", async () => {
