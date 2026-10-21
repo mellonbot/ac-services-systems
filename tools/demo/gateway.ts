@@ -10,7 +10,7 @@
  * (term resolution, override admission, the compliance gate, context
  * resolution) the real module is imported and run.
  */
-import { OPERATIONS, OFFICE_JOB_TRANSITIONS, routeKey, type OperationId } from "../../packages/contracts/src/operations.ts";
+import { OPERATIONS, OFFICE_JOB_TRANSITIONS, WORK_DONE_STATES, routeKey, type OperationId } from "../../packages/contracts/src/operations.ts";
 import type * as W from "../../packages/contracts/src/operations.ts";
 import { SURFACES, type SurfaceId } from "../../packages/contracts/src/surfaces.ts";
 import type { Principal } from "../../packages/contracts/src/scope.ts";
@@ -526,7 +526,7 @@ const hqRegions = (): W.HqRegionWire[] => [
   ...REGIONS.map((r) => ({ id: r.id, code: r.code, name: r.name, active: r.active, placed: true })),
   { id: UNASSIGNED_REGION_ID, code: "UNASSIGNED", name: "Unassigned (pre-account)", active: true, placed: false },
 ];
-const CLOSED = ["complete", "invoiced", "cancelled", "aborted"];
+const CLOSED: readonly string[] = [...WORK_DONE_STATES, "cancelled", "aborted"];
 const hqFigures = (regionId: string, now: number): Record<HqMetricKey, number> => {
   const in30 = (iso: string | null | undefined) => !!iso && Date.parse(iso) > now - 30 * DAY && Date.parse(iso) <= now;
   const t = new Date(now).toISOString().slice(0, 10);
@@ -546,7 +546,7 @@ const hqFigures = (regionId: string, now: number): Record<HqMetricKey, number> =
   const wc = workingCapital[regionId];
   return {
     jobs_opened_30d: rj.filter((j) => in30(j.openedAt)).length,
-    jobs_completed_30d: rj.filter((j) => in30(j.openedAt) && ["complete", "invoiced"].includes(j.state)).length,
+    jobs_completed_30d: rj.filter((j) => in30(j.openedAt) && WORK_DONE_STATES.includes(j.state)).length,
     jobs_open_now: open.length,
     jobs_unassigned_now: open.filter((j) => !liveAssignment(j.id)).length,
     jobs_at_risk_now: open.filter((j) => j.slaDueAt && !j.slaSatisfiedAt && ((j.slaEscalationStage ?? 0) > 0 || Date.parse(j.slaDueAt) <= now + HOUR)).length,
@@ -706,7 +706,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     if (!visibleAccounts(p).some((a) => a.id === i.siteId)) return { equipment: [] };
     return {
       equipment: equipment.filter((e) => e.siteId === i.siteId).map((e) => {
-        const done = jobs.filter((j) => j.equipmentIds.includes(e.id) && (j.state === "complete" || j.state === "invoiced")).sort((a, b) => a.serviceWindowEnd.localeCompare(b.serviceWindowEnd)).at(-1);
+        const done = jobs.filter((j) => j.equipmentIds.includes(e.id) && WORK_DONE_STATES.includes(j.state)).sort((a, b) => a.serviceWindowEnd.localeCompare(b.serviceWindowEnd)).at(-1);
         return { ...e, lastServicedAt: done?.serviceWindowEnd ?? null, lastServicedJobId: done?.id ?? null, lastServicedServiceCode: done?.serviceCode ?? null, jobCount: jobs.filter((j) => j.equipmentIds.includes(e.id)).length };
       }),
     };
@@ -990,7 +990,7 @@ const H: Partial<Record<OperationId, Handler>> = {
   "jobs.mine": (_i, { session }) => {
     const crewId = session?.user.crewId;
     return {
-      jobs: jobs.filter((j) => liveAssignment(j.id)?.crewId === crewId && !["complete", "invoiced", "cancelled"].includes(j.state))
+      jobs: jobs.filter((j) => liveAssignment(j.id)?.crewId === crewId && ![...WORK_DONE_STATES, "cancelled"].includes(j.state))
         .map((j) => ({ id: j.id, siteId: j.siteId, serviceCode: j.serviceCode, priority: j.priority, state: j.state, serviceWindowStart: j.serviceWindowStart, serviceWindowEnd: j.serviceWindowEnd, version: j.version })),
     };
   },

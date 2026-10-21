@@ -1,5 +1,5 @@
 import { html, pageHead, panel, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
-import type { JobWire, JobStateWire } from "../../../../packages/contracts/src/index.ts";
+import { WORK_DONE_STATES, type JobWire, type JobStateWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, when, type Screen } from "./common.ts";
 
@@ -23,7 +23,7 @@ export const slaStatus = (job: Pick<JobWire, "slaDueAt" | "slaEscalationStage" |
   return "ok";
 };
 
-const CLOSED: readonly JobStateWire[] = ["complete", "invoiced", "cancelled"];
+const CLOSED: readonly JobStateWire[] = [...WORK_DONE_STATES, "cancelled"];
 export const isOpen = (job: Pick<JobWire, "state">): boolean => !CLOSED.includes(job.state);
 
 /** The firm's word for a state — the crew's own progress, in the register a coordinator reads. */
@@ -32,6 +32,7 @@ export const STATE_WORD: Readonly<Record<JobStateWire, string>> = {
   in_progress: "In progress", awaiting_parts: "Awaiting parts", complete: "Complete", reopened: "Reopened", invoiced: "Invoiced",
   cancelled: "Cancelled", aborted: "Stopped",
   quote_requested: "Quote requested", quote_submitted: "Quote with the customer", awaiting_customer: "Waiting on the customer",
+  needs_pricing: "Complete", awaiting_po: "Complete", awaiting_pictures: "Photos needed", invoice_trouble: "Invoiced",
 };
 
 export const work: Screen = (ctx) => {

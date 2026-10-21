@@ -1,5 +1,6 @@
 import type { RelayTx } from "./relay.ts";
 import { HQ_METRIC_KEYS, type HqMetricKey } from "../../../packages/contracts/src/hq.ts";
+import { WORK_DONE_STATES } from "../../../packages/contracts/src/operations.ts";
 import { REQUIRED } from "../../../packages/domain/src/compliance/gate.ts";
 import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
 
@@ -18,7 +19,8 @@ import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/
  * test runs against a live database as ac_worker.
  */
 const WINDOW = (col: string) => `${col} > $1::timestamptz - interval '30 days' AND ${col} <= $1::timestamptz`;
-const OPEN_JOB = `j.state NOT IN ('complete','invoiced','cancelled','aborted')`;
+const WORK_DONE_SQL = WORK_DONE_STATES.map((s) => `'${s}'`).join(",");
+const OPEN_JOB = `j.state NOT IN (${WORK_DONE_SQL},'cancelled','aborted')`;
 const OPEN_STATEMENT = `s.state IN ('issued','acknowledged','disputed')`;
 const count = (from: string, where: string) => `SELECT count(*) FROM ${from} WHERE ${where}`;
 const sum = (col: string, from: string, where: string) => `SELECT COALESCE(sum(${col}), 0) FROM ${from} WHERE ${where}`;
@@ -36,7 +38,7 @@ const SLA_MET = `(t.satisfied_at IS NOT NULL AND t.satisfied_at <= t.due_at)`;
 export const HQ_ROLLUP_SQL: Readonly<Record<HqMetricKey, string>> = {
   // ---- service & SLA ----
   jobs_opened_30d: count("jobs j", `j.region_id = r.id AND ${WINDOW("j.opened_at")}`),
-  jobs_completed_30d: count("jobs j", `j.region_id = r.id AND ${WINDOW("j.opened_at")} AND j.state IN ('complete','invoiced')`),
+  jobs_completed_30d: count("jobs j", `j.region_id = r.id AND ${WINDOW("j.opened_at")} AND j.state IN (${WORK_DONE_SQL})`),
   jobs_open_now: count("jobs j", `j.region_id = r.id AND ${OPEN_JOB}`),
   jobs_unassigned_now: count("jobs j", `j.region_id = r.id AND ${OPEN_JOB} AND NOT EXISTS (SELECT 1 FROM assignments a WHERE a.job_id = j.id AND a.released_at IS NULL)`),
   jobs_at_risk_now: count("sla_timers t JOIN jobs j ON j.id = t.job_id",

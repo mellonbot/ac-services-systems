@@ -346,7 +346,7 @@ export const OPERATIONS = {
   "jobs.transition": {
     id: "jobs.transition", method: "POST", path: "/s3/jobs/transition", kind: "mutation", auth: "bearer",
     surfaces: ["S3"], carrier: "body", sdkMethod: "transitionJob",
-    summary: "Move a job into or out of waiting on the customer — quote requested, quote submitted, approved back to dispatch or declined; held for the customer mid-job and resumed. Only the edges OFFICE_JOB_TRANSITIONS lists; anything else is refused by name as an illegal transition.",
+    summary: "The office's hand on a job's state: waiting on the customer (quote requested, quote submitted, approved or declined; held mid-job and resumed) and what blocks the invoice (needs pricing, waiting on a PO or pictures, an invoice kicked back). Only the edges OFFICE_JOB_TRANSITIONS lists; anything else is refused by name as an illegal transition.",
   },
   // ---- item 4: the device shift grant (D-2a) — this device, this crew, this window ----
   "devices.list": {
@@ -1076,7 +1076,17 @@ export type JobPriority = "emergency" | "urgent" | "routine" | "pm";
 export type JobStateWire =
   | "created" | "assigned" | "reassigned" | "en_route" | "on_site" | "in_progress" | "awaiting_parts"
   | "complete" | "reopened" | "invoiced" | "cancelled" | "aborted"
-  | "quote_requested" | "quote_submitted" | "awaiting_customer";
+  | "quote_requested" | "quote_submitted" | "awaiting_customer"
+  | "needs_pricing" | "awaiting_po" | "awaiting_pictures" | "invoice_trouble";
+
+/**
+ * The work is done: every state between a technician finishing and the
+ * invoice standing. A job here is not open field work — the board, the HQ
+ * rollup and "last serviced" all read it as finished — whatever is still
+ * blocking the bill. One list, because six copies of "complete or invoiced"
+ * each missed the states 0014 added.
+ */
+export const WORK_DONE_STATES: readonly JobStateWire[] = Object.freeze(["complete", "needs_pricing", "awaiting_po", "awaiting_pictures", "invoiced", "invoice_trouble"]);
 
 /**
  * The moves the office makes by hand (`jobs.transition`, S3) — every one is
@@ -1086,8 +1096,9 @@ export type JobStateWire =
  * import the domain. Before dispatch the wait is a quote: requested,
  * submitted, then approved back to `created` or declined to `cancelled`.
  * Mid-job it is `awaiting_customer` — an approval, or access — and back to
- * `in_progress`. Assignment, release and the field's own moves keep their
- * own doors.
+ * `in_progress`. After the work, whatever blocks the invoice (pricing, a PO,
+ * pictures) and back to `complete`; an invoice kicked back and re-sent.
+ * Assignment, release and the field's own moves keep their own doors.
  */
 export const OFFICE_JOB_TRANSITIONS: Readonly<Partial<Record<JobStateWire, readonly JobStateWire[]>>> = Object.freeze({
   created: ["quote_requested"],
@@ -1096,6 +1107,13 @@ export const OFFICE_JOB_TRANSITIONS: Readonly<Partial<Record<JobStateWire, reado
   on_site: ["awaiting_customer"],
   in_progress: ["awaiting_customer"],
   awaiting_customer: ["in_progress"],
+  // After the work: what blocks the invoice, and back to ready-to-invoice.
+  complete: ["needs_pricing", "awaiting_po", "awaiting_pictures"],
+  needs_pricing: ["complete"],
+  awaiting_po: ["complete"],
+  awaiting_pictures: ["complete"],
+  invoiced: ["invoice_trouble"],
+  invoice_trouble: ["invoiced"],
 });
 
 export type CreateJobInput = {

@@ -91,5 +91,5 @@ test("the office's hand-moves are legal moves: every OFFICE_JOB_TRANSITIONS edge
   for (const [from, tos] of Object.entries(OFFICE_JOB_TRANSITIONS)) {
     for (const to of tos ?? []) assert.ok((JOB_TRANSITIONS[from] ?? []).includes(to), `${from} → ${to} is offered to the office but is not a legal transition`);
   }
-  for (const quote of ["quote_requested", "quote_submitted"]) assert.ok(!DEVICE_TRANSITIONS.includes(quote), `${quote} is the office's, not the field's`);
+  for (const s of ["quote_requested", "quote_submitted", "needs_pricing", "awaiting_po", "awaiting_pictures", "invoice_trouble"]) assert.ok(!DEVICE_TRANSITIONS.includes(s), `${s} is the office's, not the field's`);
 });

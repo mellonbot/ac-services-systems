@@ -1,5 +1,5 @@
 import { html, statStrip, pageHead, panel, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { AccountWire, JobWire, ServiceRequestWire } from "../../../../packages/contracts/src/index.ts";
+import { WORK_DONE_STATES, type AccountWire, type JobWire, type ServiceRequestWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, TIER_WORD, type Screen, type ScreenContext, type Tree } from "./common.ts";
 import { slaStatus, isOpen } from "./work.ts";
@@ -26,7 +26,7 @@ export const sites: Screen = (ctx) => {
   return html`<section class="s6-sites">
     ${pageHead(ctx.shell.context?.parent.name ?? "Your sites", scopeSentence(ctx))}
     ${whenReady(ctx, nodes.value, (out) => {
-      const liveJobs = jobs.value.state === "ready" ? jobs.value.value.jobs.filter((j) => !["complete", "invoiced", "cancelled", "aborted"].includes(j.state)) : [];
+      const liveJobs = jobs.value.state === "ready" ? jobs.value.value.jobs.filter((j) => ![...WORK_DONE_STATES, "cancelled", "aborted"].includes(j.state)) : [];
       const waiting = requests.value.state === "ready" ? requests.value.value.requests.filter((r) => r.jobId === null).length : 0;
       return statStrip([
         { n: out.nodes.filter((n) => n.tier === "site").length, label: "Sites" },

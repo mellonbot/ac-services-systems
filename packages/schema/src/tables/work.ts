@@ -17,6 +17,8 @@ export const JOB_STATES = [
   "complete", "reopened", "invoiced", "cancelled", "aborted",
   // 0013: waiting on the customer — a quote before dispatch, an approval or access mid-job.
   "quote_requested", "quote_submitted", "awaiting_customer",
+  // 0014: the work is done but the invoice is blocked — pricing, a PO, pictures, or a kicked-back invoice.
+  "needs_pricing", "awaiting_po", "awaiting_pictures", "invoice_trouble",
 ] as const;
 
 export const jobs = operationalTable("jobs", {

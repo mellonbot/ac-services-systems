@@ -403,6 +403,23 @@ test("waiting on the customer, mid-job: the office holds an on-site job for the 
   assert.equal((await move("in_progress")).state, "in_progress");
 });
 
+test("what blocks the invoice: a finished job goes to needs pricing, a PO or pictures and back to ready-to-invoice; a kicked-back invoice is fixed and re-sent", { skip }, async () => {
+  const move = (to: string) => s3.gateway.transitionJob({ jobId, orgId, regionId: REGION_SOUTH, to: to as never });
+  // The field finishing and billing invoicing have their own doors; this test starts on the far side of each.
+  await admin(`UPDATE jobs SET state = 'complete' WHERE id = $1`, [jobId]);
+  for (const blocker of ["needs_pricing", "awaiting_po", "awaiting_pictures"] as const) {
+    assert.equal((await move(blocker)).state, blocker);
+    await assert.rejects(move("invoiced"), (e: unknown) => code(s3, e) === "illegal_transition", `${blocker} is cleared back to ready-to-invoice, not invoiced from here`);
+    assert.equal((await move("complete")).state, "complete");
+  }
+  await admin(`UPDATE jobs SET state = 'invoiced' WHERE id = $1`, [jobId]);
+  assert.equal((await move("invoice_trouble")).state, "invoice_trouble");
+  assert.equal((await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!.state, "invoice_trouble");
+  assert.equal((await move("invoiced")).state, "invoiced");
+  const log = await admin(`SELECT to_state FROM job_state_events WHERE job_id = $1 AND mutation_id LIKE 'office:%' AND to_state IN ('needs_pricing','awaiting_po','awaiting_pictures','invoice_trouble') ORDER BY occurred_at`, [jobId]);
+  assert.deepEqual(log.map((r) => r.to_state), ["needs_pricing", "awaiting_po", "awaiting_pictures", "invoice_trouble"]);
+});
+
 test("a revoked grant is a dead token: logout ends the session, and the next call is refused as revoked", { skip }, async () => {
   const s5 = await technician();
   const held = s5.token()!;

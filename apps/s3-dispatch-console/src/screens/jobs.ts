@@ -23,16 +23,19 @@ const STATE_LABEL: Readonly<Record<JobStateWire, string>> = {
   assigned: "Dispatched", en_route: "En route", on_site: "On site", in_progress: "In progress",
   invoiced: "Invoiced", cancelled: "Cancelled", aborted: "Aborted",
   awaiting_customer: "On hold for customer", quote_requested: "Quote requested", quote_submitted: "Quote submitted",
+  needs_pricing: "Needs pricing", awaiting_po: "Waiting on a PO", awaiting_pictures: "Waiting on pictures", invoice_trouble: "Trouble invoicing",
 };
 
 /** The button's word for a move — what the dispatcher is saying happened, not the state's name. */
 const MOVE_LABEL: Readonly<Partial<Record<JobStateWire, string>>> = {
   quote_requested: "Quote requested", quote_submitted: "Quote sent", created: "Approved", cancelled: "Declined",
   awaiting_customer: "Hold for customer", in_progress: "Resume",
+  needs_pricing: "Needs pricing", awaiting_po: "Waiting on PO", awaiting_pictures: "Need pictures", complete: "Ready to invoice",
+  invoice_trouble: "Kicked back", invoiced: "Re-sent",
 };
 
 const BUCKETS: readonly { id: BucketId; title: string; sub: string; tone: Tone; states: readonly JobStateWire[] }[] = [
-  { id: "action", title: "Needs action", sub: "Blocked on your team", tone: "breached", states: ["created", "reassigned", "reopened", "awaiting_parts", "complete"] },
+  { id: "action", title: "Needs action", sub: "Blocked on your team", tone: "breached", states: ["needs_pricing", "awaiting_po", "invoice_trouble", "complete", "awaiting_pictures", "awaiting_parts", "created", "reassigned", "reopened"] },
   { id: "customer", title: "Waiting on customer", sub: "Ball's in their court", tone: "at_risk", states: ["awaiting_customer", "quote_requested", "quote_submitted"] },
   { id: "progress", title: "In progress", sub: "Scheduled or on-site", tone: "info", states: ["assigned", "en_route", "on_site", "in_progress"] },
   { id: "closed", title: "Closed out", sub: "Invoiced, cancelled, or aborted", tone: "ok", states: ["invoiced", "cancelled", "aborted"] },
@@ -60,13 +63,14 @@ export const placeLine = (a: AddressWire | null): string | null => {
 
 const initials = (name: string): string => name.split(/\s+/).map((w) => w[0] ?? "").join("").slice(0, 2).toUpperCase();
 
-type Filter = "action" | "customer" | "open" | "Unassigned" | "Waiting on parts" | "Needs invoicing" | "Reopened";
+type Filter = "action" | "customer" | "open" | "Needs pricing" | "Waiting on a PO" | "Trouble invoicing" | "Needs invoicing" | "Unassigned";
 const FILTERS: readonly { id: Filter; label: string }[] = [
   { id: "action", label: "All needs-action" },
-  { id: "Unassigned", label: "Unassigned" },
-  { id: "Waiting on parts", label: "Waiting on parts" },
+  { id: "Needs pricing", label: "Needs pricing" },
+  { id: "Waiting on a PO", label: "Waiting on PO" },
+  { id: "Trouble invoicing", label: "Trouble invoicing" },
   { id: "Needs invoicing", label: "Needs invoicing" },
-  { id: "Reopened", label: "Reopened" },
+  { id: "Unassigned", label: "Unassigned" },
   { id: "customer", label: "Waiting on customer" },
   { id: "open", label: "All open" },
 ];
@@ -103,7 +107,7 @@ const bucketCard = (bucket: (typeof BUCKETS)[number], jobs: readonly JobWire[]):
 const moveJob = async (ctx: ScreenContext, job: JobWire, to: JobStateWire): Promise<void> => {
   try {
     await ctx.shell.gateway.transitionJob({ jobId: job.id, orgId: job.orgId, regionId: job.regionId, to });
-    ctx.store.notice.value = [to === "created" ? `Job ${job.id}: approved — back to dispatch.` : `Job ${job.id}: ${STATE_LABEL[to].toLowerCase()}.`];
+    ctx.store.notice.value = [to === "created" ? `Job ${job.id}: approved — back to dispatch.` : to === "complete" ? `Job ${job.id}: ready to invoice.` : `Job ${job.id}: ${STATE_LABEL[to].toLowerCase()}.`];
   } catch {
     ctx.store.notice.value = [`Job ${job.id} did not move — it may have changed since this page loaded. The list has been refreshed.`];
   }
@@ -136,18 +140,16 @@ export const jobs: Screen = (ctx) => {
       const count = (label: string) => out.jobs.filter((j) => STATE_LABEL[j.state] === label).length;
       const open = out.jobs.filter((j) => bucketOf(j.state) !== "closed");
       const breached = open.filter((j) => slaStatus(j, now) === "breached").length;
-      const atRisk = open.filter((j) => slaStatus(j, now) === "at_risk").length;
-      const unassigned = count("Unassigned"), parts = count("Waiting on parts"), quoteReq = count("Quote requested"), quoteSent = count("Quote submitted");
+      const pricing = count("Needs pricing"), trouble = count("Trouble invoicing"), quoteReq = count("Quote requested"), quoteSent = count("Quote submitted");
       const rows = stalling(out.jobs, filter.value, now);
       return html`
         ${statStrip([
           { n: count("Needs invoicing"), label: "Needs invoicing", sub: "Finished, ready to bill" },
-          { n: unassigned, label: "Unassigned", sub: "Waiting on dispatch", ...(unassigned ? { tone: "at_risk" as const } : {}) },
-          { n: parts, label: "Waiting on parts", sub: "Held by supply", ...(parts ? { tone: "at_risk" as const } : {}) },
+          { n: pricing, label: "Needs pricing", sub: "Blocking the invoice", ...(pricing ? { tone: "at_risk" as const } : {}) },
+          { n: trouble, label: "Trouble invoicing", sub: "Kicked back, needs a fix", ...(trouble ? { tone: "breached" as const } : {}) },
           { n: quoteReq, label: "Quote requested", sub: "Customer asked for pricing" },
           { n: quoteSent, label: "Quote submitted", sub: "Sent, awaiting approval" },
           { n: breached, label: "SLA breached", sub: "Past due, still open", ...(breached ? { tone: "breached" as const } : {}) },
-          { n: atRisk, label: "SLA at risk", sub: "Escalating now", ...(atRisk ? { tone: "at_risk" as const } : {}) },
         ], "jobs-stats")}
         <div class="s3-buckets">${BUCKETS.map((b) => bucketCard(b, out.jobs))}</div>
         ${panel(DataGrid({ density: "console", columns: columns(), rows, rowKey: (j: JobWire) => j.id, emptyText: "Nothing stalled under this filter.", stack: true }),

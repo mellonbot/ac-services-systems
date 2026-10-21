@@ -269,3 +269,13 @@ test("job dashboard: the waiting-on-customer filter holds the quote and hold sta
   assert.deepEqual(stalling(jobs, "customer", now).map((j) => j.id), ["s", "q", "h"]);
   assert.deepEqual(stalling(jobs, "open", now).map((j) => j.id), ["c", "s", "q", "h"]);
 });
+
+test("job dashboard: the invoice blockers are needs-action, and each has its own filter", async () => {
+  const { stalling } = await import("./screens/jobs.ts");
+  const now = Date.parse("2026-10-21T00:00:00Z");
+  const job = (id: string, state: string, days: number) => ({ id, state, openedAt: new Date(now - 400 * 86_400_000).toISOString(), stateChangedAt: new Date(now - days * 86_400_000).toISOString() }) as unknown as JobWire;
+  const jobs = [job("p", "needs_pricing", 22), job("o", "awaiting_po", 24), job("t", "invoice_trouble", 13), job("x", "awaiting_pictures", 5), job("v", "invoiced", 60)];
+  assert.deepEqual(stalling(jobs, "action", now).map((j) => j.id), ["o", "p", "t", "x"], "a kicked-back invoice is ours to fix; a clean one is closed");
+  assert.deepEqual(stalling(jobs, "Trouble invoicing", now).map((j) => j.id), ["t"]);
+  assert.deepEqual(stalling(jobs, "Waiting on a PO", now).map((j) => j.id), ["o"]);
+});
