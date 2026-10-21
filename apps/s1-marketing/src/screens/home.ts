@@ -31,7 +31,7 @@ const sceneRef = (canvas: HTMLCanvasElement | null): void => {
   let stopped = false;
   stopScene = () => { stopped = true; };
   void import("../scene.ts").then(({ mountScene }) => {
-    if (!stopped) stopScene = mountScene(canvas, "/truck.glb");
+    if (!stopped) stopScene = mountScene(canvas);
   });
 };
 

@@ -9,34 +9,43 @@ const REVOLUTION_MS = 36_000;
 /** The heading the truck rests at under reduced motion, and starts from otherwise: a front three-quarter. */
 const REST_ANGLE = -0.7;
 /** The truck is the subject, so it is drawn larger than the floor around it is to scale. */
-const TRUCK_SCALE = 2.4;
+const TRUCK_SCALE = 2.8;
 /** The portal pads sit on this ellipse around the turntable, in metres. */
 const PAD_RX = 17, PAD_RZ = 11.5;
+/** Equipment in the yard waiting to go out — [model, x, z, heading], on a pallet or skid, at the truck's scale. */
+const STOCK: readonly (readonly [string, number, number, number])[] = [
+  ["/condenser.glb", -30, -26, 0.1], ["/condenser.glb", -25.5, -26, -0.05], ["/condenser.glb", -30, -21.5, 0.05], ["/condenser.glb", -25.5, -21.5, 0.3],
+  ["/rtu.glb", 24, -27.5, 0], ["/rtu.glb", 22, -21, 0.08],
+];
 /** Below this stage width the plates leave the floor and stack under it; the camera frames the truck alone. */
 const FLAT_BELOW_PX = 640;
 
 /**
- * THE SIGN-IN FLOOR — the service bay as it stands, seen from a camera above
- * it: Unit TACLA-14402C turning on a turntable at the centre, and a pad on the
- * floor for each portal, with that portal's sign-in plate pinned above it.
+ * THE SIGN-IN YARD — the outdoor service yard, seen from a camera above it:
+ * Unit TACLA-14402C turning on a turntable at the centre, a pad on the
+ * asphalt for each portal with that portal's sign-in plate pinned above it,
+ * and behind the bay the stock waiting to go out — residential condensers on
+ * pallets and packaged rooftop units on skids — in front of the shop, inside
+ * a chain-link fence.
  *
  * Modelled on the ERS recovery line (erektor-return.systems): depth depicts
  * plant, not interface. The plates are ordinary links in the page, positioned
  * each frame by projecting their pad into the view; the canvas takes no input.
  *
- * Every colour but the truck's is read from the page's Arc Foundry roles at
- * mount — floor from the surface, joints and kerbs from the borders, the far
- * wall from the sunken well, fog from the page ground, a lit pad from the
- * action fill — so no colour literal enters the surface. The truck is an asset
- * (public/truck.glb) and wears its own paint.
+ * Every colour but the equipment's is read from the page's Arc Foundry roles
+ * at mount — asphalt from the muted text, stall lines from the surface, the
+ * shop from the sunken well, posts, rails and doors from the hard border, fog
+ * from the page ground, a lit pad from the action fill — so no colour literal
+ * enters the surface. The truck, condensers and RTUs are assets
+ * (public/truck.glb, condenser.glb, rtu.glb) and wear their own paint.
  *
- * `[data-live]` goes on the scene root at the first frame; until then, and
- * where WebGL is unavailable, the still poster and the CSS ring stand in.
+ * `[data-live]` goes on the scene root at the truck's first frame; until then,
+ * and where WebGL is unavailable, the still poster and the CSS ring stand in.
  * Under `prefers-reduced-motion` nothing turns: one frame is drawn, and
- * redrawn on resize or when a pad lights. The returned function stops the
- * loop and releases the GPU context.
+ * redrawn on resize, when a unit arrives, or when a pad lights. The returned
+ * function stops the loop and releases the GPU context.
  */
-export const mountScene = (canvas: HTMLCanvasElement, modelUrl: string): (() => void) => {
+export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   const root = canvas.closest<HTMLElement>(".s1-scene");
   if (!root) return () => {};
   let renderer: WebGLRenderer;
@@ -75,39 +84,64 @@ export const mountScene = (canvas: HTMLCanvasElement, modelUrl: string): (() => 
 
   scene.add(new HemisphereLight(undefined, role("border-hard"), 1.1));
   const key = new DirectionalLight(undefined, 2.0);
-  key.position.set(18, 34, 24);
+  key.position.set(24, 44, 30);
   key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.mapSize.set(4096, 4096);
   key.shadow.bias = -0.0004;
-  Object.assign(key.shadow.camera, { left: -30, right: 30, top: 24, bottom: -24, far: 100 });
+  Object.assign(key.shadow.camera, { left: -50, right: 50, top: 40, bottom: -40, far: 140 });
   scene.add(key);
   const fill = new DirectionalLight(undefined, 0.45);
   fill.position.set(-18, 12, -16);
   scene.add(fill);
 
-  // --- The floor: sealed slab, saw-cut joints every 6 m, a kerb-lined bay around the pads.
-  const floor = new Mesh(new PlaneGeometry(260, 260), mat("surface", 0.95));
-  floor.rotation.x = -Math.PI / 2;
-  floor.receiveShadow = true;
-  scene.add(floor);
-  const joint = mat("border");
-  for (let v = -96; v <= 96; v += 8) { paint(200, 0.04, 0, v, joint); paint(0.04, 200, v, 0, joint); }
+  // --- The yard: asphalt in the muted slate, stall lines in surface white, a kerb around the pads.
+  const yard = new Mesh(new PlaneGeometry(260, 260), mat("text-muted", 0.97));
+  yard.rotation.x = -Math.PI / 2;
+  yard.receiveShadow = true;
+  scene.add(yard);
+  const stripe = mat("surface", 0.8);
+  for (let x = -36; x <= 36; x += 6) if (Math.abs(x) > 24) paint(0.16, 9, x, 4, stripe);
   const kerb = mat("border-hard");
   const bx = PAD_RX + 5, bz = PAD_RZ + 4;
-  paint(2 * bx, 0.14, 0, -bz, kerb); paint(2 * bx, 0.14, 0, bz, kerb);
-  paint(0.14, 2 * bz, -bx, 0, kerb); paint(0.14, 2 * bz, bx, 0, kerb);
+  paint(2 * bx, 0.18, 0, -bz, stripe); paint(2 * bx, 0.18, 0, bz, stripe);
+  paint(0.18, 2 * bz, -bx, 0, stripe); paint(0.18, 2 * bz, bx, 0, stripe);
 
-  // --- The far wall: panels in the sunken role, steel columns in the hard border.
-  const wall = mat("surface-sunken", 0.95);
-  box(300, 10, 0.4, 0, 5, -34, wall, scene).castShadow = false;
-  for (let x = -96; x <= 96; x += 16) box(0.8, 10, 0.8, x, 5, -33.6, kerb, scene);
+  // --- The shop along the back: metal walls, roll-up doors, a low-pitch roof.
+  const shopZ = -40;
+  box(96, 9, 14, 0, 4.5, shopZ, mat("surface-sunken", 0.7), scene);
+  box(98, 0.6, 15, 0, 9.3, shopZ, kerb, scene);
+  for (const x of [-30, -15, 0, 15, 30]) {
+    box(8, 6.5, 0.2, x, 3.25, shopZ + 7.05, kerb, scene);
+    for (let y = 0.6; y < 6.5; y += 0.6) box(8, 0.04, 0.05, x, y, shopZ + 7.18, mat("border"), scene);
+  }
+
+  // --- Chain-link fence round the yard: posts and a top rail in the hard border, see-through mesh.
+  const fenceX = 36, fenceFront = 30, fenceBack = shopZ + 7;
+  const mesh = new MeshStandardMaterial({ color: role("border"), transparent: true, opacity: 0.35, roughness: 0.6, metalness: 0.4 });
+  const run = (x0: number, z0: number, x1: number, z1: number): void => {
+    const len = Math.hypot(x1 - x0, z1 - z0), ang = Math.atan2(z1 - z0, x1 - x0);
+    const panel = new Mesh(new PlaneGeometry(len, 3.6), mesh);
+    panel.position.set((x0 + x1) / 2, 1.8, (z0 + z1) / 2);
+    panel.rotation.y = -ang;
+    scene.add(panel);
+    const rail = box(len, 0.12, 0.12, (x0 + x1) / 2, 3.6, (z0 + z1) / 2, kerb, scene);
+    rail.rotation.y = -ang;
+    for (let t = 0; t <= len; t += 4) box(0.16, 3.7, 0.16, x0 + (t / len) * (x1 - x0), 1.85, z0 + (t / len) * (z1 - z0), kerb, scene);
+  };
+  run(-fenceX, fenceBack, -fenceX, fenceFront); run(fenceX, fenceBack, fenceX, fenceFront);
+
+  // --- Two light poles on the yard's back corners.
+  for (const x of [-33, 33]) {
+    box(0.35, 12, 0.35, x, 6, fenceBack + 3, kerb, scene);
+    box(2.4, 0.3, 0.8, x + (x < 0 ? 1 : -1), 12, fenceBack + 3, kerb, scene);
+  }
 
   // --- The turntable the truck stands on, and the truck's pivot above it.
   const table = new Group();
   scene.add(table);
-  const disc = add(new Mesh(new CylinderGeometry(8.8, 8.9, 0.16, 96), mat("surface-sunken", 0.6)), table);
+  const disc = add(new Mesh(new CylinderGeometry(9.4, 9.5, 0.16, 96), mat("surface-sunken", 0.6)), table);
   disc.position.y = 0.08;
-  const rim = add(new Mesh(new CylinderGeometry(8.95, 8.95, 0.1, 96, 1, true), kerb), table);
+  const rim = add(new Mesh(new CylinderGeometry(9.55, 9.55, 0.1, 96, 1, true), kerb), table);
   rim.position.y = 0.11;
 
   // --- One pad per plate, in the plates' DOM order, around the same ellipse as the CSS ring.
@@ -144,7 +178,7 @@ export const mountScene = (canvas: HTMLCanvasElement, modelUrl: string): (() => 
 
   // Frame the bay, or on a narrow stage the truck alone, from above and slightly to the right.
   const frame = (): void => {
-    const [envW, envH, target] = flat ? [18, 10, new Vector3(0, 2, 0)] : [2 * (PAD_RX + 2.5), 2 * PAD_RZ + 4, new Vector3(0, 0, 0.8)];
+    const [envW, envH, target] = flat ? [26, 16, new Vector3(0, 2.4, 0)] : [2 * (PAD_RX + 6), 2 * PAD_RZ + 12, new Vector3(0, 0, -4)];
     const half = Math.tan((camera.fov * Math.PI) / 360);
     const dist = Math.max(envH / (2 * half), envW / camera.aspect / (2 * half));
     camera.position.copy(target).add(new Vector3(0.12, 0.62, 0.78).normalize().multiplyScalar(dist));
@@ -173,7 +207,34 @@ export const mountScene = (canvas: HTMLCanvasElement, modelUrl: string): (() => 
   };
   for (const { plate } of pads) for (const t of ["pointerenter", "pointerleave", "focusin", "focusout"]) plate.addEventListener(t, light);
 
-  new GLTFLoader().loadAsync(modelUrl).then(({ scene: truck }) => {
+  const loader = new GLTFLoader();
+  // Each model loads once and is cloned for every unit that wears it.
+  const models = new Map<string, Promise<Object3D>>();
+  const load = (url: string): Promise<Object3D> => {
+    if (!models.has(url)) models.set(url, loader.loadAsync(url).then((g) => g.scene));
+    return models.get(url)!;
+  };
+  const pallet = mat("surface-sunken", 0.9);
+  for (const [url, x, z, heading] of STOCK) {
+    void load(url).then((model) => {
+      if (stopped) return;
+      const unit = model.clone();
+      unit.scale.setScalar(TRUCK_SCALE);
+      const b = new Box3().setFromObject(unit);
+      const size = b.getSize(new Vector3()), mid = b.getCenter(new Vector3());
+      const base = new Group();
+      base.position.set(x, 0, z);
+      base.rotation.y = heading;
+      scene.add(base);
+      box(size.x + 0.4, 0.3, size.z + 0.4, 0, 0.15, 0, pallet, base);
+      unit.position.set(-mid.x, 0.3 - b.min.y, -mid.z);
+      add(unit, base);
+      if (still && loaded) draw();
+    }, () => { /* a missing unit leaves its pallet empty */ });
+  }
+
+  load("/truck.glb").then((model) => {
+    const truck = model.clone();
     if (stopped) return;
     truck.scale.setScalar(TRUCK_SCALE);
     const box3 = new Box3().setFromObject(truck);
