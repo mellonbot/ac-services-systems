@@ -127,7 +127,7 @@ export const network: Screen = (ctx, params) => {
         <dt>Settlement terms</dt><dd>${f.settlementTermsDays} days (D13)</dd>
         <dt>MSA</dt><dd>${f.msaSignedAt
           ? `signed ${f.msaSignedAt}`
-          : html`<form class="ac-form--inline" onSubmit=${(e: Event) => { e.preventDefault(); const d = new FormData(e.currentTarget as HTMLFormElement).get("msaSignedAt"); signMsa(f, String(d ?? "")); }}>
+          : html`<form class="ac-form--inline" id="msa-form" onSubmit=${(e: Event) => { e.preventDefault(); const d = new FormData(e.currentTarget as HTMLFormElement).get("msaSignedAt"); signMsa(f, String(d ?? "")); }}>
               <span class="s2-muted">not signed — a firm is not activated without one</span>
               <input class="ac-input" type="date" name="msaSignedAt" required aria-label="MSA signed on" />
               <button type="submit" class="s2-mutation" disabled=${busy}>Record signature</button>

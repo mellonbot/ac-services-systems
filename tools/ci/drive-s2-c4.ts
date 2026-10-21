@@ -242,7 +242,7 @@ async function main(): Promise<void> {
 
     // ── 7. signing it, then activating, walks the ladder
     await cdp.eval(`(() => {
-      const f = document.querySelector(".s2-form--inline");
+      const f = document.getElementById("msa-form");
       f.elements.namedItem("msaSignedAt").value = "2026-09-01";
       f.requestSubmit();
       return true;
