@@ -14,7 +14,16 @@ export const ROLES = [
   "principal", "ops_leadership", "account_owner", "office_manager",
   "dispatcher", "foreman", "technician", "warehouse", "finance", "readonly",
 ] as const;
-export type Role = (typeof ROLES)[number];
+/**
+ * A customer login's job in its household or account (residential split, R6):
+ * a `payer` sees invoices and pays, a `requester` asks for service. One login
+ * may hold both, and the first login on a customer always does — nobody is
+ * made to keep two accounts. Kept apart from ROLES because these are never a
+ * staff member's, and nothing that ranks or offers staff roles should see them.
+ */
+export const CUSTOMER_ROLES = ["payer", "requester"] as const;
+export type CustomerRole = (typeof CUSTOMER_ROLES)[number];
+export type Role = (typeof ROLES)[number] | CustomerRole;
 
 /**
  * THE CLAIMS A TOKEN CARRIES. Minted by the gateway at login, verified on every

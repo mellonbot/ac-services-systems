@@ -49,7 +49,7 @@ before(async () => {
   await admin(`INSERT INTO regions (id, code, name) VALUES ($1,'WEST','West'), ($2,'SOUTH','South') ON CONFLICT (id) DO NOTHING`, [REGION_WEST, REGION_SOUTH]);
   const region = await resolveRegion(pool, "south");
   assert.equal(region.id, REGION_SOUTH, "a region code resolves case-insensitively");
-  customerOrg = (await admin(`INSERT INTO organizations (name, kind) VALUES ($1,'customer') RETURNING id`, [`Customer ${RUN}`]))[0].id;
+  customerOrg = (await admin(`INSERT INTO organizations (name, kind, segment) VALUES ($1,'customer','commercial') RETURNING id`, [`Customer ${RUN}`]))[0].id;
   await admin(`INSERT INTO accounts (org_id, region_id, tier, name) VALUES ($1,$2,'region',$3)`, [customerOrg, REGION_SOUTH, `Customer ${RUN} / South`]);
   assert.equal((await resolveCustomerOrg(pool, `customer ${RUN}`)).id, customerOrg, "a customer org resolves by name, case-insensitively");
   seeded = await seedTestLogins(pool, { password: PASSWORD, regionId: region.id, customerOrgId: customerOrg });

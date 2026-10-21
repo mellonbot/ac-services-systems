@@ -35,6 +35,12 @@ export type Surface = {
   readonly authScope: string;
   readonly scopeBinding: "none" | "org" | "region" | "customer_tier" | "firm" | "vendor" | "device_shift";
   readonly writes: readonly WriteEntity[];
+  /**
+   * Entities on `writes` that only some of the surface's principals may write,
+   * and which roles may. Absent for an entity → any principal the surface
+   * admits. Checked by the unit of work, so a bundle cannot route around it.
+   */
+  readonly writeRoles?: Partial<Readonly<Record<WriteEntity, readonly Role[]>>>;
   readonly density: Density;
   /** Realtime is a hard requirement, not a nice-to-have, where true. */
   readonly realtime: boolean;
@@ -93,7 +99,8 @@ const REGISTRY = {
     block: "OFC", phase: 1, enabled: true,
     namespace: "internal", authScope: "role-based, org-wide", scopeBinding: "org",
     roles: ["principal", "ops_leadership", "account_owner", "office_manager", "finance", "warehouse"],
-    writes: ["account", "contract", "invoice", "warranty_case", "part", "purchase_order",
+    // `lead`: the office converts a lead into a residential customer (leads.convert).
+    writes: ["account", "contract", "invoice", "warranty_case", "part", "purchase_order", "lead",
              // C4: the network registry. `crew` was added 2026-09-16 — the
              // registry listed the firm, the document and the price, and not
              // the crew they all attach to. S8's `crew_roster` is a firm's
@@ -172,6 +179,9 @@ const REGISTRY = {
     block: "INV", phase: 1, enabled: true,
     namespace: "customer", authScope: "customer IdP + tier claim", scopeBinding: "customer_tier",
     writes: ["service_request", "photo", "payment", "contact_update", "job_message"],
+    // R6: a household (or an account) splits who pays from who asks. A login
+    // with both — every first login — writes all four.
+    writeRoles: { service_request: ["requester"], photo: ["requester"], job_message: ["requester"], payment: ["payer"] },
     density: "comfort", realtime: false, offline: false,
     // "request intake queues" was the design's line (05 §S6); the registry
     // says `offline: false`, and the registry is what runs. A request the

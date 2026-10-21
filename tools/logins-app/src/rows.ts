@@ -1,5 +1,5 @@
 import { hashPassword } from "../../../apps/gateway/src/auth.ts";
-import type { Role } from "../../../packages/contracts/src/scope.ts";
+import { CUSTOMER_ROLES, type Role, type CustomerRole } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
 import { MIN_TEST_LOGIN_PASSWORD } from "../../ci/test-logins.ts";
@@ -11,7 +11,11 @@ type Base = { readonly email: string; readonly displayName: string; readonly pas
 export type NewLogin =
   | Base & { readonly kind: "internal"; readonly roles: readonly Role[]; readonly scope: "org" | "region"; readonly regionId: string }
   | Base & { readonly kind: "technician"; readonly crewId: string; readonly crewHomeRegionId: string }
-  | Base & { readonly kind: "customer"; readonly orgId: string; readonly tier: Tier; readonly nodeId: string; readonly regionId: string }
+  | Base & {
+      readonly kind: "customer"; readonly orgId: string; readonly tier: Tier; readonly nodeId: string; readonly regionId: string;
+      /** Who in the household or account pays and who asks (R6). Absent → both: one person on an account is both. */
+      readonly roles?: readonly CustomerRole[];
+    }
   | Base & { readonly kind: "subcontractor"; readonly firmId: string; readonly regionId: string };
 
 export type UsersRow = {
@@ -48,8 +52,9 @@ const placement = (n: NewLogin): Placement => {
         scope_tier: "region", scope_id: n.crewHomeRegionId, firm_id: null, crew_id: n.crewId,
       };
     case "customer":
+      if (n.roles && n.roles.length === 0) throw new LoginInputError("A customer login pays the balance, requests service, or both — tick at least one.");
       return {
-        org_id: n.orgId, region_id: n.regionId, namespace: "customer", roles: [],
+        org_id: n.orgId, region_id: n.regionId, namespace: "customer", roles: n.roles ?? CUSTOMER_ROLES,
         scope_tier: n.tier, scope_id: n.nodeId, firm_id: null, crew_id: null,
       };
     case "subcontractor":

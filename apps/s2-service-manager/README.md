@@ -24,6 +24,7 @@
 - `warranty_case`
 - `part`
 - `purchase_order`
+- `lead`
 - `subcontractor_firm`
 - `crew`
 - `crew_credential`

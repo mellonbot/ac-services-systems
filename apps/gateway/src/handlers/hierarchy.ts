@@ -5,6 +5,7 @@ import type {
   ListRegionsOutput, ListOrganizationsInput, ListOrganizationsOutput, CreateOrganizationInput, CreateOrganizationOutput,
   ListAccountsOutput, AccountWire, CreateAccountInput, CreateAccountOutput, MoveAccountInput, MoveAccountOutput,
   UpdateAccountInput, UpdateAccountOutput, OrganizationKind, ListSitesOutput, SiteWire,
+  CustomerSegment,
 } from "../../../../packages/contracts/src/operations.ts";
 
 /**
@@ -60,15 +61,15 @@ export const listRegions = async (uow: UnitOfWork): Promise<ListRegionsOutput> =
 export const listOrganizations = async (uow: UnitOfWork, input: ListOrganizationsInput): Promise<ListOrganizationsOutput> => {
   const kind = input.kind;
   if (kind !== undefined && kind !== "customer" && kind !== "subcontractor") throw new BadInput(`kind must be customer or subcontractor`);
-  const rows = await uow.tx.query<{ id: string; name: string; kind: OrganizationKind; external_ref: string | null; active: boolean; region_node_count: string }>(
-    `SELECT o.id, o.name, o.kind, o.external_ref, o.active,
+  const rows = await uow.tx.query<{ id: string; name: string; kind: OrganizationKind; segment: CustomerSegment | null; external_ref: string | null; active: boolean; region_node_count: string }>(
+    `SELECT o.id, o.name, o.kind, o.segment, o.external_ref, o.active,
             (SELECT count(*) FROM accounts a WHERE a.org_id = o.id AND a.tier = 'region' AND a.active) AS region_node_count
        FROM organizations o
       WHERE o.kind IN ('customer', 'subcontractor') AND ($1::text IS NULL OR o.kind = $1)
       ORDER BY o.name`,
     [kind ?? null],
   );
-  return { organizations: rows.map((r) => ({ id: r.id, name: r.name, kind: r.kind, externalRef: r.external_ref, active: r.active, regionNodeCount: Number(r.region_node_count) })) };
+  return { organizations: rows.map((r) => ({ id: r.id, name: r.name, kind: r.kind, segment: r.segment, externalRef: r.external_ref, active: r.active, regionNodeCount: Number(r.region_node_count) })) };
 };
 
 export const listAccounts = async (uow: UnitOfWork, orgId: string): Promise<ListAccountsOutput> => {
@@ -115,6 +116,8 @@ const activeRegion = async (uow: UnitOfWork, regionId: string): Promise<RegionRo
 export const createOrganization = async (uow: UnitOfWork, input: CreateOrganizationInput, newId: () => string): Promise<CreateOrganizationOutput> => {
   const name = requireText(input.name, "name");
   const kind: OrganizationKind = input.kind ?? "customer";
+  const segment: CustomerSegment = input.segment ?? "commercial";
+  if (segment !== "commercial" && segment !== "residential") throw new BadInput("segment must be residential or commercial");
   if (kind !== "customer" && kind !== "subcontractor") throw new BadInput(`kind must be customer or subcontractor`);
   // C4: a firm is a root AND an operational row, and it has no customer tree to
   // hang a region node on. Its door is firms.create; this one would leave an
@@ -131,12 +134,12 @@ export const createOrganization = async (uow: UnitOfWork, input: CreateOrganizat
   const eventId = await uow.apply(
     {
       entity: "account", entityId: orgId, action: "organization.create", topic: "account.created",
-      before: null, after: { id: orgId, name, kind, externalRef: input.externalRef ?? null, tier: "parent" },
+      before: null, after: { id: orgId, name, kind, segment, externalRef: input.externalRef ?? null, tier: "parent" },
       orgId, regionId: region.id,
-      payload: { tier: "parent", name, kind },
+      payload: { tier: "parent", name, kind, segment },
     },
     async (tx) => {
-      await tx.query("INSERT INTO organizations (id, name, kind, external_ref) VALUES ($1, $2, $3, $4)", [orgId, name, kind, input.externalRef ?? null]);
+      await tx.query("INSERT INTO organizations (id, name, kind, segment, external_ref) VALUES ($1, $2, $3, $4, $5)", [orgId, name, kind, segment, input.externalRef ?? null]);
     },
   );
   const regionNodeId = newId();

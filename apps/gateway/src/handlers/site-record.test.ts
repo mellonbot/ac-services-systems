@@ -34,7 +34,7 @@ const office: Principal = {
   roles: ["account_owner"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "s",
 };
 /** A facility manager whose token is bound to WEST; the site is served from SOUTH. */
-const executive: Principal = { ...office, namespace: "customer", orgId: ORG, regionId: WEST, scopeTier: "parent", scopeId: ORG, roles: [] };
+const executive: Principal = { ...office, namespace: "customer", orgId: ORG, regionId: WEST, scopeTier: "parent", scopeId: ORG, roles: ["payer", "requester"] };
 let seq = 0;
 const uowFor = async (tx: Tx, surface: "S2" | "S6" = "S2", principal: Principal = office) =>
   createUnitOfWork({ surfaceId: surface, principal, requestId: "r", now: () => new Date("2026-09-21T12:00:00Z"), newId: () => U(600 + ++seq) }, tx);

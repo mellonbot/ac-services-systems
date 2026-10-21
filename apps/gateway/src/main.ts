@@ -20,6 +20,7 @@ import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMes
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
 import { createServiceRequest, listServiceRequests, openJobFromRequest } from "./handlers/service-requests.ts";
 import { attachPhoto, getMedia } from "./handlers/photos.ts";
+import { createResidential, listLeads, convertLead } from "./handlers/residential.ts";
 import { storeFromEnv } from "../../../packages/storage/src/index.ts";
 import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
 import { listEquipment, registerEquipment, listContacts, setContact, listInvoices } from "./handlers/site-record.ts";
@@ -503,6 +504,9 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "serviceRequests.list": (req, input) => withRead(req, "serviceRequests.list", (uow) => listServiceRequests(uow, input)),
   "serviceRequests.attachPhoto": (req, input) => withUow(req, "serviceRequests.attachPhoto", (uow, p) => attachPhoto(uow, p.subjectId, STORE, input, randomUUID)),
   "media.get": (req, input) => withRead(req, "media.get", (uow) => getMedia(uow, STORE, input)),
+  "customers.createResidential": (req, input) => withUow(req, "customers.createResidential", (uow) => createResidential(uow, input, randomUUID)),
+  "leads.list": (req, input) => withRead(req, "leads.list", (uow) => listLeads(uow, input)),
+  "leads.convert": (req, input) => withUow(req, "leads.convert", (uow) => convertLead(uow, input, randomUUID)),
   "serviceRequests.openJob": (req, input) => withUow(req, "serviceRequests.openJob", (uow) => openJobFromRequest(uow, input, randomUUID, new Date())),
 
   // S3 — the one gated door, its dry run, and its release.

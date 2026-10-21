@@ -98,6 +98,14 @@ export class RoleDenied extends Error {
   }
 }
 
+export class WriteRoleDenied extends RoleDenied {
+  constructor(surfaceId: SurfaceId, entity: string, writers: readonly string[], roles: readonly string[]) {
+    super(surfaceId, roles);
+    this.message = `on ${surfaceId}, "${entity}" is written by [${writers.join(", ")}]; this login holds [${roles.join(", ") || "—"}]. Ask the account to add the role.`;
+    this.name = "WriteRoleDenied";
+  }
+}
+
 export const createUnitOfWork = async (ctx: UnitOfWorkContext, tx: Tx) => {
   const surface = SURFACES[ctx.surfaceId];
   if (!surface.enabled) throw new SurfaceDisabled(ctx.surfaceId);
@@ -119,6 +127,9 @@ export const createUnitOfWork = async (ctx: UnitOfWorkContext, tx: Tx) => {
     if (!open) throw new Error("unit of work already closed");
     // 2. The check nobody has to remember. S4's empty list enforces itself here.
     if (!surface.writes.includes(m.entity)) throw new SurfaceWriteDenied(ctx.surfaceId, m.entity);
+    // 2b. Some writes are one role's (R6: who pays is not who asks). Absent → any admitted principal.
+    const writers = surface.writeRoles?.[m.entity];
+    if (writers && !writers.some((r) => ctx.principal.roles.includes(r))) throw new WriteRoleDenied(ctx.surfaceId, m.entity, writers, ctx.principal.roles);
     // 3. Tenancy. Internal and device principals are OURS: they write into customer
     //    orgs, bounded by region (org-scoped internal principals: any region).
     //    External principals (customer, subcontractor, vendor, anonymous) write

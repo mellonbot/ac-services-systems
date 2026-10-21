@@ -1,6 +1,6 @@
 import { KINDS, kindsOf } from "../kinds.ts";
 import type { Kind, KindId, UserRecord } from "../kinds.ts";
-import { ROLES } from "../../../../packages/contracts/src/scope.ts";
+import { ROLES, CUSTOMER_ROLES, type CustomerRole } from "../../../../packages/contracts/src/scope.ts";
 import type { Role } from "../../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../../packages/contracts/src/tiers.ts";
 import type { Api } from "../preload.ts";
@@ -381,6 +381,11 @@ const customerPlacement = (f: FormData, nodes: readonly AccountNode[], orgId: st
 const roleBoxes = (checked: readonly string[]): HTMLElement => h("fieldset", { class: "roles" }, h("legend", {}, "Roles"),
   ...[...ROLES, ...checked.filter((r) => !(ROLES as readonly string[]).includes(r))].map((r) => h("label", { class: "check" }, h("input", { type: "checkbox", name: "roles", value: r, checked: checked.includes(r) }), r)));
 
+const HOUSEHOLD_WORD: Readonly<Record<CustomerRole, string>> = { payer: "Pays the balance", requester: "Requests service" };
+/** A customer login's job (R6). Both ticked by default: one person on an account does both. */
+const householdBoxes = (checked: readonly string[]): HTMLElement => h("fieldset", { class: "roles" }, h("legend", {}, "Does"),
+  ...CUSTOMER_ROLES.map((r) => h("label", { class: "check" }, h("input", { type: "checkbox", name: "householdRoles", value: r, checked: checked.includes(r) }), HOUSEHOLD_WORD[r])));
+
 const scopeRadios = (current: "org" | "region"): HTMLElement => h("fieldset", { class: "scope" }, h("legend", {}, "Scope"),
   ...(["org", "region"] as const).map((v) => h("label", { class: "check" },
     h("input", { type: "radio", name: "scope", value: v, checked: v === current, required: true }), v === "org" ? "org-wide" : "one region")));
@@ -427,10 +432,10 @@ const addForm = async (): Promise<void> => {
         let treeOf = "";
         const scope = h("div", { class: "group" });
         const org = select("orgId", orgs.map((o) => [o.id, o.name]));
-        const form = openForm("Add Customer Portal login", [...head, field("Customer", org), scope, ...passwordFields()], async (f) => {
+        const form = openForm("Add Customer Portal login", [...head, field("Customer", org), scope, householdBoxes(CUSTOMER_ROLES), ...passwordFields()], async (f) => {
           const orgId = str(f, "orgId");
           if (treeOf !== orgId) throw new Error("The customer's sites have not loaded yet.");
-          await api.addLogin(db, { ...base(f), kind: "customer", orgId, ...customerPlacement(f, nodes, orgId) });
+          await api.addLogin(db, { ...base(f), kind: "customer", orgId, ...customerPlacement(f, nodes, orgId), roles: f.getAll("householdRoles") as CustomerRole[] });
         });
         const loadTree = async (): Promise<void> => {
           const orgId = org.value;
@@ -520,11 +525,13 @@ const editForm = async (u: UserRecord): Promise<void> => {
       keepOption(sees, wasNode, u.scopeName ?? u.scopeId);
       sees.dispatchEvent(new Event("change"));
       if (u.scopeTier === "parent") keepOption(scope.querySelector<HTMLSelectElement>("select[name=wholeRegion]")!, u.regionId, u.regionCode);
-      body.push(field("Customer", h("input", { value: u.orgName, readonly: true, class: "readonly" })), scope);
+      body.push(field("Customer", h("input", { value: u.orgName, readonly: true, class: "readonly" })), scope, householdBoxes(u.roles));
       build = (f) => {
-        if (str(f, "node") === wasNode && (wasNode !== WHOLE || str(f, "wholeRegion") === u.regionId)) return { displayName: str(f, "displayName") };
+        const roles = f.getAll("householdRoles") as CustomerRole[];
+        if (roles.length === 0) throw new Error("A customer login pays the balance, requests service, or both — tick at least one.");
+        if (str(f, "node") === wasNode && (wasNode !== WHOLE || str(f, "wholeRegion") === u.regionId)) return { displayName: str(f, "displayName"), roles };
         const p = customerPlacement(f, nodes, u.orgId);
-        return { displayName: str(f, "displayName"), scope: { tier: p.tier, scopeId: p.nodeId, regionId: p.regionId } };
+        return { displayName: str(f, "displayName"), roles, scope: { tier: p.tier, scopeId: p.nodeId, regionId: p.regionId } };
       };
     }
   } catch (e) { if (!stale(db)) banner(message(e)); return; }

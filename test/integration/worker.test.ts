@@ -59,7 +59,7 @@ before(async () => {
   // Same race as s4.test.ts: after()'s DROP ... WITH (FORCE) can terminate a socket pool.end() has not finished closing.
   pool.on("error", () => {});
   await admin(`INSERT INTO regions (id, code, name) VALUES ($1,'SOUTH','South') ON CONFLICT (id) DO NOTHING`, [REGION_SOUTH]);
-  await admin(`INSERT INTO organizations (id, name, kind, external_ref) VALUES ($1, $2, 'customer', $2) ON CONFLICT (id) DO NOTHING`, [ORG, `Worker Org ${RUN}`]);
+  await admin(`INSERT INTO organizations (id, name, kind, segment, external_ref) VALUES ($1, $2, 'customer', 'commercial', $2) ON CONFLICT (id) DO NOTHING`, [ORG, `Worker Org ${RUN}`]);
   await admin(`INSERT INTO accounts (id, org_id, region_id, tier, parent_id, name) VALUES ($1, $2, $3, 'region', NULL, 'W / South') ON CONFLICT (id) DO NOTHING`, [SITE_NODE, ORG, REGION_SOUTH]);
   const loc = U(18);
   await admin(`INSERT INTO accounts (id, org_id, region_id, tier, parent_id, name) VALUES ($1, $2, $3, 'location', $4, 'W Loc') ON CONFLICT (id) DO NOTHING`, [loc, ORG, REGION_SOUTH, SITE_NODE]);

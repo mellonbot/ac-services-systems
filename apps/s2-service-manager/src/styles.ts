@@ -23,6 +23,7 @@ export const S2_CSS = `
 .s2-fieldset small{color:var(--color-text-muted);font-size:var(--text-sm)}
 .s2-fieldset{border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-3)}
 .s2-form__actions{display:flex;align-items:center;gap:var(--space-4)}
+.s2-address-row{display:grid;grid-template-columns:minmax(0,2fr) minmax(4rem,1fr) minmax(6rem,1fr);gap:var(--space-3)}
 .s2-parent{margin:0;color:var(--color-text-muted)}
 .s2-login{max-width:var(--measure-narrow);margin:10vh auto 0}
 
@@ -41,6 +42,7 @@ export const S2_CSS = `
 .s2-terms dd{margin:0}
 .s2-firm{display:flex;flex-direction:column;gap:var(--space-3)}
 .s2-muted{color:var(--color-text-muted)}
+.s2-chips{display:flex;flex-wrap:wrap;gap:var(--space-1)}
 .s2-oq5{display:flex;flex-direction:column;gap:var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-3)}
 .s2-oq5 legend{padding-inline:var(--space-2);font-weight:600}
 .s2-oq5__unset{color:var(--color-status-at-risk)}
@@ -61,6 +63,7 @@ export const S2_CSS = `
 .s2-trace-table{width:100%;border-collapse:collapse}
 .s2-refused{margin:var(--space-3) 0 0;padding-inline-start:var(--space-4);color:var(--color-status-at-risk)}
 @media (max-width:760px){
+  .s2-address-row{grid-template-columns:1fr}
   .s2-nav__group{flex:1 1 14rem}
   .s2-nav__group-links{flex-wrap:wrap}
   .s2-notice__dismiss{min-height:var(--space-12);display:inline-flex;align-items:center}

@@ -115,6 +115,21 @@ export const OPERATIONS = {
     surfaces: ["S2"], carrier: "body", sdkMethod: "createOrganization",
     summary: "Create a customer parent WITH its first region node in one unit of work. No orphan parent: a parent never exists without a place we serve it from.",
   },
+  "customers.createResidential": {
+    id: "customers.createResidential", method: "POST", path: "/s2/customers/residential", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createResidentialCustomer",
+    summary: "A home as a customer, in one unit of work: the organization (segment residential, fixed for good), the region node we serve it from, the household as its location and the home as its site, both at the address, and the homeowner as the primary contact when given. The tier ladder is unchanged — a home is a one-branch tree.",
+  },
+  "leads.list": {
+    id: "leads.list", method: "GET", path: "/s2/leads", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "query", sdkMethod: "listLeads",
+    summary: "Leads S1 captured, newest first — waiting ones by default — with the contact the visitor gave and, once converted, the home it became.",
+  },
+  "leads.convert": {
+    id: "leads.convert", method: "POST", path: "/s2/leads/convert", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "convertLead",
+    summary: "A lead becomes a residential customer: customers.createResidential with the lead's name and contact, and the lead records the home it became — once; a second conversion is refused, naming the home.",
+  },
   "accounts.list": {
     id: "accounts.list", method: "GET", path: "/s2/accounts", kind: "query", auth: "bearer",
     surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "listAccounts",
@@ -742,17 +757,55 @@ export type ListRegionsOutput = { readonly regions: readonly RegionWire[] };
 
 export type OrganizationKind = "customer" | "subcontractor";
 export type ListOrganizationsInput = { readonly kind?: OrganizationKind };
-export type OrganizationWire = { readonly id: string; readonly name: string; readonly kind: OrganizationKind; readonly externalRef: string | null; readonly active: boolean; readonly regionNodeCount: number };
+/** Residential or commercial (R1: fixed once set). Customers only — null for every other kind of organization. */
+export type CustomerSegment = "residential" | "commercial";
+export type OrganizationWire = { readonly id: string; readonly name: string; readonly kind: OrganizationKind; readonly segment: CustomerSegment | null; readonly externalRef: string | null; readonly active: boolean; readonly regionNodeCount: number };
 export type ListOrganizationsOutput = { readonly organizations: readonly OrganizationWire[] };
 
 export type CreateOrganizationInput = {
   readonly name: string;
   readonly kind?: OrganizationKind;
+  /** Defaults to commercial — this is the multi-node door. A home goes through customers.createResidential. */
+  readonly segment?: CustomerSegment;
   readonly externalRef?: string;
   /** The first region node — created in the same unit of work. A parent never exists without a place we serve it from. */
   readonly firstRegionNode: { readonly regionId: string; readonly name: string };
 };
 export type CreateOrganizationOutput = { readonly orgId: string; readonly regionNodeId: string; readonly eventId: string };
+
+export type CreateResidentialInput = {
+  /** The household's name, e.g. "Turner residence". */
+  readonly name: string;
+  /** OUR service region the home is dispatched from. */
+  readonly regionId: string;
+  /** Where the home is. line1 is required — it names the household. */
+  readonly address: AddressWire;
+  readonly externalRef?: string;
+  /** The homeowner, recorded as the household's primary contact. */
+  readonly contact?: { readonly name: string; readonly phone?: string; readonly email?: string };
+};
+export type CreateResidentialOutput = {
+  readonly orgId: string; readonly regionNodeId: string; readonly locationId: string; readonly siteId: string;
+  readonly eventId: string;
+  /** D14's caveats from opening the household's location, if any. */
+  readonly caveats: readonly string[];
+};
+export type LeadWire = {
+  readonly id: string; readonly source: string; readonly contact: LeadContact; readonly requestedMetro: string | null;
+  readonly createdAt: string;
+  /** The home (site) this lead became, once converted. */
+  readonly convertedAccountId: string | null;
+};
+export type ListLeadsInput = { readonly include?: "waiting" | "all" };
+export type ListLeadsOutput = { readonly leads: readonly LeadWire[] };
+export type ConvertLeadInput = {
+  readonly leadId: string;
+  readonly regionId: string;
+  readonly address: AddressWire;
+  /** Defaults to the name the visitor gave. */
+  readonly name?: string;
+};
+export type ConvertLeadOutput = CreateResidentialOutput & { readonly leadId: string };
 
 export type AccountTierWire = "region" | "location" | "site";
 export type AccountWire = {
@@ -1697,6 +1750,9 @@ export type OperationIO = {
   "regions.list": { input: void; output: ListRegionsOutput };
   "organizations.list": { input: ListOrganizationsInput; output: ListOrganizationsOutput };
   "organizations.create": { input: CreateOrganizationInput; output: CreateOrganizationOutput };
+  "customers.createResidential": { input: CreateResidentialInput; output: CreateResidentialOutput };
+  "leads.list": { input: ListLeadsInput; output: ListLeadsOutput };
+  "leads.convert": { input: ConvertLeadInput; output: ConvertLeadOutput };
   "accounts.list": { input: ListAccountsInput; output: ListAccountsOutput };
   "accounts.create": { input: CreateAccountInput; output: CreateAccountOutput };
   "accounts.move": { input: MoveAccountInput; output: MoveAccountOutput };

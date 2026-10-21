@@ -81,7 +81,7 @@ const withUow = async <T>(surface: "S2" | "S3" | "S5" | "S6" | "S8", p: Principa
 before(async () => {
   if (!URL) return;
   pool = createPool(URL, "ac-integration");
-  await admin(`INSERT INTO organizations (id, name, kind) VALUES ($1,'Amped Fitness Inc.','customer'), ($2,'Firm A LLC','subcontractor'), ($3,'Firm B LLC','subcontractor') ON CONFLICT (id) DO NOTHING`, [ORG, FIRM_A, FIRM_B]);
+  await admin(`INSERT INTO organizations (id, name, kind, segment) VALUES ($1,'Amped Fitness Inc.','customer','commercial'), ($2,'Firm A LLC','subcontractor',NULL), ($3,'Firm B LLC','subcontractor',NULL) ON CONFLICT (id) DO NOTHING`, [ORG, FIRM_A, FIRM_B]);
   await admin(`INSERT INTO regions (id, code, name) VALUES ($1,'WEST','West'), ($2,'MOUNTAIN','Mountain'), ($3,'SOUTH','South') ON CONFLICT (id) DO NOTHING`, [REGION_WEST, REGION_MOUNTAIN, REGION_SOUTH]);
   for (const n of NODES) {
     if (n.tier === "parent") continue;

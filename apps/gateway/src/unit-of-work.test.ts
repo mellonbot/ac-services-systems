@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createUnitOfWork, isOrgScoped, SurfaceWriteDenied, TenancyMismatch, SurfaceDisabled, type Tx } from "./unit-of-work.ts";
+import { createUnitOfWork, isOrgScoped, SurfaceWriteDenied, TenancyMismatch, SurfaceDisabled, WriteRoleDenied, RoleDenied, type Tx } from "./unit-of-work.ts";
 import type { Principal, ScopeBinding } from "../../../packages/contracts/src/scope.ts";
 
 const fakeTx = () => {
@@ -92,7 +92,7 @@ test("an org-scoped internal principal may write across regions; a customer prin
   const uow = await createUnitOfWork({ ...ctx("S3", ops) }, f.tx);
   await uow.apply({ entity: "assignment", entityId: "j", action: "assign", topic: "job.assigned", before: null, after: {}, orgId: "org-amped", regionId: "reg-west" }, async () => {});
 
-  const cust: Principal = { ...dispatcher, namespace: "customer", orgId: "org-amped", scopeTier: "location", scopeId: "acct-boulder", regionId: "reg-mountain" };
+  const cust: Principal = { ...dispatcher, namespace: "customer", roles: ["payer", "requester"], orgId: "org-amped", scopeTier: "location", scopeId: "acct-boulder", regionId: "reg-mountain" };
   const g = fakeTx();
   const u2 = await createUnitOfWork(ctx("S6", cust), g.tx);
   await assert.rejects(
@@ -107,7 +107,7 @@ test("an org-scoped internal principal may write across regions; a customer prin
 });
 
 test("a parent-tier customer writes into any region its org is served from — the row's region is the site's, not the token's (item 6)", async () => {
-  const exec: Principal = { ...dispatcher, namespace: "customer", orgId: "org-amped", scopeTier: "parent", scopeId: "org-amped", regionId: "reg-mountain" };
+  const exec: Principal = { ...dispatcher, namespace: "customer", roles: ["payer", "requester"], orgId: "org-amped", scopeTier: "parent", scopeId: "org-amped", regionId: "reg-mountain" };
   const f = fakeTx();
   const uow = await createUnitOfWork(ctx("S6", exec), f.tx);
   await uow.apply({ entity: "service_request", entityId: "sr", action: "open", topic: "service_request.created", before: null, after: {}, orgId: "org-amped", regionId: "reg-west" }, async () => {});
@@ -152,4 +152,17 @@ test("org-scoped writers: parent-tier internal, customer and vendor; a region-bo
   assert.equal(isOrgScoped(p("internal", "region")), false);
   assert.equal(isOrgScoped(p("customer", "location")), false);
   assert.equal(isOrgScoped(p("subcontractor", "parent")), false, "a firm writes in the region it is dispatched from");
+});
+
+test("R6: who pays is not who asks — a payer-only login cannot request service, a requester-only login cannot pay, and one person holding both does everything", async () => {
+  const home = (roles: Principal["roles"]): Principal => ({ ...dispatcher, namespace: "customer", roles, orgId: "org-turner", scopeTier: "parent", scopeId: "org-turner", regionId: "reg-mountain" });
+  const write = async (who: Principal, entity: "service_request" | "payment") => {
+    const uow = await createUnitOfWork(ctx("S6", who), fakeTx().tx);
+    return uow.apply({ entity, entityId: "x", action: "a", topic: "service_request.created", before: null, after: {}, orgId: "org-turner", regionId: "reg-mountain" }, async () => {});
+  };
+  await assert.rejects(write(home(["payer"]), "service_request"), (e: Error) => e instanceof WriteRoleDenied && e instanceof RoleDenied && /written by \[requester\]/.test(e.message));
+  await assert.rejects(write(home(["requester"]), "payment"), WriteRoleDenied);
+  await write(home(["requester"]), "service_request");
+  await write(home(["payer", "requester"]), "service_request");
+  await write(home(["payer", "requester"]), "payment");
 });
