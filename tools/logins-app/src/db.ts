@@ -1,6 +1,7 @@
 import { createPool, beginTx, type Pool } from "../../../apps/gateway/src/pg-tx.ts";
 import type { ScopeBinding, Role } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
+import type { CustomerSegment } from "../../../packages/contracts/src/operations.ts";
 import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
 import type { UserRecord } from "./kinds.ts";
 import { buildUserRow, checkPassword, accessChanged, LoginInputError } from "./rows.ts";
@@ -24,7 +25,7 @@ export type Region = { id: string; code: string; name: string };
 export type Crew = { id: string; label: string; homeRegionId: string; employmentType: "employed" | "subcontracted"; firmName: string | null };
 export type Firm = { id: string; legalName: string; regionId: string; status: "onboarding" | "active" | "suspended" | "terminated" };
 export type Company = Crew & { regionCode: string; active: boolean; firmId: string | null; firmStatus: Firm["status"] | null; technicians: number; documents: string };
-export type CustomerOrg = { id: string; name: string };
+export type CustomerOrg = { id: string; name: string; segment: CustomerSegment };
 export type AccountNode = { id: string; tier: "region" | "location" | "site"; name: string; parentId: string | null; regionId: string };
 export type LoginEdit = {
   readonly displayName: string;
@@ -57,7 +58,7 @@ const REVOKE_SESSIONS = `UPDATE sessions SET revoked_at = now() WHERE revoked_at
 
 type UserRow = {
   id: string; email: string; display_name: string; namespace: UserRecord["namespace"]; roles: string[];
-  org_id: string; org_name: string; region_id: string; region_code: string;
+  org_id: string; org_name: string; org_segment: CustomerSegment | null; region_id: string; region_code: string;
   scope_tier: Tier; scope_id: string; scope_name: string | null;
   firm_id: string | null; firm_name: string | null;
   crew_id: string | null; crew_label: string | null; crew_employment: "employed" | "subcontracted" | null;
@@ -66,7 +67,7 @@ type UserRow = {
 
 const toRecord = (r: UserRow): UserRecord => ({
   id: r.id, email: r.email, displayName: r.display_name, namespace: r.namespace, roles: r.roles,
-  orgId: r.org_id, orgName: r.org_name, regionId: r.region_id, regionCode: r.region_code,
+  orgId: r.org_id, orgName: r.org_name, orgSegment: r.org_segment, regionId: r.region_id, regionCode: r.region_code,
   scopeTier: r.scope_tier, scopeId: r.scope_id, scopeName: r.scope_name,
   firmId: r.firm_id, firmName: r.firm_name,
   crewId: r.crew_id, crewLabel: r.crew_label, crewEmployment: r.crew_employment,
@@ -168,7 +169,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
     ping: async () => { await read("SELECT 1"); },
 
     listUsers: async ({ includeInactive }) => (await read<UserRow>(
-      `SELECT u.id, u.email, u.display_name, u.namespace, u.roles, u.org_id, o.name AS org_name,
+      `SELECT u.id, u.email, u.display_name, u.namespace, u.roles, u.org_id, o.name AS org_name, o.segment AS org_segment,
               u.region_id, r.code AS region_code, u.scope_tier, u.scope_id,
               CASE WHEN u.scope_tier <> 'parent' THEN a.name END AS scope_name,
               u.firm_id, f.legal_name AS firm_name,
@@ -288,7 +289,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       await q(`UPDATE crews SET active = true WHERE id = $1`, [id]);
     }),
 
-    listCustomerOrgs: () => read<CustomerOrg>(`SELECT id, name FROM organizations WHERE kind = 'customer' AND active ORDER BY name`),
+    listCustomerOrgs: () => read<CustomerOrg>(`SELECT id, name, segment FROM organizations WHERE kind = 'customer' AND active ORDER BY name`),
 
     listAccountTree: async (orgId) => (await read<{ id: string; tier: AccountNode["tier"]; name: string; parent_id: string | null; region_id: string }>(
       `SELECT id, tier, name, parent_id, region_id FROM accounts WHERE org_id = $1 AND active ORDER BY name`, [orgId]))
