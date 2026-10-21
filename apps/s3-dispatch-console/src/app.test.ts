@@ -319,3 +319,11 @@ test("job detail: the next visit is scheduled only while nobody holds the job an
   assert.equal(scheduledNext(job("created", null, "2026-10-01T00:00:00Z"), now), false, "the window has passed");
   assert.equal(scheduledNext(job("needs_pricing", null, "2026-11-01T00:00:00Z"), now), false, "the work is done");
 });
+
+test("manager dashboard: the team narrows by title and by any part of a name, case-blind", async () => {
+  const { teamRows } = await import("./screens/manager.ts");
+  assert.equal(teamRows("", null).length, 11);
+  assert.deepEqual(teamRows("", "Owner / Admin").map((p) => p.name), ["Dylan Lemons", "Garrett Howard"]);
+  assert.deepEqual(teamRows("  vega ", null).map((p) => p.name), ["Herberto Vega"]);
+  assert.equal(teamRows("vega", "Technician").length, 0);
+});
