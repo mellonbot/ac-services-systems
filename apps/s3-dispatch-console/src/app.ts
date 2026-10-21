@@ -1,6 +1,6 @@
 import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, pageHead, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
-import { densityOf, seesManagerOverview, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
+import { admits, densityOf, seesManagerOverview, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
 import { createStore, type Store } from "./state.ts";
@@ -337,6 +337,13 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           <button type="button" class="dispatch-header__logout" onClick=${logout}>Sign out</button>
         </div>
       </header>
+      <div class="dispatch-actions">
+        ${PrimaryAction({ density: DENSITY, label: "New customer", kind: "quiet", id: "new-customer",
+          // Customers are an S2 write (organizations.create); S3 hands off to that screen.
+          ...(admits("S2", p.shell.principal) ? {} : { disabledReason: "Customers are created in Service Manager, which your role cannot open." }),
+          onClick: () => opts.window?.location.assign(`${SURFACE_PATHS.S2}/organizations/new`) })}
+        ${PrimaryAction({ density: DENSITY, label: "New job", id: "new-job", onClick: () => router.navigate("intake", {}) })}
+      </div>
       ${notice.length ? html`<div class="s3-notice" role="status">${notice.map((n) => html`<p>${n}</p>`)}<button type="button" class="s3-notice__dismiss" onClick=${() => { p.store.notice.value = []; }} aria-label="Dismiss">×</button></div>` : null}
       ${screen ? screen(ctx, loc!.params) : html`<p class="s3-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}
     </div>`;

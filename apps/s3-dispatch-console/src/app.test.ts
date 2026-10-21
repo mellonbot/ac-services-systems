@@ -226,6 +226,19 @@ test("degraded: Assign and Release render disabled with the surface's declared r
   assert.match(out, /Crew A1/, "the last server state is still on screen");
 });
 
+test("New customer and New job sit under the dispatch bar: New job opens Intake, New customer hands off to S2 and says why when the role cannot", async () => {
+  const { app } = await ready();
+  await settle();
+  const page = render(app.view());
+  assert.match(page, /<\/header><div class="dispatch-actions">/, "the row sits directly under the bar");
+  assert.match(page, /id="new-customer" aria-disabled="true"/, "a dispatcher cannot open S2");
+  assert.match(page, /Customers are created in Service Manager/);
+  const newJob = nodesIn(app.view()).filter((n) => n.props?.id === "new-job");
+  assert.equal(newJob.length, 1);
+  (newJob[0]!.props!.onClick as (e: Event) => void)(new Event("click"));
+  assert.equal(app.router.current.value?.screen, "intake");
+});
+
 test("the dark dispatch bar is the only navigation, and its Sign out ends the session at the gateway", async () => {
   const { app, gateway } = await ready({ [OPERATIONS["auth.logout"].path]: { status: 200, body: { ok: true, sessionId: "sess-1" } } });
   await settle();
