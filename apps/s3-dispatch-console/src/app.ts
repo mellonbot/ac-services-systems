@@ -55,10 +55,17 @@ type PreviewShell = ConnectedShell & {
 type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store } | { kind: "preview"; shell: PreviewShell; store: Store };
 
 const DAY = 86_400_000;
-const previewJob = (id: string, siteName: string, serviceCode: string, priority: string, state: string, crew: string | null, daysOpen: number, sla: { due: number; stage: number } | null) => {
+const PREVIEW_PLACES: Readonly<Record<string, { line1: string; city: string; state: string; postal: string }>> = {
+  "Shipman Co": { line1: "1200 S Main St", city: "Crowley", state: "TX", postal: "76036" },
+  "FirstKey Homes DFW": { line1: "7310 Glenview Dr", city: "Richland Hills", state: "TX", postal: "76118" },
+  "FirstKey": { line1: "7310 Glenview Dr", city: "Richland Hills", state: "TX", postal: "76118" },
+  "Turner Res.": { line1: "905 Hidden Creek Pkwy", city: "Burleson", state: "TX", postal: "76028" },
+  "Meridian Plaza": { line1: "4500 Mercantile Dr", city: "Fort Worth", state: "TX", postal: "76137" },
+};
+const previewJob = (id: string, siteName: string, serviceCode: string, priority: string, state: string, crew: string | null, daysOpen: number, sla: { due: number; stage: number } | null, daysInState = daysOpen) => {
   const opened = Date.now() - daysOpen * DAY;
   return {
-    id, siteId: `site-${id}`, siteName, contractId: null, projectId: null, serviceCode, priority, state,
+    id, siteId: `site-${id}`, siteName, siteAddress: PREVIEW_PLACES[siteName] ?? null, stateChangedAt: new Date(Date.now() - daysInState * DAY).toISOString(), contractId: null, projectId: null, serviceCode, priority, state,
     serviceWindowStart: new Date(opened).toISOString(), serviceWindowEnd: new Date(opened + DAY).toISOString(), version: 1, openedAt: new Date(opened).toISOString(),
     regionId: "region-preview", orgId: "org-preview",
     currentCrewId: crew ? `crew-${crew.toLowerCase().replace(/\s+/g, "-")}` : null, currentCrewLabel: crew, currentAssignmentId: crew ? `assignment-${id}` : null,
@@ -67,18 +74,18 @@ const previewJob = (id: string, siteName: string, serviceCode: string, priority:
 };
 /** Local preview only — the same job, site and crew names the board's preview rows use, spread across every bucket the dashboard draws. */
 const PREVIEW_JOBS = [
-  previewJob("33390928", "Shipman Co", "rooftop_install", "urgent", "assigned", "Blake Keating", 2, { due: -2, stage: 2 }),
+  previewJob("33390928", "Shipman Co", "rooftop_install", "urgent", "assigned", "Blake Keating", 2, { due: -2, stage: 2 }, 1),
   previewJob("33390251", "FirstKey", "repairs", "urgent", "en_route", "Brian Martinez", 1, { due: 1, stage: 1 }),
   previewJob("33390971", "Turner Res.", "pm_route", "pm", "on_site", "Colton Dawson", 0, { due: 4, stage: 0 }),
   previewJob("33390937", "Meridian Plaza", "new_install", "urgent", "in_progress", "Dylan Lemons", 3, null),
   previewJob("33390948", "Shipman Co", "rtu_changeout", "urgent", "assigned", "Herberto Vega", 1, { due: -1, stage: 2 }),
-  previewJob("33187801", "Shipman Co", "repairs", "urgent", "reopened", "Garrett Howard", 41, { due: -30, stage: 3 }),
-  previewJob("33187837", "Shipman Co", "repairs", "routine", "awaiting_parts", "Garrett Howard", 36, null),
+  previewJob("33187801", "Shipman Co", "repairs", "urgent", "reopened", "Garrett Howard", 58, { due: -30, stage: 3 }, 41),
+  previewJob("33187837", "Shipman Co", "repairs", "routine", "awaiting_parts", "Garrett Howard", 40, null, 36),
   previewJob("32925428", "FirstKey Homes DFW", "repairs", "urgent", "created", null, 18, { due: -6, stage: 2 }),
   previewJob("33200204", "Shipman Co", "new_install", "routine", "reassigned", null, 15, { due: 6, stage: 1 }),
-  previewJob("33187839", "Shipman Co", "repairs", "emergency", "complete", "Garrett Howard", 29, null),
-  previewJob("32452900", "Shipman Co", "new_install", "routine", "complete", "Garrett Howard", 6, null),
-  previewJob("33200206", "Shipman Co", "repairs", "routine", "awaiting_parts", "Johnny Fontez", 14, null),
+  previewJob("33187839", "Shipman Co", "repairs", "emergency", "complete", "Garrett Howard", 33, null, 29),
+  previewJob("32452900", "Shipman Co", "new_install", "routine", "complete", "Garrett Howard", 12, null, 6),
+  previewJob("33200206", "Shipman Co", "repairs", "routine", "awaiting_parts", "Johnny Fontez", 21, null, 14),
   previewJob("32100114", "Turner Res.", "pm_route", "pm", "invoiced", "Colton Dawson", 60, null),
   previewJob("32100171", "Meridian Plaza", "repairs", "routine", "invoiced", "Dylan Lemons", 52, null),
   previewJob("32100190", "FirstKey Homes DFW", "repairs", "routine", "cancelled", null, 45, null),

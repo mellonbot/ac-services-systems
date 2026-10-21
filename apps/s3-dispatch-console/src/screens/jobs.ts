@@ -1,5 +1,5 @@
 import { html, signal, DataGrid, StatusPill, pageHead, statStrip, panel, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { JobWire, JobStateWire } from "../../../../packages/contracts/src/index.ts";
+import type { JobWire, JobStateWire, AddressWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, linkTo, type Screen } from "./common.ts";
 import { slaStatus, isDispatchable } from "./board.ts";
@@ -10,9 +10,9 @@ import { slaStatus, isDispatchable } from "./board.ts";
  * surfaced by age. Same read as the board, so the two cannot disagree about
  * a job's state.
  *
- * The wire carries `openedAt`, not the time a job entered its current state,
- * so "stalling" is measured as days open. "Waiting on customer" has no job
- * state behind it yet; the bucket says so rather than borrowing one.
+ * "Stalling" is days in the current state (`stateChangedAt`, from the job's
+ * own state log). "Waiting on customer" has no job state behind it yet; the
+ * bucket says so rather than borrowing one.
  */
 type BucketId = "action" | "customer" | "progress" | "closed";
 type Tone = "breached" | "at_risk" | "info" | "ok";
@@ -40,7 +40,15 @@ const bucketRows = (jobs: readonly JobWire[], states: readonly JobStateWire[]) =
 };
 
 const DAY = 86_400_000;
-export const daysOpen = (job: Pick<JobWire, "openedAt">, now: number): number => Math.max(0, Math.floor((now - Date.parse(job.openedAt)) / DAY));
+export const daysInState = (job: Pick<JobWire, "stateChangedAt">, now: number): number => Math.max(0, Math.floor((now - Date.parse(job.stateChangedAt)) / DAY));
+
+/** "Crowley, TX 76028" — the line a dispatcher places a job by. Falls back to the street line, then to nothing. */
+export const placeLine = (a: AddressWire | null): string | null => {
+  if (!a) return null;
+  const region = [a.state, a.postal].filter(Boolean).join(" ");
+  const place = [a.city, region].filter(Boolean).join(", ");
+  return place || a.line1 || null;
+};
 
 const initials = (name: string): string => name.split(/\s+/).map((w) => w[0] ?? "").join("").slice(0, 2).toUpperCase();
 
@@ -68,7 +76,7 @@ export const stalling = (jobs: readonly JobWire[], filter: Filter, now: number):
       if (filter === "action") return b === "action";
       return STATE_LABEL[j.state] === filter;
     })
-    .sort((a, b) => daysOpen(b, now) - daysOpen(a, now));
+    .sort((a, b) => daysInState(b, now) - daysInState(a, now));
 
 const bucketCard = (bucket: (typeof BUCKETS)[number], jobs: readonly JobWire[]): VNode => {
   const inBucket = jobs.filter((j) => bucketOf(j.state) === bucket.id);
@@ -92,7 +100,7 @@ export const jobs: Screen = (ctx) => {
 
   const columns = (): readonly Column<JobWire>[] => [
     { key: "id", header: "Job #", numeric: true, cell: (j) => isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, j.id) : j.id },
-    { key: "site", header: "Customer", cell: (j) => html`<span class="s3-cust"><strong>${j.siteName ?? "Site name unavailable"}</strong><small>${j.serviceCode.replace(/_/g, " ")} · ${j.priority}</small></span>` },
+    { key: "site", header: "Customer", cell: (j) => html`<span class="s3-cust"><strong>${j.siteName ?? "Site name unavailable"}</strong><small>${placeLine(j.siteAddress) ?? "Address not recorded"}</small><small class="s3-cust__svc">${j.serviceCode.replace(/_/g, " ")} · ${j.priority}</small></span>` },
     { key: "crew", header: "Tech", cell: (j) => j.currentCrewLabel
       ? html`<span class="s3-tech"><span class="dispatch-board__avatar" aria-hidden="true">${initials(j.currentCrewLabel)}</span>${j.currentCrewLabel}</span>`
       : html`<span class="s3-muted">Unassigned</span>` },
@@ -100,7 +108,7 @@ export const jobs: Screen = (ctx) => {
     { key: "sla", header: "SLA", cell: (j) => j.slaDueAt && !j.slaSatisfiedAt
       ? StatusPill({ density: ctx.density, status: slaStatus(j, now) })
       : html`<span class="s3-muted">—</span>` },
-    { key: "age", header: "Days open", numeric: true, align: "end", cell: (j) => `${daysOpen(j, now)}d` },
+    { key: "age", header: "Days in status", numeric: true, align: "end", cell: (j) => html`<span title=${`In this status since ${new Date(j.stateChangedAt).toLocaleString()}`}>${daysInState(j, now)}d</span>` },
   ];
 
   return html`<section class="s3-jobs">
@@ -123,7 +131,7 @@ export const jobs: Screen = (ctx) => {
         ], "jobs-stats")}
         <div class="s3-buckets">${BUCKETS.map((b) => bucketCard(b, out.jobs))}</div>
         ${panel(DataGrid({ density: "console", columns: columns(), rows, rowKey: (j: JobWire) => j.id, emptyText: "Nothing stalled under this filter.", stack: true }),
-          "Jobs stalling the longest", "Sorted by days open — the ones a count alone won't show you",
+          "Jobs stalling the longest", "Sorted by days sitting in the current status — the ones a count alone won't show you",
           html`<div class="s3-chips" role="group" aria-label="Filter stalled jobs">
             ${FILTERS.map((f) => html`<button type="button" class="ac-chip" aria-pressed=${filter.value === f.id ? "true" : "false"} onClick=${() => { filter.value = f.id; }}>${f.label}</button>`)}
           </div>`, "jobs-stalling")}`;

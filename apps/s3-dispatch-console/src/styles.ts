@@ -104,7 +104,8 @@ export const S3_CSS = `
 .s3-bucket__row dd{margin:0;font-weight:600}
 .s3-chips{display:flex;flex-wrap:wrap;gap:var(--space-1)}
 .s3-cust{display:flex;flex-direction:column}
-.s3-cust small{color:var(--color-text-muted);font-size:var(--text-xs);text-transform:capitalize}
+.s3-cust small{color:var(--color-text-muted);font-size:var(--text-xs)}
+.s3-cust__svc{text-transform:capitalize}
 .s3-tech{display:inline-flex;align-items:center;gap:var(--space-2);font-weight:600}
 
 .s3-map-job-list{display:flex;flex-direction:column;gap:0;max-height:34rem;overflow:auto;list-style:none;margin:0;padding:0}.s3-map-job{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--color-border)}

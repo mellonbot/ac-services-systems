@@ -4,7 +4,7 @@ import { deriveDueAt } from "../../../../packages/domain/src/sla/index.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type {
   CreateJobInput, CreateJobOutput, JobPriority, JobStateWire, JobWire, ListJobsOutput,
-  FieldJobWire, MyJobsOutput,
+  FieldJobWire, MyJobsOutput, AddressWire,
 } from "../../../../packages/contracts/src/operations.ts";
 
 /**
@@ -38,26 +38,29 @@ const requireIso = (v: unknown, field: string): Date => {
 const PRIORITIES: readonly JobPriority[] = ["emergency", "urgent", "routine", "pm"];
 
 type JobRow = {
-  id: string; site_id: string; site_name: string | null; contract_id: string | null; project_id: string | null;
+  id: string; site_id: string; site_name: string | null; site_address: AddressWire | null; contract_id: string | null; project_id: string | null;
   service_code: string; priority: JobPriority; state: JobStateWire;
-  ws: string; we: string; version: number; opened_at: string; region_id: string; org_id: string;
+  ws: string; we: string; version: number; opened_at: string; state_changed_at: string; region_id: string; org_id: string;
   current_crew_id: string | null; current_crew_label: string | null; current_assignment_id: string | null;
   sla_due_at: string | null; sla_escalation_stage: number | null; sla_satisfied_at: string | null;
 };
 
 const toWire = (r: JobRow): JobWire => ({
-  id: r.id, siteId: r.site_id, siteName: r.site_name, contractId: r.contract_id, projectId: r.project_id,
+  id: r.id, siteId: r.site_id, siteName: r.site_name, siteAddress: r.site_address, contractId: r.contract_id, projectId: r.project_id,
   serviceCode: r.service_code, priority: r.priority, state: r.state,
-  serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version, openedAt: r.opened_at,
+  serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version, openedAt: r.opened_at, stateChangedAt: r.state_changed_at,
   regionId: r.region_id, orgId: r.org_id,
   currentCrewId: r.current_crew_id, currentCrewLabel: r.current_crew_label, currentAssignmentId: r.current_assignment_id,
   slaDueAt: r.sla_due_at, slaEscalationStage: r.sla_escalation_stage, slaSatisfiedAt: r.sla_satisfied_at,
 });
 
 const JOB_SELECT = `
-  SELECT j.id, j.site_id, s.name AS site_name, j.contract_id, j.project_id, j.service_code, j.priority, j.state,
+  SELECT j.id, j.site_id, s.name AS site_name, s.address AS site_address, j.contract_id, j.project_id, j.service_code, j.priority, j.state,
          lower(j.service_window) AS ws, upper(j.service_window) AS we, j.version,
-         to_char(j.opened_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS opened_at, j.region_id, j.org_id,
+         to_char(j.opened_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS opened_at,
+         to_char(COALESCE((SELECT max(e.occurred_at) FROM job_state_events e WHERE e.job_id = j.id AND e.to_state = j.state), j.opened_at)
+                 AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS state_changed_at,
+         j.region_id, j.org_id,
          a.crew_id AS current_crew_id, c.label AS current_crew_label, a.id AS current_assignment_id,
          to_char(st.due_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_due_at, st.escalation_stage AS sla_escalation_stage,
          to_char(st.satisfied_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_satisfied_at

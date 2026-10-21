@@ -32,8 +32,8 @@ const context: HierarchyContext = {
 };
 
 const jobCreated: JobWire = {
-  id: JOB_CREATED, siteId: SITE, siteName: "Austin — Roof", contractId: null, projectId: null, serviceCode: "hvac_repair", priority: "urgent", state: "created",
-  serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T17:00:00.000Z", version: 1, openedAt: "2026-09-17T12:00:00.000Z",
+  id: JOB_CREATED, siteId: SITE, siteName: "Austin — Roof", siteAddress: null, contractId: null, projectId: null, serviceCode: "hvac_repair", priority: "urgent", state: "created",
+  serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T17:00:00.000Z", version: 1, openedAt: "2026-09-17T12:00:00.000Z", stateChangedAt: "2026-09-17T12:00:00.000Z",
   regionId: SOUTH, orgId: ORG, currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 1, slaSatisfiedAt: null,
 };
@@ -241,13 +241,22 @@ test("the dark dispatch bar is the only navigation, and its Sign out ends the se
   assert.match(render(app.view()), /id="sign-in"/);
 });
 
-test("job dashboard: stalled jobs are needs-action by default, oldest first; a state filter narrows to its label", async () => {
-  const { stalling, daysOpen } = await import("./screens/jobs.ts");
+test("job dashboard: stalled jobs are needs-action by default, longest in status first; a state filter narrows to its label", async () => {
+  const { stalling, daysInState } = await import("./screens/jobs.ts");
   const now = Date.parse("2026-10-21T00:00:00Z");
-  const job = (id: string, state: string, days: number) => ({ id, state, openedAt: new Date(now - days * 86_400_000).toISOString() }) as unknown as import("../../../packages/contracts/src/index.ts").JobWire;
+  const job = (id: string, state: string, days: number) => ({ id, state, openedAt: new Date(now - 400 * 86_400_000).toISOString(), stateChangedAt: new Date(now - days * 86_400_000).toISOString() }) as unknown as import("../../../packages/contracts/src/index.ts").JobWire;
   const jobs = [job("a", "assigned", 50), job("b", "created", 3), job("c", "reopened", 20), job("d", "invoiced", 90), job("e", "reassigned", 9)];
-  assert.equal(daysOpen(jobs[0]!, now), 50);
+  assert.equal(daysInState(jobs[0]!, now), 50, "measured from the state change, not the open date");
   assert.deepEqual(stalling(jobs, "action", now).map((j) => j.id), ["c", "e", "b"]);
   assert.deepEqual(stalling(jobs, "Unassigned", now).map((j) => j.id), ["e", "b"], "created and reassigned share one label");
   assert.deepEqual(stalling(jobs, "open", now).map((j) => j.id), ["a", "c", "e", "b"], "closed jobs never stall");
+});
+
+test("job dashboard: the place line is city, state and postal code, falling back to the street, then to nothing", async () => {
+  const { placeLine } = await import("./screens/jobs.ts");
+  assert.equal(placeLine({ line1: "1200 S Main St", city: "Crowley", state: "TX", postal: "76036" }), "Crowley, TX 76036");
+  assert.equal(placeLine({ city: "Crowley" }), "Crowley");
+  assert.equal(placeLine({ line1: "1200 S Main St" }), "1200 S Main St");
+  assert.equal(placeLine({}), null);
+  assert.equal(placeLine(null), null);
 });

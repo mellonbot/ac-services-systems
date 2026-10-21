@@ -1097,9 +1097,13 @@ export type JobWire = {
   readonly id: string; readonly siteId: string;
   /** The site's name as RLS lets this principal see the row — null when the account row is not visible to it (item 7: a firm sees the site it was sent to). */
   readonly siteName: string | null;
+  /** The site's address as recorded (accounts.address), or null — same RLS as the name. */
+  readonly siteAddress: AddressWire | null;
   readonly contractId: string | null; readonly projectId: string | null;
   readonly serviceCode: string; readonly priority: JobPriority; readonly state: JobStateWire;
   readonly serviceWindowStart: string; readonly serviceWindowEnd: string; readonly version: number; readonly openedAt: string;
+  /** When the job entered its current state: the latest job_state_events row into it, or openedAt when none has been written (a job still "created"). */
+  readonly stateChangedAt: string;
   readonly regionId: string; readonly orgId: string;
   /** The crew currently holding this job, unreleased — null once dispatched-and-released or never assigned. */
   readonly currentCrewId: string | null; readonly currentCrewLabel: string | null;

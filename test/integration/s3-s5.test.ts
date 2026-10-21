@@ -157,6 +157,9 @@ test("the board: S2 sees the job org-wide, the South dispatcher sees it region-l
   assert.equal(south.currentCrewId, null);
   assert.equal(south.currentAssignmentId, null, "no open assignment — the id S3's release names is null exactly when the crew is");
   assert.ok(south.slaDueAt, "the board carries the timer");
+  assert.equal(south.stateChangedAt, south.openedAt, "no state event yet — a created job has been in its state since it opened");
+  const siteRow = (await admin(`SELECT address FROM accounts WHERE id = $1`, [south.siteId]))[0]!;
+  assert.deepEqual(south.siteAddress, siteRow.address ?? null, "the board carries the site's address as recorded");
   assert.equal((await west.gateway.listJobs({})).jobs.filter(mine).length, 0, "RLS: zero South rows on the West board, no error");
   assert.equal((await s3.gateway.listJobs({ state: "assigned,en_route" })).jobs.filter(mine).length, 0, "a state filter is honoured");
   await west.logout();
@@ -225,6 +228,8 @@ test("the same door, admitted: an assignment citing its clearance, the job assig
   assert.equal(board.currentCrewId, crewCleared);
   assert.equal(board.currentAssignmentId, assignmentId, "the board carries the id release will name — the crew id cannot stand in for it");
   assert.ok(board.slaSatisfiedAt);
+  const entered = (await admin(`SELECT occurred_at FROM job_state_events WHERE job_id = $1 AND to_state = 'assigned' ORDER BY occurred_at DESC LIMIT 1`, [jobId]))[0]!;
+  assert.equal(board.stateChangedAt, (entered.occurred_at as Date).toISOString(), "time in state starts at the assignment's state event, not at the open");
 });
 
 test("release before the field moves: the crew comes off, the job returns for re-dispatch, and a second release is refused by name", { skip }, async () => {
@@ -353,7 +358,10 @@ test("sync.replay: the device log replays in device order, a duplicate replay is
     s3.gateway.releaseAssignment({ assignmentId, orgId, regionId: REGION_SOUTH }),
     (e: unknown) => code(s3, e) === "job_in_progress",
   );
-  assert.equal((await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!.state, "on_site", "the dispatcher's board reads the field's state");
+  const onBoard = (await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!;
+  assert.equal(onBoard.state, "on_site", "the dispatcher's board reads the field's state");
+  const onSite = (await admin(`SELECT max(occurred_at) AS at FROM job_state_events WHERE job_id = $1 AND to_state = 'on_site'`, [jobId]))[0]!;
+  assert.equal(onBoard.stateChangedAt, (onSite.at as Date).toISOString(), "a field transition restarts the time-in-state clock");
   await s5.logout();
 });
 

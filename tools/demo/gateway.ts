@@ -64,7 +64,7 @@ type Account = { id: string; orgId: string; tier: W.AccountTierWire; name: strin
 type Firm = Mutable<Omit<W.FirmWire, "crewCount" | "activeCrewCount">>;
 type Crew = Mutable<Omit<W.CrewWire, "documents">>;
 type Credential = Mutable<W.CredentialWire>;
-type Job = { id: string; siteId: string; orgId: string; regionId: string; contractId: string | null; serviceCode: string; priority: W.JobPriority; state: W.JobStateWire; serviceWindowStart: string; serviceWindowEnd: string; version: number; openedAt: string; slaDueAt: string | null; slaEscalationStage: number | null; slaSatisfiedAt: string | null; equipmentIds: string[] };
+type Job = { id: string; siteId: string; orgId: string; regionId: string; contractId: string | null; serviceCode: string; priority: W.JobPriority; state: W.JobStateWire; serviceWindowStart: string; serviceWindowEnd: string; version: number; openedAt: string; stateChangedAt: string; slaDueAt: string | null; slaEscalationStage: number | null; slaSatisfiedAt: string | null; equipmentIds: string[] };
 type Assignment = { id: string; jobId: string; crewId: string; assignedAt: string; releasedAt: string | null };
 type Settlement = Mutable<Omit<W.SettlementWire, "lineCount">>;
 type User = { id: string; email: string; password: string; name: string; principal: Omit<Principal, "sessionId">; surfaces: SurfaceId[]; crewId?: string };
@@ -197,7 +197,7 @@ const job = (id: string, siteId: string, serviceCode: string, priority: W.JobPri
   return {
     id, siteId, orgId: site.orgId, regionId: site.regionId, contractId, serviceCode, priority, state,
     serviceWindowStart: at(startMs), serviceWindowEnd: at(startMs + hours * HOUR), version: state === "created" ? 1 : 3,
-    openedAt: at(Math.min(startMs, 0) - 2 * HOUR),
+    openedAt: at(Math.min(startMs, 0) - 2 * HOUR), stateChangedAt: state === "created" ? at(Math.min(startMs, 0) - 2 * HOUR) : at(Math.min(startMs, 0)),
     slaDueAt: sla ? at(sla.dueMs) : null, slaEscalationStage: sla ? sla.stage : null, slaSatisfiedAt: sla?.satisfiedMs !== undefined ? at(sla.satisfiedMs) : null,
     equipmentIds,
   };
@@ -467,8 +467,8 @@ const jobWire = (j: Job, p: Principal): W.JobWire => {
   const crew = a ? crews.find((c) => c.id === a!.crewId) ?? null : null;
   const open = j.slaDueAt !== null && j.slaSatisfiedAt === null;
   return {
-    id: j.id, siteId: j.siteId, siteName: site.name, contractId: j.contractId, projectId: null, serviceCode: j.serviceCode, priority: j.priority, state: j.state,
-    serviceWindowStart: j.serviceWindowStart, serviceWindowEnd: j.serviceWindowEnd, version: j.version, openedAt: j.openedAt, regionId: j.regionId, orgId: j.orgId,
+    id: j.id, siteId: j.siteId, siteName: site.name, siteAddress: site.address, contractId: j.contractId, projectId: null, serviceCode: j.serviceCode, priority: j.priority, state: j.state,
+    serviceWindowStart: j.serviceWindowStart, serviceWindowEnd: j.serviceWindowEnd, version: j.version, openedAt: j.openedAt, stateChangedAt: j.stateChangedAt, regionId: j.regionId, orgId: j.orgId,
     currentCrewId: crew?.id ?? null, currentCrewLabel: crew?.label ?? null, currentAssignmentId: a?.id ?? null,
     slaDueAt: open ? j.slaDueAt : null, slaEscalationStage: open ? j.slaEscalationStage : null, slaSatisfiedAt: j.slaSatisfiedAt,
   };
@@ -960,7 +960,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     if (prev) prev.releasedAt = new Date().toISOString();
     const a: Assignment = { id: uid("x"), jobId: j!.id, crewId: c!.id, assignedAt: new Date().toISOString(), releasedAt: null };
     assignments.push(a);
-    j!.state = prev ? "reassigned" : "assigned"; j!.version++;
+    j!.state = prev ? "reassigned" : "assigned"; j!.version++; j!.stateChangedAt = new Date().toISOString();
     if (j!.slaSatisfiedAt === null && j!.slaDueAt) j!.slaSatisfiedAt = new Date().toISOString();
     const req = serviceRequests.find((s) => s.jobId === j!.id);
     if (req) req.jobState = j!.state;
@@ -973,7 +973,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     const j = jobs.find((x) => x.id === a!.jobId)!;
     if (j.state !== "assigned" && j.state !== "reassigned") throw new Refused(422, "TriggerRefused", `job is ${j.state.replace("_", " ")} — field execution has begun; this is a cancellation or a reassignment, not a release`, "ac_release_before_start");
     a!.releasedAt = new Date().toISOString();
-    j.state = "created"; j.version++;
+    j.state = "created"; j.version++; j.stateChangedAt = new Date().toISOString();
     return { jobId: j.id, eventId: publish(surface, "job.reassigned", "job", j.id, j.orgId, j.regionId) };
   },
 
@@ -998,7 +998,7 @@ const H: Partial<Record<OperationId, Handler>> = {
           outcomes.push({ outcome: "superseded", mutationId: m.mutationId, note: `the office changed this job while the device was offline (v${j.version})`, serverState: { version: j.version, state: j.state, fields: {} } });
           continue;
         }
-        if (to) { j.state = to as W.JobStateWire; j.version++; publish(surface, to === "complete" ? "job.completed" : "job.transitioned", "job", j.id, j.orgId, j.regionId); }
+        if (to) { j.state = to as W.JobStateWire; j.version++; j.stateChangedAt = new Date().toISOString(); publish(surface, to === "complete" ? "job.completed" : "job.transitioned", "job", j.id, j.orgId, j.regionId); }
         outcomes.push({ outcome: "applied", mutationId: m.mutationId, newVersion: j.version });
       } else {
         outcomes.push({ outcome: "applied", mutationId: m.mutationId, newVersion: (j?.version ?? 0) + 1 });
