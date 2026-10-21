@@ -54,6 +54,7 @@ export const S3_CSS = `
 .s3-map-filters button:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
 .s3-num{font-family:var(--font-instrument);font-variant-numeric:tabular-nums}
 .dispatch-header{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-4);padding:var(--space-2) var(--space-4);border:1px solid var(--color-border);border-radius:var(--radius-card);background:var(--color-surface);box-shadow:var(--elevation-card)}
+.dispatch-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);padding-inline:var(--space-4)}
 .dispatch-header__tools{display:flex;align-items:center;gap:var(--space-2);margin-inline-start:auto}
 .dispatch-header__who{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-sm)}
 .dispatch-header__logout{appearance:none;border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-text);color:var(--color-surface);padding:var(--space-2) var(--space-3);font-family:var(--font-label);font-size:var(--text-sm);font-weight:600;cursor:pointer}
@@ -247,6 +248,7 @@ export const S3_CSS = `
   .s3-map-job__location{text-align:start}
 }
 .s3-intake{display:flex;flex-direction:column;gap:var(--space-3)}
+.s3-new-job{display:flex;flex-direction:column;gap:var(--space-3)}
 .s3-intake__layout{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);align-items:start}
 .s3-intake__layout[data-viewing="true"]{grid-template-columns:minmax(0,2fr) minmax(16rem,1fr)}
 .s3-intake__asked{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:var(--measure-narrow);white-space:pre-line}

@@ -226,6 +226,43 @@ test("degraded: Assign and Release render disabled with the surface's declared r
   assert.match(out, /Crew A1/, "the last server state is still on screen");
 });
 
+test("New customer and New job sit under the dispatch bar: New job opens the New job form, New customer hands off to S2 and says why when the role cannot", async () => {
+  const { app } = await ready();
+  await settle();
+  const page = render(app.view());
+  assert.match(page, /<\/header><div class="dispatch-actions">/, "the row sits directly under the bar");
+  assert.match(page, /id="new-customer" aria-disabled="true"/, "a dispatcher cannot open S2");
+  assert.match(page, /Customers are created in Service Manager/);
+  const newJob = nodesIn(app.view()).filter((n) => n.props?.id === "new-job");
+  assert.equal(newJob.length, 1);
+  (newJob[0]!.props!.onClick as (e: Event) => void)(new Event("click"));
+  assert.equal(app.router.current.value?.screen, "new-job");
+});
+
+test("New job: the form picks from the region's sites, grouped by customer, and says where a missing customer is signed in", async () => {
+  const sites = [
+    { id: U(30), name: "Roof North", orgId: ORG, orgName: "Shipman Co", regionId: SOUTH, address: { line1: "1200 S Main St", city: "Crowley" } },
+    { id: U(31), name: "Store 12", orgId: U(32), orgName: "FirstKey Homes", regionId: SOUTH, address: null },
+  ];
+  const { app, gateway } = await ready({ [OPERATIONS["sites.list"].path]: { status: 200, body: { sites } } });
+  app.router.navigate("new-job", {});
+  render(app.view()); await settle(); await settle();
+  const out = render(app.view());
+  assert.ok(gateway.calls.some((c) => c.path === OPERATIONS["sites.list"].path), "sites.list is read");
+  assert.match(out, /id="new-job-form"/);
+  assert.match(out, /<optgroup label="Shipman Co"><option value="[^"]+">Roof North — 1200 S Main St — Crowley<\/option><\/optgroup>/);
+  assert.match(out, /<optgroup label="FirstKey Homes"><option value="[^"]+">Store 12<\/option>/);
+  assert.match(out, /id="new-job-service"[^>]*required/);
+  assert.match(out, /derived when the job opens, not chosen here/);
+
+  const empty = await ready({ [OPERATIONS["sites.list"].path]: { status: 200, body: { sites: [] } } });
+  empty.app.router.navigate("new-job", {});
+  render(empty.app.view()); await settle(); await settle();
+  const none = render(empty.app.view());
+  assert.doesNotMatch(none, /id="new-job-form"/);
+  assert.match(none, /signed in from Service Manager/);
+});
+
 test("the dark dispatch bar is the only navigation, and its Sign out ends the session at the gateway", async () => {
   const { app, gateway } = await ready({ [OPERATIONS["auth.logout"].path]: { status: 200, body: { ok: true, sessionId: "sess-1" } } });
   await settle();
