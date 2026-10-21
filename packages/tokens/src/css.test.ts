@@ -160,10 +160,10 @@ test("every step of the type scale moves with the density, and nothing is set be
   assert.deepEqual(TYPE_SCALE.comfort, P.text);
 });
 
-test("the frame carries the width schedule at every density: three measures in ch, the layout widths, no breakpoint", () => {
+test("the frame carries the width schedule at every density: four measures in ch, the layout widths, no breakpoint", () => {
   for (const d of DENSITIES) {
     const css = tokenCss(d);
-    for (const w of ["--measure-narrow:40ch", "--measure-short:48ch", "--measure-text:64ch", "--page-max:1400px", "--column-side:20rem", "--column-rail:14rem", "--label-min:7rem", "--tile-min:18ch", "--tile-wide:28ch"])
+    for (const w of ["--measure-cell:30ch", "--measure-narrow:40ch", "--measure-short:48ch", "--measure-text:64ch", "--page-max:1400px", "--column-side:20rem", "--column-rail:14rem", "--label-min:7rem", "--tile-min:18ch", "--tile-wide:28ch"])
       assert.ok(css.includes(w), `${d} lacks ${w}`);
   }
   for (const v of Object.values(P.measure)) assert.match(v, /^\d+ch$/, "a measure is a line length, so it scales with the density's type");
