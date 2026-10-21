@@ -4,9 +4,9 @@ import { renderToString as render } from "../../../packages/ui/src/testing.ts";
 import { createApp, SCREEN_VIEWS } from "./app.ts";
 import { SCREENS } from "./screens.ts";
 import { treeOf } from "./screens/common.ts";
-import { STATE_WORD, isOpen } from "./screens/work.ts";
+import { STATE_WORD, isOpen, ordersOf, pillOf } from "./screens/work.ts";
 import { valueWord, wonWhere } from "./screens/terms.ts";
-import { resetRequestForm } from "./screens/request.ts";
+import { resetRequestForm, describe, refOf } from "./screens/request.ts";
 import { money, tons, addressLines, ledgerOf } from "./screens/site.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { Principal, JobWire, HierarchyContext, AccountWire, ContractWire, ServiceRequestWire, ResolutionWire, EquipmentWire, ContactWire, InvoiceWire, SiteImageryOutput } from "../../../packages/contracts/src/index.ts";
@@ -159,6 +159,8 @@ test("boot with no session lands on the login form; a refused login renders the 
 
 test("SITES, facility manager: the region node is the breadcrumb root, the location hangs from it, its two sites below — and nothing the gateway did not return", async () => {
   const { app } = await ready();
+  app.router.navigate("sites", {});
+  render(app.view()); await settle();
   const out = render(app.view());
   assert.match(out, /Amped Fitness/);
   assert.match(out, /Location: Austin\. You see this location and what is under it\./);
@@ -177,6 +179,8 @@ test("SITES, facility manager: the region node is the breadcrumb root, the locat
 
 test("SITES, executive: the SAME screen over more rows — every region, every location", async () => {
   const { app } = await ready(executive, EXEC_NODES);
+  app.router.navigate("sites", {});
+  render(app.view()); await settle();
   const out = render(app.view());
   assert.match(out, /Every region, location and site under this agreement\./);
   assert.match(out, /Amped \/ West/);
@@ -255,21 +259,42 @@ test("site card helpers: money is bigint string arithmetic, an address renders a
   assert.equal(entries[2]!.amount, "$425.00");
 });
 
-test("WORK: jobs in the customer's words, the SLA pill from the same numbers the dispatcher reads, and NO crew column", async () => {
+test("WORK ORDERS: the home — the account, the counts, the form beside every request and every job, in the customer's words and with NO crew", async () => {
   const { app } = await ready();
-  app.router.navigate("work", {});
-  render(app.view()); await settle();
   const out = render(app.view());
-  assert.match(out, /Crew en route/, "the state is a word, not an enum");
-  assert.doesNotMatch(out, /en_route/);
-  assert.match(out, /Responded/, "a satisfied timer reads as responded");
-  assert.doesNotMatch(out, /Crew<\/th>|Unassigned|currentCrew/, "no crew, by construction");
+  assert.match(out, /Work orders/, "sign-in lands on the work orders");
+  assert.match(out, /id="account".*Amped Fitness/s);
+  assert.match(out, /Enterprise SLA/, "the plan comes from the active agreement's billing path");
+  assert.match(out, /id="account-request"[^>]*>New work order</);
+  assert.match(out, /id="work-stats"/);
+  assert.match(out, /id="request-form"/, "the form is on the home, not a screen away");
+  // the request with no job yet: Requested, with the office
   assert.match(out, /Short-cycling\./);
-  assert.match(out, /It is with the office/, "a request with no job yet reads as with the office, in the customer's words");
-  assert.match(out, /data-state="current" aria-current="step"><span class="s6-step__dot" aria-hidden="true"><\/span><span class="s6-step__label">Requested/, "the stepper stands on Requested");
+  assert.match(out, /It is with the office/);
+  assert.match(out, /data-state="current" aria-current="step"><span class="s6-step__dot" aria-hidden="true"><\/span><span class="s6-step__label">Requested/);
+  // the job no request stands behind is still the customer's work: Scheduled, with its window
+  assert.match(out, /HVAC-REPAIR/);
+  assert.match(out, /Technician booked for/);
+  assert.doesNotMatch(out, /en_route|Crew<\/th>|Unassigned|currentCrew/, "no enum, no crew, by construction");
   assert.equal(STATE_WORD.awaiting_parts, "Awaiting parts");
   assert.equal(isOpen({ state: "complete" }), false);
   assert.equal(isOpen({ state: "created" }), true);
+});
+
+test("WORK ORDERS: a request joins the job opened against it; holds, overdue response and cancellation each say so in the pill", () => {
+  const asked: ServiceRequestWire = { ...request, jobId: JOB, jobState: "en_route" };
+  const orders = ordersOf([asked], [job]);
+  assert.equal(orders.length, 1, "the job behind a request is not listed twice");
+  assert.equal(orders[0]!.jobState, "en_route");
+  assert.equal(orders[0]!.ref, refOf(REQ));
+  const at = (state: JobWire["state"], extra: Partial<JobWire> = {}) => pillOf(ordersOf([], [{ ...job, state, ...extra }])[0]!, Date.parse("2026-09-20T00:00:00Z"));
+  assert.deepEqual(at("en_route"), { status: "ok", label: "Scheduled" });
+  assert.deepEqual(at("awaiting_parts"), { status: "at_risk", label: "Ordering a part" });
+  assert.deepEqual(at("invoiced"), { status: "ok", label: "Invoiced" });
+  assert.deepEqual(at("cancelled"), { status: "blocked", label: "Cancelled" });
+  assert.deepEqual(at("assigned", { slaSatisfiedAt: null }), { status: "breached", label: "Response overdue" });
+  assert.equal(describe("No cooling", " Server closet unit. ", "2026-09-18"), "No cooling — Server closet unit.\nPreferred date: 2026-09-18.");
+  assert.equal(describe("Other", "Odd smell.", ""), "Odd smell.");
 });
 
 test("REQUEST: the form offers only sites (never a location), posts the declaration, and reports receipt", async () => {

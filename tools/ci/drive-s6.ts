@@ -263,10 +263,13 @@ async function main(): Promise<void> {
     await shot("01-login");
     check(1, "S6 boots to a login form; the brand slot is empty for an unknown host, so the plate stands");
 
-    // ── 2. the facility manager signs in over the cookie session and lands on Sites
+    // ── 2. the facility manager signs in over the cookie session and lands on Work orders; Sites is one tab over
     await cdp.eval(fillAndSubmit("login-form", { email: FM_EMAIL, password: PASSWORD }));
-    await cdp.waitFor(`!document.getElementById("login-form") && ${has("Austin — Roof")}`, "the manager's sites");
-    check(2, "the facility manager's login lands on Sites");
+    await cdp.waitFor(`!document.getElementById("login-form") && document.getElementById("account") && document.getElementById("request-form")`, "the work orders, with the form beside them");
+    await shot("01b-work-orders-home");
+    await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Sites").click(); return true; })()`);
+    await cdp.waitFor(has("Austin — Roof"), "the manager's sites");
+    check(2, "the facility manager's login lands on Work orders, and Sites is one tab over");
 
     // ── 3. the tree is the manager's: breadcrumb, location, two sites — no Reno, no West
     const who = await cdp.eval<string>(`document.getElementById("who")?.innerText ?? ""`);
@@ -280,15 +283,13 @@ async function main(): Promise<void> {
     await shot("02-sites-facility-manager");
     check(3, "the manager's tree stops at their location — region node above, two sites below, nothing beside");
 
-    // ── 4. Work: the job's state in words, the response pill, and no crew anywhere
-    await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Work").click(); return true; })()`);
-    await cdp.waitFor(has("Crew assigned"), "the work list");
-    const headers = await cdp.eval<string[]>(`[...document.querySelectorAll("th")].map(th => th.innerText.trim())`);
-    must(!headers.includes("Crew"), `no crew column on a customer's board, got ${JSON.stringify(headers)}`);
+    // ── 4. Work orders: the assigned job as a card standing on Scheduled with its window, and no crew anywhere
+    await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Work orders").click(); return true; })()`);
+    await cdp.waitFor(has("Technician booked for"), "the work orders");
     must(!(await cdp.eval<boolean>(has(`Crew Drive ${RUN}`))), "REGRESSION: the crew's label reached the customer's page");
-    must(await cdp.eval<boolean>(has("Responded")), "the satisfied timer reads as responded");
+    must(await cdp.eval<boolean>(`![...document.querySelectorAll(".s6-order")].some(c => /\\b(assigned|en_route|awaiting_\\w+)\\b/.test(c.innerText))`), "the state is a word, not an enum");
     await shot("03-work-facility-manager");
-    check(4, "Work reads 'Crew assigned' and 'Responded' — and the crew's name is nowhere on the page");
+    check(4, "Work orders shows the assigned job as Scheduled with its window — and the crew's name is nowhere on the page");
 
     // ── 5. Request service from a site's link: preselected, filled, sent, reset, receipt
     await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Sites").click(); return true; })()`);
@@ -317,10 +318,10 @@ async function main(): Promise<void> {
     must(row.priority === "urgent" && row.region_id === REGION_SOUTH && row.requested_by === FM, "the row is the manager's, urgent, in the site's region");
     check(5, "a request from the site's link is preselected, sent as urgent, reset, and acknowledged by site name");
 
-    // ── 6. the request appears under Work as waiting
-    await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Work").click(); return true; })()`);
+    // ── 6. the request appears under Work orders as waiting
+    await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Work orders").click(); return true; })()`);
     await cdp.waitFor(has("It is with the office"), "the request in the work list — a stepper card standing on Requested");
-    check(6, "the request is listed under Work as waiting for the office");
+    check(6, "the request is listed under Work orders as waiting for the office");
 
     // ── 7. THE SITE CARD (item 9): from the tree, the site's name opens its card — where, who, what runs there, one ledger, the roof
     await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Sites").click(); return true; })()`);
@@ -358,8 +359,8 @@ async function main(): Promise<void> {
     await cdp.eval(`(() => { document.getElementById("site-request").click(); return true; })()`);
     await cdp.waitFor(`document.getElementById("request-form")`, "the request form from the card");
     must((await cdp.eval<string>(`document.getElementById("request-site").value`)) === austinRoof, "the card's button preselects its site");
-    await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Work").click(); return true; })()`);
-    await cdp.waitFor(has("Crew assigned"), "Work");
+    await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Work orders").click(); return true; })()`);
+    await cdp.waitFor(has("Technician booked for"), "Work orders");
     const navBtn = await cdp.eval<{ tag: string; text: string; y: number }>(`(() => { const b = document.getElementById("nav-request"); const r = b.getBoundingClientRect(); return { tag: b.tagName, text: b.innerText.trim(), y: r.top }; })()`);
     must(navBtn.tag === "BUTTON" && navBtn.text === "Request service", `a button in the masthead, got ${JSON.stringify(navBtn)}`);
     must(navBtn.y < 300, `the header button sits near the top of the page, got y=${navBtn.y}`);
