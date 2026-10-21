@@ -219,6 +219,7 @@ a layout width is the page or a column. Nothing in a surface sheet types either 
 
 | Token | Value | Where |
 |---|---|---|
+| `--measure-cell` | 30ch | a one-line preview cut short inside a row (a job's latest note) |
 | `--measure-narrow` | 40ch | a sign-in card |
 | `--measure-short` | 48ch | a confirmation, a short public line |
 | `--measure-text` | 64ch | running text, a form, a refusal, a page-head lede |
