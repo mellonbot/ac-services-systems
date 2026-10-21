@@ -15,7 +15,8 @@ import type { ScreenSpec } from "../../../packages/ui/src/index.ts";
  */
 export const SCREENS = {
   "login":             { path: "/login",                                 uses: ["auth.login"] },
-  "organizations.new": { path: "/organizations/new",                     uses: ["organizations.create", "regions.list"], title: "New customer" },
+  "organizations.new": { path: "/organizations/new",                     uses: ["organizations.create", "customers.createResidential", "regions.list"], title: "New customer" },
+  "leads":             { path: "/leads",                                 uses: ["leads.list", "leads.convert", "regions.list"], title: "Leads" },
   "accounts.new":      { path: "/accounts/:orgId/new/:tier/:parentId?",  uses: ["accounts.create", "regions.list", "accounts.list"] },
   "accounts.move":     { path: "/accounts/:orgId/move/:id",              uses: ["accounts.move", "accounts.list"] },
   "accounts.tree":     { path: "/accounts/:orgId?",                      uses: ["organizations.list", "accounts.list", "regions.list"], title: "Accounts" },

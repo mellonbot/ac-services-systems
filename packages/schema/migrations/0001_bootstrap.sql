@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS organizations (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,
   kind text NOT NULL CHECK (kind IN ('internal','customer','subcontractor','vendor','prospect')),
+  segment text CHECK (segment IN ('residential','commercial')),
   external_ref text,
   active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),

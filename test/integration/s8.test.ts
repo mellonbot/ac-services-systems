@@ -168,7 +168,7 @@ test("the office records two firms, their crews and prices, a customer, and send
   await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, firm_id, password_hash, active)
     VALUES ($1,$2,$3,'subcontractor',$4,'Firm A Coordinator','[]','parent',$2,$2,$5,true),
            ($6,$7,$3,'subcontractor',$8,'Firm B Coordinator','[]','parent',$7,$7,$5,true),
-           ($9,$10,$3,'customer',$11,'Austin FM','[]','location',$12,NULL,$5,true)
+           ($9,$10,$3,'customer',$11,'Austin FM','["payer","requester"]','location',$12,NULL,$5,true)
     ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, scope_id = EXCLUDED.scope_id, firm_id = EXCLUDED.firm_id, email = EXCLUDED.email, password_hash = EXCLUDED.password_hash, active = true`,
     [USER_COORD_A, A, REGION_SOUTH, `coord.${RUN}@firma.test`, hash, USER_COORD_B, B, `coord.${RUN}@firmb.test`, USER_FM, amped, `fm.${RUN}@amped.test`, austin]);
 });

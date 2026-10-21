@@ -119,7 +119,7 @@ test("fixture: Amped under an agreement with a 4-hour response, a site in South 
   await s2.gateway.authorTermOverride({ contractId: msa, scopeTier: "parent", scopeId: amped, termKey: "sla_response", termValue: "4_hour", effectiveFrom: "2026-01-01", orgId: amped, regionId: REGION_SOUTH });
 
   await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
-    VALUES ($1,$2,$3,'customer',$4,'Austin FM','[]','location',$5,$6,true)
+    VALUES ($1,$2,$3,'customer',$4,'Austin FM','["payer","requester"]','location',$5,$6,true)
     ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, scope_id = EXCLUDED.scope_id, email = EXCLUDED.email, password_hash = EXCLUDED.password_hash, active = true`,
     [USER_FM_AUSTIN, amped, REGION_SOUTH, `fm.austin.${RUN}@amped.test`, austin, hashPassword(PASSWORD)]);
   fm = await shell("S6", `fm.austin.${RUN}@amped.test`);

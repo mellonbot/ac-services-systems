@@ -38,7 +38,9 @@ test("technician", () => {
 test("customer whole company and site", () => {
   const c = buildUserRow({ ...base, kind: "customer", orgId: ORG, tier: "parent", nodeId: ORG, regionId: R });
   assert.deepEqual(shape(c).slice(0, 5), ["customer", ORG, R, "parent", ORG]);
-  assert.deepEqual(c.roles, []);
+  assert.deepEqual(c.roles, ["payer", "requester"], "one person on an account pays and asks");
+  assert.deepEqual(buildUserRow({ ...base, kind: "customer", orgId: ORG, tier: "parent", nodeId: ORG, regionId: R, roles: ["payer"] }).roles, ["payer"]);
+  assert.throws(() => buildUserRow({ ...base, kind: "customer", orgId: ORG, tier: "parent", nodeId: ORG, regionId: R, roles: [] }), /tick at least one/);
   const s = buildUserRow({ ...base, kind: "customer", orgId: ORG, tier: "site", nodeId: NODE, regionId: R });
   assert.equal(s.scope_id, NODE);
 });

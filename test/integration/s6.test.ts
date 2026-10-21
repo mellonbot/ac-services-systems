@@ -157,10 +157,10 @@ test("the office records two customers, their trees, their agreements and their 
   // The customer principals. Provisioning is SQL here — there is no operation for it yet (see the item-6 doc).
   const hash = hashPassword(PASSWORD);
   await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
-    VALUES ($1,$2,$3,'customer',$4,'Austin FM','[]','location',$5,$6,true),
-           ($7,$2,$8,'customer',$9,'Reno FM','[]','location',$10,$6,true),
-           ($11,$2,$3,'customer',$12,'Amped Exec','[]','parent',$2,$6,true),
-           ($13,$14,$3,'customer',$15,'Other FM','[]','location',$16,$6,true)
+    VALUES ($1,$2,$3,'customer',$4,'Austin FM','["payer","requester"]','location',$5,$6,true),
+           ($7,$2,$8,'customer',$9,'Reno FM','["payer","requester"]','location',$10,$6,true),
+           ($11,$2,$3,'customer',$12,'Amped Exec','["payer","requester"]','parent',$2,$6,true),
+           ($13,$14,$3,'customer',$15,'Other FM','["payer","requester"]','location',$16,$6,true)
     ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, region_id = EXCLUDED.region_id, scope_id = EXCLUDED.scope_id, email = EXCLUDED.email, password_hash = EXCLUDED.password_hash, active = true`,
     [USER_FM_AUSTIN, amped, REGION_SOUTH, `fm.austin.${RUN}@amped.test`, austin, hash,
      USER_FM_RENO, REGION_WEST, `fm.reno.${RUN}@amped.test`, reno,
