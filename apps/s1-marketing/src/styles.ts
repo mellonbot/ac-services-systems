@@ -32,20 +32,36 @@ export const S1_CSS = `
 .s1-coverage__caveat{margin:0 0 var(--space-4);color:var(--color-text-muted);max-width:var(--measure-text)}
 .s1-label{margin:0 0 var(--space-2);font-family:var(--font-label);font-size:var(--text-xs);font-weight:600;letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
 .s1-surface-access{margin-top:var(--space-6);scroll-margin-top:var(--space-4)}
-.s1-portal-list{margin:0;padding:0;list-style:none;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card)}
-.s1-portal-list__item{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-width:0;min-height:var(--control-height);padding:var(--space-3) var(--space-4)}
-.s1-portal-list__item+.s1-portal-list__item{border-top:1px solid var(--color-border)}
-.s1-portal-list__item>div{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
-.s1-portal-list__item strong{font-weight:600}
-.s1-portal-list__item span{color:var(--color-text-muted);font-size:var(--text-sm)}
-.s1-portal-list__link{flex:none;color:var(--color-action-text);font-weight:600;text-decoration:none}
-.s1-portal-list__link:hover{text-decoration:underline}
-.s1-portal-list__link:focus-visible,.s1-nav a:focus-visible,.s1-public a:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
+.s1-portal:focus-visible,.s1-nav a:focus-visible,.s1-public a:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
 .s1-public{margin-top:var(--space-8);padding-top:var(--space-4);border-top:1px solid var(--color-border)}
 .s1-public__line{margin:0 0 var(--space-3);max-width:var(--measure-short)}
 .s1-public__where{margin:var(--space-3) 0 0;color:var(--color-text-muted);font-size:var(--text-sm)}
 .s1-call{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);color:var(--color-action-text);text-decoration:none;font-weight:600}
 .s1-foot{margin-top:var(--space-6);padding-top:var(--space-3);border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size:var(--text-sm)}
+
+/* ---- The sign-in ring: six portals around the service truck, which turns once every 36s.
+   The truck is a 90-frame turntable rendered from the unit's 3D model (10 x 9 sprite,
+   public/truck-turntable.webp); steps() shows one frame at a time, so the image never blurs
+   between angles. Reduced motion holds the first frame. Under 30rem the ring folds to a grid. ---- */
+.s1-surface-access{container-type:inline-size}
+.s1-orbit{position:relative;width:100%;aspect-ratio:1;margin-top:var(--space-4)}
+.s1-orbit__truck{position:absolute;left:50%;top:50%;width:50cqi;aspect-ratio:3/2;transform:translate(-50%,-50%);background:url(/truck-turntable.webp) 0 0/1000% 900% no-repeat;animation:s1-turn-x 4s steps(10) infinite,s1-turn-y 36s steps(9) infinite}
+@keyframes s1-turn-x{to{background-position-x:111.111%}}
+@keyframes s1-turn-y{to{background-position-y:112.5%}}
+.s1-orbit__ring{position:absolute;inset:0;margin:0;padding:0;list-style:none}
+.s1-orbit__slot{position:absolute;left:50%;top:50%;width:28cqi;transform:translate(-50%,-50%) rotate(var(--slot)) translateY(-36cqi) rotate(calc(-1 * var(--slot)))}
+.s1-portal{display:flex;flex-direction:column;justify-content:center;gap:var(--space-1);min-height:calc(2 * var(--control-height));padding:var(--space-3);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);color:var(--color-text);text-align:center;text-decoration:none;transition:border-color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease)}
+.s1-portal strong{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-tight)}
+.s1-portal span{color:var(--color-text-muted);font-size:var(--text-sm)}
+.s1-portal:hover{border-color:var(--color-border-hard);box-shadow:var(--elevation-raised)}
+.s1-portal:hover strong{text-decoration:underline}
+@container (max-width:30rem){
+  .s1-orbit{aspect-ratio:auto}
+  .s1-orbit__truck{position:relative;left:auto;top:auto;width:70%;margin:0 auto var(--space-4);transform:none}
+  .s1-orbit__ring{position:static;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2)}
+  .s1-orbit__slot{position:static;width:auto;transform:none}
+}
+@media (prefers-reduced-motion:reduce){.s1-orbit__truck{animation:none}.s1-portal{transition:none}}
 
 /* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */
 .s1-h1{font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);text-transform:none;line-height:1.15}

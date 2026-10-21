@@ -17,6 +17,7 @@
  *   bundle.js.map
  *   ui.css       the self-hosted @font-face block, then packages/ui UI_CSS — roles only, no colours
  *   fonts/       packages/tokens/fonts — the subset faces and their licences
+ *   (public/)    apps/<app>/public, copied as-is when the surface has one (S1's truck turntable)
  *
  * No config file exists to drift: the options are here, beside the guard that
  * reads the same repo. esbuild resolves `preact` from packages/ui alone, which
@@ -79,6 +80,7 @@ export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean; gate
 
   writeFileSync(join(outDir, "ui.css"), fontFaceCss() + UI_CSS);
   cpSync(join(ROOT, "packages/tokens/fonts"), join(outDir, "fonts"), { recursive: true, filter: (src) => !src.endsWith("README.md") });
+  if (existsSync(join(appDir, "public"))) cpSync(join(appDir, "public"), outDir, { recursive: true });
   const gateway = opts.gateway ?? process.env.AC_GATEWAY ?? "";
   const assetPrefix = opts.basePath && opts.basePath !== "/" ? opts.basePath.replace(/\/+$/, "") : "";
   const index = readFileSync(frame, "utf8")

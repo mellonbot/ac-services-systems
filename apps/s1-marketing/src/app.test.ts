@@ -83,7 +83,7 @@ test("the S1 home is the main entry and links every enabled portal to its own si
   assert.match(page, /id="surface-logins"/);
   const enabledPortals = SURFACE_IDS.filter((id) => id !== "S1" && SURFACES[id].enabled);
   for (const id of enabledPortals) assert.match(page, new RegExp(`href="${SURFACE_PATHS[id]}/"`), `${id} has a distinct entry link`);
-  assert.equal((page.match(/class="s1-portal-list__link"/g) ?? []).length, enabledPortals.length);
+  assert.equal((page.match(/class="s1-portal"/g) ?? []).length, enabledPortals.length);
   assert.equal(page.includes(`${SURFACE_PATHS.S7}/`), false, "the disabled vendor portal is not advertised");
 });
 
