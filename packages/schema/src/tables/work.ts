@@ -15,6 +15,8 @@ export const projects = operationalTable("projects", {
 export const JOB_STATES = [
   "created", "assigned", "en_route", "on_site", "in_progress", "awaiting_parts",
   "complete", "reopened", "invoiced", "cancelled", "aborted",
+  // 0013: waiting on the customer — a quote before dispatch, an approval or access mid-job.
+  "quote_requested", "quote_submitted", "awaiting_customer",
 ] as const;
 
 export const jobs = operationalTable("jobs", {

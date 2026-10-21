@@ -343,6 +343,11 @@ export const OPERATIONS = {
     surfaces: ["S3"], carrier: "body", sdkMethod: "releaseAssignment",
     summary: "Release a crew from a job that has not yet started (state still 'assigned') and return it to 'created' for re-dispatch. Once field execution has begun this is refused by name — that is a cancellation or a reassignment conversation, not a release.",
   },
+  "jobs.transition": {
+    id: "jobs.transition", method: "POST", path: "/s3/jobs/transition", kind: "mutation", auth: "bearer",
+    surfaces: ["S3"], carrier: "body", sdkMethod: "transitionJob",
+    summary: "Move a job into or out of waiting on the customer — quote requested, quote submitted, approved back to dispatch or declined; held for the customer mid-job and resumed. Only the edges OFFICE_JOB_TRANSITIONS lists; anything else is refused by name as an illegal transition.",
+  },
   // ---- item 4: the device shift grant (D-2a) — this device, this crew, this window ----
   "devices.list": {
     id: "devices.list", method: "GET", path: "/s2/devices", kind: "query", auth: "bearer",
@@ -1070,7 +1075,28 @@ export type DisputeSettlementOutput = { readonly id: string; readonly state: "di
 export type JobPriority = "emergency" | "urgent" | "routine" | "pm";
 export type JobStateWire =
   | "created" | "assigned" | "reassigned" | "en_route" | "on_site" | "in_progress" | "awaiting_parts"
-  | "complete" | "reopened" | "invoiced" | "cancelled" | "aborted";
+  | "complete" | "reopened" | "invoiced" | "cancelled" | "aborted"
+  | "quote_requested" | "quote_submitted" | "awaiting_customer";
+
+/**
+ * The moves the office makes by hand (`jobs.transition`, S3) — every one is
+ * the job waiting on the customer, or coming back from it. A subset of
+ * packages/domain's JOB_TRANSITIONS (the gateway test holds it there), kept
+ * here because a surface reads it to offer the buttons and a surface may not
+ * import the domain. Before dispatch the wait is a quote: requested,
+ * submitted, then approved back to `created` or declined to `cancelled`.
+ * Mid-job it is `awaiting_customer` — an approval, or access — and back to
+ * `in_progress`. Assignment, release and the field's own moves keep their
+ * own doors.
+ */
+export const OFFICE_JOB_TRANSITIONS: Readonly<Partial<Record<JobStateWire, readonly JobStateWire[]>>> = Object.freeze({
+  created: ["quote_requested"],
+  quote_requested: ["quote_submitted", "cancelled"],
+  quote_submitted: ["created", "cancelled"],
+  on_site: ["awaiting_customer"],
+  in_progress: ["awaiting_customer"],
+  awaiting_customer: ["in_progress"],
+});
 
 export type CreateJobInput = {
   readonly siteId: string;
@@ -1153,6 +1179,8 @@ export type CandidateCrewsOutput = { readonly jobId: string; readonly candidates
 
 export type ReleaseAssignmentInput = { readonly assignmentId: string; readonly orgId: string; readonly regionId: string; readonly reason?: string };
 export type ReleaseAssignmentOutput = { readonly jobId: string; readonly eventId: string };
+export type TransitionJobInput = { readonly jobId: string; readonly orgId: string; readonly regionId: string; readonly to: JobStateWire };
+export type TransitionJobOutput = { readonly jobId: string; readonly state: JobStateWire; readonly version: number; readonly eventId: string };
 
 export type DeviceKind = "android_pilot" | "yocto_tablet" | "web_fallback";
 export type DeviceWire = {
@@ -1503,6 +1531,7 @@ export type OperationIO = {
   "dispatch.assign": { input: AssignInput; output: AssignOutput };
   "dispatch.candidates": { input: CandidateCrewsInput; output: CandidateCrewsOutput };
   "dispatch.release": { input: ReleaseAssignmentInput; output: ReleaseAssignmentOutput };
+  "jobs.transition": { input: TransitionJobInput; output: TransitionJobOutput };
   "devices.list": { input: ListDevicesInput; output: ListDevicesOutput };
   "devices.register": { input: RegisterDeviceInput; output: RegisterDeviceOutput };
   "devices.grantShift": { input: GrantShiftInput; output: GrantShiftOutput };

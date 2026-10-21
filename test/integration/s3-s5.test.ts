@@ -254,6 +254,35 @@ test("release before the field moves: the crew comes off, the job returns for re
   if (again.ok) assignmentId = again.assignmentId;
 });
 
+test("waiting on the customer, before dispatch: quote requested, quote submitted, approved back to created — each move logged, and a move the office does not have refused by name", { skip }, async () => {
+  const west = await westDispatcher();
+  // Its own job: the one above is back on a crew for the field half below.
+  const quoteJob = (await s2.gateway.createJob({ siteId: site, serviceCode: "CONDENSER-INSTALL", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;
+  const move = (to: string) => s3.gateway.transitionJob({ jobId: quoteJob, orgId, regionId: REGION_SOUTH, to: to as never });
+  await assert.rejects(move("awaiting_customer"), (e: unknown) => code(s3, e) === "illegal_transition", "a hold for the customer is mid-job; this job has no crew yet");
+  await assert.rejects(
+    west.gateway.transitionJob({ jobId: quoteJob, orgId, regionId: REGION_WEST, to: "quote_requested" }),
+    (e: unknown) => code(west, e) === "unknown_job",
+    "RLS: the West dispatcher cannot see the South job, so cannot move it",
+  );
+
+  for (const to of ["quote_requested", "quote_submitted"] as const) {
+    const out = await move(to);
+    assert.equal(out.state, to);
+    assert.equal((await admin(`SELECT topic FROM outbox WHERE event_id = $1`, [out.eventId]))[0]!.topic, "job.transitioned");
+    const board = (await s3.gateway.listJobs({})).jobs.find((j) => j.id === quoteJob)!;
+    assert.equal(board.state, to);
+    const entered = (await admin(`SELECT max(occurred_at) AS at FROM job_state_events WHERE job_id = $1 AND to_state = $2 AND surface_id = 'S3'`, [quoteJob, to]))[0]!;
+    assert.equal(board.stateChangedAt, (entered.at as Date).toISOString(), "time in status restarts at the office's move");
+  }
+  await assert.rejects(move("in_progress"), (e: unknown) => code(s3, e) === "illegal_transition", "a quote is approved back to dispatch, never straight into the work");
+  const approved = await move("created");
+  assert.equal(approved.state, "created");
+  const log = await admin(`SELECT from_state, to_state FROM job_state_events WHERE job_id = $1 AND surface_id = 'S3' AND mutation_id LIKE 'office:%' ORDER BY occurred_at`, [quoteJob]);
+  assert.deepEqual(log.map((r) => `${r.from_state}→${r.to_state}`), ["created→quote_requested", "quote_requested→quote_submitted", "quote_submitted→created"]);
+  await west.logout();
+});
+
 test("D-2a: a device, a grant for this crew and this technician over this window — and a technician not on the crew is refused", { skip }, async () => {
   await admin(`UPDATE users SET crew_id = $2 WHERE id = $1`, [USER_TECH, crewCleared]);
   await admin(`UPDATE users SET crew_id = $2 WHERE id = $1`, [USER_TECH_B, crewLapsed]);
@@ -363,6 +392,15 @@ test("sync.replay: the device log replays in device order, a duplicate replay is
   const onSite = (await admin(`SELECT max(occurred_at) AS at FROM job_state_events WHERE job_id = $1 AND to_state = 'on_site'`, [jobId]))[0]!;
   assert.equal(onBoard.stateChangedAt, (onSite.at as Date).toISOString(), "a field transition restarts the time-in-state clock");
   await s5.logout();
+});
+
+test("waiting on the customer, mid-job: the office holds an on-site job for the customer and resumes it into the work", { skip }, async () => {
+  const move = (to: string) => s3.gateway.transitionJob({ jobId, orgId, regionId: REGION_SOUTH, to: to as never });
+  assert.equal((await admin(`SELECT state FROM jobs WHERE id = $1`, [jobId]))[0]!.state, "on_site");
+  assert.equal((await move("awaiting_customer")).state, "awaiting_customer");
+  assert.equal((await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!.state, "awaiting_customer");
+  await assert.rejects(move("created"), (e: unknown) => code(s3, e) === "illegal_transition", "a held job resumes; it does not go back to dispatch from here");
+  assert.equal((await move("in_progress")).state, "in_progress");
 });
 
 test("a revoked grant is a dead token: logout ends the session, and the next call is refused as revoked", { skip }, async () => {

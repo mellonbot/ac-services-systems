@@ -260,3 +260,12 @@ test("job dashboard: the place line is city, state and postal code, falling back
   assert.equal(placeLine({}), null);
   assert.equal(placeLine(null), null);
 });
+
+test("job dashboard: the waiting-on-customer filter holds the quote and hold states, and 'all open' carries them too", async () => {
+  const { stalling } = await import("./screens/jobs.ts");
+  const now = Date.parse("2026-10-21T00:00:00Z");
+  const job = (id: string, state: string, days: number) => ({ id, state, openedAt: new Date(now - 400 * 86_400_000).toISOString(), stateChangedAt: new Date(now - days * 86_400_000).toISOString() }) as unknown as JobWire;
+  const jobs = [job("q", "quote_requested", 4), job("s", "quote_submitted", 11), job("h", "awaiting_customer", 2), job("c", "created", 30), job("i", "invoiced", 90)];
+  assert.deepEqual(stalling(jobs, "customer", now).map((j) => j.id), ["s", "q", "h"]);
+  assert.deepEqual(stalling(jobs, "open", now).map((j) => j.id), ["c", "s", "q", "h"]);
+});

@@ -1,7 +1,7 @@
 import { html, signal, DataGrid, StatusPill, pageHead, statStrip, panel, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { JobWire, JobStateWire, AddressWire } from "../../../../packages/contracts/src/index.ts";
+import { OFFICE_JOB_TRANSITIONS, type JobWire, type JobStateWire, type AddressWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
-import { whenReady, linkTo, type Screen } from "./common.ts";
+import { whenReady, linkTo, submitAction, type Screen, type ScreenContext } from "./common.ts";
 import { slaStatus, isDispatchable } from "./board.ts";
 
 /**
@@ -11,8 +11,9 @@ import { slaStatus, isDispatchable } from "./board.ts";
  * a job's state.
  *
  * "Stalling" is days in the current state (`stateChangedAt`, from the job's
- * own state log). "Waiting on customer" has no job state behind it yet; the
- * bucket says so rather than borrowing one.
+ * own state log). The waiting-on-customer states (0013) are moved here by
+ * hand, one button per edge OFFICE_JOB_TRANSITIONS admits — the same list
+ * the gateway enforces, so the screen never offers a move it would refuse.
  */
 type BucketId = "action" | "customer" | "progress" | "closed";
 type Tone = "breached" | "at_risk" | "info" | "ok";
@@ -21,11 +22,18 @@ const STATE_LABEL: Readonly<Record<JobStateWire, string>> = {
   created: "Unassigned", reassigned: "Unassigned", reopened: "Reopened", awaiting_parts: "Waiting on parts", complete: "Needs invoicing",
   assigned: "Dispatched", en_route: "En route", on_site: "On site", in_progress: "In progress",
   invoiced: "Invoiced", cancelled: "Cancelled", aborted: "Aborted",
+  awaiting_customer: "On hold for customer", quote_requested: "Quote requested", quote_submitted: "Quote submitted",
+};
+
+/** The button's word for a move — what the dispatcher is saying happened, not the state's name. */
+const MOVE_LABEL: Readonly<Partial<Record<JobStateWire, string>>> = {
+  quote_requested: "Quote requested", quote_submitted: "Quote sent", created: "Approved", cancelled: "Declined",
+  awaiting_customer: "Hold for customer", in_progress: "Resume",
 };
 
 const BUCKETS: readonly { id: BucketId; title: string; sub: string; tone: Tone; states: readonly JobStateWire[] }[] = [
   { id: "action", title: "Needs action", sub: "Blocked on your team", tone: "breached", states: ["created", "reassigned", "reopened", "awaiting_parts", "complete"] },
-  { id: "customer", title: "Waiting on customer", sub: "Ball's in their court", tone: "at_risk", states: [] },
+  { id: "customer", title: "Waiting on customer", sub: "Ball's in their court", tone: "at_risk", states: ["awaiting_customer", "quote_requested", "quote_submitted"] },
   { id: "progress", title: "In progress", sub: "Scheduled or on-site", tone: "info", states: ["assigned", "en_route", "on_site", "in_progress"] },
   { id: "closed", title: "Closed out", sub: "Invoiced, cancelled, or aborted", tone: "ok", states: ["invoiced", "cancelled", "aborted"] },
 ];
@@ -52,13 +60,14 @@ export const placeLine = (a: AddressWire | null): string | null => {
 
 const initials = (name: string): string => name.split(/\s+/).map((w) => w[0] ?? "").join("").slice(0, 2).toUpperCase();
 
-type Filter = "action" | "open" | "Unassigned" | "Waiting on parts" | "Needs invoicing" | "Reopened";
+type Filter = "action" | "customer" | "open" | "Unassigned" | "Waiting on parts" | "Needs invoicing" | "Reopened";
 const FILTERS: readonly { id: Filter; label: string }[] = [
   { id: "action", label: "All needs-action" },
   { id: "Unassigned", label: "Unassigned" },
   { id: "Waiting on parts", label: "Waiting on parts" },
   { id: "Needs invoicing", label: "Needs invoicing" },
   { id: "Reopened", label: "Reopened" },
+  { id: "customer", label: "Waiting on customer" },
   { id: "open", label: "All open" },
 ];
 const filters = new WeakMap<Store, Signal<Filter>>();
@@ -72,8 +81,8 @@ export const stalling = (jobs: readonly JobWire[], filter: Filter, now: number):
   jobs
     .filter((j) => {
       const b = bucketOf(j.state);
-      if (filter === "open") return b === "action" || b === "progress";
-      if (filter === "action") return b === "action";
+      if (filter === "open") return b !== "closed";
+      if (filter === "action" || filter === "customer") return b === filter;
       return STATE_LABEL[j.state] === filter;
     })
     .sort((a, b) => daysInState(b, now) - daysInState(a, now));
@@ -87,10 +96,18 @@ const bucketCard = (bucket: (typeof BUCKETS)[number], jobs: readonly JobWire[]):
         <h2 class="s3-bucket__title">${bucket.title}</h2>
         <p class="s3-bucket__sub">${bucket.sub}</p>
       </div>
-      ${rows.length
-        ? html`<dl class="s3-bucket__rows">${rows.map(([label, n]) => html`<div class="s3-bucket__row"><dt>${label}</dt><dd class="s3-num">${n.toLocaleString()}</dd></div>`)}</dl>`
-        : html`<p class="s3-bucket__none">No job state for this yet — the job feed does not carry a customer wait.</p>`}`)}
+      <dl class="s3-bucket__rows">${rows.map(([label, n]) => html`<div class="s3-bucket__row"><dt>${label}</dt><dd class="s3-num">${n.toLocaleString()}</dd></div>`)}</dl>`)}
   </div>`;
+};
+
+const moveJob = async (ctx: ScreenContext, job: JobWire, to: JobStateWire): Promise<void> => {
+  try {
+    await ctx.shell.gateway.transitionJob({ jobId: job.id, orgId: job.orgId, regionId: job.regionId, to });
+    ctx.store.notice.value = [to === "created" ? `Job ${job.id}: approved — back to dispatch.` : `Job ${job.id}: ${STATE_LABEL[to].toLowerCase()}.`];
+  } catch {
+    ctx.store.notice.value = [`Job ${job.id} did not move — it may have changed since this page loaded. The list has been refreshed.`];
+  }
+  ctx.store.invalidate("jobs.list");
 };
 
 export const jobs: Screen = (ctx) => {
@@ -108,6 +125,8 @@ export const jobs: Screen = (ctx) => {
     { key: "sla", header: "SLA", cell: (j) => j.slaDueAt && !j.slaSatisfiedAt
       ? StatusPill({ density: ctx.density, status: slaStatus(j, now) })
       : html`<span class="s3-muted">—</span>` },
+    { key: "move", header: "Move", cell: (j) => html`<span class="s3-row-actions">${(OFFICE_JOB_TRANSITIONS[j.state] ?? []).map((to) =>
+      submitAction(ctx, MOVE_LABEL[to] ?? STATE_LABEL[to], () => void moveJob(ctx, j, to), `move-${j.id}-${to}`, "quiet"))}</span>` },
     { key: "age", header: "Days in status", numeric: true, align: "end", cell: (j) => html`<span title=${`In this status since ${new Date(j.stateChangedAt).toLocaleString()}`}>${daysInState(j, now)}d</span>` },
   ];
 
@@ -115,17 +134,18 @@ export const jobs: Screen = (ctx) => {
     ${pageHead("Job Dashboard", "Job states rolled into four action buckets, with the jobs that are actually stalling surfaced by age — not just by count.")}
     ${whenReady(ctx, list.value, (out) => {
       const count = (label: string) => out.jobs.filter((j) => STATE_LABEL[j.state] === label).length;
-      const open = out.jobs.filter((j) => { const b = bucketOf(j.state); return b === "action" || b === "progress"; });
+      const open = out.jobs.filter((j) => bucketOf(j.state) !== "closed");
       const breached = open.filter((j) => slaStatus(j, now) === "breached").length;
       const atRisk = open.filter((j) => slaStatus(j, now) === "at_risk").length;
-      const unassigned = count("Unassigned"), parts = count("Waiting on parts"), reopened = count("Reopened");
+      const unassigned = count("Unassigned"), parts = count("Waiting on parts"), quoteReq = count("Quote requested"), quoteSent = count("Quote submitted");
       const rows = stalling(out.jobs, filter.value, now);
       return html`
         ${statStrip([
           { n: count("Needs invoicing"), label: "Needs invoicing", sub: "Finished, ready to bill" },
           { n: unassigned, label: "Unassigned", sub: "Waiting on dispatch", ...(unassigned ? { tone: "at_risk" as const } : {}) },
           { n: parts, label: "Waiting on parts", sub: "Held by supply", ...(parts ? { tone: "at_risk" as const } : {}) },
-          { n: reopened, label: "Reopened", sub: "Came back after complete", ...(reopened ? { tone: "at_risk" as const } : {}) },
+          { n: quoteReq, label: "Quote requested", sub: "Customer asked for pricing" },
+          { n: quoteSent, label: "Quote submitted", sub: "Sent, awaiting approval" },
           { n: breached, label: "SLA breached", sub: "Past due, still open", ...(breached ? { tone: "breached" as const } : {}) },
           { n: atRisk, label: "SLA at risk", sub: "Escalating now", ...(atRisk ? { tone: "at_risk" as const } : {}) },
         ], "jobs-stats")}

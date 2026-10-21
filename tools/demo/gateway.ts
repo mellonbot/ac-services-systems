@@ -10,7 +10,7 @@
  * (term resolution, override admission, the compliance gate, context
  * resolution) the real module is imported and run.
  */
-import { OPERATIONS, routeKey, type OperationId } from "../../packages/contracts/src/operations.ts";
+import { OPERATIONS, OFFICE_JOB_TRANSITIONS, routeKey, type OperationId } from "../../packages/contracts/src/operations.ts";
 import type * as W from "../../packages/contracts/src/operations.ts";
 import { SURFACES, type SurfaceId } from "../../packages/contracts/src/surfaces.ts";
 import type { Principal } from "../../packages/contracts/src/scope.ts";
@@ -975,6 +975,15 @@ const H: Partial<Record<OperationId, Handler>> = {
     a!.releasedAt = new Date().toISOString();
     j.state = "created"; j.version++; j.stateChangedAt = new Date().toISOString();
     return { jobId: j.id, eventId: publish(surface, "job.reassigned", "job", j.id, j.orgId, j.regionId) };
+  },
+
+  "jobs.transition": (i: W.TransitionJobInput, { surface }) => {
+    const j = jobs.find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    const legal = OFFICE_JOB_TRANSITIONS[j!.state] ?? [];
+    if (!legal.includes(i.to)) throw input422(`job ${i.jobId} is "${j!.state}" — the office may move it to ${legal.length ? legal.map((s) => `"${s}"`).join(" or ") : "nothing from here"}, not "${String(i.to)}"`, "illegal_transition");
+    j!.state = i.to; j!.version++; j!.stateChangedAt = new Date().toISOString();
+    return { jobId: j!.id, state: j!.state, version: j!.version, eventId: publish(surface, "job.transitioned", "job", j!.id, j!.orgId, j!.regionId) };
   },
 
   // ---- S5 ----

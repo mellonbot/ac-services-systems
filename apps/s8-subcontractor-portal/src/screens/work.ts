@@ -31,6 +31,7 @@ export const STATE_WORD: Readonly<Record<JobStateWire, string>> = {
   created: "Scheduled", assigned: "Assigned to you", reassigned: "Being reassigned", en_route: "Your crew en route", on_site: "Your crew on site",
   in_progress: "In progress", awaiting_parts: "Awaiting parts", complete: "Complete", reopened: "Reopened", invoiced: "Invoiced",
   cancelled: "Cancelled", aborted: "Stopped",
+  quote_requested: "Quote requested", quote_submitted: "Quote with the customer", awaiting_customer: "Waiting on the customer",
 };
 
 export const work: Screen = (ctx) => {

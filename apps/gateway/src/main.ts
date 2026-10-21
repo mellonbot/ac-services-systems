@@ -15,7 +15,7 @@ import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, l
 import { listSettlements, listSettlementLines, acknowledgeSettlement, disputeSettlement } from "./handlers/settlements.ts";
 import { ingestSync } from "./handlers/sync.ts";
 import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
-import { createJob, listJobs, listMyJobs } from "./handlers/jobs.ts";
+import { createJob, listJobs, listMyJobs, transitionJob } from "./handlers/jobs.ts";
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
 import { createServiceRequest, listServiceRequests } from "./handlers/service-requests.ts";
 import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
@@ -485,6 +485,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "dispatch.assign": (req, input) => withUow(req, "dispatch.assign", (uow, p) => assignCrew(uow, p.subjectId, input, new Date())),
   "dispatch.candidates": (req, input) => withRead(req, "dispatch.candidates", (uow) => candidateCrews(uow, input, new Date())),
   "dispatch.release": (req, input) => withUow(req, "dispatch.release", (uow, p) => releaseAssignment(uow, p.subjectId, input, new Date())),
+  "jobs.transition": (req, input) => withUow(req, "jobs.transition", (uow, p) => transitionJob(uow, p.subjectId, input, new Date())),
 
   // item 4 — D-2a's primitive: this device, this crew, this window.
   "devices.list": (req, input) => withRead(req, "devices.list", (uow) => listDevices(uow, input)),

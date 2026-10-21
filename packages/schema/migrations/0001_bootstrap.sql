@@ -355,7 +355,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   service_code text NOT NULL,
   priority text NOT NULL DEFAULT 'routine' CHECK (priority IN ('emergency','urgent','routine','pm')),
   service_window tstzrange NOT NULL,
-  state text NOT NULL DEFAULT 'created' CHECK (state IN ('created','assigned','en_route','on_site','in_progress','awaiting_parts','complete','reopened','invoiced','cancelled','aborted')),
+  state text NOT NULL DEFAULT 'created' CHECK (state IN ('created','assigned','en_route','on_site','in_progress','awaiting_parts','complete','reopened','invoiced','cancelled','aborted','quote_requested','quote_submitted','awaiting_customer')),
   version integer NOT NULL DEFAULT 1,
   opened_at timestamptz NOT NULL DEFAULT now(),
   created_at timestamptz NOT NULL DEFAULT now(),

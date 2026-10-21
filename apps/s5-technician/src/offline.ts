@@ -26,22 +26,27 @@ import type { SyncMutationWire, SyncOutcomeWire } from "../../../packages/contra
  * than writing the same intent twice.
  */
 export const JOB_TRANSITIONS: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  created: ["assigned", "cancelled"],
+  created: ["assigned", "cancelled", "quote_requested"],
   assigned: ["en_route", "reassigned", "cancelled"],
   reassigned: ["assigned", "cancelled"],
   en_route: ["on_site", "cancelled"],
-  on_site: ["in_progress", "aborted"],
-  in_progress: ["awaiting_parts", "complete", "aborted"],
+  on_site: ["in_progress", "aborted", "awaiting_customer"],
+  in_progress: ["awaiting_parts", "complete", "aborted", "awaiting_customer"],
   awaiting_parts: ["in_progress", "aborted"],
   complete: ["invoiced", "reopened"],
   reopened: ["in_progress"],
   invoiced: [],
   cancelled: [],
   aborted: ["reopened"],
+  // Waiting on the customer (0013). A quote is the office's, before dispatch;
+  // an approval or access mid-job is either the office's or the technician's.
+  quote_requested: ["quote_submitted", "cancelled"],
+  quote_submitted: ["created", "cancelled"],
+  awaiting_customer: ["in_progress", "aborted"],
 });
 
 /** Transitions a DEVICE may drive. Assignment and cancellation are the office's. */
-export const DEVICE_TRANSITIONS: readonly string[] = ["en_route", "on_site", "in_progress", "awaiting_parts", "complete", "aborted"];
+export const DEVICE_TRANSITIONS: readonly string[] = ["en_route", "on_site", "in_progress", "awaiting_parts", "awaiting_customer", "complete", "aborted"];
 
 /** What JOB_TRANSITIONS[state] ∩ DEVICE_TRANSITIONS permits from here — the buttons a job-detail screen may offer. */
 export const nextDeviceStates = (state: string): readonly string[] => {

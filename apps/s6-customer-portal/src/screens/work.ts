@@ -32,6 +32,7 @@ export const STATE_WORD: Readonly<Record<JobStateWire, string>> = {
   created: "Scheduled", assigned: "Crew assigned", reassigned: "Being reassigned", en_route: "Crew en route", on_site: "Crew on site",
   in_progress: "In progress", awaiting_parts: "Awaiting parts", complete: "Complete", reopened: "Reopened", invoiced: "Invoiced",
   cancelled: "Cancelled", aborted: "Stopped",
+  quote_requested: "Quote requested", quote_submitted: "Quote sent to you", awaiting_customer: "Waiting on you",
 };
 
 /**
@@ -42,9 +43,9 @@ export const STATE_WORD: Readonly<Record<JobStateWire, string>> = {
 export const STEPS = ["Requested", "Scheduled", "In progress", "Completed", "Invoiced"] as const;
 export const stepOf = (r: Pick<ServiceRequestWire, "jobState">): number => {
   switch (r.jobState) {
-    case null: case "created": return 0;
+    case null: case "created": case "quote_requested": case "quote_submitted": return 0;
     case "assigned": case "reassigned": case "en_route": return 1;
-    case "on_site": case "in_progress": case "awaiting_parts": case "reopened": return 2;
+    case "on_site": case "in_progress": case "awaiting_parts": case "awaiting_customer": case "reopened": return 2;
     case "complete": return 3;
     case "invoiced": return 4;
     default: return -1;

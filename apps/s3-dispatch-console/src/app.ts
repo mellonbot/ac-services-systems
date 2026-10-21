@@ -48,6 +48,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
 type PreviewShell = ConnectedShell & {
   gateway: {
     listJobs: (input: Record<string, unknown>) => Promise<{ jobs: unknown[] }>;
+    transitionJob: (input: { jobId: string; to: string }) => Promise<unknown>;
     health: () => Promise<{ ok: boolean }>;
   };
 };
@@ -86,6 +87,11 @@ const PREVIEW_JOBS = [
   previewJob("33187839", "Shipman Co", "repairs", "emergency", "complete", "Garrett Howard", 33, null, 29),
   previewJob("32452900", "Shipman Co", "new_install", "routine", "complete", "Garrett Howard", 12, null, 6),
   previewJob("33200206", "Shipman Co", "repairs", "routine", "awaiting_parts", "Johnny Fontez", 21, null, 14),
+  previewJob("33200310", "Shipman Co", "condenser_install", "routine", "quote_requested", null, 9, null, 4),
+  previewJob("33200318", "FirstKey Homes DFW", "repairs", "routine", "quote_requested", null, 7, null, 7),
+  previewJob("33200322", "Turner Res.", "new_install", "routine", "quote_submitted", null, 16, null, 11),
+  previewJob("33200329", "Meridian Plaza", "rtu_changeout", "urgent", "quote_submitted", null, 6, null, 3),
+  previewJob("33390962", "Shipman Co", "repairs", "urgent", "awaiting_customer", "Herberto Vega", 5, null, 2),
   previewJob("32100114", "Turner Res.", "pm_route", "pm", "invoiced", "Colton Dawson", 60, null),
   previewJob("32100171", "Meridian Plaza", "repairs", "routine", "invoiced", "Dylan Lemons", 52, null),
   previewJob("32100190", "FirstKey Homes DFW", "repairs", "routine", "cancelled", null, 45, null),
@@ -97,6 +103,11 @@ const createPreviewShell = (): PreviewShell => {
     context: { principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" }, path: [{ tier: "parent", id: "org-preview", name: "AC Services" }], parent: { tier: "parent", id: "org-preview", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "region-preview" },
     gateway: {
       listJobs: async () => ({ jobs: PREVIEW_JOBS }),
+      transitionJob: async (input: { jobId: string; to: string }) => {
+        const job = PREVIEW_JOBS.find((j) => j.id === input.jobId)!;
+        Object.assign(job, { state: input.to, version: job.version + 1, stateChangedAt: new Date().toISOString() });
+        return { jobId: job.id, state: job.state, version: job.version, eventId: "preview" };
+      },
       health: async () => ({ ok: true }),
     },
     refusalOf: (e: unknown) => ({ kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) }),

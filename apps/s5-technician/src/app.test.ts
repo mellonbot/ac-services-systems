@@ -93,7 +93,9 @@ test("priorityStatus: emergency reads as breached, urgent as at risk, routine an
 test("nextDeviceStates offers only what JOB_TRANSITIONS and DEVICE_TRANSITIONS both admit — never assignment or cancellation", () => {
   assert.deepEqual(nextDeviceStates("assigned"), ["en_route"], "reassigned and cancelled are the office's, not a device transition");
   assert.deepEqual(nextDeviceStates("en_route"), ["on_site"]);
-  assert.deepEqual([...nextDeviceStates("in_progress")].sort(), ["aborted", "awaiting_parts", "complete"].sort());
+  assert.deepEqual([...nextDeviceStates("in_progress")].sort(), ["aborted", "awaiting_customer", "awaiting_parts", "complete"].sort());
+  assert.deepEqual([...nextDeviceStates("awaiting_customer")].sort(), ["aborted", "in_progress"], "a hold for the customer resumes or stops; it is not the field's to quote");
+  assert.deepEqual(nextDeviceStates("quote_requested"), [], "a quote before dispatch is the office's");
   assert.deepEqual(nextDeviceStates("invoiced"), []);
   for (const [from, tos] of Object.entries(JOB_TRANSITIONS)) {
     const admitted = tos.filter((to) => DEVICE_TRANSITIONS.includes(to));

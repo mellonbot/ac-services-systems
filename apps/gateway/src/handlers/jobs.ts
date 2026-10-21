@@ -4,8 +4,9 @@ import { deriveDueAt } from "../../../../packages/domain/src/sla/index.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type {
   CreateJobInput, CreateJobOutput, JobPriority, JobStateWire, JobWire, ListJobsOutput,
-  FieldJobWire, MyJobsOutput, AddressWire,
+  FieldJobWire, MyJobsOutput, AddressWire, TransitionJobInput, TransitionJobOutput,
 } from "../../../../packages/contracts/src/operations.ts";
+import { OFFICE_JOB_TRANSITIONS } from "../../../../packages/contracts/src/operations.ts";
 
 /**
  * ITEM 4 — THE JOB ITSELF. A job is created in Office & Dispatch (00 §2.2)
@@ -191,4 +192,46 @@ export const listMyJobs = async (uow: UnitOfWork, shiftId: string): Promise<MyJo
     serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version,
   }));
   return { jobs };
+};
+
+/**
+ * S3 → gateway: the office's hand on a job's state, and only for waiting on
+ * the customer (OFFICE_JOB_TRANSITIONS). Assignment and release keep their
+ * own doors; the field's moves arrive through sync.replay. The UPDATE names
+ * the state it read, so a job the field moved in the meantime is refused as
+ * a stale transition instead of being overwritten.
+ */
+export const transitionJob = async (uow: UnitOfWork, actorId: string, input: TransitionJobInput, at: Date): Promise<TransitionJobOutput> => {
+  const jobId = requireUuid(input.jobId, "jobId");
+  const job = (await uow.tx.query<{ state: JobStateWire; version: number; org_id: string; region_id: string }>(
+    `SELECT state, version, org_id, region_id FROM jobs WHERE id = $1`, [jobId],
+  ))[0];
+  if (!job) throw new InputRefused(`job ${jobId} not found in scope`, "unknown_job");
+  if (job.org_id !== input.orgId || job.region_id !== input.regionId) throw new InputRefused(`job ${jobId} tenancy does not match input`, "tenancy_mismatch");
+  const legal = OFFICE_JOB_TRANSITIONS[job.state] ?? [];
+  if (!legal.includes(input.to)) {
+    throw new InputRefused(
+      `job ${jobId} is "${job.state}" — the office may move it to ${legal.length ? legal.map((s) => `"${s}"`).join(" or ") : "nothing from here"}, not "${String(input.to)}"`,
+      "illegal_transition",
+    );
+  }
+
+  const version = job.version + 1;
+  const eventId = await uow.apply(
+    {
+      entity: "job_state", entityId: jobId, action: "job.transition", topic: "job.transitioned",
+      before: { state: job.state, version: job.version }, after: { state: input.to, version },
+      orgId: job.org_id, regionId: job.region_id,
+      payload: { jobId, from: job.state, to: input.to },
+    },
+    async (tx) => {
+      const moved = await tx.query(`UPDATE jobs SET state = $2, version = $4 WHERE id = $1 AND state = $3 AND version = $5 RETURNING id`, [jobId, input.to, job.state, version, job.version]);
+      if (moved.length === 0) throw new InputRefused(`job ${jobId} changed while this transition was in flight — read it again`, "illegal_transition");
+      await tx.insert("job_state_events", {
+        org_id: job.org_id, region_id: job.region_id, job_id: jobId, from_state: job.state, to_state: input.to,
+        actor_id: actorId, surface_id: "S3", mutation_id: `office:v${version}`, occurred_at: at.toISOString(),
+      });
+    },
+  );
+  return { jobId, state: input.to, version, eventId };
 };
