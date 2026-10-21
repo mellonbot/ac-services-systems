@@ -59,6 +59,7 @@ type PreviewShell = ConnectedShell & {
     listJobs: (input: Record<string, unknown>) => Promise<{ jobs: unknown[] }>;
     listServiceRequests: (input: Record<string, unknown>) => Promise<{ requests: unknown[] }>;
     getMedia: (input: { id: string }) => Promise<{ id: string; contentType: string; image: string }>;
+    openServiceRequestJob: (input: { requestId: string; serviceCode: string; priority?: string; serviceWindowStart: string; serviceWindowEnd: string }) => Promise<unknown>;
     transitionJob: (input: { jobId: string; to: string }) => Promise<unknown>;
     addJobNote: (input: { jobId: string; body: string; kind?: "note" | "standing" }) => Promise<unknown>;
     jobDetail: (input: { jobId: string }) => Promise<unknown>;
@@ -159,6 +160,14 @@ const createPreviewShell = (): PreviewShell => {
       listJobs: async () => ({ jobs: PREVIEW_JOBS }),
       listServiceRequests: async () => ({ requests: PREVIEW_REQUESTS }),
       getMedia: async (input: { id: string }) => ({ id: input.id, contentType: "image/png", image: PREVIEW_PHOTO }),
+      openServiceRequestJob: async (input: { requestId: string; serviceCode: string; priority?: string; serviceWindowStart: string; serviceWindowEnd: string }) => {
+        const r = PREVIEW_REQUESTS.find((x) => x.id === input.requestId)!;
+        const job = previewJob(String(33400000 + PREVIEW_JOBS.length), r.siteName, input.serviceCode, input.priority ?? r.priority, "created", null, 0, { due: 4, stage: 0 });
+        Object.assign(job, { serviceWindowStart: input.serviceWindowStart, serviceWindowEnd: input.serviceWindowEnd });
+        PREVIEW_JOBS.push(job);
+        Object.assign(r, { jobId: job.id, jobState: "created" });
+        return { id: job.id, orgId: job.orgId, regionId: job.regionId, slaTimerId: `t-${job.id}`, dueAt: job.slaDueAt, responseTerm: "4_hour", requestId: r.id };
+      },
       managerOverview: async () => previewManagerOverview(),
       addJobNote: async (input: { jobId: string; body: string; kind?: "note" | "standing" }) => {
         const job = PREVIEW_JOBS.find((j) => j.id === input.jobId)!;
@@ -236,7 +245,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       store.invalidate("manager.overview");
     }, { topics: [
       // a customer asked, or sent a photo with what they asked (Intake)
-      "service_request.created", "service_request.photo_attached",
+      "service_request.created", "service_request.photo_attached", "service_request.job_opened",
       "job.created", "job.assigned", "job.reassigned", "job.transitioned", "job.completed", "job.cancelled", "job.annotated",
       "job.update_published", "job.message_posted",
       "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",

@@ -74,7 +74,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     }, { topics: [
       "job.created", "job.assigned", "job.reassigned", "job.transitioned", "job.completed", "job.cancelled",
       "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",
-      "service_request.created", "contract.created", "contract.amended", "contract.term_overridden", "contract.expired",
+      "service_request.created", "service_request.job_opened", "contract.created", "contract.amended", "contract.term_overridden", "contract.expired",
       "account.created", "account.updated", "account.deactivated",
       "equipment.registered", "account_contact.set", "invoice.issued",
       "job.update_published", "job.message_posted",

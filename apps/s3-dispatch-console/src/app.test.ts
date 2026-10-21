@@ -6,7 +6,7 @@ import { SCREENS } from "./screens.ts";
 import { slaStatus, isReleasable, isDispatchable } from "./screens/board.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { Principal, JobWire, HierarchyContext, CandidateCrewWire, ServiceRequestWire } from "../../../packages/contracts/src/index.ts";
-import { intakeRows, age } from "./screens/intake.ts";
+import { intakeRows, age, defaultWindow } from "./screens/intake.ts";
 import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
 
 /**
@@ -414,4 +414,31 @@ test("INTAKE: the tab is in the header; requests read from serviceRequests.list,
   assert.match(out, /alt="Photo 2 of 2 sent with request 5E000002 at Austin — Roof"/);
   (nodesIn(app.view()).find((n) => n.type === "button" && n.props?.id === "intake-viewer-close")!.props!.onClick as () => void)();
   assert.doesNotMatch(render(app.view()), /id="intake-viewer"/);
+});
+
+test("defaultWindow: the morning of the date the customer asked for, else the next whole hour — four hours", () => {
+  const now = new Date(2026, 9, 21, 14, 35);
+  assert.deepEqual(defaultWindow("No cooling — closet.\nPreferred date: 2026-10-23.", now), { start: "2026-10-23T08:00", end: "2026-10-23T12:00" });
+  assert.deepEqual(defaultWindow("No date given.", now), { start: "2026-10-21T15:00", end: "2026-10-21T19:00" });
+});
+
+test("INTAKE: Open job on a waiting request opens the form beside the list, priority as the customer declared; an answered request offers no button", async () => {
+  const { app } = await ready({
+    [OPERATIONS["serviceRequests.list"].path]: { status: 200, body: { requests: [...REQUESTS.slice(0, 2), { ...REQUESTS[2]!, description: "Water through the ceiling.\nPreferred date: 2026-10-23." }] } },
+    [OPERATIONS["media.get"].path]: { status: 200, body: { id: "x", contentType: "image/png", image: "data:image/png;base64,QQ==" } },
+  });
+  app.router.navigate("intake", {});
+  render(app.view()); await settle(); await settle();
+  let out = render(app.view());
+  assert.match(out, new RegExp(`id="open-${REQ_EMERGENCY}"[^>]*>Open job<`));
+  assert.doesNotMatch(out, new RegExp(`id="open-${REQ_OPENED}"`), "a request already answered is not answered twice");
+  (nodesIn(app.view()).find((n) => n.type === "button" && n.props?.id === `open-${REQ_EMERGENCY}`)!.props!.onClick as () => void)();
+  out = render(app.view());
+  assert.match(out, /id="intake-open-form"/);
+  assert.match(out, /Open a job — 5E000002/);
+  assert.match(out, /<option value="emergency" selected[^>]*>Emergency — as the customer declared</);
+  assert.match(out, /id="intake-start"[^>]*value="2026-10-23T08:00"|value="2026-10-23T08:00"[^>]*id="intake-start"/, "the window starts on the day they asked for");
+  assert.match(out, /derived when the job opens, not chosen here/);
+  (nodesIn(app.view()).find((n) => n.type === "button" && n.props?.id === "intake-open-cancel")!.props!.onClick as () => void)();
+  assert.doesNotMatch(render(app.view()), /id="intake-open-form"/);
 });

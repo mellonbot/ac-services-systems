@@ -1,7 +1,7 @@
-import { html, signal, DataGrid, StatusPill, pageHead, statStrip, panel, shortRef, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { ServiceRequestWire, ServiceRequestPriority } from "../../../../packages/contracts/src/index.ts";
+import { html, signal, DataGrid, StatusPill, PrimaryAction, pageHead, statStrip, panel, shortRef, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
+import type { ServiceRequestWire, ServiceRequestPriority, JobPriority, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
-import { whenReady, linkTo, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, linkTo, refusalView, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL } from "./jobs.ts";
 
 /**
@@ -16,9 +16,12 @@ import { STATE_LABEL } from "./jobs.ts";
  * priority is the customer's word, not the office's grade; emergency and
  * urgent take the state ramp because they read as state, routine is plain.
  *
- * Read-only by design: there is no operation that opens a job FROM a request
- * yet (`service_requests.job_id` is set by the office's own process), so this
- * screen shows the link once one exists and does not invent the act.
+ * A waiting request is answered here: "Open job" opens a job at the
+ * request's site (`serviceRequests.openJob` — jobs.create's own path, the SLA
+ * timer derived, never typed) and links the two, then hands the dispatcher to
+ * the dispatch screen for the new job. Priority starts at what the customer
+ * declared and the window at the date they asked for, when they asked for one;
+ * the dispatcher may change either.
  */
 type Show = "waiting" | "all";
 type Viewing = { readonly requestId: string; readonly photoId: string } | null;
@@ -47,6 +50,78 @@ const perStore = <T>(initial: T) => {
 };
 const showFor = perStore<Show>("waiting");
 const viewingFor = perStore<Viewing>(null);
+type Opening = { readonly requestId: string; readonly busy: boolean; readonly refusal: Refusal | null } | null;
+const openingFor = perStore<Opening>(null);
+
+const JOB_PRIORITIES: readonly JobPriority[] = ["emergency", "urgent", "routine", "pm"];
+const PRIORITY_WORD: Readonly<Record<JobPriority, string>> = { emergency: "Emergency", urgent: "Urgent", routine: "Routine", pm: "Planned maintenance" };
+
+/** "2026-10-22T08:00" — what a datetime-local input holds, in the dispatcher's own time. */
+const localInput = (d: Date): string => {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+/**
+ * The window the form starts at: the morning of the date the customer asked
+ * for (S6 writes "Preferred date: YYYY-MM-DD." into the description), else the
+ * next whole hour — four hours either way.
+ */
+export const defaultWindow = (description: string, now: Date): { start: string; end: string } => {
+  const asked = /Preferred date: (\d{4})-(\d{2})-(\d{2})/.exec(description);
+  const start = asked ? new Date(Number(asked[1]), Number(asked[2]) - 1, Number(asked[3]), 8) : new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1);
+  return { start: localInput(start), end: localInput(new Date(start.getTime() + 4 * 3_600_000)) };
+};
+
+const openJob = async (ctx: ScreenContext, r: ServiceRequestWire, form: HTMLFormElement, opening: Signal<Opening>): Promise<void> => {
+  const f = new FormData(form);
+  opening.value = { requestId: r.id, busy: true, refusal: null };
+  try {
+    const out = await ctx.shell.gateway.openServiceRequestJob({
+      requestId: r.id,
+      serviceCode: String(f.get("serviceCode") ?? "").trim(),
+      priority: String(f.get("priority") ?? r.priority) as JobPriority,
+      serviceWindowStart: new Date(String(f.get("start"))).toISOString(),
+      serviceWindowEnd: new Date(String(f.get("end"))).toISOString(),
+    });
+    opening.value = null;
+    ctx.store.notice.value = [`Request ${shortRef(r.id)} at ${r.siteName} is answered — job ${out.id} is open, response due ${new Date(out.dueAt).toLocaleString()}. Assign a crew below.`];
+    ctx.store.invalidate("serviceRequests.list");
+    ctx.store.invalidate("jobs.list");
+    ctx.router.navigate("dispatch", { jobId: out.id });
+  } catch (e) {
+    opening.value = { requestId: r.id, busy: false, refusal: ctx.shell.refusalOf(e) ?? { kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) } };
+  }
+};
+
+const openPanel = (ctx: ScreenContext, requests: readonly ServiceRequestWire[], opening: Signal<Opening>): VNode | null => {
+  const o = opening.value;
+  const r = o ? requests.find((x) => x.id === o.requestId && isWaiting(x)) : undefined;
+  if (!o || !r) return null;
+  const w = defaultWindow(r.description, new Date());
+  return panel(html`<form class="ac-form" id="intake-open-form" onSubmit=${(e: Event) => { e.preventDefault(); if (!ctx.degraded && !o.busy) void openJob(ctx, r, e.currentTarget as HTMLFormElement, opening); }}>
+      <p class="s3-customer-text">${r.description}</p>
+      <label class="ac-field"><span>Service</span>
+        <input class="ac-input" name="serviceCode" id="intake-service" required maxlength="80" placeholder="e.g. repairs, rtu_changeout, pm_route" />
+      </label>
+      <label class="ac-field"><span>Priority</span>
+        <select class="ac-input" name="priority" id="intake-priority">
+          ${JOB_PRIORITIES.map((p) => html`<option value=${p} defaultSelected=${p === r.priority}>${PRIORITY_WORD[p]}${p === r.priority ? " — as the customer declared" : ""}</option>`)}
+        </select>
+      </label>
+      <label class="ac-field"><span>Window from</span><input class="ac-input" type="datetime-local" name="start" id="intake-start" required defaultValue=${w.start} /></label>
+      <label class="ac-field"><span>Window to</span><input class="ac-input" type="datetime-local" name="end" id="intake-end" required defaultValue=${w.end} /></label>
+      <p class="s3-muted">The response time is the site's agreed term — it is derived when the job opens, not chosen here.</p>
+      <span class="s3-row-actions">
+        ${PrimaryAction({
+          density: ctx.density, label: o.busy ? "Opening…" : "Open job", type: "submit", id: "intake-open-submit",
+          ...(ctx.degraded ? { disabledReason: `Gateway unreachable — ${ctx.shell.degradedMode}` } : o.busy ? { disabledReason: "Opening…" } : {}),
+        })}
+        <button type="button" class="s3-act" id="intake-open-cancel" onClick=${() => { opening.value = null; }}>Cancel</button>
+      </span>
+      ${o.refusal ? refusalView(ctx, o.refusal) : null}
+    </form>`,
+    `Open a job — ${shortRef(r.id)}`, r.siteName, undefined, "intake-open");
+};
 
 const priorityCell = (ctx: ScreenContext, p: ServiceRequestPriority): VNode =>
   p === "emergency" ? StatusPill({ density: ctx.density, status: "breached", label: "Emergency" }) ?? html``
@@ -57,7 +132,7 @@ const priorityCell = (ctx: ScreenContext, p: ServiceRequestPriority): VNode =>
 const photoOf = (ctx: ScreenContext, id: string) =>
   ctx.store.read(keyOf("media.get", { id }), () => ctx.shell.gateway.getMedia({ id })).value;
 
-const thumbs = (ctx: ScreenContext, r: ServiceRequestWire, viewing: Signal<Viewing>): VNode => {
+const thumbs = (ctx: ScreenContext, r: ServiceRequestWire, viewing: Signal<Viewing>, opening: Signal<Opening>): VNode => {
   if (r.photos.length === 0) return html`<span class="s3-muted">—</span>`;
   return html`<span class="s3-intake__thumbs">${r.photos.map((p, i) => {
     const m = photoOf(ctx, p.id);
@@ -65,6 +140,7 @@ const thumbs = (ctx: ScreenContext, r: ServiceRequestWire, viewing: Signal<Viewi
     const open = viewing.value?.photoId === p.id;
     return html`<button type="button" class="s3-intake__thumb" aria-label=${`Open ${label}`} aria-pressed=${open ? "true" : "false"}
       onClick=${() => {
+        opening.value = null;
         viewing.value = open ? null : { requestId: r.id, photoId: p.id };
         // Below the list on a narrow screen: bring it to the eye, or the tap looks like it did nothing.
         if (!open && typeof document !== "undefined") requestAnimationFrame(() => document.getElementById("intake-viewer")?.scrollIntoView({ block: "nearest" }));
@@ -98,6 +174,7 @@ export const intake: Screen = (ctx) => {
   const list = ctx.store.read(keyOf("serviceRequests.list", {}), () => ctx.shell.gateway.listServiceRequests({}));
   const show = showFor(ctx.store);
   const viewing = viewingFor(ctx.store);
+  const opening = openingFor(ctx.store);
   const now = Date.now();
 
   const columns: readonly Column<ServiceRequestWire>[] = [
@@ -106,10 +183,13 @@ export const intake: Screen = (ctx) => {
     { key: "site", header: "Site", cell: (r) => html`<strong>${r.siteName}</strong>` },
     { key: "priority", header: "Priority", cell: (r) => priorityCell(ctx, r.priority) },
     { key: "asked", header: "What they asked", cell: (r) => html`<span class="s3-intake__asked" title=${r.description}>${r.description}</span>` },
-    { key: "photos", header: "Photos", cell: (r) => thumbs(ctx, r, viewing) },
+    { key: "photos", header: "Photos", cell: (r) => thumbs(ctx, r, viewing, opening) },
     { key: "status", header: "Status", cell: (r) => r.jobId
       ? linkTo(ctx, "detail", { jobId: r.jobId }, `Job opened · ${r.jobState ? STATE_LABEL[r.jobState] : "—"}`)
-      : html`<span class="s3-muted">Waiting — no job yet</span>` },
+      : html`<span class="s3-moves"><span class="s3-muted">Waiting — no job yet</span>
+          <button type="button" class="s3-act" id=${`open-${r.id}`} disabled=${ctx.degraded}
+            title=${ctx.degraded ? `Gateway unreachable — ${ctx.shell.degradedMode}` : undefined}
+            onClick=${() => { viewing.value = null; opening.value = { requestId: r.id, busy: false, refusal: null }; }}>Open job</button></span>` },
   ];
 
   return html`<section class="s3-intake">
@@ -120,7 +200,7 @@ export const intake: Screen = (ctx) => {
       const urgent = waiting.filter((r) => r.priority === "urgent").length;
       const oldest = waiting.reduce<string | null>((o, r) => (o === null || r.createdAt < o ? r.createdAt : o), null);
       const rows = intakeRows(out.requests, show.value);
-      const view = viewer(ctx, out.requests, viewing);
+      const view = openPanel(ctx, out.requests, opening) ?? viewer(ctx, out.requests, viewing);
       return html`
         ${statStrip([
           { n: waiting.length, label: "Waiting", sub: "No job opened yet" },

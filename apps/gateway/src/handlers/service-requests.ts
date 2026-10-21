@@ -1,8 +1,9 @@
 import type { UnitOfWork } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
+import { createJob } from "./jobs.ts";
 import type {
   CreateServiceRequestInput, CreateServiceRequestOutput, ListServiceRequestsInput, ListServiceRequestsOutput,
-  ServiceRequestPriority, ServiceRequestWire, JobStateWire, RequestPhotoWire,
+  ServiceRequestPriority, ServiceRequestWire, JobStateWire, RequestPhotoWire, OpenRequestJobInput, OpenRequestJobOutput,
 } from "../../../../packages/contracts/src/operations.ts";
 
 /**
@@ -101,4 +102,45 @@ export const listServiceRequests = async (uow: UnitOfWork, input: ListServiceReq
     photos: r.photos.map((p) => ({ id: p.id, contentType: p.contentType, bytes: Number(p.bytes) })),
   }));
   return { requests };
+};
+
+/**
+ * THE OFFICE ANSWERS A REQUEST (S3's Intake). One unit of work: the job is
+ * opened by `createJob` itself — same site checks, same SLA derivation, same
+ * events — at the REQUEST's site, never one the input names; then the
+ * request is linked to it. The row is locked first, so two dispatchers
+ * pressing the button at once open one job, and the second is told whose.
+ *
+ * Priority defaults to what the customer declared; the office may re-grade
+ * it here, which is the "may re-grade" createServiceRequest promises. That
+ * the link is final and points at a job at the same site is 0018's trigger,
+ * so no other path can re-point a request either.
+ */
+export const openJobFromRequest = async (
+  uow: UnitOfWork, input: OpenRequestJobInput, newId: () => string, now: Date,
+): Promise<OpenRequestJobOutput> => {
+  const requestId = requireUuid(input.requestId, "requestId");
+  const req = (await uow.tx.query<{ site_id: string; job_id: string | null; priority: ServiceRequestPriority }>(
+    `SELECT site_id, job_id, priority FROM service_requests WHERE id = $1 FOR UPDATE`, [requestId],
+  ))[0];
+  if (!req) throw new InputRefused(`no request ${requestId} visible in this scope`, "unknown_request");
+  if (req.job_id) throw new InputRefused(`this request was already answered — job ${req.job_id} is open against it`, "already_opened");
+
+  const job = await createJob(uow, {
+    siteId: req.site_id, serviceCode: input.serviceCode, priority: input.priority ?? req.priority,
+    serviceWindowStart: input.serviceWindowStart, serviceWindowEnd: input.serviceWindowEnd,
+  }, newId, now);
+
+  await uow.apply(
+    {
+      entity: "service_request", entityId: requestId, action: "service_request.open_job", topic: "service_request.job_opened",
+      before: { jobId: null }, after: { jobId: job.id },
+      orgId: job.orgId, regionId: job.regionId,
+      payload: { requestId, jobId: job.id },
+    },
+    async (tx) => {
+      await tx.query(`UPDATE service_requests SET job_id = $1 WHERE id = $2`, [job.id, requestId]);
+    },
+  );
+  return { ...job, requestId };
 };

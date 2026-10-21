@@ -26,6 +26,8 @@
 - `job_flag`
 - `job_update`
 - `job_message`
+- `job`
+- `service_request`
 
 ## Degraded mode
 
