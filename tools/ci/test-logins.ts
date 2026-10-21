@@ -12,6 +12,14 @@
  * login opens S1 (anonymous), S5 (a device shift grant), S6 (customer), S7
  * (vendor) or S8 (subcontractor), whatever its roles.
  *
+ * So the customer portal has its own login, in the customer namespace:
+ *
+ *   customer-test         roles []                one customer org, parent tier → S6
+ *
+ * It is the customer's executive: it sees that org's whole tree and nothing of
+ * any other customer's. A customer login belongs to a real customer org, which
+ * the operator names at seed time, so it is seeded only when one is named.
+ *
  * Pure data — no driver, no clock — so the zero-install guard can test it.
  * `seed-test-logins.ts` writes these rows; `surfaces` is the hand-written
  * expectation the registry is checked against, never derived from it.
@@ -28,8 +36,8 @@ export type TestLogin = {
   readonly email: string;
   readonly displayName: string;
   readonly roles: readonly Role[];
-  /** `org`: the internal org, every region. `region`: the one region the login is seeded into. */
-  readonly scope: "org" | "region";
+  /** `org`: the internal org, every region. `region`: the one region the login is seeded into. `customer`: a customer org's whole tree. */
+  readonly scope: "org" | "region" | "customer";
   /** The enabled surfaces this login must be admitted to — and refused everywhere else. */
   readonly surfaces: readonly SurfaceId[];
 };
@@ -43,17 +51,31 @@ export const TEST_LOGINS: readonly TestLogin[] = Object.freeze([
   login("service_manager-test", "Service manager (test)", ["office_manager"], "org", ["S2"]),
 ]);
 
-/** The `users` row for a test login seeded into `regionId`. Org-wide logins scope to the internal org; a region login to the region. */
-export const testLoginRow = (t: TestLogin, regionId: string) => ({
-  org_id: INTERNAL_ORG_ID,
-  region_id: regionId,
-  namespace: "internal" as const,
-  email: t.email,
-  display_name: t.displayName,
-  roles: t.roles,
-  scope_tier: t.scope === "org" ? ("parent" as const) : ("region" as const),
-  scope_id: t.scope === "org" ? INTERNAL_ORG_ID : regionId,
-});
+export const CUSTOMER_TEST_LOGIN: TestLogin = login("customer-test", "Customer (test)", [], "customer", ["S6"]);
+
+/**
+ * The `users` row for a test login seeded into `regionId`. Org-wide logins scope to the internal org; a region login to
+ * the region; the customer login to `customerOrgId` at parent tier.
+ */
+export const testLoginRow = (t: TestLogin, regionId: string, customerOrgId?: string) => {
+  if (t.scope === "customer") {
+    if (!customerOrgId) throw new Error(`${t.login} needs the customer org it belongs to`);
+    return {
+      org_id: customerOrgId, region_id: regionId, namespace: "customer" as const, email: t.email, display_name: t.displayName,
+      roles: t.roles, scope_tier: "parent" as const, scope_id: customerOrgId,
+    };
+  }
+  return {
+    org_id: INTERNAL_ORG_ID,
+    region_id: regionId,
+    namespace: "internal" as const,
+    email: t.email,
+    display_name: t.displayName,
+    roles: t.roles,
+    scope_tier: t.scope === "org" ? ("parent" as const) : ("region" as const),
+    scope_id: t.scope === "org" ? INTERNAL_ORG_ID : regionId,
+  };
+};
 
 /** A test login is still a real credential on whatever database it is seeded into. */
 export const MIN_TEST_LOGIN_PASSWORD = 12;

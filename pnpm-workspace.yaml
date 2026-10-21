@@ -2,3 +2,5 @@ packages:
   - "apps/*"
   - "packages/*"
   - "tools/*"
+  # Electron app with its own npm install and lockfile; not part of the workspace.
+  - "!tools/logins-app"
