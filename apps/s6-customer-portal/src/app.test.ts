@@ -6,7 +6,7 @@ import { SCREENS } from "./screens.ts";
 import { treeOf } from "./screens/common.ts";
 import { STATE_WORD, isOpen, ordersOf, pillOf } from "./screens/work.ts";
 import { valueWord, wonWhere } from "./screens/terms.ts";
-import { resetRequestForm, describe, refOf } from "./screens/request.ts";
+import { resetRequestForm, describe, refOf, photoProblem, toBase64 } from "./screens/request.ts";
 import { money, tons, addressLines, ledgerOf } from "./screens/site.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { Principal, JobWire, HierarchyContext, AccountWire, ContractWire, ServiceRequestWire, ResolutionWire, EquipmentWire, ContactWire, InvoiceWire, SiteImageryOutput } from "../../../packages/contracts/src/index.ts";
@@ -24,6 +24,7 @@ import { OPERATIONS, TERMS } from "../../../packages/contracts/src/index.ts";
  * returns the right rows is 0006's, held in test/integration/s6.test.ts.
  */
 const U = (n: number) => `e6000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
+const PHOTO = U(40);
 const SOUTH = U(1), WEST = U(2), ORG = U(3), SOUTH_NODE = U(4), WEST_NODE = U(5), AUSTIN = U(6), AUSTIN_ROOF = U(7), AUSTIN_AHU = U(8), RENO = U(9), RENO_ROOF = U(10), JOB = U(11), CONTACT = U(12), MSA = U(13), REQ = U(14);
 
 const facility: Principal = {
@@ -69,7 +70,7 @@ const msa: ContractWire = {
 };
 const request: ServiceRequestWire = {
   id: REQ, siteId: AUSTIN_ROOF, siteName: "Austin — Roof", priority: "urgent", description: "Short-cycling.", requestedBy: CONTACT,
-  createdAt: "2026-09-17T12:30:00.000Z", jobId: null, jobState: null, orgId: ORG, regionId: SOUTH,
+  createdAt: "2026-09-17T12:30:00.000Z", jobId: null, jobState: null, orgId: ORG, regionId: SOUTH, photos: [],
 };
 const resolved: Record<string, ResolutionWire> = {
   sla_response: { termKey: "sla_response", value: "4_hour", wonAt: { tier: "parent", id: ORG }, policy: TERMS.sla_response!, trace: [], asOf: "2026-09-17" },
@@ -114,6 +115,7 @@ const fakeGateway = (p: Principal, nodes: readonly AccountWire[], overrides: Par
     if (path === OPERATIONS["accounts.list"].path) return reply(200, { nodes });
     if (path === OPERATIONS["jobs.list"].path) return reply(200, { jobs: [job] });
     if (path === OPERATIONS["serviceRequests.list"].path) return reply(200, { requests: [request] });
+    if (path === OPERATIONS["media.get"].path) return reply(200, { id: PHOTO, contentType: "image/png", image: "data:image/png;base64,iVBORw0KGgo=" });
     if (path === OPERATIONS["contracts.list"].path) return reply(200, { contracts: [msa] });
     if (path === OPERATIONS["terms.register"].path) return reply(200, { terms: Object.values(TERMS) });
     if (path === OPERATIONS["terms.resolved"].path) return reply(200, { resolved, refused: {} });
@@ -295,6 +297,25 @@ test("WORK ORDERS: a request joins the job opened against it; holds, overdue res
   assert.deepEqual(at("assigned", { slaSatisfiedAt: null }), { status: "breached", label: "Response overdue" });
   assert.equal(describe("No cooling", " Server closet unit. ", "2026-09-18"), "No cooling — Server closet unit.\nPreferred date: 2026-09-18.");
   assert.equal(describe("Other", "Odd smell.", ""), "Odd smell.");
+});
+
+test("PHOTOS: the form takes them, the card shows them — each read through the gateway, never from a bucket URL", async () => {
+  const { app, gateway } = await ready(facility, FACILITY_NODES, {
+    [OPERATIONS["serviceRequests.list"].path]: { status: 200, body: { requests: [{ ...request, photos: [{ id: PHOTO, contentType: "image/png", bytes: 8 }] }] } },
+  });
+  render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, /id="request-photos"[^>]*accept="image\/jpeg,image\/png,image\/heic,image\/heif"|accept="image\/jpeg,image\/png,image\/heic,image\/heif"[^>]*id="request-photos"/, "a picker that asks for photos");
+  assert.match(out, /Drag photos here, or tap to choose/);
+  assert.match(out, /Up to 6 — JPEG, PNG or HEIC, 10\.0 MB each/);
+  assert.match(out, /<img class="s6-photo__img" src="data:image\/png;base64,iVBORw0KGgo="[^>]*alt="Photo 1 of 1"/);
+  assert.ok(gateway.calls.some((c) => c.path === OPERATIONS["media.get"].path), "read with media.get");
+  // the checks the form makes before anything is sent — the gateway makes them again
+  assert.equal(photoProblem(new Uint8Array([0xff, 0xd8, 0xff, 0xe0])), null);
+  assert.equal(photoProblem(new TextEncoder().encode("%PDF-1.7")), "not a JPEG, PNG or HEIC photo");
+  assert.match(photoProblem(new Uint8Array(10 * 1024 * 1024 + 1))!, /^10\.0 MB — a photo is at most 10\.0 MB$/);
+  const bytes = new Uint8Array(70_000).map((_, i) => i % 251);
+  assert.equal(toBase64(bytes), Buffer.from(bytes).toString("base64"), "sliced, so a large photo does not overflow the argument list");
 });
 
 test("REQUEST: the form offers only sites (never a location), posts the declaration, and reports receipt", async () => {

@@ -792,6 +792,20 @@ CREATE TABLE IF NOT EXISTS storage_objects (
 CREATE INDEX IF NOT EXISTS storage_objects_region_id_idx ON storage_objects (region_id);
 CREATE INDEX IF NOT EXISTS storage_objects_storage_key_idx ON storage_objects (storage_key);
 
+CREATE TABLE IF NOT EXISTS service_request_media (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  request_id uuid NOT NULL REFERENCES service_requests(id),
+  storage_object_id uuid NOT NULL REFERENCES storage_objects(id),
+  uploaded_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (storage_object_id)
+);
+CREATE INDEX IF NOT EXISTS service_request_media_region_id_idx ON service_request_media (region_id);
+CREATE INDEX IF NOT EXISTS service_request_media_request_id_created_at_idx ON service_request_media (request_id, created_at);
+
 CREATE TABLE IF NOT EXISTS brand_themes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   org_id uuid NOT NULL REFERENCES organizations(id),

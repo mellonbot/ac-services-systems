@@ -41,3 +41,20 @@ export const service_requests = operationalTable("service_requests", {
   ],
   indexes: [["site_id"]],
 });
+
+/**
+ * A photo the customer sent with a request (0017). Not `job_media`: that is
+ * the field layer's append-only log, keyed by a device's mutation id, and a
+ * customer's photo arrives before any job exists. The bytes are in object
+ * storage; `storage_objects` holds the key, and this row says whose request
+ * it belongs to.
+ */
+export const service_request_media = operationalTable("service_request_media", {
+  columns: [
+    { name: "request_id", type: "uuid", references: "service_requests(id)" },
+    { name: "storage_object_id", type: "uuid", references: "storage_objects(id)" },
+    { name: "uploaded_by", type: "uuid" },
+  ],
+  indexes: [["request_id", "created_at"]],
+  uniques: [["storage_object_id"]],
+});

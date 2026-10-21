@@ -43,6 +43,18 @@ export const S6_CSS = `
 .s6-chips{display:flex;flex-wrap:wrap;gap:var(--space-2);margin:0 0 var(--space-3)}
 .s6-seg-button{appearance:none;-webkit-appearance:none;border:0;background:none;font-family:inherit;cursor:pointer}
 .s6-order__ref{font-family:var(--font-instrument);font-variant-numeric:tabular-nums}
+.s6-drop{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-1);min-height:calc(var(--control-height) * 2);padding:var(--space-3);text-align:center;border:1px dashed var(--color-border-hard);border-radius:var(--radius-control);color:var(--color-text-muted);font-size:var(--text-sm);cursor:pointer;transition:border-color var(--motion-fast) var(--ease),background-color var(--motion-fast) var(--ease)}
+.s6-drop:hover,.s6-drop[data-chosen="true"]{border-color:var(--color-action-text);background:color-mix(in srgb,var(--color-action) 6%,var(--color-surface))}
+.s6-drop input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.s6-drop:has(input:focus-visible){outline:2px solid var(--color-focus-ring);outline-offset:2px}
+.s6-drop__glyph{display:inline-flex;color:var(--color-text-muted)}
+.s6-chosen,.s6-missed{list-style:none;margin:var(--space-2) 0 0;padding:0;display:flex;flex-direction:column;gap:var(--space-1);font-size:var(--text-sm)}
+.s6-chosen li[data-over="true"]{color:var(--color-status-at-risk)}
+.s6-chosen__name{font-weight:600;overflow-wrap:anywhere}
+.s6-photos{list-style:none;margin:var(--space-3) 0 0;padding:0;display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.s6-photo{width:calc(var(--control-height) * 2);aspect-ratio:1;border:1px solid var(--color-border);border-radius:var(--radius-control);overflow:hidden;background:var(--color-surface-sunken);display:flex;align-items:center;justify-content:center}
+.s6-photo__img{display:block;width:100%;height:100%;object-fit:cover}
+.s6-photo__empty{padding:var(--space-1);font-size:var(--text-xs);color:var(--color-text-muted);text-align:center}
 .s6-terms__list{margin:0;display:flex;flex-direction:column}
 .s6-term{display:grid;grid-template-columns:minmax(18ch,1fr) minmax(12ch,auto) 2fr;gap:var(--space-2) var(--space-4);align-items:baseline;padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}
 .s6-term:last-child{border-bottom:0}
@@ -104,4 +116,5 @@ export const S6_CSS = `
 .s6-reply{margin-top:var(--space-4)}
 @media (max-width:1100px){.s6-site__grid,.s6-home,.s6-job__grid{grid-template-columns:1fr}}
 @media (max-width:760px){.s6-ledger__row{grid-template-columns:1fr}.s6-ledger__amount{text-align:start}.s6-node__actions{margin-inline-start:0;width:100%}.s6-term{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.s6-drop{transition:none}}
 `;

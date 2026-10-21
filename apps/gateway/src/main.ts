@@ -19,13 +19,15 @@ import { createJob, listJobs, listMyJobs, transitionJob, addJobNote, setReturnTr
 import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "./handlers/job-detail.ts";
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
 import { createServiceRequest, listServiceRequests } from "./handlers/service-requests.ts";
+import { attachPhoto, getMedia } from "./handlers/photos.ts";
+import { storeFromEnv } from "../../../packages/storage/src/index.ts";
 import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
 import { listEquipment, registerEquipment, listContacts, setContact, listInvoices } from "./handlers/site-record.ts";
 import { siteImagery, imageryConfigFromEnv } from "./handlers/imagery.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
 import { SURFACES, admits, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
-import { OPERATIONS, OPERATION_IDS, routeKey, surfacesFor, type OperationId, type OperationIO } from "../../../packages/contracts/src/operations.ts";
+import { OPERATIONS, OPERATION_IDS, PHOTO_MAX_BYTES, routeKey, surfacesFor, type OperationId, type OperationIO } from "../../../packages/contracts/src/operations.ts";
 import type { Claims, Namespace, Principal } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import { INTERNAL_ORG_ID, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
@@ -86,14 +88,30 @@ const SESSION = sessionConfigFromEnv(process.env);
 // Item 9: the overhead-imagery provider, if one is configured. Unset → the
 // site card gets "not_configured" and draws the address alone (OPEN-S6-IMAGERY).
 const IMAGERY = imageryConfigFromEnv(process.env);
+// Object storage for photos (0017): an R2 bucket, a directory, or not
+// configured — in which case an upload is refused in words, not a 500.
+const STORE = storeFromEnv(process.env, (url, init) => fetch(url, init as RequestInit));
+if (!STORE) console.warn("gateway: no object storage configured (AC_STORAGE_*) — photo uploads are refused as storage_not_configured");
 const ORIGINS = allowedOrigins(SESSION);
 if (!SESSION.site) console.warn(`gateway: AC_SITE not set — development posture: cookies are not Secure and browser origins are ${ORIGINS.size ? [...ORIGINS].join(", ") : "NONE (bearer only)"}`);
 
 type Json = Record<string, unknown>;
+/**
+ * The most any request body may be. A photo is the largest thing an operation
+ * carries — PHOTO_MAX_BYTES as base64 plus its envelope — and nothing else
+ * comes close; past this the body is refused before it is held in memory.
+ */
+const MAX_BODY_BYTES = Math.ceil(PHOTO_MAX_BYTES / 3) * 4 + 64 * 1024;
 const readJson = (req: IncomingMessage): Promise<Json> =>
   new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (c) => chunks.push(c));
+    let size = 0;
+    req.on("data", (c: Buffer) => {
+      size += c.length;
+      // Stop holding it, answer once; the rest drains and is dropped.
+      if (size > MAX_BODY_BYTES) { chunks.length = 0; reject(new HttpError(413, `request body over ${MAX_BODY_BYTES} bytes`)); return; }
+      chunks.push(c);
+    });
     req.on("end", () => {
       try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {}); } catch (e) { reject(e); }
     });
@@ -481,6 +499,8 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   // item 6 — S6's first write, and the office's read of it.
   "serviceRequests.create": (req, input) => withUow(req, "serviceRequests.create", (uow, p) => createServiceRequest(uow, p.subjectId, input, randomUUID)),
   "serviceRequests.list": (req, input) => withRead(req, "serviceRequests.list", (uow) => listServiceRequests(uow, input)),
+  "serviceRequests.attachPhoto": (req, input) => withUow(req, "serviceRequests.attachPhoto", (uow, p) => attachPhoto(uow, p.subjectId, STORE, input, randomUUID)),
+  "media.get": (req, input) => withRead(req, "media.get", (uow) => getMedia(uow, STORE, input)),
 
   // S3 — the one gated door, its dry run, and its release.
   "dispatch.assign": (req, input) => withUow(req, "dispatch.assign", (uow, p) => assignCrew(uow, p.subjectId, input, new Date())),

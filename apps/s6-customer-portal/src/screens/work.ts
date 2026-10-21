@@ -1,5 +1,5 @@
 import { html, pageHead, panel, statStrip, signal, StatusPill, PrimaryAction, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
-import { WORK_DONE_STATES, type JobWire, type JobStateWire, type ServiceRequestWire, type InvoiceWire, type BillingPath, type ServiceRequestPriority } from "../../../../packages/contracts/src/index.ts";
+import { WORK_DONE_STATES, type JobWire, type JobStateWire, type ServiceRequestWire, type InvoiceWire, type BillingPath, type ServiceRequestPriority, type RequestPhotoWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, linkTo, type Screen, type ScreenContext } from "./common.ts";
 import { requestForm, outcomeView, refOf } from "./request.ts";
@@ -70,6 +70,8 @@ export type WorkOrder = {
   readonly siteId: string; readonly siteName: string;
   readonly submittedAt: string; readonly priority: ServiceRequestPriority | null;
   readonly jobState: JobStateWire | null; readonly job: JobWire | null;
+  /** What the customer sent with the request; a job the office opened on its own has none. */
+  readonly photos: readonly RequestPhotoWire[];
 };
 
 /** Requests with the job opened against each, then the jobs no request stands behind. Newest first, open before closed. */
@@ -81,12 +83,12 @@ export const ordersOf = (requests: readonly ServiceRequestWire[], jobs: readonly
     return {
       key: r.id, ref: refOf(r.id), title: r.description.split("\n")[0]!.slice(0, 80),
       siteId: r.siteId, siteName: r.siteName, submittedAt: r.createdAt, priority: r.priority,
-      jobState: job?.state ?? r.jobState, job,
+      jobState: job?.state ?? r.jobState, job, photos: r.photos,
     };
   });
   const fromJobs = jobs.filter((j) => !asked.has(j.id)).map((j): WorkOrder => ({
     key: j.id, ref: refOf(j.id), title: j.serviceCode, siteId: j.siteId, siteName: j.siteName ?? "—",
-    submittedAt: j.openedAt, priority: null, jobState: j.state, job: j,
+    submittedAt: j.openedAt, priority: null, jobState: j.state, job: j, photos: [],
   }));
   const open = (o: WorkOrder) => stepOf(o) >= 0 && stepOf(o) < 3;
   return [...fromRequests, ...fromJobs].sort((a, b) => Number(open(b)) - Number(open(a)) || b.submittedAt.localeCompare(a.submittedAt));
@@ -148,8 +150,25 @@ export const orderCard = (ctx: ScreenContext, o: WorkOrder, invoices: readonly I
       ${STEPS.map((label, i) => html`<li class="s6-step" data-state=${i < at ? "done" : i === at ? "current" : "todo"} aria-current=${i === at ? "step" : undefined}><span class="s6-step__dot" aria-hidden="true"></span><span class="s6-step__label">${label}</span></li>`)}
     </ol>`}
     <p class="s6-order__note">${noteOf(ctx, o, invoices)}</p>
+    ${o.photos.length ? photoStrip(ctx, o.photos) : null}
   </article>`;
 };
+
+/**
+ * The photos sent with a request, each read through the gateway (`media.get`)
+ * as a data: URL — a surface never holds a bucket URL. A photo is immutable,
+ * so each is fetched once per session and kept.
+ */
+const photoStrip = (ctx: ScreenContext, photos: readonly RequestPhotoWire[]): VNode => html`<ul class="s6-photos" aria-label="Photos sent with this request">
+  ${photos.map((p, i) => {
+    const r = ctx.store.read(keyOf("media.get", { id: p.id }), () => ctx.shell.gateway.getMedia({ id: p.id })).value;
+    const label = `Photo ${i + 1} of ${photos.length}`;
+    return html`<li class="s6-photo" data-photo=${p.id}>${
+      r.state === "ready" ? html`<img class="s6-photo__img" src=${r.value.image} alt=${label} loading="lazy" />`
+      : html`<span class="s6-photo__empty" role=${r.state === "refused" ? "note" : "status"}>${r.state === "refused" ? `${label} could not be shown` : "Loading…"}</span>`
+    }</li>`;
+  })}
+</ul>`;
 
 type Show = "all" | "open" | "scheduled" | "completed";
 const SHOW_WORD: Readonly<Record<Show, string>> = { all: "All", open: "Open", scheduled: "Scheduled", completed: "Completed" };

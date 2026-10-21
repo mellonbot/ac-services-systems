@@ -25,9 +25,16 @@ export const parseStorageKey = (k: StorageKey) => {
   return { regionId: regionId!, orgId: orgId!, kind: kind!, id: id! };
 };
 
+/**
+ * What the gateway needs of a store: write an object, read it back. There is
+ * no presigned URL — a surface never receives a vendor URL; the gateway reads
+ * the object and hands the bytes over under the caller's own row security.
+ */
 export type ObjectStore = {
   put(key: StorageKey, body: Uint8Array, contentType: string): Promise<void>;
   get(key: StorageKey): Promise<Uint8Array>;
-  /** Time-bounded, signed by us. A surface never receives a vendor URL. */
-  presign(key: StorageKey, ttlSeconds: number): Promise<string>;
 };
+
+export { s3Store, signV4, type S3Config, type S3Fetch } from "./s3.ts";
+export { diskStore } from "./disk.ts";
+export { storeFromEnv } from "./env.ts";

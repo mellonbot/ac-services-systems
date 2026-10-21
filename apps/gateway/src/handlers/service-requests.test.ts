@@ -87,12 +87,13 @@ test("createServiceRequest: a request says what is wrong — empty is refused by
 });
 
 test("listServiceRequests carries the site's name and the job's state, and filters by site when asked", async () => {
-  const row = { id: U(50), site_id: SITE, site_name: "Austin — Roof", priority: "urgent", description: "d", requested_by: CONTACT, created_at: "2026-09-17T12:00:00.000Z", job_id: U(51), job_state: "assigned", org_id: ORG, region_id: REGION_SOUTH };
+  const row = { id: U(50), site_id: SITE, site_name: "Austin — Roof", priority: "urgent", description: "d", requested_by: CONTACT, created_at: "2026-09-17T12:00:00.000Z", job_id: U(51), job_state: "assigned", org_id: ORG, region_id: REGION_SOUTH, photos: [{ id: U(52), contentType: "image/jpeg", bytes: 2048 }] };
   const s = scripted([["FROM service_requests r", [row]]]);
   const out = await listServiceRequests(await uowFor(s.tx), { siteId: SITE });
   assert.equal(out.requests.length, 1);
   assert.equal(out.requests[0]!.siteName, "Austin — Roof");
   assert.equal(out.requests[0]!.jobState, "assigned");
+  assert.deepEqual(out.requests[0]!.photos, [{ id: U(52), contentType: "image/jpeg", bytes: 2048 }], "the photos sent with it — what they are, never where they are stored");
   assert.equal(s.queries[0]!.params[0], SITE);
   const all = scripted([["FROM service_requests r", [{ ...row, job_id: null, job_state: null }]]]);
   const o2 = await listServiceRequests(await uowFor(all.tx), {});

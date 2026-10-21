@@ -212,7 +212,7 @@ const rel = (p: string) => relative(ROOT, p);
 //     Removing a name is the job; adding one needs a reason in the diff.
 // ---------------------------------------------------------------------------
 {
-  const UNEXECUTED_PACKAGES = ["audit", "events", "schema", "storage", "testing"];
+  const UNEXECUTED_PACKAGES = ["audit", "events", "schema", "testing"];
   for (const pkg of readdirSync(join(ROOT, "packages"))) {
     const dir = join(ROOT, "packages", pkg);
     if (!statSync(dir).isDirectory()) continue;
