@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 94 today. There is no
+ * One method per operation in the catalogue — 96 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -395,6 +395,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["leads.submit"], input) as Promise<OperationIO["leads.submit"]["output"]>;
   },
 
+  /** `GET /media` · query · bearer · surfaces: S2, S3, S6
+   *
+   * One stored photo, returned inline as a data: URL — read through the gateway under the same row security as the request it was sent with. A surface never receives a bucket URL. */
+  getMedia(input: OperationIO["media.get"]["input"]): Promise<OperationIO["media.get"]["output"]> {
+    return transport.request(OPERATIONS["media.get"], input) as Promise<OperationIO["media.get"]["output"]>;
+  },
+
   /** `POST /s2/organizations` · mutation · bearer · surfaces: S2
    *
    * Create a customer parent WITH its first region node in one unit of work. No orphan parent: a parent never exists without a place we serve it from. */
@@ -535,6 +542,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["rmas.respond"], input) as Promise<OperationIO["rmas.respond"]["output"]>;
   },
 
+  /** `POST /s6/service-requests/photos` · mutation · bearer · surfaces: S6
+   *
+   * One photo onto the customer's own request, as base64 in the body. JPEG, PNG or HEIC by the file's own bytes; at most PHOTO_MAX_BYTES each and PHOTOS_PER_REQUEST per request; only while no job is open against it. The gateway writes the object — the browser never reaches the bucket. */
+  attachServiceRequestPhoto(input: OperationIO["serviceRequests.attachPhoto"]["input"]): Promise<OperationIO["serviceRequests.attachPhoto"]["output"]> {
+    return transport.request(OPERATIONS["serviceRequests.attachPhoto"], input) as Promise<OperationIO["serviceRequests.attachPhoto"]["output"]>;
+  },
+
   /** `POST /s6/service-requests` · mutation · bearer · surfaces: S6
    *
    * A customer's request for service at one of its sites. The site must be visible to the principal (RLS decides; an invisible site is 'unknown_site', not 'forbidden'); tenancy derives from the site. It is a request, not a job — S2/S3 open the job against it. */
@@ -544,7 +558,7 @@ export const createGatewayClient = (transport: Transport) => ({
 
   /** `GET /service-requests` · query · bearer · surfaces: S2, S3, S6
    *
-   * Requests visible to this principal — a customer's own, the office's by region — with the site's name and, once one is opened, the job's state. */
+   * Requests visible to this principal — a customer's own, the office's by region — with the site's name, the photos sent with it and, once one is opened, the job's state. */
   listServiceRequests(input: OperationIO["serviceRequests.list"]["input"]): Promise<OperationIO["serviceRequests.list"]["output"]> {
     return transport.request(OPERATIONS["serviceRequests.list"], input) as Promise<OperationIO["serviceRequests.list"]["output"]>;
   },
@@ -672,4 +686,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "addJobNote", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "submitLead", "createOrganization", "listOrganizations", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "createServiceRequest", "listServiceRequests", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "addJobNote", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "submitLead", "getMedia", "createOrganization", "listOrganizations", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "listServiceRequests", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);

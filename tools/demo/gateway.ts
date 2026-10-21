@@ -10,7 +10,7 @@
  * (term resolution, override admission, the compliance gate, context
  * resolution) the real module is imported and run.
  */
-import { OPERATIONS, OFFICE_JOB_TRANSITIONS, WORK_DONE_STATES, routeKey, type OperationId } from "../../packages/contracts/src/operations.ts";
+import { OPERATIONS, OFFICE_JOB_TRANSITIONS, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, routeKey, type OperationId } from "../../packages/contracts/src/operations.ts";
 import type * as W from "../../packages/contracts/src/operations.ts";
 import { SURFACES, type SurfaceId } from "../../packages/contracts/src/surfaces.ts";
 import type { Principal } from "../../packages/contracts/src/scope.ts";
@@ -331,10 +331,12 @@ const devices: W.DeviceWire[] = [
 ];
 
 const serviceRequests: Mutable<W.ServiceRequestWire>[] = [
-  { id: uid("q"), siteId: S.austinRoof, siteName: "Austin — Rooftop RTUs", priority: "emergency", description: "Water coming through the ceiling tiles under RTU-2 on the weights floor. Towels down, area coned off.", requestedBy: "Priya Castellanos", createdAt: at(-25 * MIN), jobId: J.austinLeak, jobState: "created", orgId: AMPED, regionId: REGION_SOUTH },
-  { id: uid("q"), siteId: S.elPasoFloor, siteName: "El Paso — Main Floor", priority: "urgent", description: "Main floor is 81°F at 2pm and climbing. Split is running but blowing warm.", requestedBy: "Tomás Villareal", createdAt: at(-2 * HOUR), jobId: J.elPasoNoCool, jobState: "created", orgId: AMPED, regionId: REGION_SOUTH },
-  { id: uid("q"), siteId: S.austinPool, siteName: "Austin — Pool Hall Dehumidifier", priority: "routine", description: "Condensation on the pool hall windows most mornings. Could the next PM check the dehumidifier setpoint?", requestedBy: "Priya Castellanos", createdAt: at(-3 * DAY), jobId: J.austinPoolPm, jobState: "en_route", orgId: AMPED, regionId: REGION_SOUTH },
+  { id: uid("q"), siteId: S.austinRoof, siteName: "Austin — Rooftop RTUs", priority: "emergency", description: "Water coming through the ceiling tiles under RTU-2 on the weights floor. Towels down, area coned off.", requestedBy: "Priya Castellanos", createdAt: at(-25 * MIN), jobId: J.austinLeak, jobState: "created", orgId: AMPED, regionId: REGION_SOUTH, photos: [] },
+  { id: uid("q"), siteId: S.elPasoFloor, siteName: "El Paso — Main Floor", priority: "urgent", description: "Main floor is 81°F at 2pm and climbing. Split is running but blowing warm.", requestedBy: "Tomás Villareal", createdAt: at(-2 * HOUR), jobId: J.elPasoNoCool, jobState: "created", orgId: AMPED, regionId: REGION_SOUTH, photos: [] },
+  { id: uid("q"), siteId: S.austinPool, siteName: "Austin — Pool Hall Dehumidifier", priority: "routine", description: "Condensation on the pool hall windows most mornings. Could the next PM check the dehumidifier setpoint?", requestedBy: "Priya Castellanos", createdAt: at(-3 * DAY), jobId: J.austinPoolPm, jobState: "en_route", orgId: AMPED, regionId: REGION_SOUTH, photos: [] },
 ];
+
+const photoData = new Map<string, { contentType: W.PhotoContentType; image: string; requestId: string }>();
 
 // Leads and calls from the past month, so S4's growth figures have a history before anyone uses S1.
 const leads: { id: string; submissionId: string; name: string; metro: string | null; source: string; at: string }[] =
@@ -949,8 +951,30 @@ const H: Partial<Record<OperationId, Handler>> = {
     const site = accounts.find((a) => a.id === i.siteId)!;
     need(site.tier === "site", `"${i.siteId}" is a ${site.tier}, not a site — service is requested at a site, the tier equipment lives at`, "not_a_site");
     const id = uid("q");
-    serviceRequests.unshift({ id, siteId: site.id, siteName: site.name, priority: i.priority ?? "routine", description, requestedBy: session?.user.name ?? "customer", createdAt: new Date().toISOString(), jobId: null, jobState: null, orgId: site.orgId, regionId: site.regionId });
+    serviceRequests.unshift({ id, siteId: site.id, siteName: site.name, priority: i.priority ?? "routine", description, requestedBy: session?.user.name ?? "customer", createdAt: new Date().toISOString(), jobId: null, jobState: null, orgId: site.orgId, regionId: site.regionId, photos: [] });
     return { id, orgId: site.orgId, regionId: site.regionId, eventId: publish(surface, "service_request.created", "service_request", id, site.orgId, site.regionId) };
+  },
+  // Photos live in this tab's memory as data: URLs — the demo has no bucket, and needs none.
+  "serviceRequests.attachPhoto": (i: W.AttachPhotoInput, { p, session, surface }) => {
+    const r = serviceRequests.find((x) => x.id === i.requestId && p.namespace === "customer" && siteVisibleToCustomer(p, x.siteId));
+    need(r, `no request ${i.requestId} visible in this scope`, "unknown_request");
+    need(r!.requestedBy === (session?.user.name ?? "customer"), "photos are added by the person who made the request", "not_your_request");
+    need(!r!.jobId, "a job is open against this request — send further photos in the job's conversation", "job_open");
+    need(r!.photos.length < PHOTOS_PER_REQUEST, `a request carries at most ${PHOTOS_PER_REQUEST} photos`, "too_many_photos");
+    const bytes = Uint8Array.from(atob(i.dataBase64 ?? ""), (c) => c.charCodeAt(0));
+    need(bytes.length <= PHOTO_MAX_BYTES, `a photo is at most ${PHOTO_MAX_BYTES / 1024 / 1024} MB`, "photo_too_large");
+    const contentType = sniffPhoto(bytes);
+    need(contentType, "that file is not a JPEG, PNG or HEIC photo", "not_a_photo");
+    const id = uid("m");
+    photoData.set(id, { contentType: contentType!, image: `data:${contentType};base64,${i.dataBase64}`, requestId: r!.id });
+    r!.photos = [...r!.photos, { id, contentType: contentType!, bytes: bytes.length }];
+    return { id, requestId: r!.id, contentType: contentType!, bytes: bytes.length, eventId: publish(surface, "service_request.photo_attached", "photo", id, r!.orgId, r!.regionId) };
+  },
+  "media.get": (i: W.GetMediaInput, { p }) => {
+    const m = photoData.get(i.id);
+    const r = m ? serviceRequests.find((x) => x.id === m.requestId) : undefined;
+    need(m && r && (p.namespace !== "customer" || siteVisibleToCustomer(p, r.siteId)), `no photo ${i.id} visible in this scope`, "unknown_photo");
+    return { id: i.id, contentType: m!.contentType, image: m!.image };
   },
 
   // ---- S3 ----

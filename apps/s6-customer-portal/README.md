@@ -19,6 +19,7 @@
 ## Writes
 
 - `service_request`
+- `photo`
 - `payment`
 - `contact_update`
 - `job_message`

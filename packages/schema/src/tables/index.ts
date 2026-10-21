@@ -75,6 +75,7 @@ export const ALL_TABLES: readonly Table[] = Object.freeze([
   platform.outbox,
   platform.subscriptions,
   platform.storage_objects,
+  intake.service_request_media,
   platform.brand_themes,
   platform.sla_timers,
   // item 10: S4's rollup

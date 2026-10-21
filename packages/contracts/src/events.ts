@@ -16,6 +16,8 @@ export const TOPICS = [
   // work. `service_request.created` is item 6's — the customer asked; OFC
   // subscribes so a dispatcher's board can refetch its intake.
   "service_request.created",
+  // a photo sent with a request. OFC subscribes so the request's thumbnails refetch.
+  "service_request.photo_attached",
   // item 9 — the site record. A unit registered at a site, a contact set at a
   // node. INV subscribes: the site card refetches the list the event touched.
   "equipment.registered", "account_contact.set",
@@ -92,7 +94,7 @@ export type EventEnvelope = Pick<DomainEvent, "eventId" | "topic" | "entity" | "
 
 /** Block subscriptions declared, not discovered. */
 export const SUBSCRIBERS: Readonly<Record<"OFC" | "FLD" | "INV" | "WORKER", readonly Topic[]>> = {
-  OFC: ["lead.captured", "call_record.logged", "service_request.created", "job.transitioned", "job.annotated", "job.message_posted", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended",
+  OFC: ["lead.captured", "call_record.logged", "service_request.created", "service_request.photo_attached", "job.transitioned", "job.annotated", "job.message_posted", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended",
         // item 7: a firm's document arrived (to verify), a firm's position on a statement (to act on).
         "credential.recorded", "settlement.acknowledged", "settlement.disputed",
         // item 11: the vendor's side — a proposed price, an acknowledgement, a shipment, an invoice, an answer on a return.

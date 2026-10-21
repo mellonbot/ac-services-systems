@@ -325,7 +325,17 @@ export const OPERATIONS = {
   "serviceRequests.list": {
     id: "serviceRequests.list", method: "GET", path: "/service-requests", kind: "query", auth: "bearer",
     surfaces: ["S2", "S3", "S6"], carrier: "query", sdkMethod: "listServiceRequests",
-    summary: "Requests visible to this principal — a customer's own, the office's by region — with the site's name and, once one is opened, the job's state.",
+    summary: "Requests visible to this principal — a customer's own, the office's by region — with the site's name, the photos sent with it and, once one is opened, the job's state.",
+  },
+  "serviceRequests.attachPhoto": {
+    id: "serviceRequests.attachPhoto", method: "POST", path: "/s6/service-requests/photos", kind: "mutation", auth: "bearer",
+    surfaces: ["S6"], carrier: "body", sdkMethod: "attachServiceRequestPhoto",
+    summary: "One photo onto the customer's own request, as base64 in the body. JPEG, PNG or HEIC by the file's own bytes; at most PHOTO_MAX_BYTES each and PHOTOS_PER_REQUEST per request; only while no job is open against it. The gateway writes the object — the browser never reaches the bucket.",
+  },
+  "media.get": {
+    id: "media.get", method: "GET", path: "/media", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S3", "S6"], carrier: "query", sdkMethod: "getMedia",
+    summary: "One stored photo, returned inline as a data: URL — read through the gateway under the same row security as the request it was sent with. A surface never receives a bucket URL.",
   },
   // ---- S3 ----
   "dispatch.assign": {
@@ -1210,7 +1220,31 @@ export type ServiceRequestWire = {
   /** The job the office opened against this request, if one has been. */
   readonly jobId: string | null; readonly jobState: JobStateWire | null;
   readonly orgId: string; readonly regionId: string;
+  /** Oldest first. Fetch each with `media.get`. */
+  readonly photos: readonly RequestPhotoWire[];
 };
+/** A photo sent with a request: what it is, never where it is stored. */
+export type RequestPhotoWire = { readonly id: string; readonly contentType: PhotoContentType; readonly bytes: number };
+export type PhotoContentType = "image/jpeg" | "image/png" | "image/heic";
+/** 10 MiB: a phone photo, not a video. Checked by the gateway on the decoded bytes, and by S6 before it sends. */
+export const PHOTO_MAX_BYTES = 10 * 1024 * 1024;
+export const PHOTOS_PER_REQUEST = 6;
+const HEIF_BRANDS = ["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"];
+/**
+ * What the bytes are, by their own signature — never the file name or the
+ * type a browser claims. Null for anything that is not a photo we take. The
+ * gateway decides with it; S6 asks it first so a refusal arrives before the upload.
+ */
+export const sniffPhoto = (b: Uint8Array): PhotoContentType | null => {
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
+  if (b.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((x, i) => b[i] === x)) return "image/png";
+  if (b.length >= 12 && String.fromCharCode(...b.subarray(4, 8)) === "ftyp" && HEIF_BRANDS.includes(String.fromCharCode(...b.subarray(8, 12)))) return "image/heic";
+  return null;
+};
+export type AttachPhotoInput = { readonly requestId: string; readonly dataBase64: string };
+export type AttachPhotoOutput = { readonly id: string; readonly requestId: string; readonly contentType: PhotoContentType; readonly bytes: number; readonly eventId: string };
+export type GetMediaInput = { readonly id: string };
+export type GetMediaOutput = { readonly id: string; readonly contentType: PhotoContentType; readonly image: string };
 export type ListServiceRequestsInput = { readonly siteId?: string };
 export type ListServiceRequestsOutput = { readonly requests: readonly ServiceRequestWire[] };
 
@@ -1633,6 +1667,8 @@ export type OperationIO = {
   "jobs.list": { input: ListJobsInput; output: ListJobsOutput };
   "serviceRequests.create": { input: CreateServiceRequestInput; output: CreateServiceRequestOutput };
   "serviceRequests.list": { input: ListServiceRequestsInput; output: ListServiceRequestsOutput };
+  "serviceRequests.attachPhoto": { input: AttachPhotoInput; output: AttachPhotoOutput };
+  "media.get": { input: GetMediaInput; output: GetMediaOutput };
   "jobs.mine": { input: void; output: MyJobsOutput };
   "dispatch.assign": { input: AssignInput; output: AssignOutput };
   "dispatch.candidates": { input: CandidateCrewsInput; output: CandidateCrewsOutput };

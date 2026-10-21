@@ -14,6 +14,18 @@ They are independent. Photos can ship without payments, and payments can ship wi
 
 ## 1. Photos on a service request
 
+> **Built (2026-10-21)** — migration 0017, `serviceRequests.attachPhoto`,
+> `media.get`, `packages/storage` (`s3Store`, `diskStore`, `storeFromEnv`), the
+> S6 form and card. One deviation from the shape below: the bytes travel as
+> **base64 in the JSON body** and come back as a `data:` URL, the precedent
+> `sites.imagery` set, instead of a new binary carrier — one operation did not
+> justify changing the catalogue, the SDK generator and the transport. The
+> cost is a third more bytes on the wire per photo. `presign` was dropped from
+> `ObjectStore`: nothing called it, and a surface never receives a bucket URL.
+> Still open: the bucket itself (infra/README.md, storage), P1–P3, and an
+> office screen that lists requests — none exists yet, so `media.get` is served
+> to S2/S3 with nothing drawing it there.
+
 ### What exists
 
 | Piece | State | Where |

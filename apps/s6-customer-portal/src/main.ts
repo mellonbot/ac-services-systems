@@ -8,7 +8,7 @@ import type { Principal } from "../../../packages/contracts/src/index.ts";
  * Block INV · Phase 1 · comfort density · enabled
  *
  * Auth: customer IdP + tier claim
- * Writes: service_request, payment, contact_update, job_message
+ * Writes: service_request, photo, payment, contact_update, job_message
  *
  * Degraded mode:
  *   Last known sites, work and agreements, each stamped with when the gateway last answered. Requests are not taken while the gateway is unreachable — a request that looks accepted and was never received is worse than one refused. One codebase, four scopes — scoping is enforced at the gateway, never by client-side filtering.

@@ -217,8 +217,9 @@ registry line, and the vendor-side wire tests then run as written.
 vendor payments are modelled, so S4's "Past due date" is an upper bound and a
 vendor's matched invoice has no paid state yet.
 
-**OPEN-RLS-REMAINDER.** Four tables still have row security off entirely:
-`brand_themes`, `storage_objects`, `subscriptions`, `sync_conflicts`. The 0011
+**OPEN-RLS-REMAINDER.** Three tables still have row security off entirely:
+`brand_themes`, `subscriptions`, `sync_conflicts` (`storage_objects` got its rule
+in 0017, when request photos first wrote to it). The 0011
 audit bound a vendor and found them empty on the test database, so nothing was
 read; but `sync_conflicts` can carry a job's payload once the field layer
 queues conflicts, and an empty table is not a policy. Each needs its own rule,

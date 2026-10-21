@@ -168,7 +168,7 @@ const REGISTRY = {
     id: "S6", name: "Customer Portal", app: "s6-customer-portal",
     block: "INV", phase: 1, enabled: true,
     namespace: "customer", authScope: "customer IdP + tier claim", scopeBinding: "customer_tier",
-    writes: ["service_request", "payment", "contact_update", "job_message"],
+    writes: ["service_request", "photo", "payment", "contact_update", "job_message"],
     density: "comfort", realtime: false, offline: false,
     // "request intake queues" was the design's line (05 §S6); the registry
     // says `offline: false`, and the registry is what runs. A request the

@@ -17,13 +17,13 @@ import type { ScreenSpec } from "../../../packages/ui/src/index.ts";
 export const SCREENS = {
   "login":      { path: "/login",                  uses: ["auth.login"] },
   "terms":      { path: "/terms/:tier/:nodeId/:asOf?", uses: ["terms.resolved", "terms.register", "accounts.list"] },
-  "request":    { path: "/request/:siteId?",       uses: ["accounts.list", "serviceRequests.create", "serviceRequests.list"] },
+  "request":    { path: "/request/:siteId?",       uses: ["accounts.list", "serviceRequests.create", "serviceRequests.attachPhoto", "serviceRequests.list"] },
   // item 9: the site card — what a site IS. Seven reads; the rows are 0009's.
   "site":       { path: "/site/:siteId",           uses: ["accounts.list", "equipment.list", "contacts.list", "invoices.list", "jobs.list", "serviceRequests.list", "sites.imagery"], title: "Site" },
   // A customer's one job: where it stands, what the office published, and the thread (0016).
   "job":        { path: "/job/:jobId",             uses: ["jobs.list", "accounts.list", "jobs.conversation", "jobs.postMessage"], title: "Job" },
   // The home: request a work order and follow every one to its invoice.
-  "work":       { path: "/",                       uses: ["jobs.list", "accounts.list", "serviceRequests.list", "serviceRequests.create", "invoices.list", "contracts.list"], title: "Work orders" },
+  "work":       { path: "/",                       uses: ["jobs.list", "accounts.list", "serviceRequests.list", "serviceRequests.create", "serviceRequests.attachPhoto", "media.get", "invoices.list", "contracts.list"], title: "Work orders" },
   "agreements": { path: "/agreements",             uses: ["contracts.list", "accounts.list"], title: "Agreements" },
   "sites":      { path: "/sites",                  uses: ["accounts.list", "jobs.list", "serviceRequests.list"], title: "Sites" },
 } as const satisfies Record<string, ScreenSpec>;
