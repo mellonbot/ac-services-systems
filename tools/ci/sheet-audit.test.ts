@@ -76,3 +76,24 @@ test("no surface stylesheet restyles a class the component sheet owns", async ()
   }
   assert.deepEqual(reaches, []);
 });
+
+/**
+ * Widths come from the schedule (packages/tokens: measure, layout). A literal
+ * measure or tile minimum in a surface sheet is a width nobody else can find,
+ * and the next screen picks a third value beside it. Breakpoints are exempt —
+ * a media query cannot read a variable — and so are a data column's own
+ * minimum (a date, an amount) and artwork geometry like S3's illustrative map,
+ * which size to their content rather than to the page.
+ */
+test("no surface stylesheet types a measure, a page width or a tile minimum", async () => {
+  const literals: string[] = [];
+  for (const id of SURFACE_IDS) {
+    const sheet = (await surfaceSheet(SURFACES[id].app)).replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const m of sheet.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const body = m[2]!;
+      for (const hit of body.matchAll(/max-width:\s*\d+(?:ch|px)|repeat\(auto-(?:fit|fill),\s*minmax\((?:min\(100%,)?\d+(?:ch|px)/g))
+        literals.push(`${SURFACES[id].app}: ${m[1]!.trim()} types ${hit[0]}`);
+    }
+  }
+  assert.deepEqual(literals, []);
+});
