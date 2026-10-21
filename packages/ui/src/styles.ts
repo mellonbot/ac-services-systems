@@ -36,7 +36,7 @@ html,body{font-variant-numeric:tabular-nums}
 body{margin:0;background:var(--color-page);color:var(--color-text);font-family:var(--font-text);font-size:var(--body-text);line-height:1.6}
 :focus-visible{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}
 code,.ac-num{font-family:var(--font-instrument);font-variant-numeric:tabular-nums}
-code{font-size:0.95em;background:var(--color-surface-sunken);padding:1px var(--space-1);border:1px solid var(--color-border)}
+code{background:var(--color-surface-sunken);padding:1px var(--space-1);border:1px solid var(--color-border)}
 main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--page-max);margin:0 auto}
 
 /* ---- Masthead: the badge, the wordmark, the descriptor ----
@@ -93,7 +93,7 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
    OWN ink, never in --color-border: a chip's rule carries SHAPE, and the border
    role measures 2.22:1 (errata E-08). */
 .ac-pill{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;min-height:24px;border-radius:var(--radius-pill);border:1px solid var(--status-rule,transparent);color:var(--status-color);background:var(--status-fill,color-mix(in srgb,var(--status-color) 11%,var(--color-surface)));font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-tight);white-space:nowrap;line-height:1.3}
-.ac-pill__glyph{color:var(--status-color);font-size:0.85em}
+.ac-pill__glyph{color:var(--status-color)}
 .ac-pill[data-status="ok"]{--status-color:var(--color-status-ok)}
 .ac-pill[data-status="at_risk"]{--status-color:var(--color-status-at-risk);--status-rule:color-mix(in srgb,var(--color-status-at-risk) 45%,transparent)}
 .ac-pill[data-status="breached"]{--status-color:var(--color-status-breached);--status-rule:var(--color-status-breached);--status-fill:color-mix(in srgb,var(--color-status-breached) 15%,var(--color-surface))}
@@ -143,8 +143,8 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
    above became none on the dispatch board's only keyboard control. Measured
    in Chromium: outline-style none on a focused sort button. Reset what a button
    actually brings and nothing else. */
-.ac-grid__sort{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:0;text-align:inherit;cursor:pointer;color:inherit;font:inherit}
-.ac-grid__row[tabindex]{cursor:pointer}
+.ac-grid__sort{min-height:var(--row-height);appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:0;text-align:inherit;cursor:pointer;color:inherit;font:inherit}
+.ac-grid__row[tabindex]{cursor:pointer;height:var(--row-height)}
 .ac-grid__row:hover{background:color-mix(in srgb,var(--color-surface-sunken) calc(100% * var(--hover)),transparent)}
 .ac-grid__row[data-selected="true"]{background:color-mix(in srgb,var(--color-surface-sunken) 60%,var(--color-surface));box-shadow:inset 3px 0 0 var(--color-action)}
 .ac-grid__empty td{color:var(--color-text-muted);text-align:center}

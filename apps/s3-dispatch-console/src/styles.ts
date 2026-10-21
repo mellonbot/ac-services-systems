@@ -8,7 +8,7 @@ export const S3_CSS = `
 .s3-app{display:flex;flex-direction:column;gap:var(--space-3)}
 .s3-notice{display:flex;gap:var(--space-3);align-items:baseline;padding:var(--space-2) var(--space-3);background:var(--color-surface-sunken);border:1px solid var(--color-status-at-risk);border-radius:var(--radius-control)}
 .s3-notice p{margin:0}
-.s3-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2)}
+.s3-notice__dismiss{min-height:var(--control-height);appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2)}
 .s3-loading,.s3-empty,.s3-muted{color:var(--color-text-muted)}
 .s3-row-actions{display:inline-flex;gap:var(--space-3);white-space:nowrap}
 .s3-login{max-width:var(--measure-narrow);margin:10vh auto 0}
@@ -57,9 +57,9 @@ export const S3_CSS = `
 .dispatch-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);padding-inline:var(--space-4)}
 .dispatch-header__tools{display:flex;align-items:center;gap:var(--space-2);margin-inline-start:auto}
 .dispatch-header__who{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-sm)}
-.dispatch-header__logout{appearance:none;border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-text);color:var(--color-surface);padding:var(--space-2) var(--space-3);font-family:var(--font-label);font-size:var(--text-sm);font-weight:600;cursor:pointer}
+.dispatch-header__logout{min-height:var(--control-height);appearance:none;border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-text);color:var(--color-surface);padding:var(--space-2) var(--space-3);font-family:var(--font-label);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 .dispatch-dashboard__date-controls{display:flex;gap:var(--space-2);align-items:center}
-.dispatch-dashboard__date{appearance:none;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text-muted);padding:var(--space-2) var(--space-3);font-family:var(--font-label);font-size:var(--text-sm);cursor:pointer}
+.dispatch-dashboard__date{min-height:var(--control-height);appearance:none;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text-muted);padding:var(--space-2) var(--space-3);font-family:var(--font-label);font-size:var(--text-sm);cursor:pointer}
 .dispatch-dashboard__date.is-active{background:var(--color-surface-sunken);color:var(--color-text);border-color:var(--color-border-hard)}
 .dispatch-dashboard__board{border:1px solid var(--color-border);border-radius:var(--radius-control);overflow:hidden}
 .dispatch-board__header{display:grid;grid-template-columns:var(--column-rail) 1fr;align-items:center;padding:var(--space-2) var(--space-4);border-bottom:1px solid var(--color-border);background:var(--color-surface-sunken)}
@@ -114,7 +114,7 @@ export const S3_CSS = `
 .s3-grid-scroll{overflow-x:auto}
 .s3-cust strong,.s3-tech{white-space:nowrap}
 .s3-moves{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-1)}
-.s3-act{appearance:none;border:0;background:none;padding:0;color:var(--color-action-text);font:inherit;font-size:var(--text-sm);padding-block:2px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
+.s3-act{min-height:var(--control-height);appearance:none;border:0;background:none;padding:0;color:var(--color-action-text);font:inherit;font-size:var(--text-sm);padding-block:2px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
 .s3-act:disabled{color:var(--color-text-muted);cursor:not-allowed;text-decoration:none}
 .s3-act:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
 .s3-note{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;max-width:var(--measure-cell)}
@@ -135,7 +135,7 @@ export const S3_CSS = `
 .s3-standing{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-1);padding:var(--space-3);border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface-sunken)}
 .s3-standing__body{margin:0;color:var(--color-text)}
 .s3-draftbox{width:100%;min-height:4.5rem;resize:vertical;font:inherit}
-.s3-seg-btn{appearance:none;border:0;background:none;font-family:inherit;cursor:pointer}
+.s3-seg-btn{min-height:var(--control-height);appearance:none;border:0;background:none;font-family:inherit;cursor:pointer}
 .s3-seg-btn:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
 .s3-visits{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3)}
 .s3-visit{display:grid;grid-template-columns:5.5rem minmax(0,1fr);gap:var(--space-3)}

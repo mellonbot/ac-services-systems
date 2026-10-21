@@ -100,7 +100,7 @@ export const S2_CSS = `
 .s2-confirm p{margin:0;color:var(--color-text-muted)}
 .s2-confirm__actions{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-1)}
 .s2-help{color:var(--color-text-muted);font-size:var(--text-sm)}
-.s2-help summary{color:var(--color-action-text);cursor:pointer;font-weight:600}
+.s2-help summary{display:flex;align-items:center;min-height:var(--control-height);color:var(--color-action-text);cursor:pointer;font-weight:600}
 .s2-help p{margin:var(--space-1) 0 0}
 .s2-proposal{display:flex;flex-direction:column;gap:var(--space-2)}
 `;

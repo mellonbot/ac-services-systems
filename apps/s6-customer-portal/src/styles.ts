@@ -41,7 +41,7 @@ export const S6_CSS = `
 .s6-home>*{min-width:0}
 .s6-home__orders{display:flex;flex-direction:column;gap:var(--space-3)}
 .s6-chips{display:flex;flex-wrap:wrap;gap:var(--space-2);margin:0 0 var(--space-3)}
-.s6-seg-button{appearance:none;-webkit-appearance:none;border:0;background:none;font-family:inherit;cursor:pointer}
+.s6-seg-button{min-height:var(--control-height);appearance:none;-webkit-appearance:none;border:0;background:none;font-family:inherit;cursor:pointer}
 .s6-order__ref{font-family:var(--font-instrument);font-variant-numeric:tabular-nums}
 .s6-drop{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-1);min-height:calc(var(--control-height) * 2);padding:var(--space-3);text-align:center;border:1px dashed var(--color-border-hard);border-radius:var(--radius-control);color:var(--color-text-muted);font-size:var(--text-sm);cursor:pointer;transition:border-color var(--motion-fast) var(--ease),background-color var(--motion-fast) var(--ease)}
 .s6-drop:hover,.s6-drop[data-chosen="true"]{border-color:var(--color-action-text);background:color-mix(in srgb,var(--color-action) 6%,var(--color-surface))}

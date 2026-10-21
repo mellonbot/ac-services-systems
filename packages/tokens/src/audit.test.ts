@@ -65,8 +65,22 @@ test("type set below the density's floor in absolute px is a violation; at the f
   assert.deepEqual(sheetViolations(`.field{font-size:15px}`, "field"), []);
 });
 
-test("relative sizes and variables are the density's business, not the audit's", () => {
-  assert.deepEqual(sheetViolations(`.a{font-size:0.85em}.b{font-size:var(--text-xs)}.c{font-size:95%}`, "field"), []);
+test("a size below 1em or 100% is flagged — a fraction of an unknown parent cannot be held to the floor; variables and 1em are not", () => {
+  // The .85em pill glyph inside an 11px pill rendered at 9.35px and passed for years because it was never in px.
+  assert.deepEqual(sheetViolations(`.a{font-size:0.85em}.c{font-size:95%}`, "field").map((v) => v.rule), ["relative-type", "relative-type"]);
+  assert.deepEqual(sheetViolations(`.b{font-size:var(--text-xs)}.d{font-size:1em}.e{font-size:100%}`, "field"), []);
+});
+
+test("a status ink keyed to a tone that is not a state is a category drawn as a state — Rule 1", () => {
+  const v = sheetViolations(`.legend[data-tone="scheduled"]::before{background:var(--color-status-ok)}`, "console");
+  assert.deepEqual(v.map((x) => x.rule), ["state-as-category"]);
+  assert.match(v[0]!.message, /"scheduled" is not a state/);
+  assert.deepEqual(sheetViolations(`.pill[data-status="at_risk"]{color:var(--color-status-at-risk)}.n[data-tone="info"]{color:var(--color-action-text)}`, "console"), [], "a state tone in its own ink, and a category in a non-state ink, are both fine");
+});
+
+test("anything clickable needs a height from some rule for that selector", () => {
+  assert.deepEqual(sheetViolations(`.act{cursor:pointer;padding:2px 4px}`, "console").map((v) => v.selector), [".act"]);
+  assert.deepEqual(sheetViolations(`.act{cursor:pointer}.act{min-height:var(--control-height)}`, "console"), [], "split across rules is fine");
 });
 
 test("comments are not rules — a role named in a comment is not painted", () => {
