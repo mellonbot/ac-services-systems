@@ -263,17 +263,17 @@ test("degraded: every write is refused with the surface's declared reason — th
   app.degraded.value = true;
   const out = render(app.view());
   assert.match(out, /aria-disabled="true"/);
-  assert.match(out, /acknowledges on receipt, not on processing/);
+  assert.match(out, /changes are paused until the connection returns/);
 });
 
-test("a refused read renders the heading, the message and a retry route; sign out returns to login", async () => {
+test("a refused read renders the plain heading and the message, and offers no retry for an answer that will not change; sign out returns to login", async () => {
   const { app } = await ready({ [OPERATIONS["settlements.list"].path]: { status: 403, body: { error: "Forbidden", message: "settlements.list is not served to S8 for this principal" } } });
   app.router.navigate("statements", {});
   render(app.view()); await settle();
   const out = render(app.view());
-  assert.match(out, /Refused — not permitted for this principal/);
+  assert.match(out, /This isn't available to your account/);
   assert.match(out, /settlements.list is not served/);
-  assert.match(out, /Try again/);
+  assert.doesNotMatch(out, /Try again/);
   await app.logout();
   assert.match(render(app.view()), /id="login-form"/);
 });

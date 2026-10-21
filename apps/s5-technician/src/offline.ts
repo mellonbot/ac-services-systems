@@ -69,7 +69,8 @@ export type OfflineQueue = {
   readonly flushing: Signal<boolean>;
   enqueue(entityTable: string, entityId: string, op: SyncMutationWire["op"], payload: Readonly<Record<string, unknown>>, clientObservedVersion: number | null): SyncMutationWire;
   dismissAttention(mutationId: string): void;
-  flush(replay: (mutations: readonly SyncMutationWire[]) => Promise<{ outcomes: readonly SyncOutcomeWire[] }>): Promise<void>;
+  /** Resolves true when the gateway answered the batch — the only case where a refetch can show anything new. */
+  flush(replay: (mutations: readonly SyncMutationWire[]) => Promise<{ outcomes: readonly SyncOutcomeWire[] }>): Promise<boolean>;
 };
 
 const noteOf = (o: SyncOutcomeWire): string => ("note" in o ? o.note : "");
@@ -113,7 +114,7 @@ export const createOfflineQueue = (opts: { deviceId: string; newId: () => string
    * an ordinary, expected state for this screen, not an error to propagate.
    */
   const flush: OfflineQueue["flush"] = async (replay) => {
-    if (flushing.value || pending.value.length === 0) return;
+    if (flushing.value || pending.value.length === 0) return false;
     flushing.value = true;
     try {
       const batch = pending.value;
@@ -121,7 +122,7 @@ export const createOfflineQueue = (opts: { deviceId: string; newId: () => string
       try {
         ({ outcomes } = await replay(batch.map((e) => e.mutation)));
       } catch {
-        return; // unreachable gateway — nothing learned per-mutation; batch stays queued as-is
+        return false; // unreachable gateway — nothing learned per-mutation; batch stays queued as-is
       }
       const byId = new Map(outcomes.map((o) => [o.mutationId, o]));
       const flagged: Attention[] = [];
@@ -137,6 +138,7 @@ export const createOfflineQueue = (opts: { deviceId: string; newId: () => string
       // anything appended during the await is exactly the tail past batch.length.
       pending.value = [...unanswered, ...pending.value.slice(batch.length)];
       if (flagged.length) attention.value = [...attention.value, ...flagged];
+      return true;
     } finally {
       flushing.value = false;
     }

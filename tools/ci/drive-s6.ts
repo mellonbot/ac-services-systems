@@ -387,10 +387,11 @@ async function main(): Promise<void> {
     await cdp.navigate(`${CUSTOMER}/terms/site/${renoRoof}`);
     await cdp.waitFor(`document.querySelector(".ac-notice[data-tone='breached']")`, "a refusal for a node outside the scope");
     const refused = await cdp.eval<string>(`document.querySelector(".ac-notice[data-tone='breached']").innerText`);
-    must(/Refused/.test(refused) && /no site node/.test(refused), `the refusal is the gateway's sentence, got ${JSON.stringify(refused)}`);
+    must(/This can't be done here/.test(refused) && /no site node/.test(refused), `the refusal is a plain heading over the gateway's sentence, got ${JSON.stringify(refused)}`);
+    must(!/[0-9a-f]{8}-[0-9a-f]{4}-/i.test(refused), `no full record id reaches the customer, got ${JSON.stringify(refused)}`);
     must(!(await cdp.eval<boolean>(`!!document.querySelector(".ac-refusal")`)), "not the console card");
     await shot("07-terms-out-of-scope-refused");
-    check(10, "a deep link to another location's terms is refused with the gateway's words — no console card");
+    check(10, "a deep link to another location's terms is refused in plain words over the gateway's sentence — no console card, no full ids");
 
     // ── 11. sign out → login form; the executive signs in and the SAME bundle shows the whole account
     await cdp.eval(`(() => { document.querySelector(".ac-nav__signout").click(); return true; })()`);

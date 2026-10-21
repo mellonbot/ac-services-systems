@@ -30,7 +30,7 @@ export const sites: Screen = (ctx) => {
       const waiting = requests.value.state === "ready" ? requests.value.value.requests.filter((r) => r.jobId === null).length : 0;
       return statStrip([
         { n: out.nodes.filter((n) => n.tier === "site").length, label: "Sites" },
-        { n: liveJobs.length, label: "Open jobs", tone: "info" },
+        { n: liveJobs.length, label: "Open jobs" },
         { n: liveJobs.filter((j) => j.slaDueAt && !j.slaSatisfiedAt).length, label: "Awaiting a technician", ...(liveJobs.some((j) => j.slaDueAt && !j.slaSatisfiedAt) ? { tone: "at_risk" as const } : {}) },
         { n: waiting, label: "Requests with the office" },
       ], "sites-stats");

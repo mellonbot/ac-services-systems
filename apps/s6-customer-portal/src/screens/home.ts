@@ -113,8 +113,8 @@ export const home: Screen = (ctx) => {
       const due = invoiceRows.filter((i) => i.dueAt && Date.parse(i.dueAt) >= now).length;
       return statStrip([
         { n: n(0), label: "Open requests" },
-        { n: n(1), label: "Scheduled", tone: "info" },
-        { n: n(2), label: "In progress", tone: "info" },
+        { n: n(1), label: "Scheduled" },
+        { n: n(2), label: "In progress" },
         { n: due, label: "Invoices due", sub: "due date still ahead" },
       ], "work-stats");
     })}

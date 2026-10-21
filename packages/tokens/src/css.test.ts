@@ -45,6 +45,16 @@ test("the published ink.light and rule-hard are NOT used where they fail — err
   }
 });
 
+test("a control's edge carries shape, so it clears 3:1 on every ground in both stocks — WCAG 1.4.11", () => {
+  for (const d of DENSITIES) {
+    const sem = semanticFor(d);
+    for (const g of GROUNDS) {
+      const ratio = contrastRatio(sem["color.border-control"], sem[g]);
+      assert.ok(ratio >= 3, `${d}: color.border-control is ${ratio.toFixed(2)}:1 on ${g}`);
+    }
+  }
+});
+
 test("Form R-4: the word is measured against its own fill, and the fill is free", () => {
   const field = semanticFor("field");
   // The oxide fault fill is 1.84:1 against the plate ground and that is correct:

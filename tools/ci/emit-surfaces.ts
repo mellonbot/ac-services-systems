@@ -266,7 +266,7 @@ ${FONT_FILES.filter((f) => f.preload).map((f) => `<link rel="preload" href="/fon
 <style id="ac-brand"></style>` : ""}
 </head>
 <body>
-<ac-degraded hidden role="alert" data-density="${s.density}">${escapeHtml(s.degraded)}</ac-degraded>
+<ac-degraded hidden role="alert" data-density="${s.density}">${escapeHtml(s.degradedNotice)}</ac-degraded>
 ${renderMasthead(s)}
 <main id="mount"></main>
 <script type="module" src="/bundle.js"></script>

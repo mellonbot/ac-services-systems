@@ -114,7 +114,7 @@ const openPanel = (ctx: ScreenContext, requests: readonly ServiceRequestWire[], 
       <span class="s3-row-actions">
         ${PrimaryAction({
           density: ctx.density, label: o.busy ? "Opening…" : "Open job", type: "submit", id: "intake-open-submit",
-          ...(ctx.degraded ? { disabledReason: `Gateway unreachable — ${ctx.shell.degradedMode}` } : o.busy ? { disabledReason: "Opening…" } : {}),
+          ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : o.busy ? { disabledReason: "Opening…" } : {}),
         })}
         <button type="button" class="s3-act" id="intake-open-cancel" onClick=${() => { opening.value = null; }}>Cancel</button>
       </span>
@@ -188,7 +188,7 @@ export const intake: Screen = (ctx) => {
       ? linkTo(ctx, "detail", { jobId: r.jobId }, `Job opened · ${r.jobState ? STATE_LABEL[r.jobState] : "—"}`)
       : html`<span class="s3-moves"><span class="s3-muted">Waiting — no job yet</span>
           <button type="button" class="s3-act" id=${`open-${r.id}`} disabled=${ctx.degraded}
-            title=${ctx.degraded ? `Gateway unreachable — ${ctx.shell.degradedMode}` : undefined}
+            title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
             onClick=${() => { viewing.value = null; opening.value = { requestId: r.id, busy: false, refusal: null }; }}>Open job</button></span>` },
   ];
 

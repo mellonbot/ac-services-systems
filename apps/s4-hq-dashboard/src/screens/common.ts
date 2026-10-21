@@ -1,4 +1,4 @@
-import { html, RefusalNotice, StatusPill, type VNode, type Router, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, retryable, RefusalNotice, StatusPill, type VNode, type Router, type Status } from "../../../../packages/ui/src/index.ts";
 import type { Shell } from "../../../../packages/shell/src/index.ts";
 import { HQ_METRICS, type DensityOf, type HqMetricKey, type HqMetricsOutput, type HqRegionWire } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
@@ -22,7 +22,7 @@ export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) =>
   switch (r.state) {
     case "loading": return html`<p class="s4-loading" role="status">Loading…</p>`;
     case "ready": return view(r.value);
-    case "refused": return RefusalNotice({ density: ctx.density, refusal: r.refusal, routes: retry ? [{ label: "Try again", onSelect: retry, primary: true }] : [] }) ?? html``;
+    case "refused": return RefusalNotice({ density: ctx.density, refusal: r.refusal, routes: retry && retryable(r.refusal) ? [{ label: "Try again", onSelect: retry, primary: true }] : [] }) ?? html``;
   }
 };
 

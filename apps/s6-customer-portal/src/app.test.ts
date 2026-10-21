@@ -155,7 +155,7 @@ test("boot with no session lands on the login form; a refused login renders the 
   assert.doesNotMatch(out, /Session ended/, "a missing cookie is not an error to show");
   await app.login("fm@amped.test", "wrong");
   out = render(app.view());
-  assert.match(out, /Session ended/);
+  assert.match(out, /Please sign in again/);
   assert.match(out, /invalid credentials/);
   assert.doesNotMatch(out, /ac-refusal/, "RefusalCard is console-only; the customer sees the words");
 });
@@ -352,7 +352,7 @@ test("REQUEST while degraded: the one write is refused with the surface's declar
   app.degraded.value = true;
   const out = render(app.view());
   assert.match(out, /aria-disabled="true"/);
-  assert.match(out, /Requests are not taken while the gateway is unreachable/);
+  assert.match(out, /new requests are paused until the connection returns/);
 });
 
 test("TERMS: values in plain words, and where each came from is the resolver's answer", async () => {
@@ -383,14 +383,14 @@ test("AGREEMENTS: the customer's paper, with the position it took on its own dia
   assert.match(out, /2026-01-01<br\/>→ open/);
 });
 
-test("a refused read renders the heading, the message and a retry route; sign out returns to login", async () => {
+test("a refused read renders the plain heading and the message, and offers no retry for an answer that will not change; sign out returns to login", async () => {
   const { app } = await ready(facility, FACILITY_NODES, { [OPERATIONS["jobs.list"].path]: { status: 403, body: { error: "Forbidden", message: "jobs.list is not served to S6 for a customer principal" } } });
   app.router.navigate("work", {});
   render(app.view()); await settle();
   const out = render(app.view());
-  assert.match(out, /Refused — not permitted for this principal/);
+  assert.match(out, /This isn't available to your account/);
   assert.match(out, /jobs.list is not served/);
-  assert.match(out, /Try again/);
+  assert.doesNotMatch(out, /Try again/);
   await app.logout();
   assert.match(render(app.view()), /id="login-form"/);
 });

@@ -1,6 +1,5 @@
 import { html, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { CoverageOutput } from "../../../../packages/contracts/src/index.ts";
-import { coverage, whenReady, submitAction, linkTo, type Screen, type ScreenContext } from "./common.ts";
+import { coverage, submitAction, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
 /**
  * THE LEAD FORM — the one thing this surface is for.
@@ -93,9 +92,9 @@ export const enquire: Screen = (ctx: ScreenContext): VNode => {
       <label class="ac-field"><span>Where is the site? <span class="ac-field__hint">— a city is enough</span></span>
         <input class="ac-input" name="metro" type="text" maxlength="80" list="s1-metros" id="lead-metro" />
       </label>
-      ${whenReady<CoverageOutput>(ctx, cov, (v) => html`<datalist id="s1-metros">
-        ${v.metros.map((m) => html`<option value=${m.name}></option>`)}
-      </datalist>`, undefined)}
+      ${cov.state === "ready" ? html`<datalist id="s1-metros">
+        ${cov.value.metros.map((m) => html`<option value=${m.name}></option>`)}
+      </datalist>` : null}
       <label class="ac-field"><span>What do you need? <span class="ac-field__hint">— optional</span></span>
         <textarea class="ac-input ac-textarea" name="note" maxlength="2000" id="lead-note"></textarea>
       </label>

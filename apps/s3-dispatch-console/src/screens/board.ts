@@ -1,4 +1,4 @@
-import { html, signal, StatusPill, pageHead, statStrip, panel, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, signal, shortRef, StatusPill, pageHead, statStrip, panel, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
 import { WORK_DONE_STATES, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, submitAction, linkTo, type Screen } from "./common.ts";
@@ -48,8 +48,8 @@ export const boardStats = (jobs: readonly JobWire[], now: number) => {
   return statStrip([
     { n: open.length, label: "Open jobs" },
     { n: unassigned, label: "Unassigned", ...(unassigned ? { tone: "at_risk" as const } : {}) },
-    { n: atRisk, label: "At risk now", ...(atRisk ? { tone: "breached" as const } : {}) },
-    { n: crews, label: "Crews out", tone: "info" },
+    { n: atRisk, label: "At risk now", ...(atRisk ? { tone: "at_risk" as const } : {}) },
+    { n: crews, label: "Crews out" },
   ], "board-stats");
 };
 
@@ -119,36 +119,86 @@ const releaseJob = async (ctx: Parameters<Screen>[0], job: JobWire): Promise<voi
   }
 };
 
-const boardRows = [
-  { initials: "BK", name: "Blake Keating", service: "Shipman Co — rooftop install", id: "33390928", code: "3", label: "Shipman Co — rooftop install", tone: "breached", left: 22, width: 24 },
-  { initials: "BM", name: "Brian Martinez", service: "FirstKey — Repairs", id: "33390251", code: "3", label: "FirstKey — Repairs", tone: "breached", left: 7, width: 22 },
-  { initials: "CD", name: "Colton Dawson", service: "5 stops — PM route", id: "33390971", code: "3", label: "Turner Res.", tone: "breached", left: 13, width: 16 },
-  { initials: "DL", name: "Dylan Lemons", service: "Crew lead — new install", id: "33390937", code: "2", label: "Meridian Plaza — new system", tone: "breached", left: 12, width: 19 },
-  { initials: "GH", name: "Garrett Howard", service: "Paired with Dylan Lemons", id: "33390937", code: "", label: "Meridian Plaza — new system", tone: "idle", left: 0, width: 0 },
-  { initials: "HV", name: "Herberto Vega", service: "Shipman Co — RTU changeout", id: "33390948", code: "3", label: "Shipman Co — RTU changeout", tone: "breached", left: 26, width: 18 },
-  { initials: "JF", name: "Johnny Fontez", service: "Shipman Co rooftop, 9a", id: "33390948", code: "", label: "Shipman Co — RTU changeout", tone: "idle", left: 0, width: 0 },
-  { initials: "LD", name: "Logan Dawson", service: "No jobs assigned", id: "", code: "", label: "Open all day — good for callbacks near Crowley", tone: "idle", left: 0, width: 0 },
-] as const;
+const HOUR_MS = 60 * 60_000;
+/** The board's working day, 7 AM to 5 PM: ten hour columns, as the reference layout draws it. */
+const FIRST_HOUR = 7, LAST_HOUR = 17;
+const startOfDay = (ms: number, offset: number): number => {
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + offset);
+  return d.getTime();
+};
+const initialsOf = (label: string): string => label.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
+const describe = (job: JobWire): string => `${job.siteName ?? "Site name unavailable"} — ${job.serviceCode.replace(/_/g, " ")}`;
 
-const dashboardStats = [
-  { n: 9, label: "Jobs today" },
-  { n: 3, label: "Crews out" },
-  { n: 2, label: "Needs attention", tone: "breached" },
-  { n: 177, label: "Unscheduled" },
-  { n: 1, label: "Tech available", tone: "ok" },
-] as const;
+const WAITING: readonly string[] = ["awaiting_customer", "awaiting_parts", "quote_requested", "quote_submitted", "awaiting_po", "awaiting_pictures"];
+const DONE: readonly string[] = [...WORK_DONE_STATES];
+/** Which legend entry a job's bar is drawn in. A late or escalated SLA wins over the job's stage. */
+export const boardTone = (job: JobWire, now: number): "warn" | "waiting" | "completed" | "scheduled" => {
+  if (DONE.includes(job.state)) return "completed";
+  if (slaStatus(job, now) !== "ok") return "warn";
+  if (WAITING.includes(job.state)) return "waiting";
+  return "scheduled";
+};
 
-const dashboardLegend = [
-  { label: "Scheduled (in progress)", tone: "scheduled" },
-  { label: "Completed", tone: "completed" },
-  { label: "Needs attention", tone: "warn" },
-  { label: "Waiting on customer/parts", tone: "waiting" },
-  { label: "Unassigned", n: 0, tone: "neutral" },
-  { label: "Open PO's", n: 0, tone: "neutral" },
-  { label: "Needs attention today", n: 2, tone: "warn" },
-  { label: "Marked for follow-up", n: 0, tone: "neutral" },
-  { label: "Unscheduled", n: 177, tone: "neutral" },
-] as const;
+type BoardRow = { readonly key: string; readonly initials: string; readonly name: string; readonly service: string; readonly jobs: readonly JobWire[] };
+
+/**
+ * Everything the board draws, read off `jobs.list`: one row per crew that
+ * holds open work (S3 has no roster read, so a crew is known by the jobs it
+ * holds), each row's bars the jobs whose service window touches the chosen
+ * day, and the figures and legend counts from the same rows.
+ */
+export const boardModel = (jobs: readonly JobWire[], now: number, offset: number) => {
+  const dayStart = startOfDay(now, offset);
+  const from = dayStart + FIRST_HOUR * HOUR_MS;
+  const to = dayStart + LAST_HOUR * HOUR_MS;
+  const open = jobs.filter((j) => !CLOSED.includes(j.state));
+  const onDay = (j: JobWire) => Date.parse(j.serviceWindowStart) < dayStart + 24 * HOUR_MS && Date.parse(j.serviceWindowEnd) > dayStart;
+  const today = jobs.filter((j) => j.state !== "cancelled" && j.state !== "aborted" && onDay(j));
+
+  const crews = new Map<string, { name: string; held: JobWire[]; today: JobWire[] }>();
+  for (const j of jobs) {
+    if (!j.currentCrewId) continue;
+    const crew = crews.get(j.currentCrewId) ?? { name: j.currentCrewLabel ?? "Crew", held: [], today: [] };
+    if (!CLOSED.includes(j.state)) crew.held.push(j);
+    if (today.includes(j)) crew.today.push(j);
+    crews.set(j.currentCrewId, crew);
+  }
+  const rows: BoardRow[] = [...crews.entries()]
+    .filter(([, c]) => c.held.length || c.today.length)
+    .map(([key, c]) => {
+      const sorted = [...c.today].sort((a, b) => Date.parse(a.serviceWindowStart) - Date.parse(b.serviceWindowStart));
+      return { key, initials: initialsOf(c.name), name: c.name, service: sorted.length ? describe(sorted[0]!) : "No jobs today", jobs: sorted };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const place = (j: JobWire) => {
+    const left = Math.max(0, Math.min(1, (Date.parse(j.serviceWindowStart) - from) / (to - from)));
+    const right = Math.max(0, Math.min(1, (Date.parse(j.serviceWindowEnd) - from) / (to - from)));
+    return { left: left * 100, width: Math.max(0, right - left) * 100 };
+  };
+  const attention = open.filter((j) => slaStatus(j, now) !== "ok").length;
+  const unassigned = open.filter((j) => !j.currentCrewId);
+  const stats = [
+    { n: today.length, label: "Jobs today" },
+    { n: rows.filter((r) => r.jobs.length).length, label: "Crews out" },
+    { n: attention, label: "Needs attention", ...(attention ? { tone: "breached" as const } : {}) },
+    { n: unassigned.length, label: "Unscheduled" },
+    { n: rows.filter((r) => !r.jobs.length).length, label: "Tech available", tone: "ok" as const },
+  ];
+  const legend = [
+    { label: "Scheduled (in progress)", tone: "scheduled" },
+    { label: "Completed", tone: "completed" },
+    { label: "Needs attention", tone: "warn" },
+    { label: "Waiting on customer/parts", tone: "waiting" },
+    { label: "Unassigned", n: unassigned.filter(onDay).length, tone: "neutral" },
+    { label: "Needs attention today", n: today.filter((j) => !DONE.includes(j.state) && slaStatus(j, now) !== "ok").length, tone: "warn" },
+    { label: "Marked for follow-up", n: open.filter((j) => j.returnTrip).length, tone: "neutral" },
+    { label: "Unscheduled", n: unassigned.length, tone: "neutral" },
+  ];
+  return { rows, place, stats, legend, dayStart };
+};
 
 export const board: Screen = (ctx) => {
   const jobsKey = keyOf("jobs.list", {});
@@ -156,15 +206,19 @@ export const board: Screen = (ctx) => {
   const filter = filterFor(ctx.store);
   const now = Date.now();
 
+  const shown = new Date(now);
+
   return html`<section class="s3-board">
     ${pageHead("Dispatch Board", "One color per job status, crew grouping, and idle tech availability in one glance.", html`<div class="dispatch-dashboard__date-controls">
-      <button type="button" class="dispatch-dashboard__date is-active">Tue, Sep 8</button>
-      <button type="button" class="dispatch-dashboard__date">Today</button>
+      <span class="dispatch-dashboard__date is-active">${shown.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+      <button type="button" class="dispatch-dashboard__date" id="board-today" onClick=${() => ctx.store.invalidate("jobs.list")}>Today</button>
     </div>`)}
 
-    ${whenReady(ctx, jobs.value, () => statStrip(dashboardStats))}
+    ${whenReady(ctx, jobs.value, (out) => statStrip(boardModel(out.jobs, now, 0).stats))}
 
-    ${panel(html`<div class="dispatch-dashboard__board">
+    ${whenReady(ctx, jobs.value, (out) => {
+      const m = boardModel(out.jobs, now, 0);
+      return panel(html`<div class="dispatch-dashboard__board">
         <div class="dispatch-board__header">
           <div class="dispatch-board__label">Technician</div>
           <div class="dispatch-board__hours">
@@ -172,23 +226,27 @@ export const board: Screen = (ctx) => {
           </div>
         </div>
 
-        ${boardRows.map((row) => html`<div class="dispatch-board__row">
+        ${m.rows.length ? m.rows.map((row) => html`<div class="dispatch-board__row" key=${row.key}>
           <div class="dispatch-board__tech">
-            <span class="dispatch-board__avatar" data-tone="${row.tone}">${row.initials}</span>
+            <span class="dispatch-board__avatar" data-tone=${row.jobs.length ? boardTone(row.jobs[0]!, now) : "idle"} aria-hidden="true">${row.initials}</span>
             <div class="dispatch-board__meta">
               <strong>${row.name}</strong>
               <small>${row.service}</small>
             </div>
           </div>
-          <div class="dispatch-board__calendar" aria-label=${row.label}>
-            ${row.id ? html`<div class="dispatch-board__segment" data-tone=${row.tone} style=${`left:${row.left}%; width:${row.width}%;`}>${row.id}<span>${row.label}</span></div>` : null}
+          <div class="dispatch-board__calendar" role="group" aria-label=${row.jobs.length ? `${row.name}: ${row.jobs.map(describe).join("; ")}` : `${row.name}: no jobs today`}>
+            ${row.jobs.map((job) => {
+              const at = m.place(job);
+              return at.width > 0 ? html`<a class="dispatch-board__segment" key=${job.id} href=${`/jobs/${job.id}`} data-tone=${boardTone(job, now)} style=${`left:${at.left}%; width:${at.width}%;`} title=${describe(job)}>${shortRef(job.id)}<span>${job.siteName ?? "Site name unavailable"}</span></a>` : null;
+            })}
           </div>
-        </div>`)}
+        </div>`) : html`<p class="dispatch-board__empty">No crew holds open work.</p>`}
       </div>
 
       <div class="dispatch-dashboard__legend">
-        ${dashboardLegend.map((item) => html`<span class="dispatch-legend__item" data-tone=${item.tone}>${item.label}${"n" in item ? html` <span class="s3-num">${item.n}</span>` : null}</span>`)}
-      </div>`)}
+        ${m.legend.map((item) => html`<span class="dispatch-legend__item" data-tone=${item.tone}>${item.label}${"n" in item ? html` <span class="s3-num">${item.n}</span>` : null}</span>`)}
+      </div>`);
+    })}
 
     <div class="dispatch-dashboard__legacy" style="display:none;">
       ${whenReady(ctx, jobs.value, (out) => boardStats(out.jobs, now))}

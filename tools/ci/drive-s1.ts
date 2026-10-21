@@ -181,7 +181,7 @@ async function main(): Promise<void> {
 
     // ── 2. the degraded slot carries the declared text from the HTML itself
     const slotText = await cdp.eval<string>(`document.querySelector("ac-degraded")?.textContent ?? ""`);
-    must(/durable buffer/i.test(slotText), `the frame carries S1's declared degraded line, got ${JSON.stringify(slotText.slice(0, 80))}`);
+    must(/kept on this device/i.test(slotText), `the frame carries S1's declared degraded notice, got ${JSON.stringify(slotText.slice(0, 80))}`);
     check(2, "the degraded slot's text is in the frame, so it does not depend on the bundle having loaded");
 
     // ── 3. the form takes a lead while the gateway is down, and says QUEUED

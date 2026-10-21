@@ -36,7 +36,7 @@ export const catalogue: Screen = (ctx) => {
           { key: "item", header: "Item", cell: (r: CatalogItemWire) => `${r.description} (${r.uom})` },
           { key: "current", header: "Price today", align: "end", numeric: true, cell: (r: CatalogItemWire) => (r.current ? html`<span class="s7-num">${money(r.current.priceMinor, r.current.currency)}</span>` : html`<span class="s7-muted">none accepted</span>`) },
           { key: "proposed", header: "Your proposals", cell: (r: CatalogItemWire) => (r.proposals.length === 0 ? html`<span class="s7-muted">—</span>` : html`${r.proposals.map((p) => html`<div class="s7-row">
-              ${StatusPill({ density: ctx.density, status: "at_risk", label: "Waiting on Rankine" })}
+              ${StatusPill({ density: ctx.density, status: "blocked", label: "Waiting on Rankine" })}
               <span class="s7-num">${money(p.priceMinor, p.currency)}</span><span>from ${p.effectiveFrom}</span>
               <button type="button" class="ac-link ac-link--button" onClick=${() => withdraw(p.id)}>Withdraw</button>
             </div>`)}`) },

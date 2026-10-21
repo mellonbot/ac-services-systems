@@ -82,7 +82,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     // reconnecting after a dead zone should not need a second tap to notice.
     if (p.queue.pending.value.length > 0) {
       void p.queue.flush((mutations) => p.shell.gateway.replaySync({ orgId: p.shell.principal.orgId, regionId: p.shell.principal.regionId, mutations }))
-        .then(() => p.store.invalidate("jobs.mine"));
+        .then((answered) => { if (answered) p.store.invalidate("jobs.mine"); });
     }
   };
 
@@ -147,7 +147,7 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
     if (!slot) return;
     const p = app.phase.value;
     const lastOkAt = p.kind === "ready" ? p.store.lastOkAt.value : null;
-    applyDegraded(slot, { degraded: app.degraded.value, text: SURFACE.degraded, lastOkAt, now: Date.now() });
+    applyDegraded(slot, { degraded: app.degraded.value, text: SURFACE.degradedNotice, lastOkAt, now: Date.now() });
   });
   app.router.start();
   setInterval(() => app.tick(), 1000);

@@ -251,6 +251,39 @@ test("a transport failure leaves the mutation queued rather than losing it, and 
   assert.match(out, /<span class="ac-num">1<\/span> change waiting to sync — offline\./);
 });
 
+test("losing the network after the job loaded keeps the job on screen with its queued count — the cache is never traded for a transport error", async () => {
+  let down = false;
+  const flakyFetch: FetchLike = async (url) => {
+    const path = new URL(url).pathname;
+    if (down) throw new Error("Failed to fetch");
+    if (path === OPERATIONS["auth.deviceLogin"].path) return { status: 200, ok: true, json: async () => ({ token: "dev-token", expiresAt: "2026-09-18T18:00:00Z", crewId: CREW, crewLabel: "Crew A1", context: {} }), text: async () => "", body: null };
+    if (path === OPERATIONS["session.me"].path) return { status: 200, ok: true, json: async () => deviceContext, text: async () => "", body: null };
+    if (path === OPERATIONS["jobs.mine"].path) return { status: 200, ok: true, json: async () => ({ jobs: [job] }), text: async () => "", body: null };
+    return { status: 200, ok: true, json: async () => ({}), text: async () => "", body: null };
+  };
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: flakyFetch, now: () => 1_000, newId: () => `mut-${++seq}` });
+  await app.login("hw-001", "tech@ac.test", "pw");
+  app.router.navigate("job", { jobId: JOB });
+  render(app.view()); await settle(); await settle();
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+
+  down = true;
+  p.queue.enqueue("jobs", JOB, "transition", { state: "en_route" }, job.version);
+  const answered = await p.queue.flush((mutations) => p.shell.gateway.replaySync({ orgId: p.shell.principal.orgId, regionId: p.shell.principal.regionId, mutations }));
+  assert.equal(answered, false, "an unreachable gateway answered nothing");
+  for (let i = 0; i < 3; i++) { app.tick(); render(app.view()); await settle(); }
+  const out = render(app.view());
+  assert.match(out, /id="to-en_route"/, "the job's actions are still on screen");
+  assert.match(out, /<span class="ac-num">1<\/span> change waiting to sync/);
+  assert.doesNotMatch(out, /Failed to fetch|Gateway unreachable<\/h2>/);
+
+  // A refetch the gateway does answer still replaces the held value.
+  p.store.invalidate("jobs.mine");
+  render(app.view()); await settle();
+  assert.match(render(app.view()), /id="to-en_route"/, "while the refetch is in flight the held job stays, not a loading line");
+});
+
 test("a rejected mutation is surfaced as attention, not silently retried, and can be dismissed", async () => {
   const { app } = await ready({
     syncHandler: (mutations) => ({ status: 200, body: { outcomes: mutations.map((m) => ({ outcome: "rejected", mutationId: m.mutationId, note: "a device may not move a job to \"reassigned\". That transition belongs to dispatch." })) } }),

@@ -19,8 +19,8 @@ export const orders: Screen = (ctx) => {
     ${pageHead("Orders", "Purchase orders from Rankine. Acknowledge each with the day it will ship, record shipments as they leave, and invoice what Rankine has received.")}
     ${whenReady(ctx, list.value, (o) => statStrip([
       { n: o.orders.filter((x) => x.state === "issued").length, label: "Need your acknowledgement", ...(o.orders.some((x) => x.state === "issued") ? { tone: "at_risk" as const } : {}) },
-      { n: o.orders.filter((x) => x.state === "acknowledged").length, label: "Open", tone: "info" },
-      { n: o.orders.filter((x) => x.state === "received").length, label: "Received in full", tone: "ok" },
+      { n: o.orders.filter((x) => x.state === "acknowledged").length, label: "Open" },
+      { n: o.orders.filter((x) => x.state === "received").length, label: "Received in full" },
       { n: o.orders.length, label: "All orders" },
     ], "order-stats"))}
     ${panel(whenReady(ctx, list.value, (o) => html`<div class="s7-scroll">${DataGrid({

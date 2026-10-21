@@ -1,4 +1,4 @@
-import { html, RefusalNotice, PrimaryAction, type VNode, type Router } from "../../../../packages/ui/src/index.ts";
+import { html, retryable, RefusalNotice, PrimaryAction, type VNode, type Router } from "../../../../packages/ui/src/index.ts";
 import type { Shell } from "../../../../packages/shell/src/index.ts";
 import type { Refusal, DensityOf, CoverageOutput } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
@@ -35,7 +35,7 @@ export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) =>
   switch (r.state) {
     case "loading": return html`<p class="s1-loading" role="status">Loading…</p>`;
     case "ready": return view(r.value);
-    case "refused": return refusalView(ctx, r.refusal, retry ? [{ label: "Try again", onSelect: retry, primary: true }] : []);
+    case "refused": return refusalView(ctx, r.refusal, retry && retryable(r.refusal) ? [{ label: "Try again", onSelect: retry, primary: true }] : []);
   }
 };
 

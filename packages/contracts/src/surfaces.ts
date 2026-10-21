@@ -46,8 +46,15 @@ export type Surface = {
   readonly realtime: boolean;
   /** Offline writes. False on S2 by design — it must never fork the truth. */
   readonly offline: boolean;
-  /** What this surface does when the backbone is unreachable. S0 obligation. */
+  /** What this surface does when the backbone is unreachable. S0 obligation — written for the people who build it. */
   readonly degraded: string;
+  /**
+   * The same promise in the reader's words: the line the banner shows and the
+   * reason a paused control gives. `degraded` names mechanisms (gateway,
+   * replay, scope) that mean nothing to a customer, a firm or a crew on a
+   * roof; this says what still works and what waits for the connection.
+   */
+  readonly degradedNotice: string;
   /**
    * Does this surface render the state ramp — a status pill, a compliance
    * badge, an SLA figure, a refusal?
@@ -88,6 +95,7 @@ const REGISTRY = {
     writes: ["lead", "call_record"],
     density: "comfort", realtime: false, offline: false,
     degraded: "Statically generated; forms queue to a durable buffer and replay. Site stays up when the gateway does not. Coverage map is read from the hierarchy — never hard-coded (D14: supply before signature).",
+    degradedNotice: "We can't reach our system right now. You can still send a request — it is kept on this device and sent as soon as the connection returns.",
     // The only surface that shows no state: an anonymous visitor has nothing
     // under SLA and no compliance to read. So it is the only one that wears the
     // brand red, which is also the one place the brand has to do its work.
@@ -129,6 +137,7 @@ const REGISTRY = {
              "vendor", "receiving_point", "price_decision", "po_receipt", "rma_request"],
     density: "console", realtime: false, offline: false,
     degraded: "Read-only from last server state. NO offline writes, ever — this is the only surface that authors hierarchy, contract and subcontractor-network truth, and a forked truth here is unrecoverable.",
+    degradedNotice: "Offline — showing the records as last saved. Changes are paused until the connection returns; nothing is saved on this device.",
     stateRamp: true,
     whiteLabel: false,
   },
@@ -143,6 +152,7 @@ const REGISTRY = {
     writes: ["assignment", "job_state", "crew_release", "escalation", "job_note", "job_flag", "job_update", "job_message", "job", "service_request"],
     density: "console", realtime: true, offline: false,
     degraded: "Board freezes with a visible staleness clock and stops accepting assignments. A dispatcher acting on a stale board is worse than a dispatcher who knows the board is stale. The compliance gate is enforced HERE, at assignment, with no override path.",
+    degradedNotice: "Offline — the board is frozen at its last update and assignments are paused until the connection returns.",
     stateRamp: true,
     whiteLabel: false,
   },
@@ -161,6 +171,7 @@ const REGISTRY = {
     writes: [],
     density: "console", realtime: false, offline: false,
     degraded: "Warehouse-backed and already asynchronous; shows the age of its last rollup and nothing more.",
+    degradedNotice: "Showing the figures from the last update. They refresh when the connection returns.",
     stateRamp: true,
     whiteLabel: false,
   },
@@ -171,6 +182,7 @@ const REGISTRY = {
     writes: ["job_state", "checklist", "photo", "part_used", "time_entry", "signature"],
     density: "field", realtime: false, offline: true,
     degraded: "Offline-first: device holds intent, server holds truth, replay is idempotent by client-generated mutation id. `assignments` is server-authoritative so an offline device cannot route around the compliance gate. IDENTICAL for employed and subcontracted crews.",
+    degradedNotice: "Offline — your taps are saved on this device and send when you are back in signal.",
     stateRamp: true,
     whiteLabel: false,
   },
@@ -189,6 +201,7 @@ const REGISTRY = {
     // customer waiting on nobody — so while the gateway is unreachable the
     // form is refused with this reason, and the reads carry their age.
     degraded: "Last known sites, work and agreements, each stamped with when the gateway last answered. Requests are not taken while the gateway is unreachable — a request that looks accepted and was never received is worse than one refused. One codebase, four scopes — scoping is enforced at the gateway, never by client-side filtering.",
+    degradedNotice: "We can't reach our system right now. You are seeing your sites and work as of the time below; new requests are paused until the connection returns.",
     stateRamp: true,
     whiteLabel: true,
   },
@@ -199,6 +212,7 @@ const REGISTRY = {
     writes: ["po_ack", "ship_date", "vendor_invoice", "catalog_price", "rma"],
     density: "comfort", realtime: false, offline: false,
     degraded: "Read-only PO list. Vendors see parts, POs and destination tier — never customer names, never job records.",
+    degradedNotice: "We can't reach Rankine's system right now. You can view your orders; changes are paused until the connection returns.",
     stateRamp: true,
     whiteLabel: false,
   },
@@ -211,6 +225,7 @@ const REGISTRY = {
     writes: ["compliance_doc", "crew_roster", "settlement_ack", "dispute"],
     density: "comfort", realtime: false, offline: false,
     degraded: "Document upload queues to durable storage and acknowledges on receipt, not on processing. Settlement views serve last statement. A firm sees its own crews, its own jobs, its own compliance, its own money — never another firm's rate card.",
+    degradedNotice: "We can't reach Rankine's system right now. You can view your crews, work and last statement; changes are paused until the connection returns.",
     stateRamp: true,
     whiteLabel: false,
   },

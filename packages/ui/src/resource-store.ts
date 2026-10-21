@@ -20,6 +20,13 @@ export const createResourceStore = (
   now: () => number,
 ): Store => {
   const cache = new Map<string, Signal<Resource<unknown>>>();
+  // The last value each key was answered with. It outlives `invalidate`, so a
+  // refetch shows what the screen already had instead of a loading line, and a
+  // refetch that cannot reach the gateway keeps it on screen — the surface's
+  // freshness line says how old it is — instead of trading a job the user is
+  // working for a transport error. A refusal the gateway actually gave
+  // (forbidden, not found) still replaces it: that is new information.
+  const last = new Map<string, unknown>();
   const lastOkAt = signal<number | null>(null);
   const notice = signal<readonly string[]>([]);
   const version = signal(0);
@@ -27,13 +34,15 @@ export const createResourceStore = (
   const read = <T>(key: string, fetcher: () => Promise<T>): Signal<Resource<T>> => {
     const hit = cache.get(key);
     if (hit) return hit as Signal<Resource<T>>;
-    const resource = signal<Resource<T>>({ state: "loading" });
+    const held = last.has(key);
+    const resource = signal<Resource<T>>(held ? { state: "ready", value: last.get(key) as T } : { state: "loading" });
     cache.set(key, resource as Signal<Resource<unknown>>);
     fetcher().then(
-      (value) => { lastOkAt.value = now(); resource.value = { state: "ready", value }; },
+      (value) => { lastOkAt.value = now(); last.set(key, value); resource.value = { state: "ready", value }; },
       (error: unknown) => {
         const refusal = shell.refusalOf(error) ?? { kind: "transport", status: null, message: String(error) } as const;
-        if (refusal.kind !== "transport") lastOkAt.value = now();
+        if (refusal.kind !== "transport") { lastOkAt.value = now(); last.delete(key); }
+        else if (held) return;
         resource.value = { state: "refused", refusal };
       },
     );

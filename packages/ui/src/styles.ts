@@ -36,7 +36,7 @@ html,body{font-variant-numeric:tabular-nums}
 body{margin:0;background:var(--color-page);color:var(--color-text);font-family:var(--font-text);font-size:var(--body-text);line-height:1.6}
 :focus-visible{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}
 code,.ac-num{font-family:var(--font-instrument);font-variant-numeric:tabular-nums}
-code{font-size:0.95em;background:var(--color-surface-sunken);padding:1px var(--space-1);border:1px solid var(--color-border)}
+code{background:var(--color-surface-sunken);padding:1px var(--space-1);border:1px solid var(--color-border)}
 main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--page-max);margin:0 auto}
 
 /* ---- Masthead: the badge, the wordmark, the descriptor ----
@@ -93,7 +93,7 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
    OWN ink, never in --color-border: a chip's rule carries SHAPE, and the border
    role measures 2.22:1 (errata E-08). */
 .ac-pill{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;min-height:24px;border-radius:var(--radius-pill);border:1px solid var(--status-rule,transparent);color:var(--status-color);background:var(--status-fill,color-mix(in srgb,var(--status-color) 11%,var(--color-surface)));font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-tight);white-space:nowrap;line-height:1.3}
-.ac-pill__glyph{color:var(--status-color);font-size:0.85em}
+.ac-pill__glyph{color:var(--status-color)}
 .ac-pill[data-status="ok"]{--status-color:var(--color-status-ok)}
 .ac-pill[data-status="at_risk"]{--status-color:var(--color-status-at-risk);--status-rule:color-mix(in srgb,var(--color-status-at-risk) 45%,transparent)}
 .ac-pill[data-status="breached"]{--status-color:var(--color-status-breached);--status-rule:var(--color-status-breached);--status-fill:color-mix(in srgb,var(--color-status-breached) 15%,var(--color-surface))}
@@ -143,8 +143,8 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
    above became none on the dispatch board's only keyboard control. Measured
    in Chromium: outline-style none on a focused sort button. Reset what a button
    actually brings and nothing else. */
-.ac-grid__sort{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:0;text-align:inherit;cursor:pointer;color:inherit;font:inherit}
-.ac-grid__row[tabindex]{cursor:pointer}
+.ac-grid__sort{min-height:var(--row-height);appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:0;text-align:inherit;cursor:pointer;color:inherit;font:inherit}
+.ac-grid__row[tabindex]{cursor:pointer;height:var(--row-height)}
 .ac-grid__row:hover{background:color-mix(in srgb,var(--color-surface-sunken) calc(100% * var(--hover)),transparent)}
 .ac-grid__row[data-selected="true"]{background:color-mix(in srgb,var(--color-surface-sunken) 60%,var(--color-surface));box-shadow:inset 3px 0 0 var(--color-action)}
 .ac-grid__empty td{color:var(--color-text-muted);text-align:center}
@@ -199,7 +199,6 @@ ac-degraded[hidden]{display:none}
    the fill carries salience; this is the fill. Transparent on the light stock,
    where a fault is an outline, and oxide at 6.63:1 on the plate. */
 .ac-degraded__mark{color:var(--color-status-breached);background:var(--color-status-breached-fill);padding:0 var(--space-1);line-height:1.4}
-.ac-degraded__title{font-family:var(--font-display);letter-spacing:var(--track-normal);text-transform:uppercase}
 .ac-degraded__age{font-family:var(--font-instrument);color:var(--color-text-muted);font-size:var(--text-xs);letter-spacing:var(--track-normal)}
 /* ---- Rev A page structure — shared by every surface ----
    A page head (the screen's name and one plain sentence), a stat strip where
@@ -216,7 +215,9 @@ ac-degraded[hidden]{display:none}
 .ac-stat[data-tone="ok"]{--stat-ink:var(--color-status-ok)}
 .ac-stat[data-tone="at_risk"]{--stat-ink:var(--color-status-at-risk)}
 .ac-stat[data-tone="breached"]{--stat-ink:var(--color-status-breached)}
-.ac-stat[data-tone="info"]{--stat-ink:var(--color-action-text)}
+/* E-14 on a tile: on the plate the breached ink is body-copy cream, so the fault moves into FORM — the oxide fill, the one solid chip — and every word on it takes the ink measured against that fill (Form R-4, 8.00:1). Transparent on the light stock, so this is a no-op there. */
+[data-density="field"] .ac-stat[data-tone="breached"]{background:var(--color-status-breached-fill);border-color:var(--color-status-breached)}
+[data-density="field"] .ac-stat[data-tone="breached"] .ac-stat__l,[data-density="field"] .ac-stat[data-tone="breached"] .ac-stat__s{color:var(--color-status-breached)}
 .ac-panel{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-4)}
 /* A panel is the one card on the page ground; what sits in it drops its own elevation, never a second card in a card. */
 .ac-panel .ac-grid{box-shadow:none;border-radius:var(--radius-control)}
@@ -268,7 +269,7 @@ ac-degraded[hidden]{display:none}
 .ac-field{display:flex;flex-direction:column;gap:var(--space-1);flex:1;min-width:0}
 .ac-field>span{font-weight:600;font-size:var(--text-sm);color:var(--color-text-muted)}
 .ac-field small,.ac-field__hint{font-weight:400;color:var(--color-text-muted);font-size:var(--text-sm)}
-.ac-input{min-height:var(--control-height);padding:0 var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit}
+.ac-input{min-height:var(--control-height);padding:0 var(--space-2);border:1px solid var(--color-border-control);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit}
 [data-density="field"] .ac-input{padding:0 var(--space-3)}
 .ac-textarea{padding:var(--space-2);min-height:calc(var(--control-height) * 2.5);resize:vertical}
 /* A notice is a state with a sentence beside it: outlined in the state's own

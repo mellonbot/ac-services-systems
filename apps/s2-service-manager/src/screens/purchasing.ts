@@ -1,4 +1,4 @@
-import { html, pageHead, panel, signal, DataGrid, StatusPill, type VNode, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type {
   Refusal, VendorWire, ReceivingPointWire, CatalogItemWire, PurchaseOrderWire, PoLineWire, PoState, VendorInvoiceWire, RmaWire, RegionWire,
 } from "../../../../packages/contracts/src/index.ts";
@@ -36,12 +36,13 @@ export const refreshProcurement = (store: Store): void => {
 /** "42.50" → "4250". Two decimals at most; money is never a float. */
 export const toMinor = (typed: string): string => parseMoney(typed);
 
-export const PO_STATE: Readonly<Record<PoState, { status: Status; word: string }>> = {
-  draft: { status: "blocked", word: "Draft" },
-  issued: { status: "at_risk", word: "Waiting on vendor" },
-  acknowledged: { status: "ok", word: "Acknowledged" },
-  received: { status: "ok", word: "Received" },
-  cancelled: { status: "blocked", word: "Cancelled" },
+/** An order's place in its lifecycle is FILING state, drawn in the filing marks (styles.ts), never the status ramp — "received" is not health. */
+export const PO_STATE: Readonly<Record<PoState, { tone: "pending" | "held" | "live" | "ended"; word: string }>> = {
+  draft: { tone: "pending", word: "Draft" },
+  issued: { tone: "held", word: "Waiting on vendor" },
+  acknowledged: { tone: "live", word: "Acknowledged" },
+  received: { tone: "live", word: "Received" },
+  cancelled: { tone: "ended", word: "Cancelled" },
 };
 const TIER_WORD = { location_stock: "Location stock", regional_hub: "Regional hub", national: "National" } as const;
 
@@ -61,7 +62,7 @@ const act = async (ctx: ScreenContext, fn: () => Promise<string>): Promise<boole
 };
 const refusal = (ctx: ScreenContext): VNode | null =>
   outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: false, pending: null }; } }]) : null;
-const pill = (ctx: ScreenContext, s: PoState): VNode => StatusPill({ density: ctx.density, status: PO_STATE[s].status, label: PO_STATE[s].word }) ?? html``;
+const pill = (_ctx: ScreenContext, s: PoState): VNode => html`<span class="s2-state" data-tone=${PO_STATE[s].tone}>${PO_STATE[s].word}</span>`;
 
 // ---------------------------------------------------------------------------
 // /purchasing — vendors, receiving points, orders.

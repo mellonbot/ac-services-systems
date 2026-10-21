@@ -27,7 +27,7 @@ export const jobList: Screen = (ctx) => {
     ${whenReady(ctx, jobs.value, (out) => statStrip([
       { n: out.jobs.length, label: "Assigned" },
       { n: out.jobs.filter((j) => j.priority === "emergency").length, label: "Emergency", ...(out.jobs.some((j) => j.priority === "emergency") ? { tone: "breached" as const } : {}) },
-      { n: out.jobs.filter((j) => ["en_route", "on_site", "in_progress"].includes(j.state)).length, label: "Under way", tone: "info" },
+      { n: out.jobs.filter((j) => ["en_route", "on_site", "in_progress"].includes(j.state)).length, label: "Under way" },
     ], "shift-stats"))}
     ${whenReady(ctx, jobs.value, (out) => panel(out.jobs.length === 0
       ? html`<p class="s5-empty">Nothing assigned to this shift right now.</p>`

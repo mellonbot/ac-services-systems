@@ -39,6 +39,15 @@ export const SEMANTIC = Object.freeze({
   "color.border": P.stock.rule,
   /** The heavier rule: plate heads, the underline beneath a table head. Still decorative. */
   "color.border-hard": P.stock.ruleHard,
+  /**
+   * The one border that DOES carry shape: the edge of a control a person has to
+   * find before they can use it — an input, a select, an unchosen choice. WCAG
+   * 1.4.11 asks 3:1 of that edge against what it sits on, and both decorative
+   * rules are fenced below 3:1 on purpose (E-08), so it was drawn in neither.
+   * No new ink: it is ink.mid, the muted word, which clears 6.58:1 on the
+   * header ground — the worst one.
+   */
+  "color.border-control": P.ink.mid,
   "color.text": P.ink.black,
   /** ink.mid, not ink.light: the published ink.light is 3.27:1 on the header ground (E-07). */
   "color.text-muted": P.ink.mid,

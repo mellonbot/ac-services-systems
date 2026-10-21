@@ -14,7 +14,7 @@ export const pageHead = (title: ComponentChildren, lede?: ComponentChildren, sid
     ${side ? html`<div class="ac-page-head__side">${side}</div>` : null}
   </header>`;
 
-export type StatTone = "ok" | "at_risk" | "breached" | "info";
+export type StatTone = "ok" | "at_risk" | "breached";
 export type StatTile = { readonly n: ComponentChildren; readonly label: string; readonly sub?: string; readonly tone?: StatTone };
 
 /** A tone is set only where the number IS a state (a count of breaches, of things waiting); a plain count stays ink. */

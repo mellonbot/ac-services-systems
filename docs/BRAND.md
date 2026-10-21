@@ -35,6 +35,7 @@ test the house brand red fails, which is what lets us hold a tenant to it.
 | `color.surface-sunken` | `#D4DCE4` | light |
 | `color.border` | `#B3BFC9` | light |
 | `color.border-hard` | `#8695A2` | light |
+| `color.border-control` | `#3C4A55` | light |
 | `color.text` | `#0E1418` | light |
 | `color.text-muted` | `#3C4A55` | light |
 | `color.action` | `#00A3D9` | light |
@@ -67,6 +68,7 @@ only solid chip, with the frost word on it at 8.00:1.
 | `color.surface-sunken` | `#050A0D` |
 | `color.border` | `#253039` |
 | `color.border-hard` | `#55636F` |
+| `color.border-control` | `#91A1AE` |
 | `color.text` | `#E4ECF2` |
 | `color.text-muted` | `#91A1AE` |
 | `color.action` | `#00A3D9` |

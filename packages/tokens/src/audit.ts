@@ -21,6 +21,18 @@ import { TYPE_FLOOR, type Density } from "./density.ts";
  *   below-floor    `font-size` in absolute px under TYPE_FLOOR[density]. The
  *                  scale is the density's; a hand-typed 10px on the comfort
  *                  tier is under the bulletin's own smallest step.
+ *   relative-type  `font-size` in em or % below 1. The size is a fraction of
+ *                  whatever it sits in, so no parse can prove the floor: a
+ *                  .85em pill glyph inside an 11px pill rendered at 9.35px
+ *                  and passed below-floor because it was never in px.
+ *   state-as-category  a status ink in a rule keyed to a tone that is not a
+ *                  state (`[data-tone="scheduled"]`). Rule 1: colour is state
+ *                  or category, never both — a category drawn in the fault
+ *                  ink reads as a fault to everyone who learned the ramp.
+ *   control-without-height  a rule that makes something clickable
+ *                  (`cursor:pointer`) where no rule for that selector sets a
+ *                  height. Text buttons sized by their padding came out 17 to
+ *                  33px on a tier whose control is 36 to 56.
  *
  * `color-mix(...)` is exempt everywhere: a fill mixed toward the surface is
  * a soft fill, which is how a chip and a pressed filter are drawn. box-shadow
@@ -28,7 +40,7 @@ import { TYPE_FLOOR, type Density } from "./density.ts";
  * not a rule carrying shape.
  */
 export type SheetViolation = {
-  readonly rule: "fill-as-word" | "fill-as-rule" | "below-floor";
+  readonly rule: "fill-as-word" | "fill-as-rule" | "below-floor" | "relative-type" | "state-as-category" | "control-without-height";
   readonly selector: string;
   readonly message: string;
 };
@@ -72,13 +84,25 @@ const paintedFill = (value: string): keyof typeof FILL_ROLES | null => {
   return null;
 };
 
+/** The tone values that ARE states — the ramp's own names. Any other tone keyed to a status ink is a category in a state's colour. */
+const STATE_TONES: readonly string[] = ["ok", "at_risk", "breached", "blocked"];
+const STATUS_INK = /var\(--color-status-(?:ok|at-risk|breached|blocked)\s*[,)]/;
+
 export const sheetViolations = (css: string, density: Density): readonly SheetViolation[] => {
   const out: SheetViolation[] = [];
   const declared = css.replace(/\/\*[\s\S]*?\*\//g, "");
   const floor = TYPE_FLOOR[density];
-  for (const m of declared.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    const selector = m[1]!.trim();
-    for (const decl of m[2]!.split(";")) {
+  const rules = [...declared.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ selector: m[1]!.trim(), body: m[2]! }));
+  // A height set for a selector anywhere in the sheet counts, so a base rule and a state rule can split the declarations.
+  const sized = new Set(rules.filter((r) => /(?:^|;)\s*(?:min-)?height\s*:/.test(r.body)).flatMap((r) => r.selector.split(",").map((s) => s.trim())));
+  for (const { selector, body } of rules) {
+    if (/(?:^|;)\s*cursor\s*:\s*pointer/.test(body))
+      for (const part of selector.split(",").map((s) => s.trim()))
+        if (!sized.has(part)) out.push({ rule: "control-without-height", selector: part, message: "is clickable but no rule sets its height — give it min-height:var(--control-height)" });
+    const tone = /\[data-(?:tone|status|state)="([^"]+)"\]/.exec(selector);
+    if (tone && !STATE_TONES.includes(tone[1]!) && STATUS_INK.test(body))
+      out.push({ rule: "state-as-category", selector, message: `draws the "${tone[1]}" tone in a status ink — "${tone[1]}" is not a state; use ink, the arc family or line form` });
+    for (const decl of body.split(";")) {
       const colon = decl.indexOf(":");
       if (colon < 0) continue;
       const prop = decl.slice(0, colon).trim().toLowerCase();
@@ -92,6 +116,8 @@ export const sheetViolations = (css: string, density: Density): readonly SheetVi
       } else if (prop === "font-size") {
         const px = /^(\d+(?:\.\d+)?)px$/.exec(value);
         if (px && Number(px[1]) < floor) out.push({ rule: "below-floor", selector, message: `sets ${value}, below the ${density} tier's ${floor}px floor — use the density's scale (--text-*)` });
+        const rel = /^(\d*\.?\d+)(em|%)$/.exec(value);
+        if (rel && Number(rel[1]) / (rel[2] === "%" ? 100 : 1) < 1) out.push({ rule: "relative-type", selector, message: `sets ${value}, a fraction of its parent that no parse can hold to the floor — use the density's scale (--text-*)` });
       }
     }
   }

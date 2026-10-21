@@ -5,9 +5,9 @@
  */
 export const S2_CSS = `
 .s2-app{display:flex;flex-direction:column;gap:var(--space-3)}
-.s2-notice{display:flex;gap:var(--space-3);align-items:baseline;padding:var(--space-2) var(--space-3);background:var(--color-surface-sunken);border:1px solid var(--color-status-at-risk);border-radius:var(--radius-control)}
+.s2-notice{display:flex;gap:var(--space-3);align-items:baseline;padding:var(--space-2) var(--space-3);background:var(--color-surface-sunken);border:1px solid var(--color-border-hard);border-radius:var(--radius-control)}
 .s2-notice p{margin:0}
-.s2-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2)}
+.s2-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2);min-height:var(--control-height)}
 .s2-two-col{display:grid;grid-template-columns:minmax(var(--column-side),1fr) minmax(0,3fr);gap:var(--space-6);align-items:start}
 .s2-col--orgs{position:sticky;top:var(--space-3)}
 .s2-node{display:inline-block;padding-inline-start:calc(var(--depth,0) * var(--space-6))}
@@ -94,13 +94,13 @@ export const S2_CSS = `
 .s2-mutation:hover:not(:disabled){background:var(--color-surface-sunken)}
 .s2-mutation:focus-visible,.s2-help summary:focus-visible{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}
 .s2-mutation:disabled{opacity:0.55;cursor:not-allowed}
-.s2-mutation--danger{border-color:var(--color-status-breached);color:var(--color-status-breached)}
+.s2-mutation--danger{font-weight:600}
 .s2-mutation--quiet{color:var(--color-text-muted)}
 .s2-confirm{display:flex;flex-direction:column;gap:var(--space-1);min-width:min(var(--measure-narrow),100%);max-width:var(--measure-short);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
 .s2-confirm p{margin:0;color:var(--color-text-muted)}
 .s2-confirm__actions{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-1)}
 .s2-help{color:var(--color-text-muted);font-size:var(--text-sm)}
-.s2-help summary{color:var(--color-action-text);cursor:pointer;font-weight:600}
+.s2-help summary{display:flex;align-items:center;min-height:var(--control-height);color:var(--color-action-text);cursor:pointer;font-weight:600}
 .s2-help p{margin:var(--space-1) 0 0}
 .s2-proposal{display:flex;flex-direction:column;gap:var(--space-2)}
 `;

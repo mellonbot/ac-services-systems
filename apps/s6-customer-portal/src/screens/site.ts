@@ -136,7 +136,7 @@ export const site: Screen = (ctx, params) => {
         ${PrimaryAction({ density: ctx.density, label: "Request service here", id: "site-request", onClick: () => ctx.router.navigate("request", { siteId: node.id }) })}
         ${linkTo(ctx, "terms", { tier: "site", nodeId: node.id }, "Terms at this site")}`)}
       ${statStrip([
-        { n: openJobs.length, label: "Open jobs", tone: "info" },
+        { n: openJobs.length, label: "Open jobs" },
         { n: siteRequests.filter((r) => r.jobId === null).length, label: "Requests waiting" },
         { n: equipment.value.state === "ready" ? equipment.value.value.equipment.filter((e) => e.active).length : "…", label: "Units on record" },
       ], "site-facts")}
