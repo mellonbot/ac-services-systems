@@ -169,7 +169,7 @@ export const network: Screen = (ctx, params) => {
       linkTo(ctx, "network.crew.new", {}, "+ Crew", "ac-action s2-link--action"), "our-crews");
   };
 
-  return html`${pageHead("Network", "The subcontractor firms we dispatch, their crews, and whether each crew's documents clear the gate today.")}<div class="s2-two-col">
+  return html`${pageHead("Technician Network", `Our own ${OWN_CREWS_LABEL} crews and the subcontractor firms we dispatch, and whether each crew's documents clear the gate today.`)}<div class="s2-two-col">
     <aside class="s2-col--orgs">${whenReady(ctx, firms.value, (f) => firmGrid(f.firms))}</aside>
     ${whenReady(ctx, regions.value, (r) =>
       firmId

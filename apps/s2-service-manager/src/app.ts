@@ -94,7 +94,7 @@ const ROUTE_LABELS: Readonly<Record<Exclude<ScreenId, "login">, string>> = {
   "contracts.new": "New agreement",
   "terms.override": "Term overrides",
   "terms.resolved": "Resolved terms",
-  "network": "Network",
+  "network": "Technician Network",
   "network.firm.new": "New firm",
   "network.crew.new": "New crew",
   "network.crew.documents": "Crew documents",
@@ -248,7 +248,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const path = p.shell.context?.path.length
       ? p.shell.context.path
       : p.shell.context ? [p.shell.context.parent] : [];
-    const entity = loc ? activeEntity(loc.params, p.store) : null;
+    // The network screen with no firm open is our own crews; say so, as its tab does.
+    const entity = loc ? activeEntity(loc.params, p.store) ?? (routeId === "network" ? OWN_CREWS_LABEL : null) : null;
     const firms = p.store.read(keyOf("firms.list"), () => p.shell.gateway.listFirms({})).value;
     const tab = (id: Exclude<ScreenId, "login">, params: Readonly<Record<string, string>>, title: string, current: boolean): VNode =>
       html`<a class="ac-seg__item" data-current=${current ? "true" : "false"} aria-current=${current ? "page" : undefined} href=${router.href(id, params)} onClick=${(e: Event) => { e.preventDefault(); router.navigate(id, params); }}>${title}</a>`;
@@ -287,7 +288,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           <span class="s2-context__label">Current location</span>
           <ol>
             ${group ? html`<li>${group.label}</li>` : null}
-            <li>${routeId ? ROUTE_LABELS[routeId] : "Workspace"}</li>
+            ${routeId === "network" ? null : html`<li>${routeId ? ROUTE_LABELS[routeId] : "Workspace"}</li>`}
             ${entity ? html`<li aria-current="location">${entity}</li>` : null}
           </ol>
         </div>
@@ -310,7 +311,7 @@ export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: 
     login(String(f.get("email") ?? ""), String(f.get("password") ?? ""));
   };
   return html`<section class="s2-login">
-    ${pageHead(SURFACE.name, "Sign in to keep customer records, the subcontractor network and purchasing.")}
+    ${pageHead(SURFACE.name, "Sign in to keep customer records, the technician network and purchasing.")}
     <form class="ac-form" onSubmit=${submit} id="login-form">
       <label class="ac-field"><span>Email</span><input class="ac-input" name="email" type="email" required autocomplete="username" /></label>
       <label class="ac-field"><span>Password</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>

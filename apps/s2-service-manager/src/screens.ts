@@ -28,7 +28,7 @@ export const SCREENS = {
   "network.crew.new":  { path: "/network/crews/new/:firmId?",            uses: ["crews.create", "firms.list", "regions.list"] },
   "network.crew.documents": { path: "/network/crews/:crewId/documents",  uses: ["credentials.list", "credentials.record", "credentials.verify", "crews.list"] },
   "network.rates":     { path: "/network/rates/:firmId",                 uses: ["rateCards.list", "rateCards.set", "firms.list"] },
-  "network":           { path: "/network/:firmId?",                      uses: ["firms.list", "firms.update", "crews.list", "regions.list"], title: "Network" },
+  "network":           { path: "/network/:firmId?",                      uses: ["firms.list", "firms.update", "crews.list", "regions.list"], title: "Technician Network" },
   // item 11: purchasing — the office's side of procurement (S7 is the vendor's).
   "purchasing.vendor": { path: "/purchasing/vendors/:vendorId",          uses: ["vendors.list", "catalog.list", "catalog.addItem", "prices.decide", "receivingPoints.list", "pos.create"] },
   "purchasing.po":     { path: "/purchasing/pos/:poId",                  uses: ["pos.detail", "pos.issue", "pos.cancel", "receipts.record", "rmas.request"] },

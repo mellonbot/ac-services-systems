@@ -212,7 +212,7 @@ async function main(): Promise<void> {
 
     // ── 3. the network screen is reachable and empty-stated
     await cdp.navigate(`${SITE}${SURFACE_PATHS.S2}/network`);
-    await cdp.waitFor(`document.querySelector("h1")?.textContent?.trim() === "Network"`, "the network screen");
+    await cdp.waitFor(`document.querySelector("h1")?.textContent?.trim() === "Technician Network"`, "the network screen");
     check(3, "the network screen renders");
 
     // ── 4. a firm cannot be recorded without an OQ5 position

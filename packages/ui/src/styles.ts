@@ -247,7 +247,7 @@ ac-degraded[hidden]{display:none}
 .ac-nav__signout{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);cursor:pointer;color:var(--color-action-text);font:inherit;min-height:var(--control-height)}
 @media (max-width:760px){.ac-nav{align-items:stretch}.ac-nav__who{order:2;width:100%;margin-inline-start:0}}
 /* Grouped nav: a surface whose screens split into record domains (S2: customer
-   records, the subcontractor network, purchasing) gives each domain its own
+   records, the technician network, purchasing) gives each domain its own
    segmented track, labelled, with page ground between. One shared track reads
    the domains as one list. The open domain carries the 3px top rule and a
    full-strength label: form first, so it still reads in greyscale. */

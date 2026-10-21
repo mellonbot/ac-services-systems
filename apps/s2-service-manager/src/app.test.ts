@@ -161,8 +161,13 @@ test("Technician Network: AC Services DFW first, then a tab per firm that can st
   assert.match(group, /data-current="true" aria-current="page" href="\/network\/a2000000-0000-0000-0000-000000000060">Cool Air Partners LLC/);
   assert.match(group, /data-current="false" href="\/network">AC Services DFW/);
 
+  assert.match(render(app.view()), /<li>Technician Network<\/li><li aria-current="location">Cool Air Partners LLC<\/li>/, "the breadcrumb names the firm, not a second 'Network'");
+
   app.router.navigate("network", {});
-  assert.match(render(app.view()), /data-current="true" aria-current="page" href="\/network">AC Services DFW/);
+  const own = render(app.view());
+  assert.match(own, /data-current="true" aria-current="page" href="\/network">AC Services DFW/);
+  assert.match(own, /<h1 class="ac-page-head__title">Technician Network<\/h1>/);
+  assert.match(own, /<li>Technician Network<\/li><li aria-current="location">AC Services DFW<\/li>/);
 });
 
 test("the tree screen: customers on the left, the selected tree ordered region → location → site with OUR region on every row", async () => {
