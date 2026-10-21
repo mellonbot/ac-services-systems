@@ -46,6 +46,8 @@ export const SEMANTIC_DARK = Object.freeze({
   "color.surface-sunken": P.plate.well,
   "color.border": P.plate.rule,
   "color.border-hard": P.plate.ruleHard,
+  // frostMute, the plate's muted word: 6.64:1 on the plate ground. See semantic.ts.
+  "color.border-control": P.plate.frostMute,
   "color.text": P.plate.frost,
   "color.text-muted": P.plate.frostMute,
   "color.action": P.arc.fill,

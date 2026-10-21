@@ -267,7 +267,7 @@ ac-degraded[hidden]{display:none}
 .ac-field{display:flex;flex-direction:column;gap:var(--space-1);flex:1;min-width:0}
 .ac-field>span{font-weight:600;font-size:var(--text-sm);color:var(--color-text-muted)}
 .ac-field small,.ac-field__hint{font-weight:400;color:var(--color-text-muted);font-size:var(--text-sm)}
-.ac-input{min-height:var(--control-height);padding:0 var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit}
+.ac-input{min-height:var(--control-height);padding:0 var(--space-2);border:1px solid var(--color-border-control);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit}
 [data-density="field"] .ac-input{padding:0 var(--space-3)}
 .ac-textarea{padding:var(--space-2);min-height:calc(var(--control-height) * 2.5);resize:vertical}
 /* A notice is a state with a sentence beside it: outlined in the state's own
