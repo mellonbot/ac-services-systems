@@ -9,7 +9,7 @@ export const S5_CSS = `
 .s5-notice{display:flex;gap:var(--space-3);align-items:baseline;padding:var(--space-2) var(--space-3);background:var(--color-surface-sunken);border:1px solid var(--color-status-at-risk);border-radius:var(--radius-control)}
 .s5-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2);min-height:var(--control-height)}
 .s5-loading,.s5-empty,.s5-muted{color:var(--color-text-muted)}
-.s5-login{max-width:44ch;margin:6vh auto 0}
+.s5-login{max-width:var(--measure-narrow);margin:6vh auto 0}
 .s5-job{display:flex;flex-direction:column;gap:var(--space-4)}
 .s5-job-list{list-style:none;margin:0;padding:0}
 .s5-job-row{display:flex;align-items:center;gap:var(--space-3);min-height:var(--row-height);padding:var(--space-2) 0}

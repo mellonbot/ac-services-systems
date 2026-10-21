@@ -23,7 +23,7 @@ export const S4_CSS = `
 .s4-metric{appearance:none;border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);min-height:var(--control-height);padding:0 var(--space-3);cursor:pointer;font:inherit;transition:border-color var(--motion-fast) var(--ease),color var(--motion-fast) var(--ease),box-shadow var(--motion-fast) var(--ease)}
 .s4-metric[aria-pressed="true"]{border-color:var(--color-action-text);color:var(--color-action-text);box-shadow:var(--elevation-raised)}
 @media (prefers-reduced-motion:reduce){.s4-metric{transition:none}}
-.s4-trends{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,28ch),1fr));gap:var(--space-3)}
+.s4-trends{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--tile-wide)),1fr));gap:var(--space-3)}
 .s4-trend{margin:0;border:1px solid var(--color-border);border-radius:var(--radius-card);background:var(--color-surface);padding:var(--space-2) var(--space-3)}
 .s4-trend h3{margin:0;font-size:var(--text-sm);display:flex;justify-content:space-between;gap:var(--space-2)}
 .s4-trend svg{display:block;width:100%;height:56px}
@@ -32,5 +32,5 @@ export const S4_CSS = `
 .s4-trend__end{fill:var(--color-action-text)}
 .s4-trend__grid{stroke:var(--color-border);stroke-width:1}
 .s4-readonly{font-size:var(--text-sm);color:var(--color-text-muted);border-top:1px solid var(--color-border);padding-top:var(--space-2)}
-.s4-login{max-width:40ch;margin:10vh auto 0}
+.s4-login{max-width:var(--measure-narrow);margin:10vh auto 0}
 `;

@@ -160,7 +160,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
 
 if (typeof document !== "undefined" && document.getElementById("mount")) {
   const style = document.createElement("style");
-  style.textContent = ".ac-status{max-width:65ch;padding-block:var(--space-6)}.ac-status h1{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-xl);letter-spacing:var(--track-normal);text-transform:uppercase}.ac-status p{margin:0 0 var(--space-2)}.ac-status__scope{color:var(--color-text-muted);font-size:var(--text-sm)}";
+  style.textContent = ".ac-status{max-width:var(--measure-text);padding-block:var(--space-6)}.ac-status h1{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-xl);letter-spacing:var(--track-normal);text-transform:uppercase}.ac-status p{margin:0 0 var(--space-2)}.ac-status__scope{color:var(--color-text-muted);font-size:var(--text-sm)}";
   document.head.appendChild(style);
   const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis) });
   const slot = document.querySelector("ac-degraded") as HTMLElement | null;

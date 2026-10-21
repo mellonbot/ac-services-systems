@@ -22,7 +22,7 @@ export const S6_CSS = `
 .s6-node__group{font-size:var(--text-sm);color:var(--color-text-muted);border:1px solid var(--color-border);border-radius:var(--radius-pill);padding:0 var(--space-2)}
 .s6-node__facts{display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm)}
 .s6-node__actions{margin-inline-start:auto;display:inline-flex;gap:var(--space-3);white-space:nowrap}
-.s6-login{max-width:40ch;margin:10vh auto 0}
+.s6-login{max-width:var(--measure-narrow);margin:10vh auto 0}
 .s6-field--inline{flex-direction:row;align-items:center;gap:var(--space-3)}
 .s6-fieldset{border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-2) var(--space-3);display:flex;flex-direction:column;gap:var(--space-2);margin:0}
 .s6-fieldset legend{font-weight:600;font-size:var(--text-sm);color:var(--color-text-muted);padding:0 var(--space-1)}
