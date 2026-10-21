@@ -1,4 +1,4 @@
-import { html, pageHead, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
 import type { JobWire, JobStateWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, when, type Screen } from "./common.ts";
@@ -38,7 +38,7 @@ export const work: Screen = (ctx) => {
   const now = Date.now();
   return html`<section class="s8-work">
     ${pageHead("Work", "The jobs your crews have been sent to, with the site and where each one stands.")}
-    <p class="s8-scope">Jobs your crews have been sent to. The response commitment is the customer's term, timed by Rankine; your crew's arrival is what satisfies it.</p>
+    ${panel(html`<p class="s8-scope">Jobs your crews have been sent to. The response commitment is the customer's term, timed by Rankine; your crew's arrival is what satisfies it.</p>
     ${whenReady(ctx, jobs.value, (out) => DataGrid<JobWire>({
       density: ctx.density,
       caption: "Jobs your crews were assigned",
@@ -56,6 +56,6 @@ export const work: Screen = (ctx) => {
           cell: (j) => StatusPill({ density: ctx.density, status: slaStatus(j, now), label: j.slaSatisfiedAt ? `Responded ${when(j.slaSatisfiedAt)}` : j.slaDueAt ? `Due ${when(j.slaDueAt)}` : "No commitment on file" }) ?? html``,
         },
       ],
-    }) ?? html``, () => ctx.store.invalidate("jobs.list"))}
+    }) ?? html``, () => ctx.store.invalidate("jobs.list"))}`)}
   </section>`;
 };

@@ -1,4 +1,4 @@
-import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalNotice, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
+import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalNotice, pageHead, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -119,7 +119,7 @@ export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: 
     login(String(f.get("hardwareId") ?? ""), String(f.get("email") ?? ""), String(f.get("password") ?? ""));
   };
   return html`<section class="s5-login">
-    <h1 class="s5-h1">${SURFACE.name}</h1>
+    ${pageHead(SURFACE.name, "Sign in with this device and your crew account to open the shift's jobs.")}
     <form class="ac-form" onSubmit=${submit} id="login-form">
       <label class="ac-field"><span>Device</span><input class="ac-input" name="hardwareId" type="text" required autocomplete="off" placeholder="Hardware ID" /></label>
       <label class="ac-field"><span>Email</span><input class="ac-input" name="email" type="email" required autocomplete="username" /></label>

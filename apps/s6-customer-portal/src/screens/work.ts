@@ -1,4 +1,4 @@
-import { html, pageHead, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
 import type { JobWire, JobStateWire, ServiceRequestWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, when, type Screen } from "./common.ts";
@@ -82,12 +82,10 @@ export const work: Screen = (ctx) => {
 
   return html`<section class="s6-work">
     ${pageHead("Work", "The requests you have made and the jobs at your sites, each shown by where it stands — in your words, not ours.")}
-    <h2 class="s6-h2">Your requests</h2>
-    ${whenReady(ctx, requests.value, (out) => out.requests.length === 0
+    ${panel(whenReady(ctx, requests.value, (out) => out.requests.length === 0
       ? html`<p class="s6-empty">No requests yet.</p>`
-      : html`<div class="s6-orders" id="request-cards">${out.requests.map((r) => requestCard(ctx, r))}</div>`, () => ctx.store.invalidate("serviceRequests.list"))}
-    <h2 class="s6-h2">Jobs</h2>
-    ${whenReady(ctx, jobs.value, (out) => DataGrid<JobWire>({
+      : html`<div class="s6-orders" id="request-cards">${out.requests.map((r) => requestCard(ctx, r))}</div>`, () => ctx.store.invalidate("serviceRequests.list")), "Your requests")}
+    ${panel(whenReady(ctx, jobs.value, (out) => DataGrid<JobWire>({
       density: ctx.density,
       caption: "Jobs at sites in view",
       emptyText: "No jobs at your sites.",
@@ -103,7 +101,7 @@ export const work: Screen = (ctx) => {
           cell: (j) => StatusPill({ density: ctx.density, status: slaStatus(j, now), label: j.slaSatisfiedAt ? `Responded ${when(j.slaSatisfiedAt)}` : j.slaDueAt ? `Due ${when(j.slaDueAt)}` : "No commitment on file" }) ?? html``,
         },
       ],
-    }) ?? html``, () => ctx.store.invalidate("jobs.list"))}
+    }) ?? html``, () => ctx.store.invalidate("jobs.list")), "Jobs")}
 
     <p class="s6-actions">${linkTo(ctx, "request", {}, "Request service")}</p>
   </section>`;

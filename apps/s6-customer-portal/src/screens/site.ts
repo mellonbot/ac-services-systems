@@ -1,4 +1,4 @@
-import { html, StatusPill, DataGrid, PrimaryAction, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, statStrip, StatusPill, DataGrid, PrimaryAction, type VNode } from "../../../../packages/ui/src/index.ts";
 import type {
   AccountWire, AddressWire, EquipmentWire, EquipmentKind, ContactWire, ContactRole, InvoiceWire, JobWire, ServiceRequestWire, SiteImageryOutput,
 } from "../../../../packages/contracts/src/index.ts";
@@ -119,59 +119,36 @@ export const site: Screen = (ctx, params) => {
   return whenReady(ctx, nodes.value, (out) => {
     const tree = treeOf(out.nodes);
     const node: AccountWire | undefined = tree.byId.get(siteId);
-    if (!node || node.tier !== "site") return html`<section class="s6-site"><h1 class="s6-h1">Site</h1><p class="s6-empty" id="site-missing">No site with this id is in view for this account.</p><p class="s6-actions">${linkTo(ctx, "sites", {}, "Back to sites")}</p></section>`;
+    if (!node || node.tier !== "site") return html`<section class="s6-site">${pageHead("Site")}<p class="s6-empty" id="site-missing">No site with this id is in view for this account.</p><p class="s6-actions">${linkTo(ctx, "sites", {}, "Back to sites")}</p></section>`;
     const crumbs = tree.crumbs(node.id).slice(0, -1);
     const siteJobs = jobs.value.state === "ready" ? jobs.value.value.jobs.filter((j) => j.siteId === node.id) : [];
     const openJobs = siteJobs.filter(isOpen);
     const siteRequests = requests.value.state === "ready" ? requests.value.value.requests.filter((r) => r.siteId === node.id) : [];
 
     return html`<article class="s6-site" id="site-card" data-site=${node.id}>
-      <header class="s6-site__head">
-        <p class="s6-crumbs" id="site-crumbs">${crumbs.map((c, i) => html`${i ? " › " : ""}<span>${c}</span>`)}</p>
-        <div class="s6-site__title">
-          <span class="s6-node__tier">${TIER_WORD.site}</span>
-          <h1 class="s6-h1" id="site-name">${node.name}</h1>
-          ${node.customerGroup ? html`<span class="s6-node__group" title="Your own grouping — reportable, never structure">${node.customerGroup}</span>` : null}
-          ${node.externalRef ? html`<span class="s6-node__group" title="Your site code">${node.externalRef}</span>` : null}
-        </div>
-        <div class="s6-site__acts">
-          ${PrimaryAction({ density: ctx.density, label: "Request service here", id: "site-request", onClick: () => ctx.router.navigate("request", { siteId: node.id }) })}
-          ${linkTo(ctx, "terms", { tier: "site", nodeId: node.id }, "Terms at this site")}
-        </div>
-      </header>
+      <p class="s6-crumbs" id="site-crumbs">
+        ${crumbs.map((c, i) => html`${i ? " › " : ""}<span>${c}</span>`)}
+        <span class="s6-node__tier">${TIER_WORD.site}</span>
+        ${node.customerGroup ? html`<span class="s6-node__group" title="Your own grouping — reportable, never structure">${node.customerGroup}</span>` : null}
+        ${node.externalRef ? html`<span class="s6-node__group" title="Your site code">${node.externalRef}</span>` : null}
+      </p>
+      ${pageHead(html`<span id="site-name">${node.name}</span>`, "Where this site is, what runs on its roof, who is there, and everything that has happened to it.", html`
+        ${PrimaryAction({ density: ctx.density, label: "Request service here", id: "site-request", onClick: () => ctx.router.navigate("request", { siteId: node.id }) })}
+        ${linkTo(ctx, "terms", { tier: "site", nodeId: node.id }, "Terms at this site")}`)}
+      ${statStrip([
+        { n: openJobs.length, label: "Open jobs", tone: "info" },
+        { n: siteRequests.filter((r) => r.jobId === null).length, label: "Requests waiting" },
+        { n: equipment.value.state === "ready" ? equipment.value.value.equipment.filter((e) => e.active).length : "…", label: "Units on record" },
+      ], "site-facts")}
 
       <div class="s6-site__grid">
-        <section class="s6-panel s6-panel--where" aria-labelledby="site-where">
-          <h2 class="s6-h2 s6-panel__h" id="site-where">Where</h2>
-          ${imageryView(ctx, imagery.value, node)}
-          ${addressView(node.address, node.timezone)}
-        </section>
-
-        <section class="s6-panel s6-panel--who" aria-labelledby="site-who">
-          <h2 class="s6-h2 s6-panel__h" id="site-who">Who is there</h2>
-          ${whenReady(ctx, contacts.value, (c) => contactsView(c.contacts, node.id), () => ctx.store.invalidate("contacts.list"))}
-        </section>
-
-        <section class="s6-panel s6-panel--now" aria-labelledby="site-now">
-          <h2 class="s6-h2 s6-panel__h" id="site-now">Right now</h2>
-          <dl class="ac-facts" id="site-facts">
-            <div><dt>Open jobs</dt><dd class="ac-num">${openJobs.length}</dd></div>
-            <div><dt>Requests waiting</dt><dd class="ac-num">${siteRequests.filter((r) => r.jobId === null).length}</dd></div>
-            <div><dt>Units on record</dt><dd class="ac-num">${equipment.value.state === "ready" ? equipment.value.value.equipment.filter((e) => e.active).length : "…"}</dd></div>
-            <div><dt>Site clock</dt><dd>${node.timezone ?? "—"}</dd></div>
-          </dl>
-        </section>
+        ${panel(html`${imageryView(ctx, imagery.value, node)}${addressView(node.address, node.timezone)}`, "Where", undefined, undefined, "site-where")}
+        ${panel(whenReady(ctx, contacts.value, (c) => contactsView(c.contacts, node.id), () => ctx.store.invalidate("contacts.list")), "Who is there", undefined, undefined, "site-who")}
       </div>
 
-      <section class="s6-panel" aria-labelledby="site-equipment">
-        <h2 class="s6-h2 s6-panel__h" id="site-equipment">Equipment</h2>
-        ${whenReady(ctx, equipment.value, (e) => equipmentView(ctx, e.equipment), () => ctx.store.invalidate("equipment.list"))}
-      </section>
+      ${panel(whenReady(ctx, equipment.value, (e) => equipmentView(ctx, e.equipment), () => ctx.store.invalidate("equipment.list")), "Equipment", undefined, undefined, "site-equipment")}
 
-      <section class="s6-panel" aria-labelledby="site-ledger">
-        <h2 class="s6-h2 s6-panel__h" id="site-ledger">History at this site</h2>
-        ${ledgerView(ctx, siteJobs, siteRequests, invoices.value.state === "ready" ? invoices.value.value.invoices : [], now, [jobs.value.state, requests.value.state, invoices.value.state])}
-      </section>
+      ${panel(ledgerView(ctx, siteJobs, siteRequests, invoices.value.state === "ready" ? invoices.value.value.invoices : [], now, [jobs.value.state, requests.value.state, invoices.value.state]), "History at this site", undefined, undefined, "site-ledger")}
 
       <p class="s6-actions">${linkTo(ctx, "sites", {}, "Back to sites")} ${linkTo(ctx, "work", {}, "All work")}</p>
     </article>`;

@@ -1,4 +1,4 @@
-import { html, pageHead, signal, DataGrid, StatusPill, type VNode, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, signal, DataGrid, StatusPill, type VNode, type Status } from "../../../../packages/ui/src/index.ts";
 import type {
   Refusal, VendorWire, ReceivingPointWire, CatalogItemWire, PurchaseOrderWire, PoLineWire, PoState, VendorInvoiceWire, RmaWire, RegionWire,
 } from "../../../../packages/contracts/src/index.ts";
@@ -94,8 +94,7 @@ export const purchasing: Screen = (ctx) => {
 
   return html`<section class="s2-purchasing">
     ${pageHead("Purchasing", "Orders to vendors, the vendors themselves, and where they deliver. A vendor sees an order once it is issued.")}
-    <h2 class="s2-h2">Purchase orders</h2>
-    ${whenReady(ctx, orders.value, (o) => DataGrid({
+    ${panel(whenReady(ctx, orders.value, (o) => DataGrid({
       density: ctx.density, caption: "Every order, newest first",
       rows: o.orders, rowKey: (r: PurchaseOrderWire) => r.id, emptyText: "No purchase orders yet. Open a vendor to raise one.",
       columns: [
@@ -105,10 +104,9 @@ export const purchasing: Screen = (ctx) => {
         { key: "total", header: "Total", align: "end", numeric: true, cell: (r: PurchaseOrderWire) => money(r.totalMinor, r.currency) },
         { key: "state", header: "State", cell: (r: PurchaseOrderWire) => pill(ctx, r.state) },
       ],
-    }) ?? html``)}
+    }) ?? html``), "Purchase orders")}
 
-    <h2 class="s2-h2">Vendors</h2>
-    ${whenReady(ctx, vendors.value, (v) => DataGrid({
+    ${panel(html`${whenReady(ctx, vendors.value, (v) => DataGrid({
       density: ctx.density, caption: "Who we buy from",
       rows: v.vendors, rowKey: (r: VendorWire) => r.id, emptyText: "No vendors recorded.",
       columns: [
@@ -123,10 +121,9 @@ export const purchasing: Screen = (ctx) => {
       <label class="ac-field"><span>Payment terms (days)</span><input class="ac-input" name="paymentTermsDays" inputmode="numeric" defaultValue="30" /></label>
       <label class="ac-field"><span>Contact email</span><input class="ac-input" name="contactEmail" type="email" /></label>
       <div class="s2-form__actions">${submitAction(ctx, "Add vendor", "add-vendor")}</div>
-    </form>
+    </form>`, "Vendors")}
 
-    <h2 class="s2-h2">Receiving points</h2>
-    ${whenReady(ctx, points.value, (p) => DataGrid({
+    ${panel(html`${whenReady(ctx, points.value, (p) => DataGrid({
       density: ctx.density, caption: "Where vendors deliver — named by code, never by a customer",
       rows: p.receivingPoints, rowKey: (r: ReceivingPointWire) => r.id, emptyText: "No receiving points recorded.",
       columns: [
@@ -143,7 +140,7 @@ export const purchasing: Screen = (ctx) => {
       <label class="ac-field"><span>City</span><input class="ac-input" name="city" required /></label>
       <label class="ac-field"><span>State</span><input class="ac-input" name="state" /></label>
       <div class="s2-form__actions">${submitAction(ctx, "Add receiving point", "add-point")}</div>
-    </form>
+    </form>`, "Receiving points")}
     ${refusal(ctx)}
   </section>`;
 };
@@ -186,10 +183,10 @@ export const purchasingVendor: Screen = (ctx, params) => {
   return html`<section class="s2-purchasing">
     ${whenReady(ctx, vendors.value, (v) => {
       const vendor = v.vendors.find((x) => x.id === vendorId);
-      return html`<header class="s2-tree__head"><h1 class="s2-h1">${vendor?.legalName ?? "Vendor"} — catalogue</h1>${linkTo(ctx, "purchasing", {}, "Back to purchasing")}</header>`;
+      return pageHead(`${vendor?.legalName ?? "Vendor"} — catalogue`, "This vendor's catalogue: decide the prices it proposes, and raise an order at the accepted ones.", linkTo(ctx, "purchasing", {}, "Back to purchasing"));
     })}
     ${whenReady(ctx, catalog.value, (c) => html`
-      ${DataGrid({
+      ${panel(DataGrid({
         density: ctx.density, caption: "Items, the price in effect today, and proposals waiting on you",
         rows: c.items, rowKey: (r: CatalogItemWire) => r.id, emptyText: "No items yet.",
         columns: [
@@ -224,9 +221,8 @@ export const purchasingVendor: Screen = (ctx, params) => {
             </div>`;
           })}` },
         ],
-      })}
-      <h2 class="s2-h2">Raise a purchase order</h2>
-      <form class="ac-form" onSubmit=${raise} id="po-form">
+      }))}
+      ${panel(html`<form class="ac-form" onSubmit=${raise} id="po-form">
         <label class="ac-field"><span>Deliver to</span>
           <select class="ac-input" name="receivingPointId" required>${whenReady(ctx, points.value, (p) => html`${p.receivingPoints.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.code} · ${TIER_WORD[r.tier]}</option>`)}`)}</select>
         </label>
@@ -234,14 +230,13 @@ export const purchasingVendor: Screen = (ctx, params) => {
           <input class="ac-input" name=${`qty:${i.id}`} inputmode="decimal" placeholder="Quantity (${i.uom})" /></label>`)}
         ${c.items.some((i) => i.current) ? null : html`<p class="s2-muted">No item has an accepted price yet, so nothing can be ordered.</p>`}
         <div class="s2-form__actions">${submitAction(ctx, "Raise draft", "raise-po")}</div>
-      </form>`)}
-    <h2 class="s2-h2">Add an item</h2>
-    <form class="ac-form s2-form--inline" onSubmit=${addItem} id="item-form">
+      </form>`, "Raise a purchase order")}`)}
+    ${panel(html`<form class="ac-form s2-form--inline" onSubmit=${addItem} id="item-form">
       <label class="ac-field"><span>Vendor SKU</span><input class="ac-input" name="vendorSku" required /></label>
       <label class="ac-field"><span>Description</span><input class="ac-input" name="description" required /></label>
       <label class="ac-field"><span>Unit</span><input class="ac-input" name="uom" placeholder="each" /></label>
       <div class="s2-form__actions">${submitAction(ctx, "Add item", "add-item")}</div>
-    </form>
+    </form>`, "Add an item")}
     ${refusal(ctx)}
   </section>`;
 };
@@ -283,8 +278,8 @@ export const purchasingPo: Screen = (ctx, params) => {
       const o = d.order;
       const open = d.lines.filter((l) => BigInt(l.receivedMilli) < BigInt(l.quantityMilli));
       return html`
-        <header class="s2-tree__head"><h1 class="s2-h1">${o.number} ${pill(ctx, o.state)}</h1>${linkTo(ctx, "purchasing", {}, "Back to purchasing")}</header>
-        <p class="s2-muted">${o.vendorName} → ${d.receivingPoint ? `${d.receivingPoint.code} (${TIER_WORD[d.receivingPoint.tier]}), ${d.receivingPoint.address.line1}, ${d.receivingPoint.address.city}` : "—"}
+        ${pageHead(html`${o.number} ${pill(ctx, o.state)}`, "One purchase order: issue or cancel it, receive the goods, ask for returns, and see the invoices the vendor submitted.", linkTo(ctx, "purchasing", {}, "Back to purchasing"))}
+        ${panel(html`<p class="s2-muted">${o.vendorName} → ${d.receivingPoint ? `${d.receivingPoint.code} (${TIER_WORD[d.receivingPoint.tier]}), ${d.receivingPoint.address.line1}, ${d.receivingPoint.address.city}` : "—"}
           · ${money(o.totalMinor, o.currency)}${o.promisedShipOn ? ` · ships by ${o.promisedShipOn}` : ""}</p>
         <div class="s2-form__actions">
           ${o.state === "draft" ? html`<button type="button" class="ac-action" data-kind="primary" data-density=${ctx.density} id="issue-po" aria-expanded=${outcome.value.pending?.kind === "order" && outcome.value.pending.owner === poId && outcome.value.pending.action === "issue"} aria-controls=${outcome.value.pending?.kind === "order" && outcome.value.pending.owner === poId ? `confirm-order-${poId}` : undefined} disabled=${ctx.degraded || outcome.value.busy || outcome.value.pending !== null} onClick=${() => { outcome.value = { ...outcome.value, pending: { kind: "order", owner: poId, action: "issue", number: o.number } }; }}>Issue to vendor</button>` : null}
@@ -317,7 +312,7 @@ export const purchasingPo: Screen = (ctx, params) => {
         ${DataGrid({
           density: ctx.density, caption: "Lines", rows: d.lines, rowKey: (l: PoLineWire) => l.id,
           columns: [
-            { key: "no", header: "#", cell: (l: PoLineWire) => String(l.lineNo) },
+            { key: "no", header: "#", numeric: true, cell: (l: PoLineWire) => String(l.lineNo) },
             { key: "item", header: "Item", cell: (l: PoLineWire) => `${l.vendorSku} — ${l.description}` },
             { key: "price", header: "Price", align: "end", numeric: true, cell: (l: PoLineWire) => money(l.unitPriceMinor, o.currency) },
             { key: "ordered", header: "Ordered", align: "end", numeric: true, cell: (l: PoLineWire) => qty(l.quantityMilli) },
@@ -326,24 +321,21 @@ export const purchasingPo: Screen = (ctx, params) => {
             { key: "invoiced", header: "Invoiced", align: "end", numeric: true, cell: (l: PoLineWire) => qty(l.invoicedMilli) },
             { key: "returned", header: "Returned", align: "end", numeric: true, cell: (l: PoLineWire) => qty(l.returnedMilli) },
           ],
-        })}
-        ${o.state === "acknowledged" && open.length ? html`<h2 class="s2-h2">Receive goods</h2>
-          <form class="ac-form s2-form--inline" onSubmit=${(e: Event) => receive(e, open)} id="receive-form">
+        })}`)}
+        ${o.state === "acknowledged" && open.length ? panel(html`<form class="ac-form s2-form--inline" onSubmit=${(e: Event) => receive(e, open)} id="receive-form">
             ${open.map((l) => html`<label class="ac-field"><span>Line ${l.lineNo}: ${qty((BigInt(l.quantityMilli) - BigInt(l.receivedMilli)).toString())} outstanding</span><input class="ac-input" name=${`rcv:${l.id}`} inputmode="decimal" /></label>`)}
             <div class="s2-form__actions">${submitAction(ctx, "Record receipt", "record-receipt")}</div>
-          </form>` : null}
-        ${d.shipments.length ? html`<h2 class="s2-h2">Shipments</h2><ul class="s2-list">${d.shipments.map((s) => html`<li>${s.shippedOn} · ${s.carrier}${s.tracking ? ` ${s.tracking}` : ""} · ${s.lines.map((l) => `line ${d.lines.find((x) => x.id === l.poLineId)?.lineNo}: ${qty(l.quantityMilli)}`).join(", ")}</li>`)}</ul>` : null}
-        <h2 class="s2-h2">Vendor invoices</h2>
-        ${DataGrid({
+          </form>`, "Receive goods") : null}
+        ${d.shipments.length ? panel(html`<ul class="s2-list">${d.shipments.map((s) => html`<li>${s.shippedOn} · ${s.carrier}${s.tracking ? ` ${s.tracking}` : ""} · ${s.lines.map((l) => `line ${d.lines.find((x) => x.id === l.poLineId)?.lineNo}: ${qty(l.quantityMilli)}`).join(", ")}</li>`)}</ul>`, "Shipments") : null}
+        ${panel(DataGrid({
           density: ctx.density, caption: "Matched against the order and the receipt", rows: d.invoices, rowKey: (i: VendorInvoiceWire) => i.id, emptyText: "No invoices submitted.",
           columns: [
             { key: "number", header: "Invoice", cell: (i: VendorInvoiceWire) => `${i.invoiceNumber} · ${i.invoiceDate}` },
             { key: "total", header: "Total", align: "end", numeric: true, cell: (i: VendorInvoiceWire) => money(i.totalMinor, i.currency) },
             { key: "match", header: "Match", cell: (i: VendorInvoiceWire) => html`${StatusPill({ density: ctx.density, status: i.matchState === "matched" ? "ok" : "at_risk", label: i.matchState === "matched" ? "Matched" : "Held" })}${i.matchNotes.map((n) => html`<div class="s2-muted">${n.message}</div>`)}` },
           ],
-        })}
-        <h2 class="s2-h2">Returns</h2>
-        ${DataGrid({
+        }), "Vendor invoices")}
+        ${panel(html`${DataGrid({
           density: ctx.density, caption: "Asked of the vendor", rows: d.returns, rowKey: (r: RmaWire) => r.id, emptyText: "No returns.",
           columns: [
             { key: "line", header: "Line", cell: (r: RmaWire) => String(d.lines.find((l) => l.id === r.poLineId)?.lineNo ?? "—") },
@@ -374,7 +366,7 @@ export const purchasingPo: Screen = (ctx, params) => {
             });
           },
           onCancel: () => { outcome.value = { ...outcome.value, pending: null }; },
-        }) : null}`;
+        }) : null}`, "Returns")}`;
     })}
     ${refusal(ctx)}
   </section>`;

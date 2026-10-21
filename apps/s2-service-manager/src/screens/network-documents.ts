@@ -1,4 +1,4 @@
-import { html, signal, DataGrid, ComplianceBadge, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, signal, DataGrid, ComplianceBadge, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { CredentialWire, CredentialKind, CrewWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { readableKinds } from "./network.ts";
 import { keyOf } from "../state.ts";
@@ -126,16 +126,12 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
     ${whenReady(ctx, crews.value, (c) => {
       const crew = c.crews.find((x) => x.id === crewId);
       if (!crew) return html`<p class="s2-empty">No crew ${crewId} visible in this scope.</p>`;
-      return html`<header class="s2-tree__head">
-          <h2 class="s2-h2">${crew.label} — documents</h2>
-          ${crew.firmId ? linkTo(ctx, "network", { firmId: crew.firmId }, "Back to the firm") : linkTo(ctx, "network", {}, "Back to our crews")}
-        </header>
-        <p class="s2-muted">What the gate requires of this crew, as of ${today}:</p>
-        ${summary(crew)}`;
+      return html`${pageHead(`${crew.label} — documents`, "The documents this crew has on file, what the gate requires of it, and the one path that verifies a document.",
+          crew.firmId ? linkTo(ctx, "network", { firmId: crew.firmId }, "Back to the firm") : linkTo(ctx, "network", {}, "Back to our crews"))}
+        ${panel(html`<p class="s2-muted">What the gate requires of this crew, as of ${today}:</p>${summary(crew)}`)}`;
     })}
-    ${whenReady(ctx, docs.value, (d) => grid(d.credentials))}
-    <h3 class="s2-h2">Put a document on file</h3>
-    <form class="ac-form" onSubmit=${record} id="credential-form">
+    ${panel(whenReady(ctx, docs.value, (d) => grid(d.credentials)))}
+    ${panel(html`<form class="ac-form" onSubmit=${record} id="credential-form">
       <label class="ac-field">
         <span>Kind</span>
         <select name="kind" class="ac-input">${KINDS.map((k) => html`<option value=${k}>${k.replace(/_/g, " ")}</option>`)}</select>
@@ -148,7 +144,7 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
         ${submitAction(ctx, outcome.value.busy === "record" ? "Recording…" : "Put on file (unverified)", "record-credential")}
       </div>
       <p class="s2-muted">There is no verified box on this form. Verification is its own act, by this surface, once — and after it the document cannot be edited.</p>
-    </form>
+    </form>`, "Put a document on file")}
     ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: "", confirming: "" }; } }]) : null}
   </section>`;
 };

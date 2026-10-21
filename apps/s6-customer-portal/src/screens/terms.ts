@@ -1,4 +1,4 @@
-import { html, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { ResolutionWire, TermPolicy, Tier } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, TIER_WORD, type Screen } from "./common.ts";
@@ -65,15 +65,15 @@ export const terms: Screen = (ctx, params) => {
   };
 
   return html`<section class="s6-terms">
-    <h1 class="s6-h1">Terms at ${here}</h1>
     ${tree && tier !== "parent" ? html`<p class="s6-crumbs">${[ctx.shell.context?.parent.name ?? "", ...tree.crumbs(nodeId)].filter(Boolean).join(" › ")}</p>` : null}
-    <label class="ac-field s6-field--inline"><span>As of</span><input class="ac-input" type="date" name="asOf" value=${asOf} onChange=${onAsOf} id="as-of" /></label>
-    ${whenReady(ctx, resolved.value, (out) => html`
+    ${pageHead(`Terms at ${here}`, "What was agreed, as it resolves here on the day you choose.",
+      html`<label class="ac-field s6-field--inline"><span>As of</span><input class="ac-input" type="date" name="asOf" value=${asOf} onChange=${onAsOf} id="as-of" /></label>`)}
+    ${whenReady(ctx, resolved.value, (out) => panel(html`
       <dl class="s6-terms__list">
         ${Object.values(out.resolved).map((r) => termRow(r, policies.get(r.termKey), nameOf))}
       </dl>
       ${Object.keys(out.refused).length ? html`<p class="s6-muted">Not set anywhere on this path: ${Object.keys(out.refused).map(label).join(", ")}.</p>` : null}
-    `, () => ctx.store.invalidate("terms.resolved"))}
+    `), () => ctx.store.invalidate("terms.resolved"))}
     <p class="s6-actions">${linkTo(ctx, "sites", {}, "Back to sites")} ${linkTo(ctx, "agreements", {}, "Agreements")}</p>
   </section>`;
 };

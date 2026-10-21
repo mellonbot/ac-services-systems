@@ -1,4 +1,4 @@
-import { html, statStrip, pageHead, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, statStrip, pageHead, panel, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, JobWire, ServiceRequestWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, TIER_WORD, type Screen, type ScreenContext, type Tree } from "./common.ts";
@@ -35,7 +35,7 @@ export const sites: Screen = (ctx) => {
         { n: waiting, label: "Requests with the office" },
       ], "sites-stats");
     })}
-    ${whenReady(ctx, nodes.value, (out) => {
+    ${panel(whenReady(ctx, nodes.value, (out) => {
       const tree = treeOf(out.nodes);
       const roots = tree.children(null);
       if (roots.length === 0) return html`<p class="s6-empty">No sites are in view for this account yet.</p>`;
@@ -44,7 +44,7 @@ export const sites: Screen = (ctx) => {
       return html`<ul class="s6-tree" role="tree" aria-label="Sites in view">
         ${roots.map((n) => nodeView(ctx, tree, n, liveJobs, openRequests, scope.scopeId))}
       </ul>`;
-    }, () => ctx.store.invalidate("accounts.list"))}
+    }, () => ctx.store.invalidate("accounts.list")))}
   </section>`;
 };
 

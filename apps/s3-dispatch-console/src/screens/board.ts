@@ -1,4 +1,4 @@
-import { html, signal, StatusPill, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, signal, StatusPill, pageHead, statStrip, panel, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, submitAction, linkTo, type Screen } from "./common.ts";
@@ -45,13 +45,12 @@ export const boardStats = (jobs: readonly JobWire[], now: number) => {
   const unassigned = open.filter((j) => !j.currentCrewId).length;
   const atRisk = open.filter((j) => j.slaDueAt && !j.slaSatisfiedAt && ((j.slaEscalationStage ?? 0) > 0 || Date.parse(j.slaDueAt) - now <= 60 * 60_000)).length;
   const crews = new Set(open.map((j) => j.currentCrewId).filter(Boolean)).size;
-  const tile = (n: number, label: string, tone?: string) => html`<div class="ac-stat" data-tone=${tone}><span class="ac-stat__n">${n}</span><span class="ac-stat__l">${label}</span></div>`;
-  return html`<div class="ac-stats" id="board-stats">
-    ${tile(open.length, "Open jobs")}
-    ${tile(unassigned, "Unassigned", unassigned ? "at_risk" : undefined)}
-    ${tile(atRisk, "At risk now", atRisk ? "breached" : undefined)}
-    ${tile(crews, "Crews out", "info")}
-  </div>`;
+  return statStrip([
+    { n: open.length, label: "Open jobs" },
+    { n: unassigned, label: "Unassigned", ...(unassigned ? { tone: "at_risk" as const } : {}) },
+    { n: atRisk, label: "At risk now", ...(atRisk ? { tone: "breached" as const } : {}) },
+    { n: crews, label: "Crews out", tone: "info" },
+  ], "board-stats");
 };
 
 const shopModel = (): VNode => html`<svg class="s3-shop-model" viewBox="0 0 360 250" role="img" aria-labelledby="shop-model-title">
@@ -61,7 +60,7 @@ const shopModel = (): VNode => html`<svg class="s3-shop-model" viewBox="0 0 360 
   <polygon points="42,103 181,173 181,225 42,155" fill="var(--color-surface)" stroke="var(--color-border-hard)" />
   <polygon points="181,173 316,103 316,155 181,225" fill="var(--color-page)" stroke="var(--color-border-hard)" />
   <polygon points="42,103 177,36 316,103 181,173" fill="var(--color-surface)" stroke="var(--color-text)" stroke-width="1.5" />
-  <path d="M49 101 177 39 309 102" fill="none" stroke="var(--color-action)" stroke-width="3" />
+  <path d="M49 101 177 39 309 102" fill="none" stroke="var(--color-action-text)" stroke-width="3" />
   <polygon points="78,104 177,55 280,104 181,154" fill="var(--color-surface-sunken)" stroke="var(--color-border-hard)" />
   <polygon points="78,104 181,154 181,169 78,119" fill="var(--color-page)" stroke="var(--color-border-hard)" />
   <polygon points="181,154 280,104 280,119 181,169" fill="var(--color-surface)" stroke="var(--color-border-hard)" />
@@ -82,7 +81,7 @@ const truckModel = (id: string): VNode => html`<svg class="s3-truck-model" viewB
   <polygon points="9,28 44,39 44,47 9,36" fill="var(--color-page)" stroke="var(--color-text)" stroke-width="1.4" />
   <polygon points="44,39 93,22 93,31 44,47" fill="var(--color-surface)" stroke="var(--color-text)" stroke-width="1.4" />
   <polygon points="61,20 78,15 90,18 73,24" fill="var(--color-surface)" stroke="var(--color-border-hard)" />
-  <path d="M14 31 39 39M49 39 88 26" stroke="var(--color-action)" stroke-width="2" />
+  <path d="M14 31 39 39M49 39 88 26" stroke="var(--color-action-text)" stroke-width="2" />
   <circle cx="27" cy="40" r="6" fill="var(--color-text)" /><circle cx="27" cy="40" r="2.5" fill="var(--color-surface)" />
   <circle cx="76" cy="34" r="6" fill="var(--color-text)" /><circle cx="76" cy="34" r="2.5" fill="var(--color-surface)" />
   <text x="29" y="34" class="s3-truck-model__mark" text-anchor="middle">AC</text>
@@ -132,11 +131,11 @@ const boardRows = [
 ] as const;
 
 const dashboardStats = [
-  { value: 9, label: "Jobs today", tone: "default" },
-  { value: 3, label: "Crews out", tone: "muted" },
-  { value: 2, label: "Needs attention", tone: "warn" },
-  { value: 177, label: "Unscheduled", tone: "muted" },
-  { value: 1, label: "Tech available", tone: "success" },
+  { n: 9, label: "Jobs today" },
+  { n: 3, label: "Crews out" },
+  { n: 2, label: "Needs attention", tone: "breached" },
+  { n: 177, label: "Unscheduled" },
+  { n: 1, label: "Tech available", tone: "ok" },
 ] as const;
 
 const dashboardLegend = [
@@ -144,11 +143,11 @@ const dashboardLegend = [
   { label: "Completed", tone: "completed" },
   { label: "Needs attention", tone: "warn" },
   { label: "Waiting on customer/parts", tone: "waiting" },
-  { label: "Unassigned 0", tone: "neutral" },
-  { label: "Open PO's 0", tone: "neutral" },
-  { label: "Needs attention today 2", tone: "warn" },
-  { label: "Marked for follow-up 0", tone: "neutral" },
-  { label: "Unscheduled 177", tone: "neutral" },
+  { label: "Unassigned", n: 0, tone: "neutral" },
+  { label: "Open PO's", n: 0, tone: "neutral" },
+  { label: "Needs attention today", n: 2, tone: "warn" },
+  { label: "Marked for follow-up", n: 0, tone: "neutral" },
+  { label: "Unscheduled", n: 177, tone: "neutral" },
 ] as const;
 
 export const board: Screen = (ctx) => {
@@ -157,25 +156,15 @@ export const board: Screen = (ctx) => {
   const filter = filterFor(ctx.store);
   const now = Date.now();
 
-  return html`<section class="s3-board dispatch-dashboard">
-    <div class="dispatch-dashboard__shell">
-      <div class="dispatch-dashboard__title-row">
-        <div>
-          <h1>Dispatch Board</h1>
-          <p>One color per job status, crew grouping, and idle tech availability in one glance.</p>
-        </div>
-        <div class="dispatch-dashboard__date-controls">
-          <button type="button" class="dispatch-dashboard__date is-active">Tue, Sep 8</button>
-          <button type="button" class="dispatch-dashboard__date">Today</button>
-        </div>
-      </div>
+  return html`<section class="s3-board">
+    ${pageHead("Dispatch Board", "One color per job status, crew grouping, and idle tech availability in one glance.", html`<div class="dispatch-dashboard__date-controls">
+      <button type="button" class="dispatch-dashboard__date is-active">Tue, Sep 8</button>
+      <button type="button" class="dispatch-dashboard__date">Today</button>
+    </div>`)}
 
-      ${whenReady(ctx, jobs.value, () => html`<div class="dispatch-dashboard__stats">${dashboardStats.map((stat) => html`<div class="dispatch-stat" data-tone=${stat.tone}>
-        <span class="dispatch-stat__value">${stat.value}</span>
-        <span class="dispatch-stat__label">${stat.label}</span>
-      </div>`)}</div>`) }
+    ${whenReady(ctx, jobs.value, () => statStrip(dashboardStats))}
 
-      <div class="dispatch-dashboard__board">
+    ${panel(html`<div class="dispatch-dashboard__board">
         <div class="dispatch-board__header">
           <div class="dispatch-board__label">Technician</div>
           <div class="dispatch-board__hours">
@@ -198,9 +187,8 @@ export const board: Screen = (ctx) => {
       </div>
 
       <div class="dispatch-dashboard__legend">
-        ${dashboardLegend.map((item) => html`<span class="dispatch-legend__item" data-tone=${item.tone}>${item.label}</span>`)}
-      </div>
-    </div>
+        ${dashboardLegend.map((item) => html`<span class="dispatch-legend__item" data-tone=${item.tone}>${item.label}${"n" in item ? html` <span class="s3-num">${item.n}</span>` : null}</span>`)}
+      </div>`)}
 
     <div class="dispatch-dashboard__legacy" style="display:none;">
       ${whenReady(ctx, jobs.value, (out) => boardStats(out.jobs, now))}
@@ -208,12 +196,7 @@ export const board: Screen = (ctx) => {
         const visibleJobs = out.jobs.filter((job) => !CLOSED.includes(job.state) &&
           (filter.value === "all" || (filter.value === "assigned" ? job.currentCrewId !== null : job.currentCrewId === null)));
         return html`<div class="s3-map-layout">
-          <section class="s3-map-scene" aria-label="Illustrative dispatch area">
-            <div class="s3-map-scene__top">
-              <div><h2 class="s3-h2">Dispatch area</h2><p>Operational schematic · not geographic</p></div>
-              <span class="s3-map-scene__badge">Locations unavailable</span>
-            </div>
-            <div class="s3-map-scene__art">
+          ${panel(html`<div class="s3-map-scene__art">
               <svg class="s3-map-lines" viewBox="0 0 960 560" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
                 <path d="M-60 120 275 290 1020-70M-45 490 410 250 1020 560M260-40 520 600M710-60 405 600M-60 310 1010 310" />
                 <path d="M-40 122 275 282 1015-74M-40 490 410 242 1010 555M260-40 512 600M710-60 397 600M-60 299 1010 299" />
@@ -231,19 +214,14 @@ export const board: Screen = (ctx) => {
                 <span>Site coordinates and technician GPS are not in the dispatch feed. No routes or vehicle positions are being inferred.</span>
               </div>
               <div class="s3-map-scale" aria-hidden="true"><span></span>Not to scale</div>
-            </div>
-          </section>
-          <section class="s3-map-jobs" aria-labelledby="s3-jobs-title">
-            <header class="s3-map-jobs__head">
-              <div><h2 id="s3-jobs-title" class="s3-h2">Open work</h2><span>${visibleJobs.length} ${visibleJobs.length === 1 ? "job" : "jobs"} in view</span></div>
-              <div class="s3-map-filters" role="group" aria-label="Filter jobs">
-                ${(["all", "unassigned", "assigned"] as const).map((value) => html`<button type="button" data-current=${filter.value === value ? "true" : "false"} aria-pressed=${filter.value === value} onClick=${() => { filter.value = value; }}>${value === "all" ? "All" : value === "unassigned" ? "Unassigned" : "Assigned"}</button>`)}
-              </div>
-            </header>
-            ${visibleJobs.length
+            </div>`, "Dispatch area", "Operational schematic · not geographic", html`<span class="s3-map-scene__badge">Locations unavailable</span>`)}
+          ${panel(visibleJobs.length
               ? html`<ul class="s3-map-job-list">${visibleJobs.map((job) => jobRow(ctx, job, now))}</ul>`
-              : html`<div class="s3-map-empty"><strong>${filter.value === "unassigned" ? "No unassigned jobs" : filter.value === "assigned" ? "No active assignments" : "No open work"}</strong><span>New jobs will appear here when they enter this region's board.</span></div>`}
-          </section>
+              : html`<div class="s3-map-empty"><strong>${filter.value === "unassigned" ? "No unassigned jobs" : filter.value === "assigned" ? "No active assignments" : "No open work"}</strong><span>New jobs will appear here when they enter this region's board.</span></div>`,
+            "Open work", html`<span class="s3-num">${visibleJobs.length}</span> ${visibleJobs.length === 1 ? "job" : "jobs"} in view`,
+            html`<div class="s3-map-filters" role="group" aria-label="Filter jobs">
+                ${(["all", "unassigned", "assigned"] as const).map((value) => html`<button type="button" data-current=${filter.value === value ? "true" : "false"} aria-pressed=${filter.value === value} onClick=${() => { filter.value = value; }}>${value === "all" ? "All" : value === "unassigned" ? "Unassigned" : "Assigned"}</button>`)}
+              </div>`)}
         </div>`;
       })}
     </div>

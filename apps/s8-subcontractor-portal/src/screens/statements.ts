@@ -1,4 +1,4 @@
-import { html, pageHead, signal, DataGrid, StatusPill, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, statStrip, signal, DataGrid, StatusPill, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { SettlementWire, SettlementLineWire, SettlementState, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, submitAction, refusalView, linkTo, when, money, type Screen, type ScreenContext } from "./common.ts";
@@ -26,8 +26,8 @@ const STATE: Readonly<Record<SettlementState, { status: Status; word: string }>>
 export const statements: Screen = (ctx) => {
   const list = ctx.store.read(keyOf("settlements.list", {}), () => ctx.shell.gateway.listSettlements({}));
   return html`<section class="s8-statements">
-    ${pageHead("Statements", "What Rankine owes your firm for work done, period by period. Acknowledge a statement that is right; dispute one that is not, and say why.")}
-    <p class="s8-scope">What Rankine owes your firm for each period, by job and rate. Acknowledge a statement that is right; dispute one that is not, with the line and the reason.</p>
+    ${pageHead("Statements", "What Rankine owes your firm for work done, period by period.")}
+    ${panel(html`<p class="s8-scope">What Rankine owes your firm for each period, by job and rate. Acknowledge a statement that is right; dispute one that is not, with the line and the reason.</p>
     ${whenReady(ctx, list.value, (out) => DataGrid<SettlementWire>({
       density: ctx.density,
       caption: "Statements issued to your firm",
@@ -42,7 +42,7 @@ export const statements: Screen = (ctx) => {
         { key: "issuedAt", header: "Issued", cell: (s) => when(s.issuedAt) },
         { key: "open", header: "", cell: (s) => linkTo(ctx, "statement", { settlementId: s.id }, "Open") },
       ],
-    }) ?? html``, () => ctx.store.invalidate("settlements.list"))}
+    }) ?? html``, () => ctx.store.invalidate("settlements.list"))}`)}
   </section>`;
 };
 
@@ -77,19 +77,16 @@ export const statement: Screen = (ctx, params) => {
   const o = outcome.value;
   return html`<section class="s8-statement">
     <p class="s8-crumbs">${linkTo(ctx, "statements", {}, "Statements")} › ${s ? `${s.periodFrom} → ${s.periodTo}` : "Statement"}</p>
+    ${pageHead(s ? `Statement ${s.periodFrom} → ${s.periodTo}` : "Statement", "One statement's lines, and your position on it: acknowledge it, or dispute it and say why.",
+      s ? StatusPill({ density: ctx.density, status: STATE[s.state].status, label: STATE[s.state].word }) : null)}
     ${whenReady(ctx, list.value, () => {
       if (!s) return html`<p class="s8-empty">No statement ${id} is on record for your firm.</p>`;
       return html`
-        <h1 class="s8-h1">Statement ${s.periodFrom} → ${s.periodTo}</h1>
-        <p class="s8-scope">${StatusPill({ density: ctx.density, status: STATE[s.state].status, label: STATE[s.state].word }) ?? html``}
-          <strong class="s8-total" id="statement-total">${money(s.totalMinor, s.currency)}</strong>
-          <span>· issued ${when(s.issuedAt)}</span>
-          ${s.acknowledgedAt ? html`<span>· acknowledged ${when(s.acknowledgedAt)}</span>` : null}
-          ${s.disputedAt ? html`<span>· disputed ${when(s.disputedAt)}: “${s.disputeReason}”</span>` : null}
-        </p>`;
+        ${statStrip([{ n: html`<span id="statement-total">${money(s.totalMinor, s.currency)}</span>`, label: "Total", sub: `Issued ${when(s.issuedAt)}${s.acknowledgedAt ? ` · acknowledged ${when(s.acknowledgedAt)}` : ""}` }])}
+        ${s.disputedAt ? html`<p class="s8-scope">Disputed ${when(s.disputedAt)}: “${s.disputeReason}”</p>` : null}`;
     }, () => ctx.store.invalidate("settlements.list"))}
 
-    ${whenReady(ctx, lines.value, (out) => DataGrid<SettlementLineWire>({
+    ${panel(whenReady(ctx, lines.value, (out) => DataGrid<SettlementLineWire>({
       density: ctx.density,
       caption: "Lines",
       emptyText: "This statement carries no lines.",
@@ -102,7 +99,7 @@ export const statement: Screen = (ctx, params) => {
         { key: "qty", header: "Quantity", numeric: true, align: "end", cell: (l) => thousandths(l.quantityMilli) },
         { key: "amount", header: "Amount", numeric: true, align: "end", cell: (l) => (s ? money(l.amountMinor, s.currency) : l.amountMinor) },
       ],
-    }) ?? html``, () => ctx.store.invalidate("settlements.lines"))}
+    }) ?? html``, () => ctx.store.invalidate("settlements.lines")))}
 
     ${outcomeView(ctx, o)}
     ${s && (s.state === "issued" || s.state === "acknowledged") ? positionForms(ctx, s, o, acknowledge, dispute) : null}
@@ -111,18 +108,16 @@ export const statement: Screen = (ctx, params) => {
 
 const positionForms = (ctx: ScreenContext, s: SettlementWire, o: Outcome, acknowledge: (e: Event) => void, dispute: (e: Event) => void): VNode => html`
   <div class="s8-position">
-    ${s.state === "issued" ? html`<form class="ac-form" id="acknowledge-form" onSubmit=${acknowledge}>
-      <h2 class="s8-h2">This statement is right</h2>
+    ${s.state === "issued" ? panel(html`<form class="ac-form" id="acknowledge-form" onSubmit=${acknowledge}>
       <p class="s8-muted">Acknowledging starts the payment clock at the office under your settlement terms. It does not close a line you later find wrong — you can still dispute.</p>
       ${submitAction(ctx, o.kind === "busy" ? "Sending…" : "Acknowledge", "acknowledge-send", o.kind === "busy")}
-    </form>` : null}
-    <form class="ac-form" id="dispute-form" onSubmit=${dispute}>
-      <h2 class="s8-h2">Something is wrong</h2>
+    </form>`, "This statement is right") : null}
+    ${panel(html`<form class="ac-form" id="dispute-form" onSubmit=${dispute}>
       <label class="ac-field"><span>What, and why</span>
         <textarea class="ac-input ac-textarea" name="reason" required rows="4" maxlength="2000" id="dispute-reason" placeholder="Name the line — the job, the rate or the quantity — and what it should read."></textarea>
       </label>
       ${submitAction(ctx, o.kind === "busy" ? "Sending…" : "Dispute", "dispute-send", o.kind === "busy")}
-    </form>
+    </form>`, "Something is wrong")}
   </div>`;
 
 const outcomeView = (ctx: ScreenContext, o: Outcome): VNode | null => {

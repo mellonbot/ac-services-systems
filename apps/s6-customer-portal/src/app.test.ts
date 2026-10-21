@@ -225,7 +225,8 @@ test("SITE CARD: where, who, what runs there, and one ledger — every row the g
   assert.match(ledger, /Invoice issued — 2026-06-01 to 2026-06-30/); assert.match(ledger, /Quarterly PM — RTU-1/); assert.match(ledger, /\$425\.00/);
   assert.doesNotMatch(out, /1284500|12,845/, "the consolidated header total is not what this site was billed");
   // right now
-  assert.match(out, /Open jobs<\/dt><dd[^>]*>1</); assert.match(out, /Units on record<\/dt><dd[^>]*>3</); assert.match(out, /America\/Chicago/);
+  const facts = /id="site-facts"(.*?)<\/div><\/div>/s.exec(out)![1]!;
+  assert.match(facts, /ac-stat__n">1<\/span><span class="ac-stat__l">Open jobs</); assert.match(facts, /ac-stat__n">3<\/span><span class="ac-stat__l">Units on record</); assert.match(out, /America\/Chicago/);
   // and no filter was sent: the reads name the site, the gateway decided the rows
   const paths = gateway.calls.map((c) => c.path);
   for (const op of ["equipment.list", "contacts.list", "invoices.list", "sites.imagery"] as const) assert.ok(paths.includes(OPERATIONS[op].path), `${op} was read`);

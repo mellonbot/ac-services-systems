@@ -1,4 +1,4 @@
-import { html, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { CredentialWire, CredentialKind, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readCrews, submitAction, refusalView, linkTo, kindWord, day, type Screen, type ScreenContext } from "./common.ts";
@@ -60,8 +60,8 @@ export const documents: Screen = (ctx, params) => {
   const o = outcome.value;
   return html`<section class="s8-documents">
     <p class="s8-crumbs">${linkTo(ctx, "crews", {}, "Crews")} › ${crew?.label ?? "Crew"}</p>
-    <h1 class="s8-h1">${crew ? `${crew.label} — documents` : "Documents"}</h1>
-    ${crew ? html`<p class="s8-scope">The gate requires: ${crew.documents.required.map(kindWord).join(", ")}.
+    ${pageHead(crew ? `${crew.label} — documents` : "Documents", "What this crew has on file, and where you file a document for Rankine to verify.")}
+    ${panel(html`${crew ? html`<p class="s8-scope">The gate requires: ${crew.documents.required.map(kindWord).join(", ")}.
       ${crew.documents.missing.length ? html`<strong>Missing: ${crew.documents.missing.map(kindWord).join(", ")}.</strong>` : null}</p>` : null}
     ${whenReady(ctx, docs.value, (out) => DataGrid<CredentialWire>({
       density: ctx.density,
@@ -76,12 +76,11 @@ export const documents: Screen = (ctx, params) => {
         { key: "status", header: "Status", cell: (d) => { const s = status(d, today); return StatusPill({ density: ctx.density, status: s.status, label: s.word }) ?? html``; } },
         { key: "verifiedAt", header: "Verified", cell: (d) => (d.verifiedAt ? day(d.verifiedAt) : "—") },
       ],
-    }) ?? html``, () => ctx.store.invalidate("credentials.list"))}
+    }) ?? html``, () => ctx.store.invalidate("credentials.list"))}`)}
 
     ${outcomeView(ctx, o)}
 
-    <h2 class="s8-h2">File a document</h2>
-    <form class="ac-form" id="document-form" onSubmit=${submit}>
+    ${panel(html`<form class="ac-form" id="document-form" onSubmit=${submit}>
       <label class="ac-field"><span>Kind</span>
         <select class="ac-input" name="kind" required id="document-kind">
           ${KINDS.map((k) => html`<option value=${k}>${kindWord(k)}</option>`)}
@@ -99,7 +98,7 @@ export const documents: Screen = (ctx, params) => {
       </label>
       <p class="s8-muted">Filed documents are verified by Rankine before they count. Until then the crew reads "Awaiting Rankine".</p>
       ${submitAction(ctx, o.kind === "busy" ? "Sending…" : "File document", "document-send", o.kind === "busy")}
-    </form>
+    </form>`, "File a document")}
   </section>`;
 };
 

@@ -1,4 +1,4 @@
-import { html, pageHead, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, OrganizationWire, RegionWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, linkTo, type Screen } from "./common.ts";
@@ -37,7 +37,7 @@ export const accountsTree: Screen = (ctx, params) => {
       caption: "Customers",
       columns: [
         { key: "name", header: "Customer", cell: (o: OrganizationWire) => linkTo(ctx, "accounts.tree", { orgId: o.id }, o.name) },
-        { key: "regionNodeCount", header: "Our regions", align: "end" },
+        { key: "regionNodeCount", header: "Our regions", align: "end", numeric: true },
         { key: "active", header: "Status", cell: (o: OrganizationWire) => StatusPill({ density: ctx.density, status: o.active ? "ok" : "blocked", label: o.active ? "Active" : "Inactive" }) },
       ],
       rows: list,
@@ -50,35 +50,28 @@ export const accountsTree: Screen = (ctx, params) => {
   const treeGrid = (nodes: readonly AccountWire[], regionList: readonly RegionWire[], org: OrganizationWire | undefined): VNode => {
     const regionName = (id: string) => regionList.find((r) => r.id === id)?.name ?? id;
     const ordered = orderTree(nodes);
-    return html`<section class="s2-tree" aria-label="Account tree">
-      <header class="s2-tree__head">
-        <h2 class="s2-h2">${org?.name ?? "Customer"}</h2>
-        ${linkTo(ctx, "accounts.new", { orgId: orgId!, tier: "region" }, "+ Region node", "ac-action s2-link--action")}
-      </header>
-      ${DataGrid({
-        density: ctx.density,
-        columns: [
-          { key: "name", header: "Node", cell: (n: AccountWire) => html`<span class="s2-node" data-depth=${n.path.length - 1} data-tier=${n.tier}>${n.name}</span>` },
-          { key: "tier", header: "Tier" },
-          { key: "regionId", header: "Our region", cell: (n: AccountWire) => regionName(n.regionId) },
-          { key: "customerGroup", header: "Customer group", cell: (n: AccountWire) => n.customerGroup ?? "—" },
-          { key: "active", header: "Status", cell: (n: AccountWire) => StatusPill({ density: ctx.density, status: n.active ? "ok" : "blocked", label: n.active ? "Active" : "Inactive" }) },
-          { key: "actions", header: "", align: "end", cell: (n: AccountWire) => html`<span class="s2-row-actions">
-              ${childTier(n.tier) ? linkTo(ctx, "accounts.new", { orgId: orgId!, tier: childTier(n.tier)!, parentId: n.id }, `+ ${childTier(n.tier)}`) : null}
-              ${n.tier !== "region" ? linkTo(ctx, "accounts.move", { orgId: orgId!, id: n.id }, "Move") : null}
-            </span>` },
-        ],
-        rows: ordered,
-        rowKey: (n: AccountWire) => n.id,
-        emptyText: "No nodes. A customer parent always has at least one region node — if this is empty, the tree failed to load.",
-      })}
-    </section>`;
+    return panel(DataGrid({
+      density: ctx.density,
+      columns: [
+        { key: "name", header: "Node", cell: (n: AccountWire) => html`<span class="s2-node" data-depth=${n.path.length - 1} data-tier=${n.tier}>${n.name}</span>` },
+        { key: "tier", header: "Tier" },
+        { key: "regionId", header: "Our region", cell: (n: AccountWire) => regionName(n.regionId) },
+        { key: "customerGroup", header: "Customer group", cell: (n: AccountWire) => n.customerGroup ?? "—" },
+        { key: "active", header: "Status", cell: (n: AccountWire) => StatusPill({ density: ctx.density, status: n.active ? "ok" : "blocked", label: n.active ? "Active" : "Inactive" }) },
+        { key: "actions", header: "", align: "end", cell: (n: AccountWire) => html`<span class="s2-row-actions">
+            ${childTier(n.tier) ? linkTo(ctx, "accounts.new", { orgId: orgId!, tier: childTier(n.tier)!, parentId: n.id }, `+ ${childTier(n.tier)}`) : null}
+            ${n.tier !== "region" ? linkTo(ctx, "accounts.move", { orgId: orgId!, id: n.id }, "Move") : null}
+          </span>` },
+      ],
+      rows: ordered,
+      rowKey: (n: AccountWire) => n.id,
+      emptyText: "No nodes. A customer parent always has at least one region node — if this is empty, the tree failed to load.",
+    }), org?.name ?? "Customer", undefined, linkTo(ctx, "accounts.new", { orgId: orgId!, tier: "region" }, "+ Region node", "ac-action s2-link--action"), "account-tree");
   };
 
-  return html`${pageHead("Accounts", "Every customer and its tree of regions, locations and sites, against the regions we serve them from. Pick a customer to see its tree.")}<div class="s2-two-col">
+  return html`${pageHead("Accounts", "Every customer and its tree of regions, locations and sites, against the regions we serve them from. Pick a customer to see its tree.", linkTo(ctx, "organizations.new", {}, "+ New customer", "ac-action s2-link--action"))}<div class="s2-two-col">
     <aside class="s2-col s2-col--orgs">
-      ${whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations), () => store.invalidate("organizations.list"))}
-      <p class="s2-aside-actions">${linkTo(ctx, "organizations.new", {}, "+ New customer", "ac-action s2-link--action")}</p>
+      ${panel(whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations), () => store.invalidate("organizations.list")))}
     </aside>
     <div class="s2-col s2-col--tree">
       ${orgId

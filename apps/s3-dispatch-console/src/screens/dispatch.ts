@@ -1,4 +1,4 @@
-import { html, ComplianceBadge, PrimaryAction, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, ComplianceBadge, PrimaryAction, pageHead, panel, type VNode } from "../../../../packages/ui/src/index.ts";
 import { SURFACE_PATHS, type JobWire, type CandidateCrewWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, type Screen } from "./common.ts";
@@ -41,14 +41,13 @@ export const dispatch: Screen = (ctx, params) => {
     };
 
     return html`<section class="s3-dispatch">
-      <h1 class="s3-h1">Dispatch — ${job.serviceCode}</h1>
-      <dl class="s3-job-facts">
+      ${pageHead(`Dispatch — ${job.serviceCode}`, "Every active crew in this job's region, checked against the same gate Assign enforces.")}
+      ${panel(html`<dl class="s3-job-facts">
         <dt>Site</dt><dd><a class="ac-link" href=${`${SURFACE_PATHS.S6}/site/${encodeURIComponent(job.siteId)}`}>${job.siteName ?? job.siteId}</a></dd>
         <dt>Priority</dt><dd>${job.priority}</dd>
-        <dt>Window</dt><dd>${new Date(job.serviceWindowStart).toLocaleString()} → ${new Date(job.serviceWindowEnd).toLocaleString()}</dd>
-      </dl>
-      <h2 class="s3-h2">Candidate crews</h2>
-      ${whenReady(ctx, candidates.value, (out) => out.candidates.length === 0
+        <dt>Window</dt><dd class="s3-num">${new Date(job.serviceWindowStart).toLocaleString()} → ${new Date(job.serviceWindowEnd).toLocaleString()}</dd>
+      </dl>`)}
+      ${panel(whenReady(ctx, candidates.value, (out) => out.candidates.length === 0
         ? html`<p class="s3-empty">No active crews in this job's region.</p>`
         : html`<ul class="s3-candidates">
             ${out.candidates.map((c) => html`<li class="s3-candidate" key=${c.crewId}>
@@ -64,7 +63,7 @@ export const dispatch: Screen = (ctx, params) => {
                   })
                 : null}
             </li>`)}
-          </ul>`)}
+          </ul>`), "Candidate crews")}
     </section>`;
   };
 

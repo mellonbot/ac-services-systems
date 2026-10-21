@@ -1,4 +1,4 @@
-import { html, signal, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { CreateFirmInput, CreateCrewInput, EmploymentType, FirmWire, RegionWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
@@ -68,7 +68,7 @@ export const networkFirmNew: Screen = (ctx) => {
   </fieldset>`;
 
   return html`<section class="s2-form-screen">
-    <h2 class="s2-h2">New subcontractor firm</h2>
+    ${pageHead("New subcontractor firm", "Record a subcontractor firm, with its settlement terms and its diagnostic data rights position.")}
     <details class="s2-help"><summary>Why firms are recorded together</summary><p>A firm is recorded with its own tenant root in one step — the organization we settle with and the firm we dispatch are one row's worth of truth, created together or not at all.</p></details>
     <form class="ac-form" onSubmit=${submit} id="firm-form">
       <label class="ac-field"><span>Legal name</span><input class="ac-input" name="legalName" required /></label>
@@ -143,7 +143,7 @@ export const networkCrewNew: Screen = (ctx, params) => {
   </label>`;
 
   return html`<section class="s2-form-screen">
-    <h2 class="s2-h2">New crew</h2>
+    ${pageHead("New crew", "Roster a crew, employed or under a subcontractor firm, with the region it is dispatched from.")}
     <form class="ac-form" onSubmit=${submit} id="crew-form">
       <label class="ac-field"><span>Label</span><input class="ac-input" name="label" required /></label>
       <label class="ac-field">

@@ -1,4 +1,4 @@
-import { html, PrimaryAction, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, PrimaryAction, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { FieldJobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { nextDeviceStates } from "../offline.ts";
@@ -81,33 +81,29 @@ export const jobDetail: Screen = (ctx, params) => {
     const jobPending = ctx.queue.pending.value.filter((p) => p.mutation.entityId === job.id).length;
 
     return html`<section class="s5-job">
-      <h1 class="s5-h1">${job.serviceCode}</h1>
-      <p class="s5-job__state">State: <strong>${job.state.replace(/_/g, " ")}</strong> · Priority: ${job.priority}</p>
-      <p class="s5-job__window">${new Date(job.serviceWindowStart).toLocaleString()} → ${new Date(job.serviceWindowEnd).toLocaleString()}</p>
-      ${jobPending > 0 ? html`<p class="ac-notice" data-tone="at_risk" role="status">${jobPending} change${jobPending === 1 ? "" : "s"} waiting to sync${ctx.degraded ? " — offline" : ""}.</p>` : null}
+      ${pageHead(job.serviceCode, "Move the job on, work the checklist, run the time clock and log the parts used — every tap is saved on this device first.")}
+      ${panel(html`<p class="s5-job__state">State: <strong>${job.state.replace(/_/g, " ")}</strong> · Priority: ${job.priority}</p>
+        <p class="s5-job__window"><span class="ac-num">${new Date(job.serviceWindowStart).toLocaleString()}</span> → <span class="ac-num">${new Date(job.serviceWindowEnd).toLocaleString()}</span></p>`)}
+      ${jobPending > 0 ? html`<p class="ac-notice" data-tone="at_risk" role="status"><span class="ac-num">${jobPending}</span> change${jobPending === 1 ? "" : "s"} waiting to sync${ctx.degraded ? " — offline" : ""}.</p>` : null}
       ${jobAttention.map((a) => html`<div class="s5-attention" role="alert" key=${a.mutationId}>
         ${StatusPill({ density: ctx.density, status: "blocked", label: a.kind.replace(/_/g, " ") })}
         <p>${a.note}</p>
         <button type="button" class="ac-link" onClick=${() => ctx.queue.dismissAttention(a.mutationId)}>Dismiss</button>
       </div>`)}
 
-      <h2 class="s5-h2">Move job to</h2>
-      <div class="s5-actions">
+      ${panel(html`<div class="s5-actions">
         ${nextDeviceStates(job.state).map((to) => PrimaryAction({ density: ctx.density, label: to.replace(/_/g, " "), id: `to-${to}`, onClick: () => transition(to) }))}
         ${nextDeviceStates(job.state).length === 0 ? html`<p class="s5-muted">No further state change is this shift's to make from here.</p>` : null}
-      </div>
+      </div>`, "Move job to")}
 
-      <h2 class="s5-h2">Checklist</h2>
-      <ul class="s5-checklist">
+      ${panel(html`<ul class="s5-checklist">
         ${CHECKLIST.map((c) => html`<li key=${c.key}>${PrimaryAction({ density: ctx.density, label: c.label, id: `check-${c.key}`, onClick: () => markDone(c.key) })}</li>`)}
-      </ul>
+      </ul>`, "Checklist")}
 
-      <h2 class="s5-h2">Time clock</h2>
-      <p class="s5-job__clock">${runningSince ? `Running since ${new Date(runningSince).toLocaleTimeString()}` : "Not running"}</p>
-      ${PrimaryAction({ density: ctx.density, label: runningSince ? "Stop" : "Start", id: "clock-toggle", onClick: clockToggle, kind: runningSince ? "danger" : "primary" })}
+      ${panel(html`<p class="s5-job__clock">${runningSince ? html`Running since <span class="ac-num">${new Date(runningSince).toLocaleTimeString()}</span>` : "Not running"}</p>
+        ${PrimaryAction({ density: ctx.density, label: runningSince ? "Stop" : "Start", id: "clock-toggle", onClick: clockToggle, kind: runningSince ? "danger" : "primary" })}`, "Time clock")}
 
-      <h2 class="s5-h2">Parts used</h2>
-      <form class="ac-form" id="parts-form" onSubmit=${addPart}>
+      ${panel(html`<form class="ac-form" id="parts-form" onSubmit=${addPart}>
         <label class="ac-field"><span>Part SKU</span><input class="ac-input" name="partSku" type="text" required /></label>
         <label class="ac-field"><span>Quantity</span><input class="ac-input" name="quantity" type="number" step="0.001" min="0" required /></label>
         <label class="ac-field"><span>Source</span>
@@ -116,7 +112,7 @@ export const jobDetail: Screen = (ctx, params) => {
           </select>
         </label>
         ${PrimaryAction({ density: ctx.density, label: "Add part", type: "submit", id: "add-part" })}
-      </form>
+      </form>`, "Parts used")}
     </section>`;
   };
 

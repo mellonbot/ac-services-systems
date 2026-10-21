@@ -1,4 +1,4 @@
-import { html, statStrip, pageHead, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, statStrip, pageHead, panel, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
 import type { JobPriority } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, linkTo, type Screen } from "./common.ts";
@@ -29,7 +29,7 @@ export const jobList: Screen = (ctx) => {
       { n: out.jobs.filter((j) => j.priority === "emergency").length, label: "Emergency", ...(out.jobs.some((j) => j.priority === "emergency") ? { tone: "breached" as const } : {}) },
       { n: out.jobs.filter((j) => ["en_route", "on_site", "in_progress"].includes(j.state)).length, label: "Under way", tone: "info" },
     ], "shift-stats"))}
-    ${whenReady(ctx, jobs.value, (out) => out.jobs.length === 0
+    ${whenReady(ctx, jobs.value, (out) => panel(out.jobs.length === 0
       ? html`<p class="s5-empty">Nothing assigned to this shift right now.</p>`
       : html`<ul class="s5-job-list">
           ${out.jobs.map((j) => html`<li class="s5-job-row" key=${j.id}>
@@ -38,6 +38,6 @@ export const jobList: Screen = (ctx) => {
             <span class="s5-job-row__state">${j.state.replace(/_/g, " ")}</span>
             ${linkTo(ctx, "job", { jobId: j.id }, "Open", "ac-link s5-link--open")}
           </li>`)}
-        </ul>`)}
+        </ul>`))}
   </section>`;
 };

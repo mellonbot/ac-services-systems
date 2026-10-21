@@ -1,4 +1,4 @@
-import { html, signal, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, ContractWire, CreateContractInput, Refusal, RegionWire, Tier } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
@@ -113,7 +113,7 @@ export const contractsNew: Screen = (ctx, params) => {
   </fieldset>`;
 
   return html`<section class="s2-form-screen">
-    <h2 class="s2-h2">New agreement</h2>
+    ${pageHead("New agreement", "Record a signed agreement for this customer, offering only the scope, billing path and data rights position the catalogue admits.")}
     <form class="ac-form" onSubmit=${submit} id="contract-form">
       <label class="ac-field">
         <span>Binds to</span>

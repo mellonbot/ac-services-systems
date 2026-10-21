@@ -1,4 +1,4 @@
-import { html, signal, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen } from "./common.ts";
@@ -50,7 +50,7 @@ export const accountsMove: Screen = (ctx, params) => {
     const candidates = parentCandidates(nodes, node);
     const descendants = nodes.filter((n) => n.path.includes(node.id) && n.id !== node.id).length;
     return html`<section class="s2-form-screen">
-      <h2 class="s2-h2">Move ${node.tier} "${node.name}"</h2>
+      ${pageHead(`Move ${node.tier} "${node.name}"`, "Move this node under another parent of the right tier; its region and everything beneath it follow.")}
       <p class="s2-parent">Currently dispatched from <strong>${regionName(node.regionId)}</strong>${descendants ? html` with <strong>${descendants}</strong> node${descendants === 1 ? "" : "s"} beneath it, which will follow` : ""}.</p>
       <form class="ac-form" onSubmit=${submit(node)} id="move-form">
         <label class="ac-field">

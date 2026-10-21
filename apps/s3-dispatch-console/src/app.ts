@@ -1,4 +1,4 @@
-import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, pageHead, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -155,13 +155,14 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const notice = p.store.notice.value;
     return html`<div class="s3-app">
       <header class="dispatch-header" data-ground="plate">
-        <nav class="dispatch-header__nav" aria-label="Dispatch navigation">
-          <a class=${`dispatch-header__tab${loc?.screen === "board" ? " is-active" : ""}`} href=${router.href("board", {})}
+        <nav class="ac-seg" aria-label="Dispatch navigation">
+          <a class="ac-seg__item" href=${router.href("board", {})}
+             data-current=${loc?.screen === "board" ? "true" : undefined}
              aria-current=${loc?.screen === "board" ? "page" : undefined}
              onClick=${(e: Event) => { e.preventDefault(); router.navigate("board", {}); }}>Dispatch Board</a>
-          <button type="button" class="dispatch-header__tab">Job Detail</button>
-          <button type="button" class="dispatch-header__tab">Job Dashboard</button>
-          <button type="button" class="dispatch-header__tab">Manager</button>
+          <button type="button" class="ac-seg__item dispatch-header__tab">Job Detail</button>
+          <button type="button" class="ac-seg__item dispatch-header__tab">Job Dashboard</button>
+          <button type="button" class="ac-seg__item dispatch-header__tab">Manager</button>
         </nav>
         <div class="dispatch-header__tools">
           <span class="dispatch-header__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
@@ -186,7 +187,7 @@ export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: 
     login(String(f.get("email") ?? ""), String(f.get("password") ?? ""));
   };
   return html`<section class="s3-login">
-    <h1 class="s3-h1">${SURFACE.name}</h1>
+    ${pageHead(SURFACE.name, "Sign in to open your region's dispatch board.")}
     <form class="ac-form" onSubmit=${submit} id="login-form">
       <label class="ac-field"><span>Email</span><input class="ac-input" name="email" type="email" required autocomplete="username" /></label>
       <label class="ac-field"><span>Password</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>

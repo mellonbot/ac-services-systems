@@ -1,4 +1,4 @@
-import { html, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, signal, DataGrid, pageHead, panel, type VNode } from "../../../../packages/ui/src/index.ts";
 import { HQ_AREAS, HQ_AREA_TITLES, HQ_METRICS, HQ_METRIC_KEYS, HQ_COMPANY_ONLY, type HqArea, type HqMetricKey, type HqHistoryOutput, type HqRegionWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readMetrics, figures, show, asOfLine, linkTo, regionName, type Screen, type ScreenContext, type Figures } from "./common.ts";
@@ -79,17 +79,14 @@ export const area: Screen = (ctx, params) => {
       const f = figures(out);
       const regions = rowsFor(a, f.regions);
       return html`
-        <div class="s4-head"><h1 class="s4-h1">${HQ_AREA_TITLES[a]}</h1>${asOfLine(ctx, out)}</div>
-        ${areaGrid(ctx, a, f)}
-        <h2 class="s4-h2">Trend, last 30 days</h2>
-        <div class="s4-metrics" role="group" aria-label="Figure to chart">
-          ${keys.map((k) => html`<button type="button" class="s4-metric" aria-pressed=${k === metric ? "true" : "false"} onClick=${() => { chosen.value = { ...chosen.value, [a]: k }; }}>${HQ_METRICS[k].label}</button>`)}
-        </div>
-        ${whenReady(ctx, hist.value, (h) => html`<div class="s4-trends" id="trends">
+        ${pageHead(HQ_AREA_TITLES[a], "Each region's figures for this area beside the company total, and how they moved over the last 30 days.", asOfLine(ctx, out))}
+        ${panel(areaGrid(ctx, a, f))}
+        ${panel(whenReady(ctx, hist.value, (h) => html`<div class="s4-trends" id="trends">
           ${series(h, regions).map((s) => sparkline(s.points, s.label, metric))}
-        </div>`, () => ctx.store.invalidate("hq.history"))}
-        <h2 class="s4-h2">What each figure means</h2>
-        <ul class="s4-means">${keys.map((k) => html`<li><b>${HQ_METRICS[k].label}</b> (${HQ_METRICS[k].window === "30d" ? "30 days" : "now"}) — ${HQ_METRICS[k].means}</li>`)}</ul>`;
+        </div>`, () => ctx.store.invalidate("hq.history")), "Trend, last 30 days", undefined, html`<div class="s4-metrics" role="group" aria-label="Figure to chart">
+          ${keys.map((k) => html`<button type="button" class="s4-metric" aria-pressed=${k === metric ? "true" : "false"} onClick=${() => { chosen.value = { ...chosen.value, [a]: k }; }}>${HQ_METRICS[k].label}</button>`)}
+        </div>`)}
+        ${panel(html`<ul class="s4-means">${keys.map((k) => html`<li><b>${HQ_METRICS[k].label}</b> (${HQ_METRICS[k].window === "30d" ? "30 days" : "now"}) — ${HQ_METRICS[k].means}</li>`)}</ul>`, "What each figure means")}`;
     }, () => ctx.store.invalidate("hq."))}
   </section>`;
 };
