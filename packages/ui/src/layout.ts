@@ -23,6 +23,16 @@ export const statStrip = (tiles: readonly StatTile[], id?: string): VNode =>
     ${tiles.map((t) => html`<div class="ac-stat" data-tone=${t.tone}><span class="ac-stat__n">${t.n}</span><span class="ac-stat__l">${t.label}</span>${t.sub ? html`<span class="ac-stat__s">${t.sub}</span>` : null}</div>`)}
   </div>`;
 
+/**
+ * A panel: the card content sits in on the page ground. Title and one line of
+ * sub are optional — a panel holding a single captioned grid needs neither.
+ */
+export const panel = (body: ComponentChildren, title?: ComponentChildren, sub?: ComponentChildren, side?: ComponentChildren, id?: string): VNode =>
+  html`<section class="ac-panel" id=${id}>
+    ${title ? html`<header class="ac-panel__head"><div><h2 class="ac-panel__title">${title}</h2>${sub ? html`<p class="ac-panel__sub">${sub}</p>` : null}</div>${side ?? null}</header>` : null}
+    ${body}
+  </section>`;
+
 export type NoticeTone = "ok" | "at_risk" | "breached";
 
 /**
