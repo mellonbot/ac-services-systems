@@ -125,7 +125,8 @@ means building it twice.
    days to settle and can be returned, so a payment has a **pending** state that the
    customer sees ("Payment processing"). It's never shown as paid until it settles.
 3. **The processor's webhook is the source of truth, not the redirect.** A new
-   unauthenticated operation (`auth: "none"`, like `leads.submit`) takes the
+   unauthenticated operation (`auth: "none"`, like `brand.theme` and
+   `auth.login`; its proof is the signature, not a token) takes the
    processor's signed event, verifies the signature, and records it **idempotently**
    on the processor's event id. It writes an outbox event (`invoice.paid`,
    `payment.failed`) in the same transaction; S6 adds both to the topics it already subscribes to.
