@@ -3,7 +3,6 @@ import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SURFACE_IDS, SURFACE_PATHS, SURFACES } from "../../packages/contracts/src/index.ts";
-import { buildSurface } from "./build-surface.ts";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const OUTPUT = join(ROOT, "dist", "pages");
@@ -41,6 +40,9 @@ export const headersForEnabledSurfaces = (): string =>
     .join("");
 
 export const buildPages = async (gateway = gatewayOrigin(process.env.AC_GATEWAY)): Promise<void> => {
+  // Loaded here, not at the top: build-surface pulls in esbuild, and the
+  // zero-install guard runs this file's test with nothing installed.
+  const { buildSurface } = await import("./build-surface.ts");
   rmSync(OUTPUT, { recursive: true, force: true });
   mkdirSync(OUTPUT, { recursive: true });
 
