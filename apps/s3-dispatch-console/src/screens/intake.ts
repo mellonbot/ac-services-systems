@@ -40,7 +40,7 @@ export const age = (iso: string, now: number): string => {
   return m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m / 60)}h` : `${Math.floor(m / 1440)}d`;
 };
 
-const perStore = <T>(initial: T) => {
+export const perStore = <T>(initial: T) => {
   const m = new WeakMap<Store, Signal<T>>();
   return (store: Store): Signal<T> => {
     let s = m.get(store);
@@ -53,8 +53,8 @@ const viewingFor = perStore<Viewing>(null);
 type Opening = { readonly requestId: string; readonly busy: boolean; readonly refusal: Refusal | null } | null;
 const openingFor = perStore<Opening>(null);
 
-const JOB_PRIORITIES: readonly JobPriority[] = ["emergency", "urgent", "routine", "pm"];
-const PRIORITY_WORD: Readonly<Record<JobPriority, string>> = { emergency: "Emergency", urgent: "Urgent", routine: "Routine", pm: "Planned maintenance" };
+export const JOB_PRIORITIES: readonly JobPriority[] = ["emergency", "urgent", "routine", "pm"];
+export const PRIORITY_WORD: Readonly<Record<JobPriority, string>> = { emergency: "Emergency", urgent: "Urgent", routine: "Routine", pm: "Planned maintenance" };
 
 /** "2026-10-22T08:00" — what a datetime-local input holds, in the dispatcher's own time. */
 const localInput = (d: Date): string => {
