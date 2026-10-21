@@ -1,5 +1,5 @@
 import { html, pageHead, panel, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
-import type { ContractWire } from "../../../../packages/contracts/src/index.ts";
+import { COOL_CLUB, type ContractWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, type Screen } from "./common.ts";
 
@@ -21,7 +21,7 @@ const STATE: Readonly<Record<ContractWire["state"], { status: Status; word: stri
 };
 const KIND: Readonly<Record<ContractWire["kind"], string>> = {
   msa: "Master agreement", amendment: "Amendment", location_agreement: "Location agreement", project_sow: "Project statement of work",
-  residential_membership: "Membership", one_time: "One-time work",
+  residential_membership: COOL_CLUB.name, one_time: "One-time work",
 };
 
 export const agreements: Screen = (ctx) => {
