@@ -1,6 +1,6 @@
 import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, pageHead, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
-import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
+import { densityOf, seesManagerOverview, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
 import { createStore, type Store } from "./state.ts";
@@ -10,7 +10,9 @@ import { dispatch } from "./screens/dispatch.ts";
 import { jobs } from "./screens/jobs.ts";
 import { detail, pick } from "./screens/detail.ts";
 import { intake } from "./screens/intake.ts";
+import { manager } from "./screens/manager.ts";
 import { previewDetail } from "./preview-detail.ts";
+import { previewManagerOverview } from "./preview-manager.ts";
 import { S3_CSS } from "./styles.ts";
 
 /**
@@ -49,6 +51,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   detail,
   pick,
   intake,
+  manager,
 };
 
 type PreviewShell = ConnectedShell & {
@@ -63,6 +66,7 @@ type PreviewShell = ConnectedShell & {
     publishJobUpdate: (input: { updateId: string }) => Promise<unknown>;
     postJobMessage: (input: { jobId: string; body: string }) => Promise<unknown>;
     setReturnTrip: (input: { jobId: string; returnTrip: boolean }) => Promise<unknown>;
+    managerOverview: () => Promise<unknown>;
     health: () => Promise<{ ok: boolean }>;
   };
 };
@@ -149,12 +153,13 @@ const PREVIEW_REQUESTS = [
 
 const createPreviewShell = (): PreviewShell => {
   const shell = {
-    principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" },
-    context: { principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" }, path: [{ tier: "parent", id: "org-preview", name: "AC Services" }], parent: { tier: "parent", id: "org-preview", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "region-preview" },
+    principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "parent", scopeId: "org-preview", roles: ["dispatcher", "ops_leadership"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" },
+    context: { principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "parent", scopeId: "org-preview", roles: ["dispatcher", "ops_leadership"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" }, path: [{ tier: "parent", id: "org-preview", name: "AC Services" }], parent: { tier: "parent", id: "org-preview", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "region-preview" },
     gateway: {
       listJobs: async () => ({ jobs: PREVIEW_JOBS }),
       listServiceRequests: async () => ({ requests: PREVIEW_REQUESTS }),
       getMedia: async (input: { id: string }) => ({ id: input.id, contentType: "image/png", image: PREVIEW_PHOTO }),
+      managerOverview: async () => previewManagerOverview(),
       addJobNote: async (input: { jobId: string; body: string; kind?: "note" | "standing" }) => {
         const job = PREVIEW_JOBS.find((j) => j.id === input.jobId)!;
         const at = new Date().toISOString();
@@ -228,6 +233,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       store.invalidate("jobs.detail");
       store.invalidate("dispatch.candidates");
       store.invalidate("serviceRequests.list");
+      store.invalidate("manager.overview");
     }, { topics: [
       // a customer asked, or sent a photo with what they asked (Intake)
       "service_request.created", "service_request.photo_attached",
@@ -312,7 +318,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
              data-current=${loc?.screen === "jobs" ? "true" : undefined}
              aria-current=${loc?.screen === "jobs" ? "page" : undefined}
              onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>Job Dashboard</a>
-          <button type="button" class="ac-seg__item dispatch-header__tab">Manager</button>
+          ${seesManagerOverview(p.shell.principal) ? html`<a class="ac-seg__item" href=${router.href("manager", {})}
+             data-current=${loc?.screen === "manager" ? "true" : undefined}
+             aria-current=${loc?.screen === "manager" ? "page" : undefined}
+             onClick=${(e: Event) => { e.preventDefault(); router.navigate("manager", {}); }}>Manager</a>` : null}
         </nav>
         <div class="dispatch-header__tools">
           <span class="dispatch-header__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
