@@ -80,5 +80,15 @@ export const PRIMITIVES = Object.freeze({
    * same argument as the type scale, and the figures lived in prose until now.
    */
   motion: { fast: "110ms", base: "170ms", slow: "260ms" },
+  /**
+   * Widths. A measure is a line length, so it is set in ch and scales with the
+   * density's type: a one-line preview cut short inside a row, a sign-in card,
+   * a short confirmation, running text and forms. Layout widths are the page,
+   * a side column beside the work, a rail of row labels, a label column, and
+   * the two minimums an auto-fit grid of tiles takes. A breakpoint is not here:
+   * a media query cannot read a variable.
+   */
+  measure: { cell: "30ch", narrow: "40ch", short: "48ch", text: "64ch" },
+  layout: { page: "1400px", side: "20rem", rail: "14rem", label: "7rem", tile: "18ch", tileWide: "28ch" },
   ease: "cubic-bezier(.2,.6,.3,1)",
 });

@@ -147,6 +147,8 @@ export const tokenCss = (density: Density, opts: FrameOptions = {}): string => {
   // Motion: three durations and the one curve, so no sheet types a duration.
   for (const [k, v] of Object.entries(P.motion)) lines.push(`--motion-${k}:${v}`);
   lines.push(`--ease:${P.ease}`);
+  for (const [k, v] of Object.entries(P.measure)) lines.push(`--measure-${k}:${v}`);
+  lines.push(`--page-max:${P.layout.page}`, `--column-side:${P.layout.side}`, `--column-rail:${P.layout.rail}`, `--label-min:${P.layout.label}`, `--tile-min:${P.layout.tile}`, `--tile-wide:${P.layout.tileWide}`);
   return `:root{${lines.join(";")}}${plateScope(opts)}`;
 };
 

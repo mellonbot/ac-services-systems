@@ -15,6 +15,6 @@ export const S7_CSS = `
 .s7-num{font-family:var(--font-instrument);font-variant-numeric:tabular-nums;white-space:nowrap}
 .s7-list{margin:0;padding-inline-start:var(--space-4)}
 .s7-notes{margin:var(--space-1) 0 0;padding-inline-start:var(--space-4);color:var(--color-text-muted);font-size:var(--text-sm)}
-.s7-login{max-width:40ch;margin:10vh auto 0}
+.s7-login{max-width:var(--measure-narrow);margin:10vh auto 0}
 @media (max-width:760px){.s7-form--row{flex-direction:column;align-items:stretch}}
 `;

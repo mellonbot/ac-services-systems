@@ -213,6 +213,25 @@ A shadow is never a new ink: it is the tier's darkest role mixed to a few per ce
 on the field ground). `icon` 8px and `app` 16px stay artwork primitives and are not emitted
 to a surface. Do not invent a fourth radius or a second shadow.
 
+**Widths.** A measure is a line length, set in `ch` so it scales with the density's type;
+a layout width is the page or a column. Nothing in a surface sheet types either —
+`sheet-audit` fails a literal `max-width` or auto-fit tile minimum.
+
+| Token | Value | Where |
+|---|---|---|
+| `--measure-cell` | 30ch | a one-line preview cut short inside a row (a job's latest note) |
+| `--measure-narrow` | 40ch | a sign-in card |
+| `--measure-short` | 48ch | a confirmation, a short public line |
+| `--measure-text` | 64ch | running text, a form, a refusal, a page-head lede |
+| `--page-max` | 1400px | the page and the masthead |
+| `--column-side` | 20rem | a list or a job column beside the work |
+| `--column-rail` | 14rem | a rail of row labels (the dispatch board's technicians) |
+| `--label-min` | 7rem | a label column (a stacked grid's labels, a trace) |
+| `--tile-min` / `--tile-wide` | 18ch / 28ch | an auto-fit grid of figures (stat tiles) / of text or charts (facts, trends) |
+
+Breakpoints stay literal, because a media query cannot read a variable. A data column's own
+minimum (a date, an amount) sizes to its content and stays where it is.
+
 The page structure that comes with Rev A: a **page head** (the screen's name and one plain
 sentence of what it is for), a **stat strip** of tiles where a screen has figures worth
 leading with, content in **panels**, tables inside a panel, and navigation as a

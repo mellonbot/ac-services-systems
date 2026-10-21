@@ -3,7 +3,6 @@ import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SURFACE_IDS, SURFACE_PATHS, SURFACES } from "../../packages/contracts/src/index.ts";
-import { buildSurface } from "./build-surface.ts";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const OUTPUT = join(ROOT, "dist", "pages");
@@ -28,7 +27,22 @@ const redirectsForEnabledSurfaces = (): string => {
   return `${redirects.join("\n")}\n`;
 };
 
+// bundle.js and ui.css keep their names across deploys, so Pages' default
+// four-hour cache would leave a browser on the old bundle after a deploy.
+// no-cache keeps the copy but revalidates its ETag on every load.
+export const headersForEnabledSurfaces = (): string =>
+  SURFACE_IDS
+    .filter((id) => SURFACES[id].enabled)
+    .flatMap((id) => {
+      const prefix = SURFACE_PATHS[id] === "/" ? "" : SURFACE_PATHS[id];
+      return ["bundle.js", "ui.css"].map((file) => `${prefix}/${file}\n  Cache-Control: no-cache\n`);
+    })
+    .join("");
+
 export const buildPages = async (gateway = gatewayOrigin(process.env.AC_GATEWAY)): Promise<void> => {
+  // Loaded here, not at the top: build-surface pulls in esbuild, and the
+  // zero-install guard runs this file's test with nothing installed.
+  const { buildSurface } = await import("./build-surface.ts");
   rmSync(OUTPUT, { recursive: true, force: true });
   mkdirSync(OUTPUT, { recursive: true });
 
@@ -41,6 +55,7 @@ export const buildPages = async (gateway = gatewayOrigin(process.env.AC_GATEWAY)
   }
 
   writeFileSync(join(OUTPUT, "_redirects"), redirectsForEnabledSurfaces());
+  writeFileSync(join(OUTPUT, "_headers"), headersForEnabledSurfaces());
 };
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
