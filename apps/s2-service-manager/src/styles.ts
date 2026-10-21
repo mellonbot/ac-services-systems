@@ -64,8 +64,6 @@ export const S2_CSS = `
 .s2-refused{margin:var(--space-3) 0 0;padding-inline-start:var(--space-4);color:var(--color-status-at-risk)}
 @media (max-width:760px){
   .s2-address-row{grid-template-columns:1fr}
-  .s2-nav__group{flex:1 1 14rem}
-  .s2-nav__group-links{flex-wrap:wrap}
   .s2-notice__dismiss{min-height:var(--space-12);display:inline-flex;align-items:center}
   .s2-two-col{grid-template-columns:minmax(0,1fr)}
   .s2-col--orgs{position:static}
@@ -80,9 +78,7 @@ export const S2_CSS = `
 
 /* Persistent location: the operator's resolved scope stays separate from the
    customer, firm, or order currently open in the workspace. */
-.s2-nav__group{display:flex;flex-direction:column;gap:var(--space-1);padding-inline:var(--space-2);min-width:0}
-.s2-nav__group-label,.s2-context__label{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
-.s2-nav__group-links{display:flex;align-items:center;gap:var(--space-1)}
+.s2-context__label{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
 .s2-context{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-3) var(--space-6);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
 .s2-context__scope,.s2-context__current{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
 .s2-context ol{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-2);list-style:none;margin:0;padding:0;min-width:0}

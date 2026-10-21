@@ -237,10 +237,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       : p.shell.context ? [p.shell.context.parent] : [];
     const entity = loc ? activeEntity(loc.params, p.store) : null;
     return html`<div class="s2-app">
-      <nav class="ac-nav" aria-label="Workspace">
-        ${NAV_GROUPS.map((navGroup) => html`<div class="s2-nav__group" role="group" aria-label=${navGroup.label}>
-          <span class="s2-nav__group-label">${navGroup.label}</span>
-          <div class="s2-nav__group-links">
+      <nav class="ac-nav ac-nav--grouped" aria-label="Workspace">
+        ${NAV_GROUPS.map((navGroup) => html`<div class="ac-nav__group" role="group" aria-label=${navGroup.label} data-current=${group?.label === navGroup.label ? "true" : "false"}>
+          <span class="ac-nav__group-label">${navGroup.label}</span>
+          <div class="ac-seg">
             ${navGroup.screens.map((id) => {
               const spec = SCREENS[id];
               const title = "title" in spec ? spec.title : ROUTE_LABELS[id];
@@ -249,8 +249,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
             })}
           </div>
         </div>`)}
-        <span class="ac-nav__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
-        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
+        <div class="ac-nav__end">
+          <span class="ac-nav__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
+          <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
+        </div>
       </nav>
       <nav class="s2-context" aria-label="Current location">
         <div class="s2-context__scope">
