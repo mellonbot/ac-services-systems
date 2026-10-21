@@ -1,17 +1,27 @@
-import { html, pageHead, panel, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
-import { WORK_DONE_STATES, type JobWire, type JobStateWire, type ServiceRequestWire } from "../../../../packages/contracts/src/index.ts";
+import { html, pageHead, panel, statStrip, signal, StatusPill, PrimaryAction, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
+import { WORK_DONE_STATES, type JobWire, type JobStateWire, type ServiceRequestWire, type InvoiceWire, type BillingPath, type ServiceRequestPriority } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, readNodes, treeOf, linkTo, when, type Screen } from "./common.ts";
+import { whenReady, readNodes, linkTo, type Screen, type ScreenContext } from "./common.ts";
+import { requestForm, outcomeView, refOf } from "./request.ts";
+import { money } from "./site.ts";
 
 /**
- * WORK — every job at a site this principal can see, and every request it
- * has made. Read straight off `jobs.list`, the operation S2 reads org-wide
- * and S3 reads region-locked; the customer's rows are the ones 0006's
- * `ac_work_visible` admits. What is NOT on this screen is as deliberate as
- * what is: no crew, no employment shape, no compliance detail. The wire
- * carries `currentCrewLabel` because S3's board needs it — for a customer
- * principal RLS returns no assignment row to join, so the field is null by
- * mechanism, and the column is simply not drawn.
+ * WORK ORDERS — S6's home. Request a work order and watch it move, in the
+ * customer's language rather than ours: "awaiting_parts" on the board is
+ * "Ordering a part" here, and the stepper, the pill and the sentence under it
+ * say the same thing three ways so no one of them carries the story alone.
+ *
+ * A work order is a request the customer made (with the job the office opened
+ * against it, once there is one) or a job the office opened on its own — a
+ * planned visit has no request behind it and is still the customer's work.
+ * Every row is what `serviceRequests.list` and `jobs.list` returned; the
+ * status and site filters only choose which of THOSE rows to draw. Scope is
+ * the gateway's (0006), never a filter here.
+ *
+ * What is NOT on this screen is as deliberate as what is: no crew, no
+ * employment shape, no compliance detail. For a customer principal RLS
+ * returns no assignment row to join, so the crew fields are null by mechanism
+ * and nothing reads them.
  *
  * SLA health is derived the same way S3's board derives it — one function,
  * one three-state ramp — so a customer and the dispatcher serving them are
@@ -36,13 +46,9 @@ export const STATE_WORD: Readonly<Record<JobStateWire, string>> = {
   needs_pricing: "Complete", awaiting_po: "Waiting on your PO", awaiting_pictures: "Complete", invoice_trouble: "Invoice being corrected",
 };
 
-/**
- * WHERE A REQUEST STANDS, in the customer's words. The five steps are the
- * reference layout's stepper; the job state behind each is ours and never
- * shown as the word it is on the board.
- */
+/** WHERE A WORK ORDER STANDS, in the customer's words. The job state behind each step is ours and never shown as the word it is on the board. */
 export const STEPS = ["Requested", "Scheduled", "In progress", "Completed", "Invoiced"] as const;
-export const stepOf = (r: Pick<ServiceRequestWire, "jobState">): number => {
+export const stepOf = (r: { readonly jobState: JobStateWire | null }): number => {
   switch (r.jobState) {
     case null: case "created": case "quote_requested": case "quote_submitted": return 0;
     case "assigned": case "reassigned": case "en_route": return 1;
@@ -52,59 +58,193 @@ export const stepOf = (r: Pick<ServiceRequestWire, "jobState">): number => {
     default: return -1;
   }
 };
-const STEP_SENTENCE = [
-  "It is with the office, who will open a job and match a technician.",
-  "A technician is booked for your site.",
-  "A technician is working on it.",
-  "The work is done.",
-  "The work is done and invoiced.",
-];
-export const requestCard = (ctx: Parameters<Screen>[0], r: ServiceRequestWire) => {
-  const at = stepOf(r);
-  const stopped = at < 0;
-  return html`<article class="s6-order" data-request=${r.id}>
+
+/** A hold is the one place a step's name is not the whole story — the pill says what it is waiting on. */
+const HOLD_WORD: Partial<Record<JobStateWire, string>> = {
+  awaiting_parts: "Ordering a part", awaiting_customer: "Waiting on you", awaiting_po: "Waiting on your PO",
+  invoice_trouble: "Invoice being corrected", quote_submitted: "Quote sent to you", reopened: "Reopened",
+};
+
+export type WorkOrder = {
+  readonly key: string; readonly ref: string; readonly title: string;
+  readonly siteId: string; readonly siteName: string;
+  readonly submittedAt: string; readonly priority: ServiceRequestPriority | null;
+  readonly jobState: JobStateWire | null; readonly job: JobWire | null;
+};
+
+/** Requests with the job opened against each, then the jobs no request stands behind. Newest first, open before closed. */
+export const ordersOf = (requests: readonly ServiceRequestWire[], jobs: readonly JobWire[]): WorkOrder[] => {
+  const byId = new Map(jobs.map((j) => [j.id, j]));
+  const asked = new Set(requests.map((r) => r.jobId).filter((id): id is string => id !== null));
+  const fromRequests = requests.map((r): WorkOrder => {
+    const job = r.jobId ? byId.get(r.jobId) ?? null : null;
+    return {
+      key: r.id, ref: refOf(r.id), title: r.description.split("\n")[0]!.slice(0, 80),
+      siteId: r.siteId, siteName: r.siteName, submittedAt: r.createdAt, priority: r.priority,
+      jobState: job?.state ?? r.jobState, job,
+    };
+  });
+  const fromJobs = jobs.filter((j) => !asked.has(j.id)).map((j): WorkOrder => ({
+    key: j.id, ref: refOf(j.id), title: j.serviceCode, siteId: j.siteId, siteName: j.siteName ?? "—",
+    submittedAt: j.openedAt, priority: null, jobState: j.state, job: j,
+  }));
+  const open = (o: WorkOrder) => stepOf(o) >= 0 && stepOf(o) < 3;
+  return [...fromRequests, ...fromJobs].sort((a, b) => Number(open(b)) - Number(open(a)) || b.submittedAt.localeCompare(a.submittedAt));
+};
+
+export const pillOf = (o: WorkOrder, nowMs: number): { status: Status; label: string } => {
+  const at = stepOf(o);
+  if (at < 0) return { status: "blocked", label: "Cancelled" };
+  if (o.job && at < 3 && slaStatus(o.job, nowMs) === "breached") return { status: "breached", label: "Response overdue" };
+  const hold = o.jobState ? HOLD_WORD[o.jobState] : undefined;
+  if (hold) return { status: "at_risk", label: hold };
+  return { status: "ok", label: STEPS[at]! };
+};
+
+const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+const time = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+export const windowOf = (start: string, end: string) => `${day(start)}, ${time(start)} – ${time(end)}`;
+
+/** The invoice a job was billed on, and what THIS job's visible lines came to. */
+const billOf = (job: JobWire | null, invoices: readonly InvoiceWire[]) => {
+  if (!job) return null;
+  for (const inv of invoices) {
+    const lines = inv.lines.filter((l) => l.jobId === job.id);
+    if (lines.length) return { inv, amount: money(lines.reduce((s, l) => s + BigInt(l.amountMinor), 0n).toString(), inv.currency) };
+  }
+  return null;
+};
+
+const noteOf = (ctx: ScreenContext, o: WorkOrder, invoices: readonly InvoiceWire[]): VNode | string => {
+  const at = stepOf(o);
+  const j = o.job;
+  if (at < 0) return "This was closed without a visit.";
+  switch (o.jobState) {
+    case "awaiting_parts": return "Diagnosed — we are sourcing a part now. A technician will return once it arrives.";
+    case "awaiting_customer": return "We need something from you before we can go on — the office will be in touch.";
+    case "quote_submitted": return "A quote is with you. Work is scheduled once it is approved.";
+    case "awaiting_po": return "The work is done. We are waiting on your purchase order before we invoice.";
+    case "invoice_trouble": return "The work is done. The invoice is being corrected before it reaches you.";
+  }
+  if (at === 0) return "It is with the office, who will open a job and match a technician for your site.";
+  if (at === 1 && j) return html`Technician booked for <strong class="ac-num">${windowOf(j.serviceWindowStart, j.serviceWindowEnd)}</strong>.`;
+  if (at === 2) return "A technician is working on it.";
+  const done = j ? `Completed ${day(j.stateChangedAt)}.` : "The work is done.";
+  const bill = at === 4 ? billOf(j, invoices) : null;
+  if (!bill) return at === 4 ? `${done} It has been invoiced.` : done;
+  return html`${done} Invoice <span class="ac-num">${refOf(bill.inv.id)}</span> · <span class="ac-num">${bill.amount}</span>${bill.inv.dueAt ? html` due <span class="ac-num">${day(bill.inv.dueAt)}</span>` : null} — ${linkTo(ctx, "site", { siteId: o.siteId }, "see it on the site card")}`;
+};
+
+export const orderCard = (ctx: ScreenContext, o: WorkOrder, invoices: readonly InvoiceWire[], nowMs: number): VNode => {
+  const at = stepOf(o);
+  const pill = pillOf(o, nowMs);
+  return html`<article class="s6-order" data-order=${o.key}>
     <header class="s6-order__head">
-      <div><h3 class="s6-order__title">${r.description.length > 72 ? `${r.description.slice(0, 72)}…` : r.description}</h3>
-        <p class="s6-order__meta">${r.siteName} · asked ${when(r.createdAt)} · ${r.priority}</p></div>
-      ${StatusPill({ density: ctx.density, status: stopped ? "blocked" : at >= 3 ? "ok" : at === 0 ? "at_risk" : "ok", label: stopped ? "Cancelled" : STEPS[at]! })}
+      <div><h3 class="s6-order__title"><span class="s6-order__ref">${o.ref}</span> · ${o.title}</h3>
+        <p class="s6-order__meta">${linkTo(ctx, "site", { siteId: o.siteId }, o.siteName)} · ${o.priority ? "submitted" : "opened by the office"} <span class="ac-num">${day(o.submittedAt)}, ${time(o.submittedAt)}</span>${o.priority && o.priority !== "routine" ? ` · ${o.priority}` : ""}${o.job ? html` · ${linkTo(ctx, "job", { jobId: o.job.id }, "updates and messages")}` : null}</p></div>
+      ${StatusPill({ density: ctx.density, status: pill.status, label: pill.label })}
     </header>
-    ${stopped ? null : html`<ol class="s6-steps" aria-label="Where this request stands">
+    ${at < 0 ? null : html`<ol class="s6-steps" aria-label="Where this work order stands">
       ${STEPS.map((label, i) => html`<li class="s6-step" data-state=${i < at ? "done" : i === at ? "current" : "todo"} aria-current=${i === at ? "step" : undefined}><span class="s6-step__dot" aria-hidden="true"></span><span class="s6-step__label">${label}</span></li>`)}
     </ol>`}
-    <p class="s6-order__note">${stopped ? "This request was closed without a visit." : STEP_SENTENCE[at]}</p>
+    <p class="s6-order__note">${noteOf(ctx, o, invoices)}</p>
   </article>`;
 };
+
+type Show = "all" | "open" | "scheduled" | "completed";
+const SHOW_WORD: Readonly<Record<Show, string>> = { all: "All", open: "Open", scheduled: "Scheduled", completed: "Completed" };
+const shows = (s: Show, o: WorkOrder): boolean => {
+  const at = stepOf(o);
+  switch (s) {
+    case "all": return true;
+    case "open": return at >= 0 && at < 3;
+    case "scheduled": return at === 1;
+    case "completed": return at >= 3;
+  }
+};
+const show = signal<Show>("all");
+const onSite = signal<string | null>(null);
+export const resetWorkFilters = () => { show.value = "all"; onSite.value = null; };
+
+const PLAN_WORD: Readonly<Record<BillingPath, string>> = {
+  enterprise_sla: "Enterprise SLA", residential_membership: "Membership", project: "Project", one_time: "One-time service",
+};
+
+const DAY_MS = 86_400_000;
 
 export const work: Screen = (ctx) => {
   const nodes = readNodes(ctx);
   const jobs = ctx.store.read(keyOf("jobs.list", {}), () => ctx.shell.gateway.listJobs({}));
   const requests = ctx.store.read(keyOf("serviceRequests.list", {}), () => ctx.shell.gateway.listServiceRequests({}));
+  const invoices = ctx.store.read(keyOf("invoices.list", {}), () => ctx.shell.gateway.listInvoices({}));
+  const contracts = ctx.store.read(keyOf("contracts.list", {}), () => ctx.shell.gateway.listContracts({ orgId: ctx.shell.principal.orgId }));
   const now = Date.now();
-  const siteName = (id: string) => (nodes.value.state === "ready" ? treeOf(nodes.value.value.nodes).byId.get(id)?.name : undefined) ?? "—";
+
+  const jobRows = jobs.value.state === "ready" ? jobs.value.value.jobs : [];
+  const invoiceRows = invoices.value.state === "ready" ? invoices.value.value.invoices : [];
+  const plans = contracts.value.state === "ready"
+    ? [...new Set(contracts.value.value.contracts.filter((c) => c.state === "active").map((c) => PLAN_WORD[c.billingPath]))]
+    : [];
+
+  const focusForm = () => {
+    const el = typeof document !== "undefined" ? document.getElementById("request-site") : null;
+    el?.scrollIntoView({ block: "center" });
+    el?.focus();
+  };
 
   return html`<section class="s6-work">
-    ${pageHead("Work", "The requests you have made and the jobs at your sites, each shown by where it stands — in your words, not ours.")}
-    ${panel(whenReady(ctx, requests.value, (out) => out.requests.length === 0
-      ? html`<p class="s6-empty">No requests yet.</p>`
-      : html`<div class="s6-orders" id="request-cards">${out.requests.map((r) => requestCard(ctx, r))}</div>`, () => ctx.store.invalidate("serviceRequests.list")), "Your requests")}
-    ${panel(whenReady(ctx, jobs.value, (out) => DataGrid<JobWire>({
-      density: ctx.density,
-      caption: "Jobs at sites in view",
-      emptyText: "No jobs at your sites.",
-      rows: [...out.jobs].sort((a, b) => Number(isOpen(b)) - Number(isOpen(a)) || b.openedAt.localeCompare(a.openedAt)),
-      rowKey: (j) => j.id,
-      columns: [
-        { key: "site", header: "Site", cell: (j) => linkTo(ctx, "site", { siteId: j.siteId }, siteName(j.siteId)) },
-        { key: "serviceCode", header: "Service", cell: (j) => linkTo(ctx, "job", { jobId: j.id }, j.serviceCode) },
-        { key: "state", header: "State", cell: (j) => STATE_WORD[j.state] },
-        { key: "window", header: "Window", numeric: true, cell: (j) => html`${when(j.serviceWindowStart)}<br />– ${when(j.serviceWindowEnd)}` },
-        {
-          key: "sla", header: "Response",
-          cell: (j) => StatusPill({ density: ctx.density, status: slaStatus(j, now), label: j.slaSatisfiedAt ? `Responded ${when(j.slaSatisfiedAt)}` : j.slaDueAt ? `Due ${when(j.slaDueAt)}` : "No commitment on file" }) ?? html``,
-        },
-      ],
-    }) ?? html``, () => ctx.store.invalidate("jobs.list")), "Jobs")}
+    ${pageHead("Work orders", "Request service and follow it from request to invoice — in your words, not ours.")}
 
-    <p class="s6-actions">${linkTo(ctx, "request", {}, "Request service")}</p>
+    <div class="s6-account" id="account">
+      <div class="s6-account__who">
+        <h2 class="s6-account__name">${ctx.shell.context?.parent.name ?? "Your account"}</h2>
+        <p class="s6-account__sub">${whenReady(ctx, nodes.value, (out) => {
+          const count = (tier: string) => out.nodes.filter((n) => n.tier === tier).length;
+          const sites = count("site"), locations = count("location");
+          return html`<span class="ac-num">${sites}</span> site${sites === 1 ? "" : "s"} across <span class="ac-num">${locations}</span> location${locations === 1 ? "" : "s"} in your view`;
+        })}</p>
+      </div>
+      <div class="s6-account__side">
+        ${plans.map((p) => html`<span class="s6-tag">${p}</span>`)}
+        ${PrimaryAction({ density: ctx.density, label: "New work order", id: "account-request", onClick: focusForm })}
+      </div>
+    </div>
+
+    ${jobs.value.state === "refused" ? null : whenReady(ctx, requests.value, (out) => {
+      const orders = ordersOf(out.requests, jobRows);
+      const n = (k: number) => orders.filter((o) => stepOf(o) === k).length;
+      const done30 = orders.filter((o) => stepOf(o) >= 3 && now - Date.parse(o.job?.stateChangedAt ?? o.submittedAt) <= 30 * DAY_MS).length;
+      const due = invoiceRows.filter((i) => i.dueAt && Date.parse(i.dueAt) >= now).length;
+      return statStrip([
+        { n: n(0), label: "Open requests" },
+        { n: n(1), label: "Scheduled", tone: "info" },
+        { n: n(2), label: "In progress", tone: "info" },
+        { n: done30, label: "Completed (30 days)", tone: "ok" },
+        { n: due, label: "Invoices due", sub: "due date still ahead" },
+      ], "work-stats");
+    })}
+
+    <div class="s6-home">
+      ${panel(requestForm(ctx), "Request a work order", "Goes straight to the office for your region — no phone tag.", undefined, "request-panel")}
+      <div class="s6-home__orders">
+        ${outcomeView(ctx)}
+        ${panel(whenReady(ctx, jobs.value, () => whenReady(ctx, requests.value, (out) => {
+          const orders = ordersOf(out.requests, jobRows);
+          const siteIds = [...new Map(orders.map((o) => [o.siteId, o.siteName])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+          const drawn = orders.filter((o) => shows(show.value, o) && (onSite.value === null || o.siteId === onSite.value));
+          return html`
+            ${siteIds.length > 1 ? html`<div class="s6-chips" role="group" aria-label="Filter by site">
+              <button type="button" class="ac-chip" aria-pressed=${onSite.value === null ? "true" : "false"} onClick=${() => { onSite.value = null; }}>All sites</button>
+              ${siteIds.map(([id, name]) => html`<button type="button" class="ac-chip" aria-pressed=${onSite.value === id ? "true" : "false"} onClick=${() => { onSite.value = id; }}>${name}</button>`)}
+            </div>` : null}
+            ${drawn.length === 0
+              ? html`<p class="s6-empty">${orders.length === 0 ? "No work orders yet. Request one and it appears here." : "Nothing matches this filter."}</p>`
+              : html`<div class="s6-orders" id="request-cards">${drawn.map((o) => orderCard(ctx, o, invoiceRows, now))}</div>`}`;
+        }, () => ctx.store.invalidate("serviceRequests.list")), () => ctx.store.invalidate("jobs.list")), "Your work orders", undefined,
+          html`<div class="ac-seg" role="group" aria-label="Show">
+            ${(Object.keys(SHOW_WORD) as Show[]).map((s) => html`<button type="button" class="ac-seg__item s6-seg-button" data-current=${show.value === s ? "true" : "false"} aria-pressed=${show.value === s ? "true" : "false"} onClick=${() => { show.value = s; }}>${SHOW_WORD[s]}</button>`)}
+          </div>`, "orders")}
+      </div>
+    </div>
   </section>`;
 };

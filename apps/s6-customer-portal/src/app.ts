@@ -56,7 +56,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const store = createStore(shell, now);
     phase.value = { kind: "ready", shell, store };
     const at = router.current.value;
-    if (!at || at.screen === "login") router.navigate("sites", {});
+    if (!at || at.screen === "login") router.navigate("work", {});
     // Envelopes carry no payload; refetch what the event touched (09 §3.5).
     // The region feed is filtered to the principal's region at the gateway;
     // a customer's own events are the ones about its jobs and its agreements.
@@ -98,7 +98,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const logout = async () => {
     const p = phase.value;
     if (p.kind !== "ready") return;
-    try { await p.shell.logout(); } finally { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("sites", {}); }
+    try { await p.shell.logout(); } finally { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("work", {}); }
   };
 
   const tick = () => {
@@ -129,8 +129,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const who = p.shell.context?.path.map((n) => n.name).join(" › ") ?? p.shell.context?.parent.name ?? "";
     return html`<div class="s6-app">
       <nav class="ac-nav" aria-label="Screens">
+        ${nav("work", "Work orders")}
         ${nav("sites", "Sites")}
-        ${nav("work", "Work")}
         ${nav("agreements", "Agreements")}
         <span class="ac-nav__who" id="who">${who}</span>
         ${PrimaryAction({ density: DENSITY, label: "Request service", id: "nav-request", onClick: () => router.navigate("request", {}) })}

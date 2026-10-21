@@ -22,9 +22,10 @@ export const SCREENS = {
   "site":       { path: "/site/:siteId",           uses: ["accounts.list", "equipment.list", "contacts.list", "invoices.list", "jobs.list", "serviceRequests.list", "sites.imagery"], title: "Site" },
   // A customer's one job: where it stands, what the office published, and the thread (0016).
   "job":        { path: "/job/:jobId",             uses: ["jobs.list", "accounts.list", "jobs.conversation", "jobs.postMessage"], title: "Job" },
-  "work":       { path: "/work",                   uses: ["jobs.list", "accounts.list", "serviceRequests.list"], title: "Work" },
+  // The home: request a work order and follow every one to its invoice.
+  "work":       { path: "/",                       uses: ["jobs.list", "accounts.list", "serviceRequests.list", "serviceRequests.create", "invoices.list", "contracts.list"], title: "Work orders" },
   "agreements": { path: "/agreements",             uses: ["contracts.list", "accounts.list"], title: "Agreements" },
-  "sites":      { path: "/",                       uses: ["accounts.list", "jobs.list", "serviceRequests.list"], title: "Sites" },
+  "sites":      { path: "/sites",                  uses: ["accounts.list", "jobs.list", "serviceRequests.list"], title: "Sites" },
 } as const satisfies Record<string, ScreenSpec>;
 
 export type ScreenId = keyof typeof SCREENS;
