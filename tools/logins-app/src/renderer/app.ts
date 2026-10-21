@@ -105,10 +105,17 @@ const renderTable = (): void => {
 
 const render = (): void => { renderHeader(); renderSidebar(); renderTable(); };
 
+// Every awaited call captures the database it asked; a reply for a database the window no longer shows is dropped.
+const stale = (db: DbName): boolean => state.db !== db;
+
 const reload = async (): Promise<void> => {
+  const db = state.db;
   try {
-    state.users = await api.listUsers(state.db, state.showInactive);
+    const users = await api.listUsers(db, state.showInactive);
+    if (stale(db)) return;
+    state.users = users;
   } catch (e) {
+    if (stale(db)) return;
     state.users = [];
     banner(message(e));
   }
@@ -117,19 +124,24 @@ const reload = async (): Promise<void> => {
 
 // ── Row actions ───────────────────────────────────────────────────────────
 const remove = async (u: UserRecord): Promise<void> => {
-  if (state.db === "production" && !confirm(`Remove ${u.email}? They will be signed out everywhere.`)) return;
+  const db = state.db;
+  if (db === "production" && !confirm(`Remove ${u.email}? They will be signed out everywhere.`)) return;
   try {
     clearBanner();
-    signedOut((await api.deactivate(state.db, u.id)).revokedSessions);
-  } catch (e) { banner(message(e)); }
+    const { revokedSessions } = await api.deactivate(db, u.id);
+    if (stale(db)) return;
+    signedOut(revokedSessions);
+  } catch (e) { if (stale(db)) return; banner(message(e)); }
   await reload();
 };
 
 const reactivate = async (u: UserRecord): Promise<void> => {
+  const db = state.db;
   try {
     clearBanner();
-    await api.reactivate(state.db, u.id);
-  } catch (e) { banner(message(e)); }
+    await api.reactivate(db, u.id);
+  } catch (e) { if (stale(db)) return; banner(message(e)); }
+  if (stale(db)) return;
   await reload();
 };
 
@@ -189,7 +201,7 @@ const indented = (nodes: readonly AccountNode[]): [string, string][] => {
   const out: [string, string][] = [];
   const walk = (parent: string | null, depth: number): void => {
     for (const n of nodes.filter((x) => x.parentId === parent)) {
-      out.push([n.id, `${"   ".repeat(depth)}${n.name}`]);
+      out.push([n.id, `${"\u00a0\u00a0\u00a0".repeat(depth)}${n.name}`]); // NBSP: an <option> collapses ordinary spaces
       walk(n.id, depth + 1);
     }
   };
@@ -235,6 +247,7 @@ const addForm = async (): Promise<void> => {
     switch (kind.id) {
       case "S2": case "S3": case "S4": {
         const regions = await api.listRegions(db);
+        if (stale(db)) return;
         openForm(`Add ${kind.name} login`, [...head, roleBoxes([]), scopeRadios("region"),
           field("Region", select("regionId", regions.map((r) => [r.id, `${r.code} — ${r.name}`]))), ...passwordFields()],
         async (f) => {
@@ -245,6 +258,7 @@ const addForm = async (): Promise<void> => {
       }
       case "S5": {
         const crews = await api.listCrews(db);
+        if (stale(db)) return;
         openForm("Add Technician login", [...head, field("Crew (employed)", select("crewId", crews.map((c) => [c.id, c.label]))), ...passwordFields()],
           async (f) => {
             const crew = crews.find((c) => c.id === str(f, "crewId"))!;
@@ -254,15 +268,19 @@ const addForm = async (): Promise<void> => {
       }
       case "S6": {
         const orgs = await api.listCustomerOrgs(db);
+        if (stale(db)) return;
         let nodes: readonly AccountNode[] = [];
         const scope = h("div", { class: "group" });
         const org = select("orgId", orgs.map((o) => [o.id, o.name]));
         const loadTree = async (): Promise<void> => {
-          nodes = org.value ? await api.listAccountTree(db, org.value) : [];
+          const tree = org.value ? await api.listAccountTree(db, org.value) : [];
+          if (stale(db)) return;
+          nodes = tree;
           if (org.value) customerScope(scope, () => nodes); else scope.replaceChildren();
         };
-        org.addEventListener("change", () => { void loadTree().catch((e) => banner(message(e))); });
+        org.addEventListener("change", () => { void loadTree().catch((e) => { if (!stale(db)) banner(message(e)); }); });
         await loadTree();
+        if (stale(db)) return;
         openForm("Add Customer Portal login", [...head, field("Customer", org), scope, ...passwordFields()], async (f) => {
           const orgId = str(f, "orgId");
           await api.addLogin(db, { ...base(f), kind: "customer", orgId, ...customerPlacement(f, nodes, orgId) });
@@ -271,6 +289,7 @@ const addForm = async (): Promise<void> => {
       }
       case "S8": {
         const [firms, regions] = await Promise.all([api.listFirms(db), api.listRegions(db)]);
+        if (stale(db)) return;
         const firm = select("firmId", firms.map((x) => [x.id, x.legalName]));
         const region = select("regionId", regions.map((r) => [r.id, `${r.code} — ${r.name}`]));
         firm.addEventListener("change", () => { region.value = firms.find((x) => x.id === firm.value)?.regionId ?? ""; });
@@ -282,7 +301,7 @@ const addForm = async (): Promise<void> => {
       default:
         return;
     }
-  } catch (e) { banner(message(e)); }
+  } catch (e) { if (!stale(db)) banner(message(e)); }
 };
 
 const resetForm = (u: UserRecord): void => {
@@ -336,7 +355,8 @@ const editForm = async (u: UserRecord): Promise<void> => {
         return { displayName: str(f, "displayName"), scope: { tier: p.tier, scopeId: p.nodeId, regionId: p.regionId } };
       };
     }
-  } catch (e) { banner(message(e)); return; }
+  } catch (e) { if (!stale(db)) banner(message(e)); return; }
+  if (stale(db)) return;
   openForm(`Edit ${u.email}`, body, async (f) => (await api.editLogin(db, u.id, build(f))).revokedSessions);
 };
 
@@ -372,9 +392,10 @@ const switchTo = async (db: DbName): Promise<void> => {
   try {
     await api.select(db);
   } catch (e) {
-    banner(message(e));
+    if (!stale(db)) banner(message(e));
     return;
   }
+  if (stale(db)) return;
   await reload();
 };
 

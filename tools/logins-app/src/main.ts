@@ -15,9 +15,10 @@ let conns: Connections;
 let connectionsError: string | null = null;
 try {
   conns = loadConnections(CONFIG_DIR);
-} catch (e) {
+} catch {
+  // Never forward the parse error: V8 quotes the source around the bad token, which can be part of a connection string.
   conns = { local: LOCAL_DEFAULT };
-  connectionsError = `connections.json could not be read (${(e as Error).message}) — re-enter the connection strings with ⚙.`;
+  connectionsError = "connections.json could not be read — enter the connection strings again.";
 }
 
 const openFor = async (name: DbName): Promise<LoginsDb> => {
