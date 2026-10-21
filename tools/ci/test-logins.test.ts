@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { SURFACES, SURFACE_IDS, admits, surfacesAdmitting } from "../../packages/contracts/src/surfaces.ts";
 import { ROLES } from "../../packages/contracts/src/scope.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
-import { TEST_LOGINS, TEST_LOGIN_DOMAIN, testLoginRow } from "./test-logins.ts";
+import { TEST_LOGINS, CUSTOMER_TEST_LOGIN, TEST_LOGIN_DOMAIN, testLoginRow } from "./test-logins.ts";
 
 const REGION = "a0000000-0000-0000-0000-0000000000aa";
+const CUSTOMER_ORG = "c0000000-0000-0000-0000-0000000000cc";
 const byLogin = (name: string) => TEST_LOGINS.find((t) => t.login === name)!;
 
 test("the three test logins exist, with the names asked for, at a reserved domain", () => {
@@ -44,4 +45,13 @@ test("the users rows: org-wide logins scope to the internal org, the dispatcher 
   assert.deepEqual([sm.scope_tier, sm.scope_id], ["parent", INTERNAL_ORG_ID]);
   const d = testLoginRow(byLogin("dispatcher-test"), REGION);
   assert.deepEqual([d.scope_tier, d.scope_id, d.region_id], ["region", REGION, REGION]);
+});
+
+test("the customer login: customer namespace, no roles, the named customer org at parent tier → S6 alone", () => {
+  assert.equal(CUSTOMER_TEST_LOGIN.email, `customer-test@${TEST_LOGIN_DOMAIN}`);
+  assert.deepEqual(surfacesAdmitting({ namespace: "customer", roles: CUSTOMER_TEST_LOGIN.roles }), ["S6"]);
+  assert.deepEqual(CUSTOMER_TEST_LOGIN.surfaces, ["S6"]);
+  const c = testLoginRow(CUSTOMER_TEST_LOGIN, REGION, CUSTOMER_ORG);
+  assert.deepEqual([c.namespace, c.org_id, c.region_id, c.scope_tier, c.scope_id], ["customer", CUSTOMER_ORG, REGION, "parent", CUSTOMER_ORG]);
+  assert.throws(() => testLoginRow(CUSTOMER_TEST_LOGIN, REGION), /needs the customer org/);
 });

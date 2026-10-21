@@ -1,6 +1,6 @@
 /**
- * THE TEST LOGINS OVER THE WIRE — superadmin-test, dispatcher-test and
- * service_manager-test, seeded by the same tool an operator runs
+ * THE TEST LOGINS OVER THE WIRE — superadmin-test, dispatcher-test,
+ * service_manager-test and customer-test, seeded by the same tool an operator runs
  * (tools/ci/seed-test-logins.ts), against a spawned gateway and a live
  * PostgreSQL.
  *
@@ -21,8 +21,8 @@ import { scopeBinding } from "../../apps/gateway/src/context.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { GatewayRefusal, SURFACE_IDS, SURFACES, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
-import { seedTestLogins, resolveRegion, type SeededLogin } from "../../tools/ci/seed-test-logins.ts";
-import { TEST_LOGINS, type TestLogin } from "../../tools/ci/test-logins.ts";
+import { seedTestLogins, resolveRegion, resolveCustomerOrg, type SeededLogin } from "../../tools/ci/seed-test-logins.ts";
+import { TEST_LOGINS, CUSTOMER_TEST_LOGIN, type TestLogin } from "../../tools/ci/test-logins.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — the test logins were not verified over the wire";
@@ -36,6 +36,8 @@ const RUN = `tl-${Date.now().toString(36)}`;
 let pool: Pool;
 let gateway: ChildProcess;
 let seeded: readonly SeededLogin[] = [];
+let customerOrg = "";
+const ALL_LOGINS = [...TEST_LOGINS, CUSTOMER_TEST_LOGIN];
 const admin = async (sql: string, params: unknown[] = []) => {
   const c = await pool.connect();
   try { return (await c.query(sql, params)).rows; } finally { c.release(); }
@@ -47,9 +49,12 @@ before(async () => {
   await admin(`INSERT INTO regions (id, code, name) VALUES ($1,'WEST','West'), ($2,'SOUTH','South') ON CONFLICT (id) DO NOTHING`, [REGION_WEST, REGION_SOUTH]);
   const region = await resolveRegion(pool, "south");
   assert.equal(region.id, REGION_SOUTH, "a region code resolves case-insensitively");
-  seeded = await seedTestLogins(pool, { password: PASSWORD, regionId: region.id });
+  customerOrg = (await admin(`INSERT INTO organizations (name, kind) VALUES ($1,'customer') RETURNING id`, [`Customer ${RUN}`]))[0].id;
+  await admin(`INSERT INTO accounts (org_id, region_id, tier, name) VALUES ($1,$2,'region',$3)`, [customerOrg, REGION_SOUTH, `Customer ${RUN} / South`]);
+  assert.equal((await resolveCustomerOrg(pool, `customer ${RUN}`)).id, customerOrg, "a customer org resolves by name, case-insensitively");
+  seeded = await seedTestLogins(pool, { password: PASSWORD, regionId: region.id, customerOrgId: customerOrg });
   // Twice: the seed is idempotent, and the second run is what an operator does to reset a password.
-  const again = await seedTestLogins(pool, { password: PASSWORD, regionId: region.id });
+  const again = await seedTestLogins(pool, { password: PASSWORD, regionId: region.id, customerOrgId: customerOrg });
   assert.deepEqual(again.map((s) => s.id), seeded.map((s) => s.id), "a re-seed updates the same rows");
 
   gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
@@ -72,17 +77,18 @@ after(async () => {
 });
 
 const as = (t: TestLogin, surfaceId: SurfaceId) => connectShell({ surfaceId, baseUrl: BASE, fetch, credentials: { email: t.email, password: PASSWORD } });
-const byLogin = (name: string) => TEST_LOGINS.find((t) => t.login === name)!;
+const byLogin = (name: string) => ALL_LOGINS.find((t) => t.login === name)!;
 const idOf = (t: TestLogin) => seeded.find((s) => s.email === t.email)!.id;
 const sessionsOf = async (t: TestLogin) => (await admin(`SELECT count(*)::int AS n FROM sessions WHERE principal_id = $1`, [idOf(t)]))[0]!.n as number;
 
 test("the seed refuses a short password and an unknown region, and writes nothing", { skip }, async () => {
   await assert.rejects(seedTestLogins(pool, { password: "short", regionId: REGION_SOUTH }), /at least 12/);
   await assert.rejects(resolveRegion(pool, `NOWHERE-${RUN}`), /no active region/);
+  await assert.rejects(resolveCustomerOrg(pool, `NOBODY-${RUN}`), /no active customer org/);
 });
 
 test("each login opens exactly its own surfaces and is refused at the door on every other — no session is minted for a refusal", { skip }, async () => {
-  for (const t of TEST_LOGINS) {
+  for (const t of ALL_LOGINS) {
     for (const id of SURFACE_IDS) {
       if (t.surfaces.includes(id)) {
         const s = await as(t, id);
@@ -99,6 +105,15 @@ test("each login opens exactly its own surfaces and is refused at the door on ev
       assert.equal(await sessionsOf(t), before, `${t.login} on ${id}: a refused login leaves no session behind`);
     }
   }
+});
+
+test("the customer login is its org's executive on S6: parent tier, bound to the customer org", { skip }, async () => {
+  const c = await as(byLogin("customer-test"), "S6");
+  assert.equal(c.principal.namespace, "customer");
+  assert.equal(c.principal.scopeTier, "parent");
+  assert.equal(c.principal.scopeId, customerOrg);
+  assert.equal(c.principal.orgId, customerOrg);
+  await c.logout();
 });
 
 test("the dispatcher's refusal names the roles, so 'why can't I open S2' has an answer", { skip }, async () => {
