@@ -1,5 +1,5 @@
-import { html, pageHead, panel, statStrip, signal, StatusPill, PrimaryAction, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
-import { WORK_DONE_STATES, COOL_CLUB, type JobWire, type JobStateWire, type ServiceRequestWire, type InvoiceWire, type BillingPath, type ServiceRequestPriority, type RequestPhotoWire, type ListJobsOutput, type ListServiceRequestsOutput } from "../../../../packages/contracts/src/index.ts";
+import { html, pageHead, panel, statStrip, signal, StatusPill, PrimaryAction, PLAN_WORD, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
+import { WORK_DONE_STATES, type JobWire, type JobStateWire, type ServiceRequestWire, type InvoiceWire, type ServiceRequestPriority, type RequestPhotoWire, type ListJobsOutput, type ListServiceRequestsOutput } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Resource } from "../state.ts";
 import { whenReady, readNodes, linkTo, type Screen, type ScreenContext } from "./common.ts";
 import { requestForm, outcomeView, refOf } from "./request.ts";
@@ -185,9 +185,6 @@ const show = signal<Show>("all");
 const onSite = signal<string | null>(null);
 export const resetWorkFilters = () => { show.value = "all"; onSite.value = null; };
 
-const PLAN_WORD: Readonly<Record<BillingPath, string>> = {
-  enterprise_sla: "Enterprise SLA", residential_membership: COOL_CLUB.name, project: "Project", one_time: "One-time service",
-};
 
 /** The work orders, newest first, with the status filter — and the site chips when there is more than one site to choose between. */
 export const ordersPanel = (ctx: ScreenContext, jobs: Resource<ListJobsOutput>, requests: Resource<ListServiceRequestsOutput>, invoices: readonly InvoiceWire[], nowMs: number, bySite: boolean): VNode =>

@@ -1,6 +1,7 @@
 import { html, pageHead, panel, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { FirmWire, FirmStatus, CrewWire, CrewDocumentSummary, RegionWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
+import { technicianPanel } from "./network-technicians.ts";
 import { whenReady, refusalView, linkTo, confirmPanel, type Screen, type ScreenContext } from "./common.ts";
 
 /**
@@ -24,6 +25,9 @@ import { whenReady, refusalView, linkTo, confirmPanel, type Screen, type ScreenC
  *   the pill say which kinds, because a dispatcher reading "blocked" needs
  *   the next sentence to be "license" and not a click.
  */
+/** Our employed crews: this screen with no firm selected, and the first tab under Technician Network. */
+export const OWN_CREWS_LABEL = "AC Services DFW";
+
 export const STATUS_TONE: Readonly<Record<FirmStatus, "pending" | "live" | "held" | "ended">> = Object.freeze({
   onboarding: "pending", active: "live", suspended: "held", terminated: "ended",
 });
@@ -71,7 +75,7 @@ export const network: Screen = (ctx, params) => {
       onSelect: (f: FirmWire) => ctx.router.navigate("network", { firmId: f.id }),
       emptyText: "No firms recorded yet.",
     })}
-    <p class="s2-muted">${linkTo(ctx, "network", {}, "Our crews")}</p>`,
+    <p class="s2-muted">${linkTo(ctx, "network", {}, OWN_CREWS_LABEL)}</p>`,
     "Firms", undefined, linkTo(ctx, "network.firm.new", {}, "+ Firm", "ac-action s2-link--action"), "firms");
 
   const step = async (f: FirmWire, to: Exclude<FirmStatus, "onboarding">) => {
@@ -155,18 +159,22 @@ export const network: Screen = (ctx, params) => {
       </span>`, "firm")}
       ${panel(whenReady(ctx, crews.value, (c) => crewGrid(c.crews, regionList, "", "No crews rostered under this firm.")),
         "Crews", undefined, f.status === "terminated" ? null : linkTo(ctx, "network.crew.new", { firmId: f.id }, "+ Crew", "ac-action s2-link--action"))}
+      ${technicianPanel(ctx, f.id)}
       ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, refusalRoutes(ctx, outcome.value.refusal)) : null}
     </div>`;
   };
 
   const ourCrews = (regionList: readonly RegionWire[]): VNode => {
     const crews = store.read(keyOf("crews.list"), () => shell.gateway.listCrews({}));
-    return panel(whenReady(ctx, crews.value, (c) => crewGrid(c.crews.filter((x) => x.firmId === null), regionList, "", "No employed crews recorded yet.")),
-      "Our crews", "Employed crews. A firm's crews are under the firm; the field layer sees neither distinction.",
-      linkTo(ctx, "network.crew.new", {}, "+ Crew", "ac-action s2-link--action"), "our-crews");
+    return html`<div class="s2-firm">
+      ${panel(whenReady(ctx, crews.value, (c) => crewGrid(c.crews.filter((x) => x.firmId === null), regionList, "", "No employed crews recorded yet.")),
+        OWN_CREWS_LABEL, "Our employed crews. A firm's crews are under the firm; the field layer sees neither distinction.",
+        linkTo(ctx, "network.crew.new", {}, "+ Crew", "ac-action s2-link--action"), "our-crews")}
+      ${technicianPanel(ctx, null)}
+    </div>`;
   };
 
-  return html`${pageHead("Network", "The subcontractor firms we dispatch, their crews, and whether each crew's documents clear the gate today.")}<div class="s2-two-col">
+  return html`${pageHead("Technician Network", `Our own ${OWN_CREWS_LABEL} crews and the subcontractor firms we dispatch, and whether each crew's documents clear the gate today.`)}<div class="s2-two-col">
     <aside class="s2-col--orgs">${whenReady(ctx, firms.value, (f) => firmGrid(f.firms))}</aside>
     ${whenReady(ctx, regions.value, (r) =>
       firmId

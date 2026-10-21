@@ -28,6 +28,7 @@
 - `subcontractor_firm`
 - `crew`
 - `crew_credential`
+- `technician`
 - `rate_card`
 - `brand_theme`
 - `job`

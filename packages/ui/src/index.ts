@@ -18,6 +18,7 @@ export * from "./components/compliance-badge.ts";
 export * from "./components/refusal-card.ts";
 export * from "./components/refusal-notice.ts";
 export * from "./components/degraded-banner.ts";
+export * from "./components/customer-card.ts";
 export * from "./router.ts";
 export * from "./resource-store.ts";
 export * from "./screen-helpers.ts";

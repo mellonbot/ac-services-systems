@@ -50,6 +50,34 @@ export const crew_credentials = operationalTable("crew_credentials", {
 });
 
 /**
+ * 0020 — the technician roster: every person who works our jobs, ours or a
+ * firm's, whether or not they ever sign in. A login is a `users` row; this is
+ * the person the office calls, routes and staffs by specialty. firm_id null is
+ * ours. The home address is personal data for people who are mostly not our
+ * employees: RLS keeps it internal, and the gateway serves it to account
+ * owners only.
+ */
+export const TECHNICIAN_SPECIALTIES = ["residential_hvac", "light_commercial", "commercial_rtu", "refrigeration", "chillers_boilers", "controls_bas", "install", "ductwork"] as const;
+
+export const technicians = operationalTable("technicians", {
+  columns: [
+    { name: "firm_id", type: "uuid", nullable: true, references: "subcontractor_firms(id)", comment: "Null: one of ours." },
+    { name: "crew_id", type: "uuid", nullable: true, references: "crews(id)" },
+    { name: "name", type: "text" },
+    { name: "phone", type: "text", nullable: true },
+    { name: "home_address", type: "jsonb", nullable: true, comment: "AddressWire. Served to account owners only." },
+    {
+      name: "specialties",
+      type: "jsonb",
+      default: "'[]'::jsonb",
+      check: `jsonb_typeof(specialties) = 'array' AND specialties <@ '${JSON.stringify(TECHNICIAN_SPECIALTIES)}'::jsonb`,
+    },
+    { name: "active", type: "boolean", default: "true" },
+  ],
+  indexes: [["firm_id"], ["crew_id"]],
+});
+
+/**
  * Rate confidentiality between firms is a commercial requirement. Gateway
  * scope check AND row-level security. One forgotten WHERE returns zero rows,
  * not every firm's pricing.

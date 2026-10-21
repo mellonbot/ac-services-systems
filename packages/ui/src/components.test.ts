@@ -10,6 +10,7 @@ import { ComplianceBadge } from "./components/compliance-badge.ts";
 import { RefusalCard, refusalHeading, AXIS_SENTENCE } from "./components/refusal-card.ts";
 import { plainHeading, plainMessage, retryable } from "./components/refusal-notice.ts";
 import { RefusalNotice } from "./components/refusal-notice.ts";
+import { CustomerCard, addressLines } from "./components/customer-card.ts";
 import { DegradedBanner, applyDegraded, ageOf } from "./components/degraded-banner.ts";
 import { COMPONENT_SPECS, ComplianceBadgeSpec, DataGridSpec } from "./component.ts";
 import { STATUS_GLYPH, MARK_GLYPHS } from "../../tokens/src/index.ts";
@@ -53,7 +54,7 @@ test("densityOf is literal, so the registry's density reaches the component type
 });
 
 test("every spec has an implementation carrying it, and no density outside the three", () => {
-  const carried = [StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner, RefusalNotice].map((c) => c.spec.name).sort();
+  const carried = [StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner, RefusalNotice, CustomerCard].map((c) => c.spec.name).sort();
   assert.deepEqual(carried, [...COMPONENT_SPECS].map((s) => s.name).sort());
   for (const s of COMPONENT_SPECS) for (const d of s.densities) assert.ok(["console", "comfort", "field"].includes(d));
 });
@@ -288,4 +289,24 @@ test("RefusalNotice speaks to someone outside the company: no transport text, no
   assert.equal(retryable(transport), true);
   assert.equal(retryable(scope), false, "a refusal is the gateway's answer; asking again does not change it");
   assert.equal(plainHeading({ kind: "admission", code: "x", axis: "commercial", message: "" }), "This needs Rankine's agreement first");
+});
+
+test("CustomerCard: a commercial customer is sites across locations and its plans; a homeowner is the address, the units and the membership", () => {
+  const commercial = render(CustomerCard({ density: "console", name: "Amped Fitness Inc.", segment: "commercial", sites: 3, locations: 2, plans: ["Enterprise SLA"] })!);
+  assert.match(commercial, /Commercial/);
+  assert.match(commercial, /<span class="ac-num">3<\/span> sites across <span class="ac-num">2<\/span> locations/);
+  assert.match(commercial, /ac-customer-card__plan">Enterprise SLA/);
+
+  const home = render(CustomerCard({
+    density: "console", name: "Turner residence", segment: "residential", sites: 1, locations: 1, plans: [],
+    home: { address: addressLines({ line1: "12 Oak Ln", city: "Plano", state: "TX", postal: "75023" }), units: [{ name: "Heat pump", detail: "Trane XR15", servicedOn: "Oct 1, 2026" }], membership: { name: "Premium Cool Club", since: "Jul 9, 2025", through: null } },
+  })!);
+  assert.match(home, /12 Oak Ln<br\/>Plano, TX 75023/);
+  assert.match(home, /Heat pump/);
+  assert.match(home, /Serviced <span class="ac-num">Oct 1, 2026<\/span>/);
+  assert.match(home, /Premium Cool Club<\/strong> · member since/);
+  assert.doesNotMatch(home, /sites across/, "a home is not counted in sites");
+  const loading = render(CustomerCard({ density: "console", name: "T", segment: "residential", sites: 1, locations: 1, plans: [], home: { address: [], units: null, membership: null } })!);
+  assert.match(loading, /Loading equipment…/);
+  assert.match(loading, /No membership/);
 });

@@ -246,6 +246,19 @@ ac-degraded[hidden]{display:none}
 .ac-nav__who{margin-inline-start:auto;padding:0 var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm)}
 .ac-nav__signout{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);cursor:pointer;color:var(--color-action-text);font:inherit;min-height:var(--control-height)}
 @media (max-width:760px){.ac-nav{align-items:stretch}.ac-nav__who{order:2;width:100%;margin-inline-start:0}}
+/* Grouped nav: a surface whose screens split into record domains (S2: customer
+   records, the technician network, purchasing) gives each domain its own
+   segmented track, labelled, with page ground between. One shared track reads
+   the domains as one list. The open domain carries the 3px top rule and a
+   full-strength label: form first, so it still reads in greyscale. */
+.ac-nav--grouped{flex-wrap:wrap;align-items:flex-end;gap:var(--space-3) var(--space-6);padding:0;background:none;border:0;border-radius:var(--radius-none)}
+.ac-nav__group{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
+.ac-nav__group-label{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
+.ac-nav__group>.ac-seg{border-top:3px solid transparent}
+.ac-nav__group[data-current="true"]>.ac-seg{border-top-color:var(--color-action-text)}
+.ac-nav__group[data-current="true"]>.ac-nav__group-label{color:var(--color-text)}
+.ac-nav__end{display:flex;align-items:center;gap:var(--space-2);margin-inline-start:auto}
+@media (max-width:760px){.ac-nav--grouped{flex-direction:column;align-items:stretch}.ac-nav__group>.ac-seg{display:flex}.ac-nav__end{margin-inline-start:0}.ac-nav__end .ac-nav__who{order:0;width:auto;flex:1 1 auto}}
 /* A stacked grid on a phone: each row a block of label/value pairs, the header kept for screen readers. */
 @media (max-width:760px){
   .ac-grid[data-stack="narrow"]{display:block;width:100%;max-width:100%;overflow-x:auto}
@@ -275,6 +288,17 @@ ac-degraded[hidden]{display:none}
 /* A notice is a state with a sentence beside it: outlined in the state's own
    ink, with the 3px top rule a refusal card carries. It is state-bearing, so
    no accent role enters it (STATE_BEARING_SELECTORS). */
+/* The customer card: S6's account / home card, drawn once. A card on the page ground — one radius, one elevation, no new ink. */
+.ac-customer-card{display:flex;flex-direction:column;gap:var(--space-2);width:var(--measure-short);max-width:100%;padding:var(--space-4);background:var(--color-surface);border:1px solid var(--color-border-hard);border-radius:var(--radius-card);box-shadow:var(--elevation-card);color:var(--color-text)}
+.ac-customer-card__head{display:flex;flex-direction:column;gap:2px}
+.ac-customer-card__name{margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
+.ac-customer-card__sub,.ac-customer-card__muted{margin:0;color:var(--color-text-muted);font-size:var(--text-sm)}
+.ac-customer-card__address,.ac-customer-card__membership{margin:0}
+.ac-customer-card__units{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.ac-customer-card__units li{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);padding:var(--space-2) 0;border-top:1px solid var(--color-border)}
+.ac-customer-card__unit{font-weight:600}
+.ac-customer-card__plans{display:flex;flex-wrap:wrap;gap:var(--space-1)}
+.ac-customer-card__plan{display:inline-flex;align-items:center;padding:0 var(--space-2);border:1px solid var(--color-border-hard);border-radius:var(--radius-pill);font-size:var(--text-sm)}
 .ac-notice{margin:0;padding:var(--space-3);max-width:var(--measure-text);background:var(--color-surface);border:1px solid var(--notice-color,var(--color-border-hard));border-top:3px solid var(--notice-color,var(--color-border-hard));border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 .ac-notice[data-tone="ok"]{--notice-color:var(--color-status-ok)}
 .ac-notice[data-tone="at_risk"]{--notice-color:var(--color-status-at-risk)}

@@ -1,6 +1,6 @@
 import { html, pageHead, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
-import { densityOf, SURFACE_PATHS, type AccountWire, type CrewWire, type FirmWire, type OrganizationWire, type PurchaseOrderDetailOutput, type Refusal, type VendorWire } from "../../../packages/contracts/src/index.ts";
+import { densityOf, SURFACE_PATHS, type AccountWire, type CrewWire, type FirmWire, type OrganizationWire, type PurchaseOrderDetailOutput, type Refusal, type TechnicianWire, type VendorWire } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
 import { createStore, keyOf, type Store } from "./state.ts";
@@ -14,10 +14,11 @@ import { contractsList } from "./screens/contracts-list.ts";
 import { contractsNew } from "./screens/contracts-new.ts";
 import { termsOverride } from "./screens/terms-override.ts";
 import { termsResolved } from "./screens/terms-resolved.ts";
-import { network } from "./screens/network.ts";
+import { network, OWN_CREWS_LABEL } from "./screens/network.ts";
 import { networkFirmNew, networkCrewNew } from "./screens/network-new.ts";
 import { networkCrewDocuments } from "./screens/network-documents.ts";
 import { networkRates } from "./screens/network-rates.ts";
+import { networkTechnicianNew, networkTechnicianEdit } from "./screens/network-technicians.ts";
 import { purchasing, purchasingVendor, purchasingPo, refreshProcurement } from "./screens/purchasing.ts";
 import { S2_CSS } from "./styles.ts";
 
@@ -60,6 +61,8 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "network.crew.new": networkCrewNew,
   "network.crew.documents": networkCrewDocuments,
   "network.rates": networkRates,
+  "network.technician.new": networkTechnicianNew,
+  "network.technician.edit": networkTechnicianEdit,
   "purchasing": purchasing,
   "purchasing.vendor": purchasingVendor,
   "purchasing.po": purchasingPo,
@@ -67,9 +70,26 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
 
 const NAV_GROUPS = [
   { label: "Customer records", screens: ["accounts.tree", "contracts.list", "leads"] as const },
-  { label: "Subcontractor network", screens: ["network"] as const },
+  { label: "Technician Network", screens: ["network"] as const },
   { label: "Purchasing", screens: ["purchasing"] as const },
 ] as const;
+
+/** A terminated firm will field no more crews for us, so it gets no tab; it stays in the screen's firm list. */
+export const firmTabs = (firms: readonly FirmWire[]): readonly FirmWire[] => firms.filter((f) => f.status !== "terminated");
+
+/** The firm the open network screen belongs to; null is our own crews. A crew's documents follow the crew's firm. */
+const networkFirmOf = (params: Readonly<Record<string, string>>, store: Store): string | null => {
+  if (params.firmId) return params.firmId;
+  if (params.technicianId) {
+    const techs = store.peek<{ readonly technicians: readonly TechnicianWire[] }>(keyOf("technicians.list"));
+    return techs?.state === "ready" ? techs.value.technicians.find((t) => t.id === params.technicianId)?.firmId ?? null : null;
+  }
+  if (params.crewId) {
+    const crews = store.peek<{ readonly crews: readonly CrewWire[] }>(keyOf("crews.list"));
+    return crews?.state === "ready" ? crews.value.crews.find((c) => c.id === params.crewId)?.firmId ?? null : null;
+  }
+  return null;
+};
 
 const ROUTE_LABELS: Readonly<Record<Exclude<ScreenId, "login">, string>> = {
   "accounts.tree": "Accounts",
@@ -81,11 +101,13 @@ const ROUTE_LABELS: Readonly<Record<Exclude<ScreenId, "login">, string>> = {
   "contracts.new": "New agreement",
   "terms.override": "Term overrides",
   "terms.resolved": "Resolved terms",
-  "network": "Network",
+  "network": "Technician Network",
   "network.firm.new": "New firm",
   "network.crew.new": "New crew",
   "network.crew.documents": "Crew documents",
   "network.rates": "Rate card",
+  "network.technician.new": "New technician",
+  "network.technician.edit": "Edit technician",
   "purchasing": "Purchasing",
   "purchasing.vendor": "Vendor catalogue",
   "purchasing.po": "Purchase order",
@@ -175,9 +197,11 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       store.invalidate("crews.list");
       store.invalidate("credentials.list");
       store.invalidate("rateCards.list");
+      store.invalidate("technicians.list");
     }, { topics: ["account.created", "account.updated", "account.deactivated", "contract.created", "contract.amended", "contract.expired", "contract.term_overridden",
                   "firm.created", "firm.updated", "firm.status_changed", "crew.created", "crew.updated",
-                  "credential.recorded", "credential.verified", "credential.expiring", "credential.expired", "rate_card.changed"] });
+                  "credential.recorded", "credential.verified", "credential.expiring", "credential.expired", "rate_card.changed",
+                  "technician.recorded", "technician.updated"] });
     // Item 11: the vendor's side of an order lands here as a refetch — a proposed
     // price, an acknowledgement, a shipment, an invoice, an answer on a return.
     // S1's arc 1: a lead arrives, or someone here converts one.
@@ -235,22 +259,36 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const path = p.shell.context?.path.length
       ? p.shell.context.path
       : p.shell.context ? [p.shell.context.parent] : [];
-    const entity = loc ? activeEntity(loc.params, p.store) : null;
+    // The network screen with no firm open is our own crews; say so, as its tab does.
+    const entity = loc ? activeEntity(loc.params, p.store) ?? (routeId === "network" ? OWN_CREWS_LABEL : null) : null;
+    const firms = p.store.read(keyOf("firms.list"), () => p.shell.gateway.listFirms({})).value;
+    const tab = (id: Exclude<ScreenId, "login">, params: Readonly<Record<string, string>>, title: string, current: boolean): VNode =>
+      html`<a class="ac-seg__item" data-current=${current ? "true" : "false"} aria-current=${current ? "page" : undefined} href=${router.href(id, params)} onClick=${(e: Event) => { e.preventDefault(); router.navigate(id, params); }}>${title}</a>`;
+    const tabsFor = (navGroup: (typeof NAV_GROUPS)[number]): VNode[] => {
+      const open = routeId !== undefined && group?.label === navGroup.label;
+      if (navGroup.label === "Technician Network") {
+        const at = open && loc ? networkFirmOf(loc.params, p.store) : undefined;
+        const firmList = firms.state === "ready" ? firmTabs(firms.value.firms) : [];
+        return [
+          tab("network", {}, OWN_CREWS_LABEL, open && at === null && routeId !== "network.firm.new"),
+          ...firmList.map((f) => tab("network", { firmId: f.id }, f.legalName, at === f.id)),
+        ];
+      }
+      return navGroup.screens.map((id) => {
+        const spec = SCREENS[id];
+        return tab(id, {}, "title" in spec ? spec.title : ROUTE_LABELS[id], open && navTargetFor(routeId!) === id);
+      });
+    };
     return html`<div class="s2-app">
-      <nav class="ac-nav" aria-label="Workspace">
-        ${NAV_GROUPS.map((navGroup) => html`<div class="s2-nav__group" role="group" aria-label=${navGroup.label}>
-          <span class="s2-nav__group-label">${navGroup.label}</span>
-          <div class="s2-nav__group-links">
-            ${navGroup.screens.map((id) => {
-              const spec = SCREENS[id];
-              const title = "title" in spec ? spec.title : ROUTE_LABELS[id];
-              const current = routeId !== undefined && navGroupFor(routeId)?.label === navGroup.label && navTargetFor(routeId) === id;
-              return html`<a class="ac-seg__item" data-current=${current ? "true" : "false"} aria-current=${current ? "page" : undefined} href=${router.href(id, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(id, {}); }}>${title}</a>`;
-            })}
-          </div>
+      <nav class="ac-nav ac-nav--grouped" aria-label="Workspace">
+        ${NAV_GROUPS.map((navGroup) => html`<div class="ac-nav__group" role="group" aria-label=${navGroup.label} data-current=${group?.label === navGroup.label ? "true" : "false"}>
+          <span class="ac-nav__group-label">${navGroup.label}</span>
+          <div class="ac-seg">${tabsFor(navGroup)}</div>
         </div>`)}
-        <span class="ac-nav__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
-        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
+        <div class="ac-nav__end">
+          <span class="ac-nav__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
+          <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
+        </div>
       </nav>
       <nav class="s2-context" aria-label="Current location">
         <div class="s2-context__scope">
@@ -261,7 +299,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           <span class="s2-context__label">Current location</span>
           <ol>
             ${group ? html`<li>${group.label}</li>` : null}
-            <li>${routeId ? ROUTE_LABELS[routeId] : "Workspace"}</li>
+            ${routeId === "network" ? null : html`<li>${routeId ? ROUTE_LABELS[routeId] : "Workspace"}</li>`}
             ${entity ? html`<li aria-current="location">${entity}</li>` : null}
           </ol>
         </div>
@@ -284,7 +322,7 @@ export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: 
     login(String(f.get("email") ?? ""), String(f.get("password") ?? ""));
   };
   return html`<section class="s2-login">
-    ${pageHead(SURFACE.name, "Sign in to keep customer records, the subcontractor network and purchasing.")}
+    ${pageHead(SURFACE.name, "Sign in to keep customer records, the technician network and purchasing.")}
     <form class="ac-form" onSubmit=${submit} id="login-form">
       <label class="ac-field"><span>Email</span><input class="ac-input" name="email" type="email" required autocomplete="username" /></label>
       <label class="ac-field"><span>Password</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>

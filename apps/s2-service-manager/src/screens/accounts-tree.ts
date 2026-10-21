@@ -1,7 +1,7 @@
-import { html, pageHead, panel, DataGrid, signal, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, DataGrid, signal, CustomerCard, PLAN_WORD, KIND_WORD, addressLines, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, OrganizationWire, RegionWire, CustomerSegment } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, linkTo, type Screen } from "./common.ts";
+import { whenReady, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
 /**
  * C1 — the tree. Left: every customer parent we serve, with how many of our
@@ -16,6 +16,70 @@ const SHOW_WORD: Readonly<Record<Show, string>> = { all: "All", residential: "Re
 const showing = signal<Show>("all");
 export const showSegment = (s: Show) => { showing.value = s; };
 export const SEGMENT_WORD: Readonly<Record<CustomerSegment, string>> = { residential: "Residential", commercial: "Commercial" };
+
+/**
+ * The customer card on hover (and on keyboard focus — a hover-only affordance
+ * is an invisible control): S6's own card for this customer, so the office sees
+ * what the customer sees without leaving the list. Opens after a short pause
+ * so a pointer crossing the list does not flash a card per row; Escape or
+ * leaving closes it. Fixed-positioned beside the name, so the grid's own
+ * container never clips it.
+ */
+const hover = signal<{ readonly orgId: string; readonly left: number; readonly top: number } | null>(null);
+let openTimer: ReturnType<typeof setTimeout> | undefined;
+/** The card's footprint, for placing it: 48ch at console type, and a homeowner's card (address, units, membership) is taller. */
+const CARD_W = 420, CARD_H = { home: 380, account: 160 };
+const openCard = (o: OrganizationWire) => (e: Event) => {
+  const orgId = o.id;
+  // Beside the ROW, not the name, so the row being read stays uncovered; inside the window either way.
+  const el = e.currentTarget as HTMLElement;
+  const r = (el.closest("tr") ?? el).getBoundingClientRect();
+  const vw = typeof window === "undefined" ? Infinity : window.innerWidth, vh = typeof window === "undefined" ? Infinity : window.innerHeight;
+  const h = o.segment === "residential" ? CARD_H.home : CARD_H.account;
+  const at = r.right + CARD_W + 16 <= vw
+    ? { left: r.right + 12, top: Math.max(8, Math.min(r.top - 8, vh - h - 8)) }
+    : { left: Math.max(8, Math.min(r.left, vw - CARD_W - 8)), top: r.bottom + h + 8 <= vh ? r.bottom + 8 : Math.max(8, r.top - h - 8) };
+  clearTimeout(openTimer);
+  openTimer = setTimeout(() => { hover.value = { orgId, ...at }; }, e.type === "focusin" ? 0 : 150);
+};
+const closeCard = () => { clearTimeout(openTimer); hover.value = null; };
+export const showCustomerCard = (orgId: string | null) => { hover.value = orgId ? { orgId, left: 0, top: 0 } : null; };
+
+const shortDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+
+const customerCard = (ctx: ScreenContext, org: OrganizationWire): VNode => {
+  const { store, shell } = ctx;
+  const nodes = store.read(keyOf("accounts.list", { orgId: org.id }), () => shell.gateway.listAccounts({ orgId: org.id }));
+  const contracts = store.read(keyOf("contracts.list", { orgId: org.id }), () => shell.gateway.listContracts({ orgId: org.id }));
+  if (nodes.value.state !== "ready" || contracts.value.state !== "ready") {
+    const refused = nodes.value.state === "refused" ? nodes.value : contracts.value.state === "refused" ? contracts.value : null;
+    return html`<article class="ac-customer-card" id="customer-card"><h3 class="ac-customer-card__name">${org.name}</h3>
+      <p class="ac-customer-card__muted" role="status">${refused ? "This customer's card could not be read — open the customer to see why." : "Loading…"}</p></article>`;
+  }
+  return whenReady(ctx, nodes.value, (n) => whenReady(ctx, contracts.value, (c) => {
+    const active = c.contracts.filter((x) => x.state === "active");
+    const sites = n.nodes.filter((x) => x.tier === "site");
+    const base = { id: "customer-card", density: ctx.density, name: org.name, segment: org.segment, sites: sites.length, locations: n.nodes.filter((x) => x.tier === "location").length, plans: [...new Set(active.map((x) => PLAN_WORD[x.billingPath]))] };
+    if (org.segment !== "residential") return CustomerCard(base) ?? html``;
+    const site = sites[0] ?? null;
+    const equipment = site ? store.read(keyOf("equipment.list", { siteId: site.id }), () => shell.gateway.listEquipment({ siteId: site.id })).value : null;
+    const member = active.find((x) => x.billingPath === "residential_membership") ?? null;
+    return CustomerCard({
+      ...base,
+      home: {
+        address: addressLines(site?.address ?? null),
+        units: equipment === null ? [] : equipment.state === "ready"
+          ? equipment.value.equipment.filter((u) => u.active).map((u) => ({
+              name: u.label ?? KIND_WORD[u.kind],
+              detail: [u.label ? KIND_WORD[u.kind] : null, [u.manufacturer, u.model].filter(Boolean).join(" ")].filter(Boolean).join(" · "),
+              servicedOn: u.lastServicedAt ? shortDay(u.lastServicedAt) : null,
+            }))
+          : null,
+        membership: member ? { name: PLAN_WORD[member.billingPath], since: shortDay(member.effectiveFrom), through: member.effectiveTo ? shortDay(member.effectiveTo) : null } : null,
+      },
+    }) ?? html``;
+  }));
+};
 
 const TIER_ORDER: Record<AccountWire["tier"], number> = { region: 0, location: 1, site: 2 };
 
@@ -44,7 +108,14 @@ export const accountsTree: Screen = (ctx, params) => {
       stack: true,
       caption: "Customers",
       columns: [
-        { key: "name", header: "Customer", cell: (o: OrganizationWire) => linkTo(ctx, "accounts.tree", { orgId: o.id }, o.name) },
+        {
+          key: "name", header: "Customer",
+          cell: (o: OrganizationWire) => html`<a class="ac-link" href=${ctx.router.href("accounts.tree", { orgId: o.id })}
+            aria-describedby=${hover.value?.orgId === o.id ? "customer-card" : undefined}
+            onClick=${(e: Event) => { e.preventDefault(); closeCard(); ctx.router.navigate("accounts.tree", { orgId: o.id }); }}
+            onMouseEnter=${openCard(o)} onMouseLeave=${closeCard} onFocusIn=${openCard(o)} onFocusOut=${closeCard}
+            onKeyDown=${(e: KeyboardEvent) => { if (e.key === "Escape") closeCard(); }}>${o.name}</a>`,
+        },
         { key: "segment", header: "Type", cell: (o: OrganizationWire) => (o.segment ? SEGMENT_WORD[o.segment] : "—") },
         { key: "regionNodeCount", header: "Our regions", align: "end", numeric: true },
         { key: "active", header: "Status", cell: (o: OrganizationWire) => html`<span class="s2-state" data-tone=${o.active ? "live" : "ended"}>${o.active ? "Active" : "Inactive"}</span>` },
@@ -79,7 +150,8 @@ export const accountsTree: Screen = (ctx, params) => {
     }), org?.name ?? "Customer", undefined, linkTo(ctx, "accounts.new", { orgId: orgId!, tier: "region" }, "+ Region node", "ac-action s2-link--action"), "account-tree");
   };
 
-  return html`${pageHead("Accounts", "Every customer and its tree of regions, locations and sites, against the regions we serve them from. Pick a customer to see its tree.", linkTo(ctx, "organizations.new", {}, "+ New customer", "ac-action s2-link--action"))}<div class="s2-two-col">
+  const hovered = hover.value && orgs.value.state === "ready" ? orgs.value.value.organizations.find((o) => o.id === hover.value!.orgId) : undefined;
+  return html`${hovered ? html`<div class="s2-hovercard" role="tooltip" style=${`left:${hover.value!.left}px;top:${hover.value!.top}px`}>${customerCard(ctx, hovered)}</div>` : null}${pageHead("Accounts", "Every customer and its tree of regions, locations and sites, against the regions we serve them from. Pick a customer to see its tree.", linkTo(ctx, "organizations.new", {}, "+ New customer", "ac-action s2-link--action"))}<div class="s2-two-col">
     <aside class="s2-col s2-col--orgs">
       ${panel(whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations), () => store.invalidate("organizations.list")), "Customers", undefined,
         html`<div class="s2-chips" role="group" aria-label="Customer type" id="customer-type">

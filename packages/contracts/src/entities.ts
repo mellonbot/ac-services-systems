@@ -13,6 +13,8 @@ export const WRITE_ENTITIES = [
   // the four vendor writes below.
   "vendor", "receiving_point", "price_decision", "po_receipt", "rma_request",
   "subcontractor_firm", "crew", "crew_credential", "rate_card", "brand_theme",
+  // 0020: the technician roster — the person, ours or a firm's, login or not.
+  "technician",
   // item 4: a job is created in Office & Dispatch, same as everything above.
   // `device`/`device_grant` are D-2a's primitive ("this device, this crew,
   // this shift window") — recorded by the office because nobody else is
