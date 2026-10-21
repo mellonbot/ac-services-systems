@@ -14,7 +14,7 @@ import { contractsList } from "./screens/contracts-list.ts";
 import { contractsNew } from "./screens/contracts-new.ts";
 import { termsOverride } from "./screens/terms-override.ts";
 import { termsResolved } from "./screens/terms-resolved.ts";
-import { network } from "./screens/network.ts";
+import { network, OWN_CREWS_LABEL } from "./screens/network.ts";
 import { networkFirmNew, networkCrewNew } from "./screens/network-new.ts";
 import { networkCrewDocuments } from "./screens/network-documents.ts";
 import { networkRates } from "./screens/network-rates.ts";
@@ -67,9 +67,22 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
 
 const NAV_GROUPS = [
   { label: "Customer records", screens: ["accounts.tree", "contracts.list", "leads"] as const },
-  { label: "Service Technicians", screens: ["network"] as const },
+  { label: "Technician Network", screens: ["network"] as const },
   { label: "Purchasing", screens: ["purchasing"] as const },
 ] as const;
+
+/** A terminated firm will field no more crews for us, so it gets no tab; it stays in the screen's firm list. */
+export const firmTabs = (firms: readonly FirmWire[]): readonly FirmWire[] => firms.filter((f) => f.status !== "terminated");
+
+/** The firm the open network screen belongs to; null is our own crews. A crew's documents follow the crew's firm. */
+const networkFirmOf = (params: Readonly<Record<string, string>>, store: Store): string | null => {
+  if (params.firmId) return params.firmId;
+  if (params.crewId) {
+    const crews = store.peek<{ readonly crews: readonly CrewWire[] }>(keyOf("crews.list"));
+    return crews?.state === "ready" ? crews.value.crews.find((c) => c.id === params.crewId)?.firmId ?? null : null;
+  }
+  return null;
+};
 
 const ROUTE_LABELS: Readonly<Record<Exclude<ScreenId, "login">, string>> = {
   "accounts.tree": "Accounts",
@@ -236,18 +249,29 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       ? p.shell.context.path
       : p.shell.context ? [p.shell.context.parent] : [];
     const entity = loc ? activeEntity(loc.params, p.store) : null;
+    const firms = p.store.read(keyOf("firms.list"), () => p.shell.gateway.listFirms({})).value;
+    const tab = (id: Exclude<ScreenId, "login">, params: Readonly<Record<string, string>>, title: string, current: boolean): VNode =>
+      html`<a class="ac-seg__item" data-current=${current ? "true" : "false"} aria-current=${current ? "page" : undefined} href=${router.href(id, params)} onClick=${(e: Event) => { e.preventDefault(); router.navigate(id, params); }}>${title}</a>`;
+    const tabsFor = (navGroup: (typeof NAV_GROUPS)[number]): VNode[] => {
+      const open = routeId !== undefined && group?.label === navGroup.label;
+      if (navGroup.label === "Technician Network") {
+        const at = open && loc ? networkFirmOf(loc.params, p.store) : undefined;
+        const firmList = firms.state === "ready" ? firmTabs(firms.value.firms) : [];
+        return [
+          tab("network", {}, OWN_CREWS_LABEL, open && at === null && routeId !== "network.firm.new"),
+          ...firmList.map((f) => tab("network", { firmId: f.id }, f.legalName, at === f.id)),
+        ];
+      }
+      return navGroup.screens.map((id) => {
+        const spec = SCREENS[id];
+        return tab(id, {}, "title" in spec ? spec.title : ROUTE_LABELS[id], open && navTargetFor(routeId!) === id);
+      });
+    };
     return html`<div class="s2-app">
       <nav class="ac-nav ac-nav--grouped" aria-label="Workspace">
         ${NAV_GROUPS.map((navGroup) => html`<div class="ac-nav__group" role="group" aria-label=${navGroup.label} data-current=${group?.label === navGroup.label ? "true" : "false"}>
           <span class="ac-nav__group-label">${navGroup.label}</span>
-          <div class="ac-seg">
-            ${navGroup.screens.map((id) => {
-              const spec = SCREENS[id];
-              const title = "title" in spec ? spec.title : ROUTE_LABELS[id];
-              const current = routeId !== undefined && navGroupFor(routeId)?.label === navGroup.label && navTargetFor(routeId) === id;
-              return html`<a class="ac-seg__item" data-current=${current ? "true" : "false"} aria-current=${current ? "page" : undefined} href=${router.href(id, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(id, {}); }}>${title}</a>`;
-            })}
-          </div>
+          <div class="ac-seg">${tabsFor(navGroup)}</div>
         </div>`)}
         <div class="ac-nav__end">
           <span class="ac-nav__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>

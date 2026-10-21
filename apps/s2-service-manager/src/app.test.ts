@@ -56,6 +56,11 @@ const fakeGateway = () => {
     if (path === OPERATIONS["organizations.list"].path) return reply(200, { organizations: [{ id: ORG, name: "Amped Fitness Inc.", kind: "customer", segment: "commercial", externalRef: null, active: true, regionNodeCount: 2 },
       { id: "0e000000-0000-4000-8000-000000000099", name: "Turner residence", kind: "customer", segment: "residential", externalRef: null, active: true, regionNodeCount: 1 }] });
     if (path === OPERATIONS["accounts.list"].path) return reply(200, { nodes: NODES });
+    if (path === OPERATIONS["firms.list"].path) return reply(200, { firms: [
+      { id: U(60), legalName: "Cool Air Partners LLC", status: "active", regionId: SOUTH, settlementTermsDays: 30, msaSignedAt: "2026-09-01", diagnosticDataRightsReserved: true, w9DocumentKey: null, crewCount: 2, activeCrewCount: 2 },
+      { id: U(61), legalName: "North Texas Mechanical", status: "onboarding", regionId: SOUTH, settlementTermsDays: 45, msaSignedAt: null, diagnosticDataRightsReserved: false, w9DocumentKey: null, crewCount: 0, activeCrewCount: 0 },
+      { id: U(62), legalName: "Gone Heating Co", status: "terminated", regionId: SOUTH, settlementTermsDays: 30, msaSignedAt: "2025-01-01", diagnosticDataRightsReserved: true, w9DocumentKey: null, crewCount: 0, activeCrewCount: 0 },
+    ] });
     if (path === OPERATIONS["leads.list"].path) return reply(200, { leads: [
       { id: U(50), source: "web_form", contact: { name: "Pat Turner", phone: "(817) 555-0142", note: "AC blowing warm upstairs" }, requestedMetro: "DFW", createdAt: "2026-10-21T12:00:00.000Z", convertedAccountId: null },
       { id: U(51), source: "web_form", contact: { name: "Sam Lee", email: "sam@example.test" }, requestedMetro: null, createdAt: "2026-10-20T09:00:00.000Z", convertedAccountId: U(52) },
@@ -127,19 +132,37 @@ test("boot with no session shows login, not an error; a bad password is a refusa
   assert.equal(ready.shell.token(), null, "cookie mode: script never sees the token");
   const chrome = render(app.view());
   assert.match(chrome, /aria-label="Customer records"/);
-  assert.match(chrome, /aria-label="Service Technicians"/);
+  assert.match(chrome, /aria-label="Technician Network"/);
   assert.match(chrome, /aria-label="Purchasing"/);
   assert.match(chrome, /data-current="true" aria-current="page" href="\/accounts"/);
   // Each domain is its own track, never one shared strip; the open one is marked on the group.
-  assert.equal(chrome.match(/<div class="ac-seg">/g)?.length, 3, "customer records, service technicians and purchasing each get a track");
+  assert.equal(chrome.match(/<div class="ac-seg">/g)?.length, 3, "customer records, the technician network and purchasing each get a track");
   assert.match(chrome, /class="ac-nav ac-nav--grouped"/, "the plain ac-nav is one shared track and would merge the domains again");
   assert.match(chrome, /aria-label="Customer records" data-current="true"/);
-  assert.match(chrome, /aria-label="Service Technicians" data-current="false"/);
+  assert.match(chrome, /aria-label="Technician Network" data-current="false"/);
   assert.match(chrome, /Signed-in scope/);
   assert.match(chrome, /AC Services/);
   const login = gw.calls.find((c) => c.path === "/auth/login")!;
   assert.equal(login.init.credentials, "include");
   assert.equal(JSON.parse(login.init.body!).surface, "S2");
+});
+
+test("Technician Network: AC Services DFW first, then a tab per firm that can still field crews for us", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("network", { firmId: U(60) });
+  render(app.view());
+  await settle();
+  const nav = render(app.view()).split('<nav class="s2-context"')[0]!;
+  const group = nav.split('aria-label="Technician Network"')[1]!.split('aria-label="Purchasing"')[0]!;
+  const tabs = [...group.matchAll(/<a class="ac-seg__item"[^>]*>([^<]+)<\/a>/g)].map((m) => m[1]);
+  assert.deepEqual(tabs, ["AC Services DFW", "Cool Air Partners LLC", "North Texas Mechanical"], "a terminated firm fields no crews, so it gets no tab");
+  assert.match(group, /data-current="true" aria-current="page" href="\/network\/a2000000-0000-0000-0000-000000000060">Cool Air Partners LLC/);
+  assert.match(group, /data-current="false" href="\/network">AC Services DFW/);
+
+  app.router.navigate("network", {});
+  assert.match(render(app.view()), /data-current="true" aria-current="page" href="\/network">AC Services DFW/);
 });
 
 test("the tree screen: customers on the left, the selected tree ordered region → location → site with OUR region on every row", async () => {
