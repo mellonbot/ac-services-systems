@@ -25,6 +25,7 @@ import { hashPassword } from "../../apps/gateway/src/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
+import { stateMsaTerms } from "../../packages/domain/src/inheritance/fixtures/msa-terms.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — item 4 (S3/S5) was not verified over the wire";
@@ -115,11 +116,8 @@ test("a job opens against a site with its SLA due DERIVED from the resolved term
     orgId, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: orgId, kind: "msa", billingPath: "enterprise_sla",
     signedAt: "2026-01-05", effectiveFrom: "2026-01-01", diagnosticDataRightsReserved: true,
   })).id;
+  await stateMsaTerms(s2.gateway, { contractId: msa, orgId, regionId: REGION_SOUTH, effectiveFrom: "2026-01-01" });
   await s2.gateway.transitionContract({ contractId: msa, to: "active" });
-  await s2.gateway.authorTermOverride({
-    contractId: msa, scopeTier: "parent", scopeId: orgId, termKey: "sla_response", termValue: "4_hour",
-    effectiveFrom: "2026-01-01", orgId, regionId: REGION_SOUTH,
-  });
 
   // A location is not a site: work happens at the tier with no descendants.
   await assert.rejects(

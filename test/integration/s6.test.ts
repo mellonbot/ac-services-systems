@@ -31,6 +31,7 @@ import { hashPassword } from "../../apps/gateway/src/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
+import { stateMsaTerms } from "../../packages/domain/src/inheritance/fixtures/msa-terms.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — item 6 (S6) was not verified over the wire";
@@ -124,9 +125,8 @@ test("the office records two customers, their trees, their agreements and their 
   renoRoof = (await s2.gateway.createAccount({ orgId: amped, tier: "site", parentId: reno, name: "Reno — Roof" })).id;
 
   msa = (await s2.gateway.createContract({ orgId: amped, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: amped, kind: "msa", billingPath: "enterprise_sla", signedAt: "2026-01-05", effectiveFrom: "2026-01-01", diagnosticDataRightsReserved: true })).id;
+  await stateMsaTerms(s2.gateway, { contractId: msa, orgId: amped, regionId: REGION_SOUTH, effectiveFrom: "2026-01-01" });
   await s2.gateway.transitionContract({ contractId: msa, to: "active" });
-  await s2.gateway.authorTermOverride({ contractId: msa, scopeTier: "parent", scopeId: amped, termKey: "sla_response", termValue: "4_hour", effectiveFrom: "2026-01-01", orgId: amped, regionId: REGION_SOUTH });
-  await s2.gateway.authorTermOverride({ contractId: msa, scopeTier: "parent", scopeId: amped, termKey: "pm_visits_per_year", termValue: 2, effectiveFrom: "2026-01-01", orgId: amped, regionId: REGION_SOUTH });
   // A REGION-tier override — the tier a location-scoped customer could not see before 0006.
   await s2.gateway.authorTermOverride({ contractId: msa, scopeTier: "region", scopeId: westNode, termKey: "sla_response", termValue: "2_hour", effectiveFrom: "2026-01-01", orgId: amped, regionId: REGION_WEST });
   // And a LOCATION-tier one at Austin.
@@ -137,8 +137,8 @@ test("the office records two customers, their trees, their agreements and their 
   otherLoc = (await s2.gateway.createAccount({ orgId: other, tier: "location", parentId: otherNode, name: "Other — Dallas" })).id;
   otherSite = (await s2.gateway.createAccount({ orgId: other, tier: "site", parentId: otherLoc, name: "Other — Dallas Roof" })).id;
   otherMsa = (await s2.gateway.createContract({ orgId: other, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: other, kind: "msa", billingPath: "enterprise_sla", signedAt: "2026-02-01", effectiveFrom: "2026-02-01", diagnosticDataRightsReserved: false })).id;
+  await stateMsaTerms(s2.gateway, { contractId: otherMsa, orgId: other, regionId: REGION_SOUTH, effectiveFrom: "2026-02-01" }, { sla_response: "48_hour", diagnostic_data_rights_reserved: false });
   await s2.gateway.transitionContract({ contractId: otherMsa, to: "active" });
-  await s2.gateway.authorTermOverride({ contractId: otherMsa, scopeTier: "parent", scopeId: other, termKey: "sla_response", termValue: "48_hour", effectiveFrom: "2026-02-01", orgId: other, regionId: REGION_SOUTH });
 
   jobAustin = (await s2.gateway.createJob({ siteId: austinRoof, serviceCode: "HVAC-REPAIR", priority: "urgent", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;
   jobReno = (await s2.gateway.createJob({ siteId: renoRoof, serviceCode: "PM-VISIT", priority: "pm", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;

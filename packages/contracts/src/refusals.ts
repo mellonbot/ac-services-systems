@@ -37,6 +37,8 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   ambiguous: "structural",
   // nothing to resolve and no default — the request is fine, the account is not finished
   no_value: "incomplete",
+  // an MSA activated before it states every no-default term — author them, then activate
+  missing_terms: "incomplete",
   // the ratchet, both directions — somebody has to agree and price it
   ratchet_loosened: "commercial",
   would_orphan_descendants: "commercial",

@@ -5,7 +5,7 @@ import { createContract, transitionContract, listTermOverrides, termRegister } f
 import { InputRefused, BadInput } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import { admissionAxis } from "../../../../packages/contracts/src/refusals.ts";
-import { TERM_KEYS } from "../../../../packages/contracts/src/terms.ts";
+import { TERM_KEYS, REQUIRED_AT_ACTIVATION } from "../../../../packages/contracts/src/terms.ts";
 
 /**
  * What the HANDLER decides for C2 — the inputs and the agreement's own shape —
@@ -136,7 +136,8 @@ test("an amendment names its MSA, and a child of an agreement that has ended is 
 });
 
 test("the state ladder: draft → active → expired | terminated, and a step off it is refused BY NAME", async () => {
-  const at = (state: string) => scripted({ "FROM contracts WHERE id": [{ ...msaRow, state }] }).tx;
+  const stated = REQUIRED_AT_ACTIVATION.map((term_key) => ({ term_key }));
+  const at = (state: string) => scripted({ "FROM contracts WHERE id": [{ ...msaRow, state }], "FROM contract_term_overrides": stated }).tx;
 
   const activated = await uowFor(at("draft"));
   const a = await transitionContract(activated, { contractId: MSA, to: "active" });
@@ -164,6 +165,29 @@ test("the state ladder: draft → active → expired | terminated, and a step of
     transitionContract(await uowFor(scripted({}).tx), { contractId: MSA, to: "active" }),
     (e: unknown) => e instanceof InputRefused && e.code === "unknown_contract",
   );
+});
+
+test("an MSA goes live only once it states every no-default parent term; it is refused INCOMPLETE, naming what is missing", async () => {
+  assert.deepEqual(
+    [...REQUIRED_AT_ACTIVATION].sort(),
+    ["diagnostic_data_rights_reserved", "labor_rate_minor", "payment_terms_days", "pm_visits_per_year", "sla_credit_pct", "sla_response"],
+    "read off the register: no fallback, not attach, authorable at the parent",
+  );
+  const draft = { ...msaRow, state: "draft" };
+  const allBut = REQUIRED_AT_ACTIVATION.filter((k) => k !== "sla_response").map((term_key) => ({ term_key }));
+  const db = scripted({ "FROM contracts WHERE id": [draft], "FROM contract_term_overrides": allBut });
+  const uow = await uowFor(db.tx);
+  await assert.rejects(
+    transitionContract(uow, { contractId: MSA, to: "active" }),
+    (e: unknown) => e instanceof InputRefused && e.code === "missing_terms" && admissionAxis(e.code) === "incomplete"
+      && /states no sla_response at the parent in effect on 2026-01-01/.test(e.message),
+  );
+  const q = db.queries.find((x) => x.sql.includes("FROM contract_term_overrides"))!;
+  assert.deepEqual(q.params, [MSA, ORG, "2026-01-01"], "this agreement's rows, at its parent node, on its first day");
+  assert.equal(db.queries.filter((x) => x.sql.startsWith("UPDATE")).length, 0, "nothing moved");
+
+  const sow = await uowFor(scripted({ "FROM contracts WHERE id": [{ ...draft, kind: "one_time" }] }).tx);
+  assert.equal((await transitionContract(sow, { contractId: MSA, to: "active" })).state, "active", "only an MSA carries the account's terms");
 });
 
 test("terms.overrides.list narrows by term and by agreement, and refuses a term the register does not hold", async () => {

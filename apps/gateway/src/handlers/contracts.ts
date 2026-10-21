@@ -1,6 +1,6 @@
 import type { UnitOfWork } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
-import { TERMS } from "../../../../packages/contracts/src/terms.ts";
+import { TERMS, REQUIRED_AT_ACTIVATION } from "../../../../packages/contracts/src/terms.ts";
 import type { Tier } from "../../../../packages/contracts/src/tiers.ts";
 import type {
   ContractWire, ContractKind, ContractState, BillingPath,
@@ -29,6 +29,11 @@ import type {
  *     daterange and 22000 is not a refusal code — it would reach the surface
  *     as a 500 and flip the surface degraded (09 §3.7).
  *   - The STATE LADDER: draft → active → expired | terminated.
+ *   - An MSA's TERMS AT ACTIVATION: an MSA goes live only once it states, at
+ *     its parent node and in effect on its first day, every term the register
+ *     gives no default and the parent may hold. Otherwise the first job under it
+ *     is refused `no_value` at the dispatch console, in front of the person
+ *     least able to author a contract term.
  *
  *   - Whether the SCOPE EXISTS at the declared tier is NOT decided here.
  *     `ac_contract_scope_exists` says so in its own words and covers every
@@ -264,6 +269,22 @@ export const transitionContract = async (uow: UnitOfWork, input: TransitionContr
         : `agreement ${contractId} is ${current.state} and can only become ${legal.join(" or ")}, not ${to}`,
       "illegal_transition",
     );
+  }
+  if (to === "active" && current.kind === "msa") {
+    const stated = await uow.tx.query<{ term_key: string }>(
+      `SELECT DISTINCT term_key FROM contract_term_overrides
+        WHERE contract_id = $1 AND scope_tier = 'parent' AND scope_id = $2 AND effective @> $3::date`,
+      [contractId, current.scope_id, current.eff_from],
+    );
+    const have = new Set(stated.map((r) => r.term_key));
+    const missing = REQUIRED_AT_ACTIVATION.filter((k) => !have.has(k));
+    if (missing.length > 0) {
+      throw new InputRefused(
+        `agreement ${contractId} cannot go live: it states no ${missing.join(", ")} at the parent in effect on ${current.eff_from}. ` +
+        `The register gives ${missing.length === 1 ? "this term" : "these terms"} no default, so every job under this agreement would be refused until ${missing.length === 1 ? "it is" : "they are"} set.`,
+        "missing_terms",
+      );
+    }
   }
 
   const eventId = await uow.apply(

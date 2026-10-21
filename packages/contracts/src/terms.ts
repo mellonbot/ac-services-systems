@@ -118,6 +118,18 @@ export const TERMS: Readonly<Record<string, TermPolicy>> = Object.freeze({
   },
 });
 
+/**
+ * The terms an MSA must state before it goes live, read off the register: no
+ * fallback, not an attach term (those bind to a site, never to the parent),
+ * and authorable at the parent. A new no-default term joins this list with no
+ * diff here.
+ */
+export const REQUIRED_AT_ACTIVATION: readonly string[] = Object.freeze(
+  Object.values(TERMS)
+    .filter((t) => t.fallback === undefined && t.combine.kind !== "attach" && t.authoring.includes("parent"))
+    .map((t) => t.key),
+);
+
 export const TERM_KEYS = Object.freeze(Object.keys(TERMS)) as readonly string[];
 
 export class UnknownTermError extends Error {
