@@ -39,28 +39,30 @@ export const S1_CSS = `
 .s1-call{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);color:var(--color-action-text);text-decoration:none;font-weight:600}
 .s1-foot{margin-top:var(--space-6);padding-top:var(--space-3);border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size:var(--text-sm)}
 
-/* ---- The sign-in ring: six portals around the service truck, which turns once every 36s.
-   The truck is drawn live by three.js (src/truck.ts) on a transparent canvas; until the
-   first frame, or where WebGL is unavailable, a still of it (public/truck-still.webp)
-   stands in its place. Under 30rem the ring folds to a grid. ---- */
-.s1-surface-access{container-type:inline-size}
-.s1-orbit{position:relative;width:100%;aspect-ratio:1;margin-top:var(--space-4)}
-.s1-orbit__truck{position:absolute;left:50%;top:50%;width:50cqi;aspect-ratio:3/2;transform:translate(-50%,-50%);background:url(/truck-still.webp) center/contain no-repeat}
-.s1-orbit__truck[data-live]{background:none}
-.s1-orbit__truck canvas{display:block;width:100%;height:100%}
-.s1-orbit__ring{position:absolute;inset:0;margin:0;padding:0;list-style:none}
-.s1-orbit__slot{position:absolute;left:50%;top:50%;width:28cqi;transform:translate(-50%,-50%) rotate(var(--slot)) translateY(-36cqi) rotate(calc(-1 * var(--slot)))}
+/* ---- The sign-in floor: the service bay in 3D (src/scene.ts), after the ERS recovery line —
+   the truck turning on a turntable, a pad on the floor for each portal, and that portal's plate
+   pinned above its pad. The panel runs wider than the text column, to the page width less its
+   gutters. Live, each plate takes --x/--y from the scene's projection; until then, and where
+   WebGL is unavailable, the plates sit on a CSS ellipse over the still (public/scene-still.webp).
+   Under 40rem the plates leave the floor and stack under it. ---- */
+.s1-scene{position:relative;container-type:inline-size;width:min(100vw - 2 * var(--gutter), var(--page-max));margin:var(--space-4) calc(50% - min(50vw - var(--gutter), var(--page-max) / 2)) 0;border-radius:var(--radius-card);overflow:hidden;box-shadow:var(--elevation-card)}
+.s1-scene__stage{aspect-ratio:16/9;background:url(/scene-still.webp) center/cover no-repeat}
+.s1-scene[data-live] .s1-scene__stage{background:none}
+.s1-scene__stage canvas{display:block;width:100%;height:100%}
+.s1-scene__plates{position:absolute;inset:0;margin:0;padding:0;list-style:none;pointer-events:none}
+.s1-scene__plate{position:absolute;left:calc(50% + sin(var(--slot)) * 36cqi);top:calc(50% - cos(var(--slot)) * 20cqi);width:clamp(11rem, 15cqi, 12rem);transform:translate(-50%,-100%);pointer-events:auto}
+.s1-scene[data-live] .s1-scene__plate{left:var(--x);top:var(--y)}
 .s1-portal{display:flex;flex-direction:column;justify-content:center;gap:var(--space-1);min-height:calc(2 * var(--control-height));padding:var(--space-3);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);color:var(--color-text);text-align:center;text-decoration:none;transition:border-color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease)}
 .s1-portal strong{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-tight)}
 .s1-portal span{color:var(--color-text-muted);font-size:var(--text-sm)}
 .s1-portal:hover{border-color:var(--color-border-hard);box-shadow:var(--elevation-raised)}
 .s1-portal:hover strong{text-decoration:underline}
-@container (max-width:30rem){
-  .s1-orbit{aspect-ratio:auto}
-  .s1-orbit__truck{position:relative;left:auto;top:auto;width:70%;margin:0 auto var(--space-4);transform:none}
-  .s1-orbit__ring{position:static;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2)}
-  .s1-orbit__slot{position:static;width:auto;transform:none}
+@container (max-width:40rem){
+  .s1-scene__stage{aspect-ratio:4/3}
+  .s1-scene__plates{position:static;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);padding:var(--space-3);pointer-events:auto}
+  .s1-scene__plate,.s1-scene[data-live] .s1-scene__plate{position:static;width:auto;transform:none}
 }
+
 @media (prefers-reduced-motion:reduce){.s1-portal{transition:none}}
 
 /* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */
