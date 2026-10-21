@@ -302,8 +302,16 @@ export const OPERATIONS = {
   // ---- item 4: the job itself, created in Office & Dispatch ----
   "jobs.create": {
     id: "jobs.create", method: "POST", path: "/s2/jobs", kind: "mutation", auth: "bearer",
-    surfaces: ["S2"], carrier: "body", sdkMethod: "createJob",
+    // S3 since 2026-10-21: a dispatcher opens a job for a call that came in by
+    // phone, with no portal request behind it. Same handler, same derived SLA;
+    // the unit of work holds a region-bound dispatcher to their own region.
+    surfaces: ["S2", "S3"], carrier: "body", sdkMethod: "createJob",
     summary: "Author a job against a site. Opens its SLA timer in the same unit of work — due_at is DERIVED from the site's resolved sla_response term, never typed in (domain/sla deriveDueAt). Shadow mode until a region turns it off.",
+  },
+  "sites.list": {
+    id: "sites.list", method: "GET", path: "/s3/sites", kind: "query", auth: "bearer",
+    surfaces: ["S3"], carrier: "none", sdkMethod: "listSites",
+    summary: "Every active site a dispatcher may open a job at — the sites in their region (every region for a parent-scoped principal), with the customer each belongs to. What S3's New job form picks from.",
   },
   "jobs.list": {
     id: "jobs.list", method: "GET", path: "/jobs", kind: "query", auth: "bearer",
@@ -1267,6 +1275,13 @@ export type GetMediaOutput = { readonly id: string; readonly contentType: PhotoC
 export type ListServiceRequestsInput = { readonly siteId?: string };
 export type ListServiceRequestsOutput = { readonly requests: readonly ServiceRequestWire[] };
 
+/** One site a dispatcher may open a job at, and the customer it belongs to. */
+export type SiteWire = {
+  readonly id: string; readonly name: string; readonly orgId: string; readonly orgName: string; readonly regionId: string;
+  readonly address: AddressWire | null;
+};
+export type ListSitesOutput = { readonly sites: readonly SiteWire[] };
+
 export type ListJobsInput = { readonly state?: string };
 export type ListJobsOutput = { readonly jobs: readonly JobWire[] };
 
@@ -1716,6 +1731,7 @@ export type OperationIO = {
   "settlements.acknowledge": { input: AcknowledgeSettlementInput; output: AcknowledgeSettlementOutput };
   "settlements.dispute": { input: DisputeSettlementInput; output: DisputeSettlementOutput };
   "jobs.create": { input: CreateJobInput; output: CreateJobOutput };
+  "sites.list": { input: void; output: ListSitesOutput };
   "jobs.list": { input: ListJobsInput; output: ListJobsOutput };
   "serviceRequests.create": { input: CreateServiceRequestInput; output: CreateServiceRequestOutput };
   "serviceRequests.list": { input: ListServiceRequestsInput; output: ListServiceRequestsOutput };

@@ -9,7 +9,7 @@ import { sessionConfigFromEnv, allowedOrigins, sessionCookie, clearedCookie, coo
 import type { Tx } from "./unit-of-work.ts";
 import { authorTermOverride, resolvedTermsAt } from "./handlers/terms.ts";
 import { assignCrew, candidateCrews, releaseAssignment } from "./handlers/assignment.ts";
-import { listRegions, listOrganizations, createOrganization, listAccounts, createAccount, moveAccount, updateAccount } from "./handlers/hierarchy.ts";
+import { listRegions, listOrganizations, createOrganization, listAccounts, listSites, createAccount, moveAccount, updateAccount } from "./handlers/hierarchy.ts";
 import { listContracts, createContract, transitionContract, listTermOverrides, termRegister } from "./handlers/contracts.ts";
 import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, listCredentials, recordCredential, verifyCredential, listRateCards, setRateCard, enrollCrew, retireCrew, submitCredential } from "./handlers/network.ts";
 import { listSettlements, listSettlementLines, acknowledgeSettlement, disputeSettlement } from "./handlers/settlements.ts";
@@ -412,6 +412,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
 
   // C1 — the hierarchy S2 authors. Structure is the trigger's to refuse; inputs are the handler's.
   "regions.list": (req) => withRead(req, "regions.list", (uow) => listRegions(uow)),
+  "sites.list": (req) => withRead(req, "sites.list", (uow) => listSites(uow)),
   "organizations.list": (req, input) => withRead(req, "organizations.list", (uow) => listOrganizations(uow, input)),
   "organizations.create": (req, input) => withUow(req, "organizations.create", (uow) => createOrganization(uow, input, randomUUID)),
   "accounts.list": (req, input) => withRead(req, "accounts.list", (uow, p) => listAccounts(uow, p.namespace === "internal" ? input.orgId : p.orgId)),

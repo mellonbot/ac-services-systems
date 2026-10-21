@@ -132,6 +132,7 @@ const REGISTRY = {
     roles: ["dispatcher", "foreman", "ops_leadership", "principal"],
     // `job` and `service_request`: the office answers a customer's request from
     // Intake — opens the job at its site and links the two (serviceRequests.openJob).
+    // `job` also covers New job (jobs.create): a phone call with no request behind it.
     writes: ["assignment", "job_state", "crew_release", "escalation", "job_note", "job_flag", "job_update", "job_message", "job", "service_request"],
     density: "console", realtime: true, offline: false,
     degraded: "Board freezes with a visible staleness clock and stops accepting assignments. A dispatcher acting on a stale board is worse than a dispatcher who knows the board is stale. The compliance gate is enforced HERE, at assignment, with no override path.",

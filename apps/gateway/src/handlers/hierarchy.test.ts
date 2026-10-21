@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
-import { createOrganization, createAccount, moveAccount, updateAccount } from "./hierarchy.ts";
+import { createOrganization, createAccount, moveAccount, updateAccount, listSites } from "./hierarchy.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import { admissionAxis } from "../../../../packages/contracts/src/refusals.ts";
@@ -167,3 +167,13 @@ test("updateAccount never takes structure; deactivation is its own topic", async
 
 // A deterministic id source for the handlers that mint one.
 function uow_newId() { let i = 0; return () => U(200 + ++i); }
+
+test("listSites: active sites only, region-locked by the same function that locks jobs, with the customer's name", async () => {
+  const { tx, queries } = scripted({ "FROM accounts a JOIN organizations": [{ id: NODE_SITE, name: "Roof", org_id: ORG, org_name: "Amped", region_id: REGION, address: null }] });
+  const out = await listSites(await uowFor(tx));
+  assert.deepEqual(out.sites, [{ id: NODE_SITE, name: "Roof", orgId: ORG, orgName: "Amped", regionId: REGION, address: null }]);
+  const sql = queries.find((q) => q.sql.includes("FROM accounts a"))!.sql;
+  assert.match(sql, /a\.tier = 'site'/);
+  assert.match(sql, /a\.active/);
+  assert.match(sql, /ac_region_visible\(a\.region_id\)/, "accounts RLS shows an internal principal everything; the region lock is applied here");
+});

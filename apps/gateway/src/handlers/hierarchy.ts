@@ -4,7 +4,7 @@ import { admitLocationSupply } from "../../../../packages/domain/src/supply/dens
 import type {
   ListRegionsOutput, ListOrganizationsInput, ListOrganizationsOutput, CreateOrganizationInput, CreateOrganizationOutput,
   ListAccountsOutput, AccountWire, CreateAccountInput, CreateAccountOutput, MoveAccountInput, MoveAccountOutput,
-  UpdateAccountInput, UpdateAccountOutput, OrganizationKind,
+  UpdateAccountInput, UpdateAccountOutput, OrganizationKind, ListSitesOutput, SiteWire,
 } from "../../../../packages/contracts/src/operations.ts";
 
 /**
@@ -79,6 +79,22 @@ export const listAccounts = async (uow: UnitOfWork, orgId: string): Promise<List
     `SELECT ${ACCOUNT_COLUMNS} FROM accounts WHERE org_id = $1 ORDER BY array_length(path, 1), name`, [orgId],
   );
   return { nodes: rows.map(toWire) };
+};
+
+/**
+ * The sites S3's New job form picks from. `accounts` is visible in full to an
+ * internal principal, so the region lock is applied here with the same
+ * function that holds `jobs` to it (ac_region_visible, 0002) — a region-bound
+ * dispatcher is offered only sites whose job they could write.
+ */
+export const listSites = async (uow: UnitOfWork): Promise<ListSitesOutput> => {
+  const rows = await uow.tx.query<{ id: string; name: string; org_id: string; org_name: string; region_id: string; address: SiteWire["address"] }>(
+    `SELECT a.id, a.name, a.org_id, o.name AS org_name, a.region_id, a.address
+       FROM accounts a JOIN organizations o ON o.id = a.org_id
+      WHERE a.tier = 'site' AND a.active AND ac_region_visible(a.region_id)
+      ORDER BY o.name, a.name`,
+  );
+  return { sites: rows.map((r) => ({ id: r.id, name: r.name, orgId: r.org_id, orgName: r.org_name, regionId: r.region_id, address: r.address ?? null })) };
 };
 
 // ---------------------------------------------------------------------------
