@@ -1,0 +1,13 @@
+{
+  "name": "ac-logins",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs && electron ."
+  },
+  "devDependencies": {
+    "electron": "^38"
+  }
+}
