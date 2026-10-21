@@ -680,7 +680,7 @@ export type LoginOutput = {
   /** Also set as the httpOnly `ac_session` cookie. A browser surface ignores this field; devices and tests use it as a bearer. */
   readonly token: string;
   readonly expiresAt: string;
-  readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId">;
+  readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId" | "segment">;
 };
 export type LogoutOutput = { readonly ok: true; readonly sessionId: string };
 
@@ -695,7 +695,7 @@ export type DeviceLoginOutput = {
   readonly expiresAt: string;
   readonly crewId: string;
   readonly crewLabel: string;
-  readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId">;
+  readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId" | "segment">;
 };
 
 export type AuthorOverrideInput = {

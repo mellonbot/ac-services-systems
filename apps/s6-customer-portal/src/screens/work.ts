@@ -1,6 +1,6 @@
 import { html, pageHead, panel, statStrip, signal, StatusPill, PrimaryAction, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
-import { WORK_DONE_STATES, type JobWire, type JobStateWire, type ServiceRequestWire, type InvoiceWire, type BillingPath, type ServiceRequestPriority, type RequestPhotoWire } from "../../../../packages/contracts/src/index.ts";
-import { keyOf } from "../state.ts";
+import { WORK_DONE_STATES, type JobWire, type JobStateWire, type ServiceRequestWire, type InvoiceWire, type BillingPath, type ServiceRequestPriority, type RequestPhotoWire, type ListJobsOutput, type ListServiceRequestsOutput } from "../../../../packages/contracts/src/index.ts";
+import { keyOf, type Resource } from "../state.ts";
 import { whenReady, readNodes, linkTo, type Screen, type ScreenContext } from "./common.ts";
 import { requestForm, outcomeView, refOf } from "./request.ts";
 import { money } from "./site.ts";
@@ -189,6 +189,25 @@ const PLAN_WORD: Readonly<Record<BillingPath, string>> = {
   enterprise_sla: "Enterprise SLA", residential_membership: "Membership", project: "Project", one_time: "One-time service",
 };
 
+/** The work orders, newest first, with the status filter — and the site chips when there is more than one site to choose between. */
+export const ordersPanel = (ctx: ScreenContext, jobs: Resource<ListJobsOutput>, requests: Resource<ListServiceRequestsOutput>, invoices: readonly InvoiceWire[], nowMs: number, bySite: boolean): VNode =>
+  panel(whenReady(ctx, jobs, () => whenReady(ctx, requests, (out) => {
+    const orders = ordersOf(out.requests, jobs.state === "ready" ? jobs.value.jobs : []);
+    const siteIds = [...new Map(orders.map((o) => [o.siteId, o.siteName])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    const drawn = orders.filter((o) => shows(show.value, o) && (onSite.value === null || o.siteId === onSite.value));
+    return html`
+      ${bySite && siteIds.length > 1 ? html`<div class="s6-chips" role="group" aria-label="Filter by site">
+        <button type="button" class="ac-chip" aria-pressed=${onSite.value === null ? "true" : "false"} onClick=${() => { onSite.value = null; }}>All sites</button>
+        ${siteIds.map(([id, name]) => html`<button type="button" class="ac-chip" aria-pressed=${onSite.value === id ? "true" : "false"} onClick=${() => { onSite.value = id; }}>${name}</button>`)}
+      </div>` : null}
+      ${drawn.length === 0
+        ? html`<p class="s6-empty">${orders.length === 0 ? "No work orders yet. Request one and it appears here." : "Nothing matches this filter."}</p>`
+        : html`<div class="s6-orders" id="request-cards">${drawn.map((o) => orderCard(ctx, o, invoices, nowMs))}</div>`}`;
+  }, () => ctx.store.invalidate("serviceRequests.list")), () => ctx.store.invalidate("jobs.list")), "Your work orders", undefined,
+    html`<div class="ac-seg" role="group" aria-label="Show">
+      ${(Object.keys(SHOW_WORD) as Show[]).map((s) => html`<button type="button" class="ac-seg__item s6-seg-button" data-current=${show.value === s ? "true" : "false"} aria-pressed=${show.value === s ? "true" : "false"} onClick=${() => { show.value = s; }}>${SHOW_WORD[s]}</button>`)}
+    </div>`, "orders");
+
 const DAY_MS = 86_400_000;
 
 export const work: Screen = (ctx) => {
@@ -247,22 +266,7 @@ export const work: Screen = (ctx) => {
       ${panel(requestForm(ctx), "Request a work order", "Goes straight to the office for your region — no phone tag.", undefined, "request-panel")}
       <div class="s6-home__orders">
         ${outcomeView(ctx)}
-        ${panel(whenReady(ctx, jobs.value, () => whenReady(ctx, requests.value, (out) => {
-          const orders = ordersOf(out.requests, jobRows);
-          const siteIds = [...new Map(orders.map((o) => [o.siteId, o.siteName])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
-          const drawn = orders.filter((o) => shows(show.value, o) && (onSite.value === null || o.siteId === onSite.value));
-          return html`
-            ${siteIds.length > 1 ? html`<div class="s6-chips" role="group" aria-label="Filter by site">
-              <button type="button" class="ac-chip" aria-pressed=${onSite.value === null ? "true" : "false"} onClick=${() => { onSite.value = null; }}>All sites</button>
-              ${siteIds.map(([id, name]) => html`<button type="button" class="ac-chip" aria-pressed=${onSite.value === id ? "true" : "false"} onClick=${() => { onSite.value = id; }}>${name}</button>`)}
-            </div>` : null}
-            ${drawn.length === 0
-              ? html`<p class="s6-empty">${orders.length === 0 ? "No work orders yet. Request one and it appears here." : "Nothing matches this filter."}</p>`
-              : html`<div class="s6-orders" id="request-cards">${drawn.map((o) => orderCard(ctx, o, invoiceRows, now))}</div>`}`;
-        }, () => ctx.store.invalidate("serviceRequests.list")), () => ctx.store.invalidate("jobs.list")), "Your work orders", undefined,
-          html`<div class="ac-seg" role="group" aria-label="Show">
-            ${(Object.keys(SHOW_WORD) as Show[]).map((s) => html`<button type="button" class="ac-seg__item s6-seg-button" data-current=${show.value === s ? "true" : "false"} aria-pressed=${show.value === s ? "true" : "false"} onClick=${() => { show.value = s; }}>${SHOW_WORD[s]}</button>`)}
-          </div>`, "orders")}
+        ${ordersPanel(ctx, jobs.value, requests.value, invoiceRows, now, true)}
       </div>
     </div>
   </section>`;

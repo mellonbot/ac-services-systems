@@ -155,6 +155,16 @@ Roughly **3½ weeks** for one builder without the email work, **4½** with it.
 > household roles in the AC Logins app. Lead conversion needed a leads list
 > first — none existed, so no screen showed a lead to the office.
 
+> **Step 2, S6 part built (2026-10-21):** the hierarchy context carries the
+> customer's `segment`; a residential login's S6 home is "Your home" — the
+> address and its equipment, a membership card (PM visits this year against
+> the resolved `pm_visits_per_year`, the next planned visit, member since), the
+> request form with no site to choose, and the work orders with no site
+> filters; no Sites tab. A payer-only login sees no form and no request
+> button. The AC Logins app's Customer Portal tab filters by
+> residential / commercial and the add form narrows the customer list by it.
+> S2/S3 marks are still to do.
+
 1. **Segment (immutable) + one-step creation + lead conversion + household
    roles.** Unblocked. The office can carry homeowners as real customers, and
    the roles exist before the first second login does.
