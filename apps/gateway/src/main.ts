@@ -27,11 +27,12 @@ import { siteImagery, imageryConfigFromEnv } from "./handlers/imagery.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
 import { SURFACES, admits, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
-import { OPERATIONS, OPERATION_IDS, PHOTO_MAX_BYTES, routeKey, surfacesFor, type OperationId, type OperationIO } from "../../../packages/contracts/src/operations.ts";
+import { OPERATIONS, OPERATION_IDS, PHOTO_MAX_BYTES, routeKey, surfacesFor, seesManagerOverview, type OperationId, type OperationIO } from "../../../packages/contracts/src/operations.ts";
 import type { Claims, Namespace, Principal } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import { INTERNAL_ORG_ID, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
 import { hqMetrics, hqHistory } from "./handlers/hq.ts";
+import { managerOverview } from "./handlers/manager.ts";
 import {
   listVendors, createVendor, listReceivingPoints, createReceivingPoint, listCatalog, addCatalogItem, proposePrice, withdrawPrice, decidePrice,
   listPurchaseOrders, purchaseOrder, createPurchaseOrder, issuePurchaseOrder, cancelPurchaseOrder, acknowledgePurchaseOrder,
@@ -509,6 +510,10 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "jobs.transition": (req, input) => withUow(req, "jobs.transition", (uow, p) => transitionJob(uow, p.subjectId, input, new Date())),
   "jobs.addNote": (req, input) => withUow(req, "jobs.addNote", (uow, p) => addJobNote(uow, p.subjectId, input, randomUUID)),
   "jobs.setReturnTrip": (req, input) => withUow(req, "jobs.setReturnTrip", (uow) => setReturnTrip(uow, input)),
+  "manager.overview": (req) => withRead(req, "manager.overview", (uow, p) => {
+    if (!seesManagerOverview(p)) throw new HttpError(403, "The Manager Dashboard is for leadership (principal or ops_leadership) signed in at company scope");
+    return managerOverview(uow, p.orgId, new Date());
+  }),
   // 0016 — one job as dispatch reads it, and what the customer is told.
   "jobs.detail": (req, input) => withRead(req, "jobs.detail", (uow) => jobDetail(uow, input)),
   "jobs.conversation": (req, input) => withRead(req, "jobs.conversation", (uow) => jobConversation(uow, input)),

@@ -363,6 +363,11 @@ export const OPERATIONS = {
     surfaces: ["S3"], carrier: "body", sdkMethod: "addJobNote",
     summary: "Write a note on a job. Append-only — a correction is a newer note — and internal: RLS shows notes to the office in the job's region and to nobody outside it. jobs.list carries the newest.",
   },
+  "manager.overview": {
+    id: "manager.overview", method: "GET", path: "/s3/manager", kind: "query", auth: "bearer",
+    surfaces: ["S3"], carrier: "none", sdkMethod: "managerOverview",
+    summary: "The company on one page for leadership: billed and completed this month against the same point last month, first-visit fixes, days per step from request to invoiced, labour against paid time, unbilled and unassigned work, expiring credentials, eight weeks of completed vs. invoiced, each branch, and the team. Org-wide, so only a principal or ops_leadership login at parent scope may call it (seesManagerOverview); anyone else is refused 403.",
+  },
   "jobs.setReturnTrip": {
     id: "jobs.setReturnTrip", method: "POST", path: "/s3/jobs/return-trip", kind: "mutation", auth: "bearer",
     surfaces: ["S3"], carrier: "body", sdkMethod: "setReturnTrip",
@@ -1251,6 +1256,39 @@ export type ListServiceRequestsOutput = { readonly requests: readonly ServiceReq
 export type ListJobsInput = { readonly state?: string };
 export type ListJobsOutput = { readonly jobs: readonly JobWire[] };
 
+/** Who may read manager.overview: leadership, at parent scope — the only binding under which every table it reads is org-wide. */
+export const MANAGER_ROLES = ["principal", "ops_leadership"] as const;
+export const seesManagerOverview = (p: { readonly roles: readonly string[]; readonly scopeTier: string }): boolean =>
+  p.scopeTier === "parent" && p.roles.some((r) => (MANAGER_ROLES as readonly string[]).includes(r));
+
+export type ManagerWaitStep = "request_to_scheduled" | "scheduled_to_on_site" | "on_site_to_finished" | "finished_to_invoiced";
+export type CredentialStanding = "ok" | "at_risk" | "breached";
+export type ManagerOverviewOutput = {
+  readonly asOf: string;
+  /** Month to date, and the same span of last month. Money is minor units as text, per currency. */
+  readonly billed: readonly { readonly currency: string; readonly minor: string; readonly priorMinor: string }[];
+  readonly completed: { readonly now: number; readonly prior: number };
+  /** Of the jobs completed this month, those with one visit and no return trip owed. */
+  readonly fixedFirstVisit: number;
+  /** Average days for the jobs that finished each step in the last 30 days; null when none did. */
+  readonly waits: readonly { readonly step: ManagerWaitStep; readonly avgDays: number | null; readonly jobs: number }[];
+  /** Labour logged by active employed crews over the last 7 days, and how many such crews there are. */
+  readonly labor: { readonly hours: number; readonly techs: number };
+  /** Finished, not invoiced — counts by state. */
+  readonly unbilled: { readonly complete: number; readonly needsPricing: number; readonly awaitingPo: number; readonly awaitingPictures: number; readonly invoiceTrouble: number };
+  readonly urgentUnassigned: readonly { readonly regionId: string; readonly count: number }[];
+  /** Active crews whose soonest current credential has lapsed, or lapses within 30 days. */
+  readonly credentials: { readonly expired: number; readonly expiring: number };
+  /** Active employed crews at 36 hours or more since Monday. */
+  readonly nearOvertime: number;
+  readonly weeks: readonly { readonly weekStart: string; readonly completed: number; readonly invoiced: number }[];
+  readonly branches: readonly { readonly regionId: string; readonly name: string; readonly techs: number; readonly laborHours: number; readonly unbilled: number }[];
+  readonly team: readonly {
+    readonly userId: string; readonly name: string; readonly roles: readonly string[]; readonly branch: string;
+    readonly onJob: boolean; readonly hoursThisWeek: number | null; readonly credential: CredentialStanding | null;
+  }[];
+};
+
 /** S5's own read. No employment shape, no compliance detail — the field layer never sees either (09 §3.10, non-negotiable #9). */
 export type FieldJobWire = {
   readonly id: string; readonly siteId: string; readonly serviceCode: string; readonly priority: JobPriority; readonly state: JobStateWire;
@@ -1675,6 +1713,7 @@ export type OperationIO = {
   "dispatch.release": { input: ReleaseAssignmentInput; output: ReleaseAssignmentOutput };
   "jobs.transition": { input: TransitionJobInput; output: TransitionJobOutput };
   "jobs.addNote": { input: AddJobNoteInput; output: AddJobNoteOutput };
+  "manager.overview": { input: void; output: ManagerOverviewOutput };
   "jobs.setReturnTrip": { input: SetReturnTripInput; output: SetReturnTripOutput };
   "jobs.detail": { input: JobDetailInput; output: JobDetailOutput };
   "jobs.conversation": { input: JobConversationInput; output: JobConversationOutput };
