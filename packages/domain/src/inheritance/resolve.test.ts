@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { resolveTerm, resolveAll, ResolutionError, type Override } from "./resolve.ts";
 import { admitOverride, AdmissionRefused } from "./admit.ts";
-import { TERM_KEYS } from "../../../contracts/src/terms.ts";
+import { TERM_KEYS, termPolicy } from "../../../contracts/src/terms.ts";
 import { OVERRIDES, ILLEGAL, NODES, N, ORG, pathOf } from "./fixtures/amped.ts";
 
 const strip = (o: Override): Omit<Override, "id"> => ({
@@ -69,7 +69,8 @@ test("finding 3: the Carrier warranty is on the roof units and NOT on the baseme
   assert.match(String(roof.value), /Carrier/);
   assert.throws(
     () => resolveTerm(OVERRIDES, pathOf("site", N.boulderAhu), "vendor_warranty", "2026-06-01"),
-    (e: unknown) => e instanceof ResolutionError && e.code === "no_value",
+    (e: unknown) => e instanceof ResolutionError && e.code === "no_value"
+      && /no value for "vendor_warranty"/.test(e.message) && !e.message.includes(termPolicy("vendor_warranty").rationale),
   );
   // and the trace says why nothing above was consulted
   assert.equal(roof.trace.filter((s) => s.outcome === "not_walked").length, 3);

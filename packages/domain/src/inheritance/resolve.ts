@@ -146,7 +146,7 @@ export const resolveTerm = (
   if (!winner) {
     if (policy.fallback === undefined) {
       throw new ResolutionError(
-        `[inheritance] no value for "${termKey}" anywhere on the path as of ${asOf}, and the register declares no default. ${policy.rationale}`,
+        `[inheritance] no value for "${termKey}" anywhere on the path as of ${asOf}, and the register declares no default.`,
         termKey, "no_value",
       );
     }

@@ -27,6 +27,7 @@ export type RefusalCardProps = {
 export const AXIS_SENTENCE: Readonly<Record<AdmissionAxis, string>> = Object.freeze({
   structural: "This row can never be valid here.",
   commercial: "Someone has to agree to this and price it.",
+  incomplete: "A contract term is missing. Contracts has to set it before this can go ahead.",
 });
 
 /** The heading for a refusal of any kind — admission carries its axis; the others their nature. */
