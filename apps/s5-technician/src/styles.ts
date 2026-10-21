@@ -16,7 +16,7 @@ export const S5_CSS = `
 .s5-job-row+.s5-job-row{border-top:1px solid var(--color-border)}
 .s5-job-row__service{flex:1;font-weight:600}
 .s5-job-row__state{color:var(--color-text-muted)}
-.s5-link--open{margin-inline-start:auto}
+.s5-link--open{margin-inline-start:auto;display:inline-flex;align-items:center;justify-content:center;min-height:var(--control-height);min-width:var(--control-height)}
 .s5-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
 .s5-checklist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
 .s5-attention{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-3);border:1px solid var(--color-status-breached);border-radius:var(--radius-card)}

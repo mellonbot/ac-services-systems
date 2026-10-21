@@ -269,3 +269,9 @@ test("an inline form lays its fields in a row, declared after the base form so t
   assert.match(UI_CSS, /\.ac-form--inline\{display:flex;flex-direction:row;flex-wrap:wrap;gap:var\(--space-4\)/);
   assert.match(UI_CSS, /\.ac-form--inline \.ac-field\{flex:1 1 16ch/);
 });
+
+test("every control the chrome draws is at least its tier's control height; a link-button meets the 24px target minimum", () => {
+  for (const sel of [".ac-seg__item", ".ac-chip", ".ac-input"])
+    assert.match(UI_CSS, new RegExp(`\\n\\${sel}\\{[^}]*min-height:var\\(--control-height\\)`), `${sel} lacks the tier's control height`);
+  assert.match(UI_CSS, /\.ac-link--button\{[^}]*min-height:var\(--space-6\)/);
+});

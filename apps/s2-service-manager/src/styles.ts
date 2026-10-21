@@ -16,6 +16,7 @@ export const S2_CSS = `
 .s2-node[data-tier="region"]{font-weight:600}
 .s2-node[data-tier="site"]{color:var(--color-text-muted)}
 .s2-row-actions{display:inline-flex;gap:var(--space-3);white-space:nowrap}
+.s2-doc-summary{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3)}
 .s2-link--action{display:inline-flex;align-items:center;text-decoration:none}
 .s2-empty,.s2-loading{color:var(--color-text-muted)}
 .s2-form-screen{max-width:var(--measure-text);display:flex;flex-direction:column;gap:var(--space-3)}
@@ -43,7 +44,7 @@ export const S2_CSS = `
 .s2-oq5{display:flex;flex-direction:column;gap:var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-3)}
 .s2-oq5 legend{padding-inline:var(--space-2);font-weight:600}
 .s2-oq5__unset{color:var(--color-status-at-risk)}
-.s2-radio{display:flex;align-items:baseline;gap:var(--space-2)}
+.s2-radio{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height)}
 .s2-policy{margin:0;color:var(--color-text-muted);font-size:var(--text-sm)}
 .s2-policy[data-combine="ratchet"]{color:var(--color-text)}
 .s2-rationale{margin:0 0 var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm)}
