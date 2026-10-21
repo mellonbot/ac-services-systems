@@ -42,7 +42,7 @@ const admin = async (sql: string, params: unknown[] = []) => {
 before(async () => {
   if (!URL_) return;
   pool = createPool(URL_, "ac-s0-test");
-  await admin(`INSERT INTO organizations (id, name, kind) VALUES ($1,'Amped Fitness Inc.','customer') ON CONFLICT (id) DO NOTHING`, [ORG]);
+  await admin(`INSERT INTO organizations (id, name, kind, segment) VALUES ($1,'Amped Fitness Inc.','customer','commercial') ON CONFLICT (id) DO NOTHING`, [ORG]);
   await admin(`INSERT INTO regions (id, code, name) VALUES ($1,'WEST','West'), ($2,'MOUNTAIN','Mountain'), ($3,'SOUTH','South') ON CONFLICT (id) DO NOTHING`, [REGION_WEST, REGION_MOUNTAIN, REGION_SOUTH]);
   for (const n of NODES) {
     if (n.tier === "parent") continue;

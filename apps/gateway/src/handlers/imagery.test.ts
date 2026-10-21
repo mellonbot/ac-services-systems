@@ -18,7 +18,7 @@ const scripted = (rows: unknown[]) => {
 };
 const customer: Principal = {
   namespace: "customer", subjectId: U(9), orgId: U(2), regionId: U(3), scopeTier: "location", scopeId: U(4),
-  roles: [], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "s",
+  roles: ["payer", "requester"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "s",
 };
 const uowFor = (tx: Tx) => createUnitOfWork({ surfaceId: "S6", principal: customer, requestId: "r", now: () => new Date(), newId: () => U(500) }, tx);
 const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");

@@ -127,11 +127,11 @@ export const requestForm = (ctx: ScreenContext, preselected = ""): VNode => {
     const sites = tree.ofTier("site");
     if (sites.length === 0) return html`<p class="s6-empty">No sites are in view to request service at.</p>`;
     return html`<form class="ac-form" id="request-form" onSubmit=${submit}>
-      <label class="ac-field"><span>Site</span>
+      ${sites.length === 1 ? html`<input type="hidden" name="siteId" value=${sites[0]!.id} />` : html`<label class="ac-field"><span>Site</span>
         <select class="ac-input" name="siteId" required id="request-site">
           ${sites.map((s) => html`<option value=${s.id} defaultSelected=${s.id === preselected}>${tree.crumbs(s.id).slice(-2).join(" › ")}</option>`)}
         </select>
-      </label>
+      </label>`}
       <fieldset class="s6-fieldset"><legend>What's going on?</legend>
         <span class="s6-choices">${PROBLEMS.map((p) => html`
           <label class="ac-chip s6-choice"><input type="radio" name="problem" value=${p} defaultChecked=${p === "Other"} /><span>${p}</span></label>`)}

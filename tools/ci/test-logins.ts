@@ -14,7 +14,7 @@
  *
  * So the customer portal has its own login, in the customer namespace:
  *
- *   customer-test         roles []                one customer org, parent tier → S6
+ *   customer-test         roles [payer, requester] one customer org, parent tier → S6
  *
  * It is the customer's executive: it sees that org's whole tree and nothing of
  * any other customer's. A customer login belongs to a real customer org, which
@@ -51,7 +51,7 @@ export const TEST_LOGINS: readonly TestLogin[] = Object.freeze([
   login("service_manager-test", "Service manager (test)", ["office_manager"], "org", ["S2"]),
 ]);
 
-export const CUSTOMER_TEST_LOGIN: TestLogin = login("customer-test", "Customer (test)", [], "customer", ["S6"]);
+export const CUSTOMER_TEST_LOGIN: TestLogin = login("customer-test", "Customer (test)", ["payer", "requester"], "customer", ["S6"]);
 
 /**
  * The `users` row for a test login seeded into `regionId`. Org-wide logins scope to the internal org; a region login to

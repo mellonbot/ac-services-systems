@@ -9,6 +9,7 @@ import { accountsTree } from "./screens/accounts-tree.ts";
 import { accountsNew } from "./screens/accounts-new.ts";
 import { accountsMove } from "./screens/accounts-move.ts";
 import { organizationsNew } from "./screens/organizations-new.ts";
+import { leads } from "./screens/leads.ts";
 import { contractsList } from "./screens/contracts-list.ts";
 import { contractsNew } from "./screens/contracts-new.ts";
 import { termsOverride } from "./screens/terms-override.ts";
@@ -49,6 +50,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "accounts.new": accountsNew,
   "accounts.move": accountsMove,
   "organizations.new": organizationsNew,
+  "leads": leads,
   "contracts.list": contractsList,
   "contracts.new": contractsNew,
   "terms.override": termsOverride,
@@ -64,7 +66,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
 };
 
 const NAV_GROUPS = [
-  { label: "Customer records", screens: ["accounts.tree", "contracts.list"] as const },
+  { label: "Customer records", screens: ["accounts.tree", "contracts.list", "leads"] as const },
   { label: "Subcontractor network", screens: ["network"] as const },
   { label: "Purchasing", screens: ["purchasing"] as const },
 ] as const;
@@ -74,6 +76,7 @@ const ROUTE_LABELS: Readonly<Record<Exclude<ScreenId, "login">, string>> = {
   "accounts.new": "New account node",
   "accounts.move": "Move account node",
   "organizations.new": "New customer",
+  "leads": "Leads",
   "contracts.list": "Agreements",
   "contracts.new": "New agreement",
   "terms.override": "Term overrides",
@@ -177,6 +180,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
                   "credential.recorded", "credential.verified", "credential.expiring", "credential.expired", "rate_card.changed"] });
     // Item 11: the vendor's side of an order lands here as a refetch — a proposed
     // price, an acknowledgement, a shipment, an invoice, an answer on a return.
+    // S1's arc 1: a lead arrives, or someone here converts one.
+    shell.subscribe(() => store.invalidate("leads.list"), { topics: ["lead.captured", "lead.converted"] });
     shell.subscribe(() => refreshProcurement(store), { topics: ["vendor_price.proposed", "vendor_price.withdrawn", "po.acknowledged", "po.shipped", "vendor_invoice.submitted", "rma.responded"] });
   };
 

@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 98 today. There is no
+ * One method per operation in the catalogue — 102 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -206,6 +206,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["crews.update"], input) as Promise<OperationIO["crews.update"]["output"]>;
   },
 
+  /** `POST /s2/customers/residential` · mutation · bearer · surfaces: S2
+   *
+   * A home as a customer, in one unit of work: the organization (segment residential, fixed for good), the region node we serve it from, the household as its location and the home as its site, both at the address, and the homeowner as the primary contact when given. The tier ladder is unchanged — a home is a one-branch tree. */
+  createResidentialCustomer(input: OperationIO["customers.createResidential"]["input"]): Promise<OperationIO["customers.createResidential"]["output"]> {
+    return transport.request(OPERATIONS["customers.createResidential"], input) as Promise<OperationIO["customers.createResidential"]["output"]>;
+  },
+
   /** `POST /s2/devices/grant` · mutation · bearer · surfaces: S2
    *
    * The primitive: this device, this crew, this technician, this window. What auth.deviceLogin mints a token against. Refused if the technician is not on the named crew, the crew is inactive, or the device already holds an overlapping grant. */
@@ -325,7 +332,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["jobs.conversation"], input) as Promise<OperationIO["jobs.conversation"]["output"]>;
   },
 
-  /** `POST /s2/jobs` · mutation · bearer · surfaces: S2
+  /** `POST /s2/jobs` · mutation · bearer · surfaces: S2, S3
    *
    * Author a job against a site. Opens its SLA timer in the same unit of work — due_at is DERIVED from the site's resolved sla_response term, never typed in (domain/sla deriveDueAt). Shadow mode until a region turns it off. */
   createJob(input: OperationIO["jobs.create"]["input"]): Promise<OperationIO["jobs.create"]["output"]> {
@@ -386,6 +393,20 @@ export const createGatewayClient = (transport: Transport) => ({
    * The office's hand on a job's state: waiting on the customer (quote requested, quote submitted, approved or declined; held mid-job and resumed) and what blocks the invoice (needs pricing, waiting on a PO or pictures, an invoice kicked back). Only the edges OFFICE_JOB_TRANSITIONS lists; anything else is refused by name as an illegal transition. */
   transitionJob(input: OperationIO["jobs.transition"]["input"]): Promise<OperationIO["jobs.transition"]["output"]> {
     return transport.request(OPERATIONS["jobs.transition"], input) as Promise<OperationIO["jobs.transition"]["output"]>;
+  },
+
+  /** `POST /s2/leads/convert` · mutation · bearer · surfaces: S2
+   *
+   * A lead becomes a residential customer: customers.createResidential with the lead's name and contact, and the lead records the home it became — once; a second conversion is refused, naming the home. */
+  convertLead(input: OperationIO["leads.convert"]["input"]): Promise<OperationIO["leads.convert"]["output"]> {
+    return transport.request(OPERATIONS["leads.convert"], input) as Promise<OperationIO["leads.convert"]["output"]>;
+  },
+
+  /** `GET /s2/leads` · query · bearer · surfaces: S2
+   *
+   * Leads S1 captured, newest first — waiting ones by default — with the contact the visitor gave and, once converted, the home it became. */
+  listLeads(input: OperationIO["leads.list"]["input"]): Promise<OperationIO["leads.list"]["output"]> {
+    return transport.request(OPERATIONS["leads.list"], input) as Promise<OperationIO["leads.list"]["output"]>;
   },
 
   /** `POST /s1/leads` · mutation · bearer · surfaces: S1
@@ -626,6 +647,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["sites.imagery"], input) as Promise<OperationIO["sites.imagery"]["output"]>;
   },
 
+  /** `GET /s3/sites` · query · bearer · surfaces: S3
+   *
+   * Every active site a dispatcher may open a job at — the sites in their region (every region for a parent-scoped principal), with the customer each belongs to. What S3's New job form picks from. */
+  listSites(): Promise<OperationIO["sites.list"]["output"]> {
+    return transport.request(OPERATIONS["sites.list"], undefined) as Promise<OperationIO["sites.list"]["output"]>;
+  },
+
   /** `POST /s5/sync` · mutation · bearer · surfaces: S5
    *
    * Replay a device's offline log in device order. The device is the source of intent; the server is the source of truth. */
@@ -700,4 +728,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "addJobNote", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "submitLead", "managerOverview", "getMedia", "createOrganization", "listOrganizations", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "addJobNote", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "createOrganization", "listOrganizations", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "replaySync", "health", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);

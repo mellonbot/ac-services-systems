@@ -4,7 +4,7 @@ import { renderToString as render } from "../../../packages/ui/src/testing.ts";
 import { createApp, gatewayOrigin, SCREEN_VIEWS } from "./app.ts";
 import { SCREENS } from "./screens.ts";
 import { confirmPanel } from "./screens/common.ts";
-import { orderTree } from "./screens/accounts-tree.ts";
+import { orderTree, showSegment } from "./screens/accounts-tree.ts";
 import { parentCandidates } from "./screens/accounts-move.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { Principal, AccountWire, HierarchyContext } from "../../../packages/contracts/src/index.ts";
@@ -53,8 +53,13 @@ const fakeGateway = () => {
     if (!session) return reply(401, { error: "AuthError", code: "malformed", message: "no bearer token and no session cookie" });
     if (path === OPERATIONS["session.me"].path) return reply(200, context);
     if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true }, { id: WEST, code: "WEST", name: "West", timezone: "America/Los_Angeles", minCrewDensity: 0, active: true }] });
-    if (path === OPERATIONS["organizations.list"].path) return reply(200, { organizations: [{ id: ORG, name: "Amped Fitness Inc.", kind: "customer", externalRef: null, active: true, regionNodeCount: 2 }] });
+    if (path === OPERATIONS["organizations.list"].path) return reply(200, { organizations: [{ id: ORG, name: "Amped Fitness Inc.", kind: "customer", segment: "commercial", externalRef: null, active: true, regionNodeCount: 2 },
+      { id: "0e000000-0000-4000-8000-000000000099", name: "Turner residence", kind: "customer", segment: "residential", externalRef: null, active: true, regionNodeCount: 1 }] });
     if (path === OPERATIONS["accounts.list"].path) return reply(200, { nodes: NODES });
+    if (path === OPERATIONS["leads.list"].path) return reply(200, { leads: [
+      { id: U(50), source: "web_form", contact: { name: "Pat Turner", phone: "(817) 555-0142", note: "AC blowing warm upstairs" }, requestedMetro: "DFW", createdAt: "2026-10-21T12:00:00.000Z", convertedAccountId: null },
+      { id: U(51), source: "web_form", contact: { name: "Sam Lee", email: "sam@example.test" }, requestedMetro: null, createdAt: "2026-10-20T09:00:00.000Z", convertedAccountId: U(52) },
+    ] });
     if (path === OPERATIONS["accounts.create"].path) {
       const b = JSON.parse(init.body!) as { tier: string; parentId?: string };
       if (b.tier === "site" && b.parentId === N_SOUTH) return reply(422, { error: "TriggerRefused", code: "ac_accounts_derive_region", message: "accounts: a site must hang off a location, not a region" });
@@ -215,4 +220,76 @@ test("degraded: every submit renders disabled with the surface's declared reason
   assert.match(out, /aria-disabled="true"/);
   assert.match(out, /Gateway unreachable — Read-only from last server state/);
   assert.match(out, /South \(SOUTH\)/, "the last server state is still on screen");
+});
+
+type TestNode = { type?: unknown; props?: Record<string, unknown> };
+const nodesIn = (node: unknown): TestNode[] => {
+  if (Array.isArray(node)) return node.flatMap(nodesIn);
+  if (!node || typeof node !== "object") return [];
+  const current = node as TestNode;
+  return [current, ...nodesIn(current.props?.children)];
+};
+
+test("NEW CUSTOMER: commercial by default, as before; Residential asks for the home's address and the homeowner, and says the choice is fixed", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("organizations.new", {});
+  render(app.view()); await settle(); await settle();
+  let out = render(app.view());
+  assert.match(out, /Commercial — a business with one or more sites/);
+  assert.match(out, /name="nodeName"/, "the commercial form is unchanged: a parent and its first region node");
+  assert.doesNotMatch(out, /name="line1"/);
+  (nodesIn(app.view()).find((n) => n.type === "input" && n.props?.value === "residential")!.props!.onChange as () => void)();
+  out = render(app.view());
+  assert.match(out, /Household name/);
+  assert.match(out, /name="line1"[^>]*required/);
+  assert.match(out, /name="postal"/);
+  assert.match(out, /Homeowner \(optional\)/);
+  assert.match(out, /Fixed once created/);
+  assert.match(out, />Create home</);
+  assert.doesNotMatch(out, /name="nodeName"/, "a home's region node is named for it — nothing to type");
+  (nodesIn(app.view()).find((n) => n.type === "input" && n.props?.value === "commercial")!.props!.onChange as () => void)();
+});
+
+test("LEADS: a tab under Customer records; waiting leads with a way to reach them; Convert opens the home form, named for them", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  assert.match(render(app.view()), />Leads<\/a>/);
+  app.router.navigate("leads", {});
+  render(app.view()); await settle(); await settle();
+  let out = render(app.view());
+  assert.match(out, /Pat Turner/);
+  assert.match(out, /href="tel:\(817\) 555-0142"/);
+  assert.match(out, /AC blowing warm upstairs/);
+  assert.match(out, new RegExp(`id="convert-${U(50)}"`));
+  assert.doesNotMatch(out, new RegExp(`id="convert-${U(51)}"`), "a converted lead is not converted twice");
+  assert.match(out, /Converted/);
+  (nodesIn(app.view()).find((n) => n.type === "button" && n.props?.id === `convert-${U(50)}`)!.props!.onClick as () => void)();
+  render(app.view()); await settle();
+  out = render(app.view());
+  assert.match(out, /id="lead-convert-form"/);
+  assert.match(out, /value="Pat Turner residence"/);
+  assert.match(out, /Their phone and email become the household's primary contact/);
+  assert.match(out, /South \(SOUTH\)/);
+  (nodesIn(app.view()).find((n) => n.type === "button" && n.props?.id === "lead-convert-cancel")!.props!.onClick as () => void)();
+  assert.doesNotMatch(render(app.view()), /id="lead-convert-form"/);
+});
+
+test("ACCOUNTS: each customer says residential or commercial, and the type chips choose which the list shows (0019)", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("accounts.tree", {});
+  render(app.view()); await settle();
+  let out = render(app.view());
+  assert.match(out, /Amped Fitness Inc\..*Commercial/s);
+  assert.match(out, /Turner residence.*Residential/s);
+  assert.match(out, /id="customer-type".*>All<.*>Residential<.*>Commercial</s);
+  showSegment("residential"); // what the Residential chip's click runs
+  out = render(app.view());
+  assert.match(out, /Turner residence/);
+  assert.doesNotMatch(out, /Amped Fitness Inc\./, "commercial customers are filtered out, not fetched again");
+  showSegment("all");
 });

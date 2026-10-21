@@ -3,7 +3,7 @@ import { InputRefused, BadInput } from "../refusals.ts";
 import { createJob } from "./jobs.ts";
 import type {
   CreateServiceRequestInput, CreateServiceRequestOutput, ListServiceRequestsInput, ListServiceRequestsOutput,
-  ServiceRequestPriority, ServiceRequestWire, JobStateWire, RequestPhotoWire, OpenRequestJobInput, OpenRequestJobOutput,
+  ServiceRequestPriority, ServiceRequestWire, JobStateWire, RequestPhotoWire, OpenRequestJobInput, OpenRequestJobOutput, CustomerSegment,
 } from "../../../../packages/contracts/src/operations.ts";
 
 /**
@@ -75,7 +75,7 @@ export const createServiceRequest = async (
 
 type Row = {
   id: string; site_id: string; site_name: string; priority: ServiceRequestPriority; description: string;
-  requested_by: string; created_at: string; job_id: string | null; job_state: JobStateWire | null; org_id: string; region_id: string;
+  requested_by: string; created_at: string; job_id: string | null; job_state: JobStateWire | null; org_id: string; region_id: string; customer_segment: CustomerSegment | null;
   photos: RequestPhotoWire[];
 };
 
@@ -85,20 +85,21 @@ export const listServiceRequests = async (uow: UnitOfWork, input: ListServiceReq
   const rows = await uow.tx.query<Row>(
     `SELECT r.id, r.site_id, a.name AS site_name, r.priority, r.description, r.requested_by,
             to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
-            r.job_id, j.state AS job_state, r.org_id, r.region_id,
+            r.job_id, j.state AS job_state, r.org_id, r.region_id, o.segment AS customer_segment,
             COALESCE((SELECT json_agg(json_build_object('id', m.id, 'contentType', o.content_type, 'bytes', o.byte_size) ORDER BY m.created_at, m.id)
                         FROM service_request_media m JOIN storage_objects o ON o.id = m.storage_object_id
                        WHERE m.request_id = r.id), '[]'::json) AS photos
        FROM service_requests r
        JOIN accounts a ON a.id = r.site_id
        LEFT JOIN jobs j ON j.id = r.job_id
+       LEFT JOIN organizations o ON o.id = r.org_id
       WHERE ($1::uuid IS NULL OR r.site_id = $1)
       ORDER BY r.created_at DESC`,
     [siteId],
   );
   const requests: ServiceRequestWire[] = rows.map((r) => ({
     id: r.id, siteId: r.site_id, siteName: r.site_name, priority: r.priority, description: r.description,
-    requestedBy: r.requested_by, createdAt: r.created_at, jobId: r.job_id, jobState: r.job_state, orgId: r.org_id, regionId: r.region_id,
+    requestedBy: r.requested_by, createdAt: r.created_at, jobId: r.job_id, jobState: r.job_state, orgId: r.org_id, regionId: r.region_id, customerSegment: r.customer_segment ?? null,
     photos: r.photos.map((p) => ({ id: p.id, contentType: p.contentType, bytes: Number(p.bytes) })),
   }));
   return { requests };

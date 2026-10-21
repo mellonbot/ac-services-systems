@@ -1,7 +1,7 @@
 import { html, signal, DataGrid, StatusPill, PrimaryAction, pageHead, statStrip, panel, shortRef, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { ServiceRequestWire, ServiceRequestPriority, JobPriority, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
-import { whenReady, linkTo, refusalView, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, homeMark, linkTo, refusalView, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL } from "./jobs.ts";
 
 /**
@@ -40,7 +40,7 @@ export const age = (iso: string, now: number): string => {
   return m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m / 60)}h` : `${Math.floor(m / 1440)}d`;
 };
 
-const perStore = <T>(initial: T) => {
+export const perStore = <T>(initial: T) => {
   const m = new WeakMap<Store, Signal<T>>();
   return (store: Store): Signal<T> => {
     let s = m.get(store);
@@ -53,8 +53,8 @@ const viewingFor = perStore<Viewing>(null);
 type Opening = { readonly requestId: string; readonly busy: boolean; readonly refusal: Refusal | null } | null;
 const openingFor = perStore<Opening>(null);
 
-const JOB_PRIORITIES: readonly JobPriority[] = ["emergency", "urgent", "routine", "pm"];
-const PRIORITY_WORD: Readonly<Record<JobPriority, string>> = { emergency: "Emergency", urgent: "Urgent", routine: "Routine", pm: "Planned maintenance" };
+export const JOB_PRIORITIES: readonly JobPriority[] = ["emergency", "urgent", "routine", "pm"];
+export const PRIORITY_WORD: Readonly<Record<JobPriority, string>> = { emergency: "Emergency", urgent: "Urgent", routine: "Routine", pm: "Planned maintenance" };
 
 /** "2026-10-22T08:00" — what a datetime-local input holds, in the dispatcher's own time. */
 const localInput = (d: Date): string => {
@@ -180,7 +180,7 @@ export const intake: Screen = (ctx) => {
   const columns: readonly Column<ServiceRequestWire>[] = [
     { key: "received", header: "Received", numeric: true, cell: (r) => html`<span class="s3-cust" title=${new Date(r.createdAt).toLocaleString()}><strong class="s3-num">${age(r.createdAt, now)} ago</strong><small>${new Date(r.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</small></span>` },
     { key: "ref", header: "Ref", cell: (r) => html`<span class="s3-num">${shortRef(r.id)}</span>` },
-    { key: "site", header: "Site", cell: (r) => html`<strong>${r.siteName}</strong>` },
+    { key: "site", header: "Site", cell: (r) => html`<span class="s3-cust"><strong>${r.siteName}</strong>${homeMark(r.customerSegment)}</span>` },
     { key: "priority", header: "Priority", cell: (r) => priorityCell(ctx, r.priority) },
     { key: "asked", header: "What they asked", cell: (r) => html`<span class="s3-intake__asked" title=${r.description}>${r.description}</span>` },
     { key: "photos", header: "Photos", cell: (r) => thumbs(ctx, r, viewing, opening) },

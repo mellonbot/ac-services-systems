@@ -7,6 +7,10 @@ export const organizations = tenancyRootTable("organizations", {
     { name: "id", type: "uuid", default: "gen_random_uuid()" },
     { name: "name", type: "text" },
     { name: "kind", type: "text", check: "kind IN ('internal','customer','subcontractor','vendor','prospect')" },
+    {
+      name: "segment", type: "text", nullable: true, check: "segment IN ('residential','commercial')",
+      comment: "Customers only (0019): residential or commercial, set at creation and never changed (R1). A classifier for screens and defaults — row security never reads it.",
+    },
     { name: "external_ref", type: "text", nullable: true },
     { name: "active", type: "boolean", default: "true" },
     { name: "created_at", type: "timestamptz", default: "now()" },

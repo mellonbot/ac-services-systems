@@ -9,7 +9,7 @@ import { sessionConfigFromEnv, allowedOrigins, sessionCookie, clearedCookie, coo
 import type { Tx } from "./unit-of-work.ts";
 import { authorTermOverride, resolvedTermsAt } from "./handlers/terms.ts";
 import { assignCrew, candidateCrews, releaseAssignment } from "./handlers/assignment.ts";
-import { listRegions, listOrganizations, createOrganization, listAccounts, createAccount, moveAccount, updateAccount } from "./handlers/hierarchy.ts";
+import { listRegions, listOrganizations, createOrganization, listAccounts, listSites, createAccount, moveAccount, updateAccount } from "./handlers/hierarchy.ts";
 import { listContracts, createContract, transitionContract, listTermOverrides, termRegister } from "./handlers/contracts.ts";
 import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, listCredentials, recordCredential, verifyCredential, listRateCards, setRateCard, enrollCrew, retireCrew, submitCredential } from "./handlers/network.ts";
 import { listSettlements, listSettlementLines, acknowledgeSettlement, disputeSettlement } from "./handlers/settlements.ts";
@@ -20,6 +20,7 @@ import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMes
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
 import { createServiceRequest, listServiceRequests, openJobFromRequest } from "./handlers/service-requests.ts";
 import { attachPhoto, getMedia } from "./handlers/photos.ts";
+import { createResidential, listLeads, convertLead } from "./handlers/residential.ts";
 import { storeFromEnv } from "../../../packages/storage/src/index.ts";
 import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
 import { listEquipment, registerEquipment, listContacts, setContact, listInvoices } from "./handlers/site-record.ts";
@@ -273,7 +274,7 @@ const login = async (body: Partial<OperationIO["auth.login"]["input"]>, res: Ser
     // The browser gets the token as an httpOnly cookie it cannot read; the body
     // carries it too, for devices and tests, and a browser surface ignores it.
     res.setHeader("set-cookie", sessionCookie(minted.token, expiresAt, SESSION));
-    return { token: minted.token, expiresAt: expiresAt.toISOString(), context: { path: context.path, parent: context.parent, regions: context.regions, activeRegionId: context.activeRegionId } };
+    return { token: minted.token, expiresAt: expiresAt.toISOString(), context: { path: context.path, parent: context.parent, regions: context.regions, activeRegionId: context.activeRegionId, segment: context.segment ?? null } };
   } catch (e) {
     await tx.rollback().catch(() => {});
     throw e;
@@ -318,7 +319,7 @@ const deviceLogin = async (body: Partial<OperationIO["auth.deviceLogin"]["input"
     res.setHeader("set-cookie", sessionCookie(minted.token, expiresAt, SESSION));
     return {
       token: minted.token, expiresAt: expiresAt.toISOString(), crewId: resolved.crewId, crewLabel: resolved.crewLabel,
-      context: { path: context.path, parent: context.parent, regions: context.regions, activeRegionId: context.activeRegionId },
+      context: { path: context.path, parent: context.parent, regions: context.regions, activeRegionId: context.activeRegionId, segment: context.segment ?? null },
     };
   } catch (e) {
     await tx.rollback().catch(() => {});
@@ -412,6 +413,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
 
   // C1 — the hierarchy S2 authors. Structure is the trigger's to refuse; inputs are the handler's.
   "regions.list": (req) => withRead(req, "regions.list", (uow) => listRegions(uow)),
+  "sites.list": (req) => withRead(req, "sites.list", (uow) => listSites(uow)),
   "organizations.list": (req, input) => withRead(req, "organizations.list", (uow) => listOrganizations(uow, input)),
   "organizations.create": (req, input) => withUow(req, "organizations.create", (uow) => createOrganization(uow, input, randomUUID)),
   "accounts.list": (req, input) => withRead(req, "accounts.list", (uow, p) => listAccounts(uow, p.namespace === "internal" ? input.orgId : p.orgId)),
@@ -502,6 +504,9 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "serviceRequests.list": (req, input) => withRead(req, "serviceRequests.list", (uow) => listServiceRequests(uow, input)),
   "serviceRequests.attachPhoto": (req, input) => withUow(req, "serviceRequests.attachPhoto", (uow, p) => attachPhoto(uow, p.subjectId, STORE, input, randomUUID)),
   "media.get": (req, input) => withRead(req, "media.get", (uow) => getMedia(uow, STORE, input)),
+  "customers.createResidential": (req, input) => withUow(req, "customers.createResidential", (uow) => createResidential(uow, input, randomUUID)),
+  "leads.list": (req, input) => withRead(req, "leads.list", (uow) => listLeads(uow, input)),
+  "leads.convert": (req, input) => withUow(req, "leads.convert", (uow) => convertLead(uow, input, randomUUID)),
   "serviceRequests.openJob": (req, input) => withUow(req, "serviceRequests.openJob", (uow) => openJobFromRequest(uow, input, randomUUID, new Date())),
 
   // S3 — the one gated door, its dry run, and its release.

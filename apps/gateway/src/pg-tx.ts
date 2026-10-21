@@ -3,6 +3,7 @@ import type { ScopeBinding } from "../../../packages/contracts/src/scope.ts";
 import type { Tx } from "./unit-of-work.ts";
 import type { HierarchyReader } from "./context.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
+import type { CustomerSegment } from "../../../packages/contracts/src/operations.ts";
 import { forNodePg } from "./pg-url.ts";
 
 /**
@@ -98,7 +99,7 @@ export const beginTx = async (pool: Pool, role?: "ac_gateway" | "ac_worker" | "a
 /** HierarchyReader over a Tx (so context resolution runs under the same scope binding). */
 export const hierarchyReader = (tx: Tx): HierarchyReader => ({
   async organization(id) {
-    const r = await tx.query<{ id: string; name: string }>("SELECT id, name FROM organizations WHERE id = $1 AND active", [id]);
+    const r = await tx.query<{ id: string; name: string; segment: CustomerSegment | null }>("SELECT id, name, segment FROM organizations WHERE id = $1 AND active", [id]);
     return r[0] ?? null;
   },
   async region(id) {

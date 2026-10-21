@@ -1,6 +1,7 @@
 import type { Principal, ScopeBinding } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import type { HierarchyNode, HierarchyContext } from "../../../packages/contracts/src/context.ts";
+import type { CustomerSegment } from "../../../packages/contracts/src/operations.ts";
 
 /**
  * HIERARCHY CONTEXT — resolved at login, not per view.
@@ -19,7 +20,7 @@ export type { HierarchyNode, HierarchyContext };
 
 /** What the context builder needs from the database. Kept as an interface so the builder is unit-testable. */
 export type HierarchyReader = {
-  organization(id: string): Promise<{ id: string; name: string } | null>;
+  organization(id: string): Promise<{ id: string; name: string; segment?: CustomerSegment | null } | null>;
   region(id: string): Promise<{ id: string; code: string; name: string } | null>;
   account(id: string): Promise<{ id: string; tier: Tier; name: string; parentId: string | null; regionId: string; orgId: string; customerGroup: string | null } | null>;
   regionNodesOf(orgId: string): Promise<readonly { id: string; name: string; regionId: string }[]>;
@@ -51,6 +52,7 @@ export const buildContext = async (p: Principal, db: HierarchyReader): Promise<H
       parent,
       regions: [{ tier: "region", id: region.id, name: region.name, regionId: region.id, customerGroup: null }],
       activeRegionId: p.regionId,
+      segment: org.segment ?? null,
     };
   }
 
@@ -63,6 +65,7 @@ export const buildContext = async (p: Principal, db: HierarchyReader): Promise<H
       parent,
       regions: regions.map((r) => ({ tier: "region", id: r.id, name: r.name, regionId: r.regionId, customerGroup: null })),
       activeRegionId: p.regionId,
+      segment: org.segment ?? null,
     };
   }
 
@@ -88,6 +91,7 @@ export const buildContext = async (p: Principal, db: HierarchyReader): Promise<H
     parent,
     regions: regionNode ? [regionNode] : [],
     activeRegionId: p.regionId,
+    segment: org.segment ?? null,
   };
 };
 

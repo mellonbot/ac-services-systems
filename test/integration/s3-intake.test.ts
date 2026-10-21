@@ -119,7 +119,7 @@ test("fixture: Amped under an agreement with a 4-hour response, a site in South 
   await s2.gateway.authorTermOverride({ contractId: msa, scopeTier: "parent", scopeId: amped, termKey: "sla_response", termValue: "4_hour", effectiveFrom: "2026-01-01", orgId: amped, regionId: REGION_SOUTH });
 
   await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
-    VALUES ($1,$2,$3,'customer',$4,'Austin FM','[]','location',$5,$6,true)
+    VALUES ($1,$2,$3,'customer',$4,'Austin FM','["payer","requester"]','location',$5,$6,true)
     ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, scope_id = EXCLUDED.scope_id, email = EXCLUDED.email, password_hash = EXCLUDED.password_hash, active = true`,
     [USER_FM_AUSTIN, amped, REGION_SOUTH, `fm.austin.${RUN}@amped.test`, austin, hashPassword(PASSWORD)]);
   fm = await shell("S6", `fm.austin.${RUN}@amped.test`);
@@ -171,4 +171,19 @@ test("with the handler bypassed: a customer cannot update its request, an answer
   const renoJob = (await admin(`INSERT INTO jobs (org_id, region_id, site_id, service_code, priority, state, service_window)
     VALUES ($1, $2, $3, 'repairs', 'routine', 'created', tstzrange(now(), now() + interval '4 hours')) RETURNING id`, [amped, REGION_WEST, renoRoof]))[0]!.id as string;
   await assert.rejects(admin(`UPDATE service_requests SET job_id = $1 WHERE id = $2`, [renoJob, third]), (e: { code?: string; message: string }) => e.code === "AC422" && /is not at the site/.test(e.message));
+});
+
+test("New job, no request behind it: the South dispatcher picks from South's sites only, opens a job there with the SLA derived, and is refused at a West site", { skip }, async () => {
+  const south = (await disp.gateway.listSites()).sites.filter((s) => s.orgId === amped);
+  assert.deepEqual(south.map((s) => s.id), [austinRoof], "South's site, and not Reno's");
+  assert.equal(south[0]!.orgName, `Amped Intake ${RUN}`);
+  const west = (await dispWest.gateway.listSites()).sites.filter((s) => s.orgId === amped);
+  assert.deepEqual(west.map((s) => s.id), [renoRoof]);
+
+  const out = await disp.gateway.createJob({ siteId: austinRoof, serviceCode: "phone_call", priority: "routine", ...window_(2) });
+  assert.equal(out.responseTerm, "4_hour", "derived from the site's agreed term, not chosen");
+  const row = (await admin(`SELECT site_id, region_id, state FROM jobs WHERE id = $1`, [out.id]))[0]!;
+  assert.deepEqual(row, { site_id: austinRoof, region_id: REGION_SOUTH, state: "created" });
+
+  await refusedWith(disp, disp.gateway.createJob({ siteId: renoRoof, serviceCode: "phone_call", ...window_(2) }), "scope");
 });

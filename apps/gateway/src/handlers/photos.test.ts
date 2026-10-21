@@ -38,7 +38,7 @@ const scripted = (answers: readonly (readonly [string, unknown[]])[], log: strin
 };
 const facility: Principal = {
   namespace: "customer", subjectId: CONTACT, orgId: ORG, regionId: REGION, scopeTier: "location", scopeId: U(9),
-  roles: [], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "sess-6",
+  roles: ["payer", "requester"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "sess-6",
 };
 let seq = 0;
 const uowFor = async (tx: Tx) => createUnitOfWork({ surfaceId: "S6", principal: facility, requestId: "r", now: () => new Date("2026-10-21T12:00:00Z"), newId: () => U(600 + ++seq) }, tx);

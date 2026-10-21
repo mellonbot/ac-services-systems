@@ -69,7 +69,7 @@ before(async () => {
   crewId = (await admin(
     `INSERT INTO crews (org_id, region_id, label, employment_type, home_region_id) VALUES ('00000000-0000-0000-0000-000000000003',$1,$2,'employed',$1) RETURNING id`,
     [REGION_SOUTH, `Crew ${RUN}`]))[0].id;
-  orgId = (await admin(`INSERT INTO organizations (name, kind) VALUES ($1,'customer') RETURNING id`, [`Customer ${RUN}`]))[0].id;
+  orgId = (await admin(`INSERT INTO organizations (name, kind, segment) VALUES ($1,'customer','commercial') RETURNING id`, [`Customer ${RUN}`]))[0].id;
   regionNodeId = (await admin(`INSERT INTO accounts (org_id, region_id, tier, name) VALUES ($1,$2,'region',$3) RETURNING id`, [orgId, REGION_SOUTH, `Customer ${RUN} / South`]))[0].id;
   locationId = (await admin(`INSERT INTO accounts (org_id, region_id, parent_id, tier, name) VALUES ($1,$2,$3,'location',$4) RETURNING id`, [orgId, REGION_SOUTH, regionNodeId, `Customer ${RUN} / Store 1`]))[0].id;
   firmId = (await admin(`INSERT INTO organizations (name, kind) VALUES ($1,'subcontractor') RETURNING id`, [`Firm ${RUN}`]))[0].id;
@@ -109,7 +109,7 @@ test("the pickers see what the unbound role cannot", { skip }, async () => {
   const tree = await db.listAccountTree(orgId);
   assert.ok(tree.some((n) => n.id === regionNodeId && n.tier === "region" && n.parentId === null));
   assert.ok(tree.some((n) => n.id === locationId && n.tier === "location" && n.parentId === regionNodeId));
-  assert.ok((await db.listCustomerOrgs()).some((o) => o.id === orgId));
+  assert.ok((await db.listCustomerOrgs()).some((o) => o.id === orgId && o.segment === "commercial"), "each customer carries its segment, for the Customer type choice");
   const regions = await db.listRegions();
   assert.ok(regions.some((r) => r.id === REGION_SOUTH));
   assert.ok(!regions.some((r) => r.id === UNASSIGNED_REGION_ID));
@@ -193,7 +193,7 @@ test("remove ends a technician's device session", { skip }, async () => {
 });
 
 test("addLogin refuses a customer scoped to another customer's node", { skip }, async () => {
-  const otherOrg = (await admin(`INSERT INTO organizations (name, kind) VALUES ($1,'customer') RETURNING id`, [`Other ${RUN}`]))[0].id;
+  const otherOrg = (await admin(`INSERT INTO organizations (name, kind, segment) VALUES ($1,'customer','commercial') RETURNING id`, [`Other ${RUN}`]))[0].id;
   await assert.rejects(
     db.addLogin({ kind: "customer", email: email("cross"), displayName: "Cross", password: PASSWORD, orgId: otherOrg, tier: "location", nodeId: locationId, regionId: REGION_SOUTH }),
     (e: unknown) => e instanceof LoginInputError && e.message === "That site or location doesn't belong to the chosen customer",

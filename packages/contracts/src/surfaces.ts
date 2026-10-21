@@ -35,6 +35,12 @@ export type Surface = {
   readonly authScope: string;
   readonly scopeBinding: "none" | "org" | "region" | "customer_tier" | "firm" | "vendor" | "device_shift";
   readonly writes: readonly WriteEntity[];
+  /**
+   * Entities on `writes` that only some of the surface's principals may write,
+   * and which roles may. Absent for an entity → any principal the surface
+   * admits. Checked by the unit of work, so a bundle cannot route around it.
+   */
+  readonly writeRoles?: Partial<Readonly<Record<WriteEntity, readonly Role[]>>>;
   readonly density: Density;
   /** Realtime is a hard requirement, not a nice-to-have, where true. */
   readonly realtime: boolean;
@@ -93,7 +99,8 @@ const REGISTRY = {
     block: "OFC", phase: 1, enabled: true,
     namespace: "internal", authScope: "role-based, org-wide", scopeBinding: "org",
     roles: ["principal", "ops_leadership", "account_owner", "office_manager", "finance", "warehouse"],
-    writes: ["account", "contract", "invoice", "warranty_case", "part", "purchase_order",
+    // `lead`: the office converts a lead into a residential customer (leads.convert).
+    writes: ["account", "contract", "invoice", "warranty_case", "part", "purchase_order", "lead",
              // C4: the network registry. `crew` was added 2026-09-16 — the
              // registry listed the firm, the document and the price, and not
              // the crew they all attach to. S8's `crew_roster` is a firm's
@@ -132,6 +139,7 @@ const REGISTRY = {
     roles: ["dispatcher", "foreman", "ops_leadership", "principal"],
     // `job` and `service_request`: the office answers a customer's request from
     // Intake — opens the job at its site and links the two (serviceRequests.openJob).
+    // `job` also covers New job (jobs.create): a phone call with no request behind it.
     writes: ["assignment", "job_state", "crew_release", "escalation", "job_note", "job_flag", "job_update", "job_message", "job", "service_request"],
     density: "console", realtime: true, offline: false,
     degraded: "Board freezes with a visible staleness clock and stops accepting assignments. A dispatcher acting on a stale board is worse than a dispatcher who knows the board is stale. The compliance gate is enforced HERE, at assignment, with no override path.",
@@ -171,6 +179,9 @@ const REGISTRY = {
     block: "INV", phase: 1, enabled: true,
     namespace: "customer", authScope: "customer IdP + tier claim", scopeBinding: "customer_tier",
     writes: ["service_request", "photo", "payment", "contact_update", "job_message"],
+    // R6: a household (or an account) splits who pays from who asks. A login
+    // with both — every first login — writes all four.
+    writeRoles: { service_request: ["requester"], photo: ["requester"], job_message: ["requester"], payment: ["payer"] },
     density: "comfort", realtime: false, offline: false,
     // "request intake queues" was the design's line (05 §S6); the registry
     // says `offline: false`, and the registry is what runs. A request the

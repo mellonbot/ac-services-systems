@@ -32,7 +32,7 @@ const scripted = (answers: readonly (readonly [string, unknown[]])[]) => {
 /** A facility manager at a SOUTH location; the site below is served from SOUTH, as derivation guarantees. */
 const facility: Principal = {
   namespace: "customer", subjectId: CONTACT, orgId: ORG, regionId: REGION_SOUTH, scopeTier: "location", scopeId: LOCATION,
-  roles: [], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "sess-6",
+  roles: ["payer", "requester"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "sess-6",
 };
 /** An executive — parent tier — whose users row happens to be bound to WEST. The site is still served from SOUTH. */
 const executive: Principal = { ...facility, subjectId: U(7), regionId: REGION_WEST, scopeTier: "parent", scopeId: ORG };

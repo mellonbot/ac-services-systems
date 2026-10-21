@@ -1,5 +1,5 @@
-import { html, pageHead, panel, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { AccountWire, OrganizationWire, RegionWire } from "../../../../packages/contracts/src/index.ts";
+import { html, pageHead, panel, DataGrid, StatusPill, signal, type VNode } from "../../../../packages/ui/src/index.ts";
+import type { AccountWire, OrganizationWire, RegionWire, CustomerSegment } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, linkTo, type Screen } from "./common.ts";
 
@@ -10,6 +10,13 @@ import { whenReady, linkTo, type Screen } from "./common.ts";
  * shard key made visible, because "why did Austin's jobs move to West?" is
  * answered by this column and nothing else.
  */
+/** Which customers the list shows (0019). Residential or commercial is fixed per customer, so it is a classifier to filter by, never an edit. */
+type Show = "all" | CustomerSegment;
+const SHOW_WORD: Readonly<Record<Show, string>> = { all: "All", residential: "Residential", commercial: "Commercial" };
+const showing = signal<Show>("all");
+export const showSegment = (s: Show) => { showing.value = s; };
+export const SEGMENT_WORD: Readonly<Record<CustomerSegment, string>> = { residential: "Residential", commercial: "Commercial" };
+
 const TIER_ORDER: Record<AccountWire["tier"], number> = { region: 0, location: 1, site: 2 };
 
 export const orderTree = (nodes: readonly AccountWire[]): readonly AccountWire[] => {
@@ -38,14 +45,15 @@ export const accountsTree: Screen = (ctx, params) => {
       caption: "Customers",
       columns: [
         { key: "name", header: "Customer", cell: (o: OrganizationWire) => linkTo(ctx, "accounts.tree", { orgId: o.id }, o.name) },
+        { key: "segment", header: "Type", cell: (o: OrganizationWire) => (o.segment ? SEGMENT_WORD[o.segment] : "—") },
         { key: "regionNodeCount", header: "Our regions", align: "end", numeric: true },
         { key: "active", header: "Status", cell: (o: OrganizationWire) => StatusPill({ density: ctx.density, status: o.active ? "ok" : "blocked", label: o.active ? "Active" : "Inactive" }) },
       ],
-      rows: list,
+      rows: list.filter((o) => showing.value === "all" || o.segment === showing.value),
       rowKey: (o: OrganizationWire) => o.id,
       selectedKey: orgId ?? "",
       onSelect: (o: OrganizationWire) => ctx.router.navigate("accounts.tree", { orgId: o.id }),
-      emptyText: "No customers yet.",
+      emptyText: showing.value === "all" ? "No customers yet." : `No ${SHOW_WORD[showing.value].toLowerCase()} customers.`,
     });
 
   const treeGrid = (nodes: readonly AccountWire[], regionList: readonly RegionWire[], org: OrganizationWire | undefined): VNode => {
@@ -73,7 +81,10 @@ export const accountsTree: Screen = (ctx, params) => {
 
   return html`${pageHead("Accounts", "Every customer and its tree of regions, locations and sites, against the regions we serve them from. Pick a customer to see its tree.", linkTo(ctx, "organizations.new", {}, "+ New customer", "ac-action s2-link--action"))}<div class="s2-two-col">
     <aside class="s2-col s2-col--orgs">
-      ${panel(whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations), () => store.invalidate("organizations.list")))}
+      ${panel(whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations), () => store.invalidate("organizations.list")), "Customers", undefined,
+        html`<div class="s2-chips" role="group" aria-label="Customer type" id="customer-type">
+          ${(Object.keys(SHOW_WORD) as Show[]).map((k) => html`<button type="button" class="ac-chip" aria-pressed=${showing.value === k ? "true" : "false"} onClick=${() => showSegment(k)}>${SHOW_WORD[k]}</button>`)}
+        </div>`, "customers")}
     </aside>
     <div class="s2-col s2-col--tree">
       ${orgId

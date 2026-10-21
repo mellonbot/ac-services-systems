@@ -331,9 +331,9 @@ const devices: W.DeviceWire[] = [
 ];
 
 const serviceRequests: Mutable<W.ServiceRequestWire>[] = [
-  { id: uid("q"), siteId: S.austinRoof, siteName: "Austin — Rooftop RTUs", priority: "emergency", description: "Water coming through the ceiling tiles under RTU-2 on the weights floor. Towels down, area coned off.", requestedBy: "Priya Castellanos", createdAt: at(-25 * MIN), jobId: J.austinLeak, jobState: "created", orgId: AMPED, regionId: REGION_SOUTH, photos: [] },
-  { id: uid("q"), siteId: S.elPasoFloor, siteName: "El Paso — Main Floor", priority: "urgent", description: "Main floor is 81°F at 2pm and climbing. Split is running but blowing warm.", requestedBy: "Tomás Villareal", createdAt: at(-2 * HOUR), jobId: J.elPasoNoCool, jobState: "created", orgId: AMPED, regionId: REGION_SOUTH, photos: [] },
-  { id: uid("q"), siteId: S.austinPool, siteName: "Austin — Pool Hall Dehumidifier", priority: "routine", description: "Condensation on the pool hall windows most mornings. Could the next PM check the dehumidifier setpoint?", requestedBy: "Priya Castellanos", createdAt: at(-3 * DAY), jobId: J.austinPoolPm, jobState: "en_route", orgId: AMPED, regionId: REGION_SOUTH, photos: [] },
+  { id: uid("q"), siteId: S.austinRoof, siteName: "Austin — Rooftop RTUs", priority: "emergency", description: "Water coming through the ceiling tiles under RTU-2 on the weights floor. Towels down, area coned off.", requestedBy: "Priya Castellanos", createdAt: at(-25 * MIN), jobId: J.austinLeak, jobState: "created", orgId: AMPED, regionId: REGION_SOUTH, customerSegment: "commercial", photos: [] },
+  { id: uid("q"), siteId: S.elPasoFloor, siteName: "El Paso — Main Floor", priority: "urgent", description: "Main floor is 81°F at 2pm and climbing. Split is running but blowing warm.", requestedBy: "Tomás Villareal", createdAt: at(-2 * HOUR), jobId: J.elPasoNoCool, jobState: "created", orgId: AMPED, regionId: REGION_SOUTH, customerSegment: "commercial", photos: [] },
+  { id: uid("q"), siteId: S.austinPool, siteName: "Austin — Pool Hall Dehumidifier", priority: "routine", description: "Condensation on the pool hall windows most mornings. Could the next PM check the dehumidifier setpoint?", requestedBy: "Priya Castellanos", createdAt: at(-3 * DAY), jobId: J.austinPoolPm, jobState: "en_route", orgId: AMPED, regionId: REGION_SOUTH, customerSegment: "commercial", photos: [] },
 ];
 
 const photoData = new Map<string, { contentType: W.PhotoContentType; image: string; requestId: string }>();
@@ -489,7 +489,7 @@ const jobWire = (j: Job, p: Principal): W.JobWire => {
   const open = j.slaDueAt !== null && j.slaSatisfiedAt === null;
   return {
     id: j.id, siteId: j.siteId, siteName: site.name, siteAddress: site.address, contractId: j.contractId, projectId: null, serviceCode: j.serviceCode, priority: j.priority, state: j.state,
-    serviceWindowStart: j.serviceWindowStart, serviceWindowEnd: j.serviceWindowEnd, version: j.version, openedAt: j.openedAt, stateChangedAt: j.stateChangedAt, regionId: j.regionId, orgId: j.orgId,
+    serviceWindowStart: j.serviceWindowStart, serviceWindowEnd: j.serviceWindowEnd, version: j.version, openedAt: j.openedAt, stateChangedAt: j.stateChangedAt, regionId: j.regionId, orgId: j.orgId, customerSegment: "commercial",
     currentCrewId: crew?.id ?? null, currentCrewLabel: crew?.label ?? null, currentAssignmentId: a?.id ?? null,
     slaDueAt: open ? j.slaDueAt : null, slaEscalationStage: open ? j.slaEscalationStage : null, slaSatisfiedAt: j.slaSatisfiedAt,
     // Notes are the office's (0015): nobody outside the internal namespace reads one.
@@ -951,7 +951,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     const site = accounts.find((a) => a.id === i.siteId)!;
     need(site.tier === "site", `"${i.siteId}" is a ${site.tier}, not a site — service is requested at a site, the tier equipment lives at`, "not_a_site");
     const id = uid("q");
-    serviceRequests.unshift({ id, siteId: site.id, siteName: site.name, priority: i.priority ?? "routine", description, requestedBy: session?.user.name ?? "customer", createdAt: new Date().toISOString(), jobId: null, jobState: null, orgId: site.orgId, regionId: site.regionId, photos: [] });
+    serviceRequests.unshift({ id, siteId: site.id, siteName: site.name, priority: i.priority ?? "routine", description, requestedBy: session?.user.name ?? "customer", createdAt: new Date().toISOString(), jobId: null, jobState: null, orgId: site.orgId, regionId: site.regionId, customerSegment: "commercial", photos: [] });
     return { id, orgId: site.orgId, regionId: site.regionId, eventId: publish(surface, "service_request.created", "service_request", id, site.orgId, site.regionId) };
   },
   // Photos live in this tab's memory as data: URLs — the demo has no bucket, and needs none.

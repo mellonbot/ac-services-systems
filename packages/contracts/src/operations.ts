@@ -115,6 +115,21 @@ export const OPERATIONS = {
     surfaces: ["S2"], carrier: "body", sdkMethod: "createOrganization",
     summary: "Create a customer parent WITH its first region node in one unit of work. No orphan parent: a parent never exists without a place we serve it from.",
   },
+  "customers.createResidential": {
+    id: "customers.createResidential", method: "POST", path: "/s2/customers/residential", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createResidentialCustomer",
+    summary: "A home as a customer, in one unit of work: the organization (segment residential, fixed for good), the region node we serve it from, the household as its location and the home as its site, both at the address, and the homeowner as the primary contact when given. The tier ladder is unchanged — a home is a one-branch tree.",
+  },
+  "leads.list": {
+    id: "leads.list", method: "GET", path: "/s2/leads", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "query", sdkMethod: "listLeads",
+    summary: "Leads S1 captured, newest first — waiting ones by default — with the contact the visitor gave and, once converted, the home it became.",
+  },
+  "leads.convert": {
+    id: "leads.convert", method: "POST", path: "/s2/leads/convert", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "convertLead",
+    summary: "A lead becomes a residential customer: customers.createResidential with the lead's name and contact, and the lead records the home it became — once; a second conversion is refused, naming the home.",
+  },
   "accounts.list": {
     id: "accounts.list", method: "GET", path: "/s2/accounts", kind: "query", auth: "bearer",
     surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "listAccounts",
@@ -302,8 +317,16 @@ export const OPERATIONS = {
   // ---- item 4: the job itself, created in Office & Dispatch ----
   "jobs.create": {
     id: "jobs.create", method: "POST", path: "/s2/jobs", kind: "mutation", auth: "bearer",
-    surfaces: ["S2"], carrier: "body", sdkMethod: "createJob",
+    // S3 since 2026-10-21: a dispatcher opens a job for a call that came in by
+    // phone, with no portal request behind it. Same handler, same derived SLA;
+    // the unit of work holds a region-bound dispatcher to their own region.
+    surfaces: ["S2", "S3"], carrier: "body", sdkMethod: "createJob",
     summary: "Author a job against a site. Opens its SLA timer in the same unit of work — due_at is DERIVED from the site's resolved sla_response term, never typed in (domain/sla deriveDueAt). Shadow mode until a region turns it off.",
+  },
+  "sites.list": {
+    id: "sites.list", method: "GET", path: "/s3/sites", kind: "query", auth: "bearer",
+    surfaces: ["S3"], carrier: "none", sdkMethod: "listSites",
+    summary: "Every active site a dispatcher may open a job at — the sites in their region (every region for a parent-scoped principal), with the customer each belongs to. What S3's New job form picks from.",
   },
   "jobs.list": {
     id: "jobs.list", method: "GET", path: "/jobs", kind: "query", auth: "bearer",
@@ -665,7 +688,7 @@ export type LoginOutput = {
   /** Also set as the httpOnly `ac_session` cookie. A browser surface ignores this field; devices and tests use it as a bearer. */
   readonly token: string;
   readonly expiresAt: string;
-  readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId">;
+  readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId" | "segment">;
 };
 export type LogoutOutput = { readonly ok: true; readonly sessionId: string };
 
@@ -680,7 +703,7 @@ export type DeviceLoginOutput = {
   readonly expiresAt: string;
   readonly crewId: string;
   readonly crewLabel: string;
-  readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId">;
+  readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId" | "segment">;
 };
 
 export type AuthorOverrideInput = {
@@ -734,17 +757,55 @@ export type ListRegionsOutput = { readonly regions: readonly RegionWire[] };
 
 export type OrganizationKind = "customer" | "subcontractor";
 export type ListOrganizationsInput = { readonly kind?: OrganizationKind };
-export type OrganizationWire = { readonly id: string; readonly name: string; readonly kind: OrganizationKind; readonly externalRef: string | null; readonly active: boolean; readonly regionNodeCount: number };
+/** Residential or commercial (R1: fixed once set). Customers only — null for every other kind of organization. */
+export type CustomerSegment = "residential" | "commercial";
+export type OrganizationWire = { readonly id: string; readonly name: string; readonly kind: OrganizationKind; readonly segment: CustomerSegment | null; readonly externalRef: string | null; readonly active: boolean; readonly regionNodeCount: number };
 export type ListOrganizationsOutput = { readonly organizations: readonly OrganizationWire[] };
 
 export type CreateOrganizationInput = {
   readonly name: string;
   readonly kind?: OrganizationKind;
+  /** Defaults to commercial — this is the multi-node door. A home goes through customers.createResidential. */
+  readonly segment?: CustomerSegment;
   readonly externalRef?: string;
   /** The first region node — created in the same unit of work. A parent never exists without a place we serve it from. */
   readonly firstRegionNode: { readonly regionId: string; readonly name: string };
 };
 export type CreateOrganizationOutput = { readonly orgId: string; readonly regionNodeId: string; readonly eventId: string };
+
+export type CreateResidentialInput = {
+  /** The household's name, e.g. "Turner residence". */
+  readonly name: string;
+  /** OUR service region the home is dispatched from. */
+  readonly regionId: string;
+  /** Where the home is. line1 is required — it names the household. */
+  readonly address: AddressWire;
+  readonly externalRef?: string;
+  /** The homeowner, recorded as the household's primary contact. */
+  readonly contact?: { readonly name: string; readonly phone?: string; readonly email?: string };
+};
+export type CreateResidentialOutput = {
+  readonly orgId: string; readonly regionNodeId: string; readonly locationId: string; readonly siteId: string;
+  readonly eventId: string;
+  /** D14's caveats from opening the household's location, if any. */
+  readonly caveats: readonly string[];
+};
+export type LeadWire = {
+  readonly id: string; readonly source: string; readonly contact: LeadContact; readonly requestedMetro: string | null;
+  readonly createdAt: string;
+  /** The home (site) this lead became, once converted. */
+  readonly convertedAccountId: string | null;
+};
+export type ListLeadsInput = { readonly include?: "waiting" | "all" };
+export type ListLeadsOutput = { readonly leads: readonly LeadWire[] };
+export type ConvertLeadInput = {
+  readonly leadId: string;
+  readonly regionId: string;
+  readonly address: AddressWire;
+  /** Defaults to the name the visitor gave. */
+  readonly name?: string;
+};
+export type ConvertLeadOutput = CreateResidentialOutput & { readonly leadId: string };
 
 export type AccountTierWire = "region" | "location" | "site";
 export type AccountWire = {
@@ -1204,6 +1265,8 @@ export type JobWire = {
   /** When the job entered its current state: the latest job_state_events row into it, or openedAt when none has been written (a job still "created"). */
   readonly stateChangedAt: string;
   readonly regionId: string; readonly orgId: string;
+  /** The customer's segment (0019) — null where the organization row is not visible to this principal (a firm). */
+  readonly customerSegment: CustomerSegment | null;
   /** The crew currently holding this job, unreleased — null once dispatched-and-released or never assigned. */
   readonly currentCrewId: string | null; readonly currentCrewLabel: string | null;
   /** The open assignment's own id — what `dispatch.release` names. Null exactly when currentCrewId is null. */
@@ -1230,6 +1293,8 @@ export type ServiceRequestWire = {
   /** The job the office opened against this request, if one has been. */
   readonly jobId: string | null; readonly jobState: JobStateWire | null;
   readonly orgId: string; readonly regionId: string;
+  /** The customer's segment (0019), so the office can tell a homeowner from a building. */
+  readonly customerSegment: CustomerSegment | null;
   /** Oldest first. Fetch each with `media.get`. */
   readonly photos: readonly RequestPhotoWire[];
 };
@@ -1266,6 +1331,13 @@ export type GetMediaInput = { readonly id: string };
 export type GetMediaOutput = { readonly id: string; readonly contentType: PhotoContentType; readonly image: string };
 export type ListServiceRequestsInput = { readonly siteId?: string };
 export type ListServiceRequestsOutput = { readonly requests: readonly ServiceRequestWire[] };
+
+/** One site a dispatcher may open a job at, and the customer it belongs to. */
+export type SiteWire = {
+  readonly id: string; readonly name: string; readonly orgId: string; readonly orgName: string; readonly regionId: string;
+  readonly address: AddressWire | null;
+};
+export type ListSitesOutput = { readonly sites: readonly SiteWire[] };
 
 export type ListJobsInput = { readonly state?: string };
 export type ListJobsOutput = { readonly jobs: readonly JobWire[] };
@@ -1682,6 +1754,9 @@ export type OperationIO = {
   "regions.list": { input: void; output: ListRegionsOutput };
   "organizations.list": { input: ListOrganizationsInput; output: ListOrganizationsOutput };
   "organizations.create": { input: CreateOrganizationInput; output: CreateOrganizationOutput };
+  "customers.createResidential": { input: CreateResidentialInput; output: CreateResidentialOutput };
+  "leads.list": { input: ListLeadsInput; output: ListLeadsOutput };
+  "leads.convert": { input: ConvertLeadInput; output: ConvertLeadOutput };
   "accounts.list": { input: ListAccountsInput; output: ListAccountsOutput };
   "accounts.create": { input: CreateAccountInput; output: CreateAccountOutput };
   "accounts.move": { input: MoveAccountInput; output: MoveAccountOutput };
@@ -1716,6 +1791,7 @@ export type OperationIO = {
   "settlements.acknowledge": { input: AcknowledgeSettlementInput; output: AcknowledgeSettlementOutput };
   "settlements.dispute": { input: DisputeSettlementInput; output: DisputeSettlementOutput };
   "jobs.create": { input: CreateJobInput; output: CreateJobOutput };
+  "sites.list": { input: void; output: ListSitesOutput };
   "jobs.list": { input: ListJobsInput; output: ListJobsOutput };
   "serviceRequests.create": { input: CreateServiceRequestInput; output: CreateServiceRequestOutput };
   "serviceRequests.list": { input: ListServiceRequestsInput; output: ListServiceRequestsOutput };

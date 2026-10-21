@@ -227,7 +227,7 @@ async function main(): Promise<void> {
     const assigned = await s3.gateway.assignCrew({ jobId: job.id, crewId: crew, orgId: org.orgId, regionId: REGION_SOUTH });
     must(assigned.ok, "the seed crew should clear the gate");
     await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
-      VALUES ($1,$2,$3,'customer',$4,'Austin FM','[]','location',$5,$6,true), ($7,$2,$3,'customer',$8,'Amped Exec','[]','parent',$2,$6,true)`,
+      VALUES ($1,$2,$3,'customer',$4,'Austin FM','["payer","requester"]','location',$5,$6,true), ($7,$2,$3,'customer',$8,'Amped Exec','["payer","requester"]','parent',$2,$6,true)`,
       [FM, org.orgId, REGION_SOUTH, FM_EMAIL, austin, hash, EXEC, EXEC_EMAIL]);
     await s2.logout(); await s3.logout();
 
