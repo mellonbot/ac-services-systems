@@ -152,6 +152,9 @@ test("finding 2 over the wire: relaxing the SLA at Austin comes back 422, commer
 });
 
 test("the loop: S2 authors a legal override → outbox → relay → NOTIFY → SSE → the South dispatcher's S3 shell receives it once, deduped", { skip }, async () => {
+  // A database an earlier run used holds unpublished rows — older overrides on this same MSA among them. Relay them
+  // before subscribing, so the relays below carry this test's event and nothing it would count as a second delivery.
+  for (;;) { const t = await beginTx(pool, "ac_worker"); if ((await relayOnce(t, notifyPublisher(t))).published === 0) break; }
   const s3 = await dispatcher();
   const received: EventEnvelope[] = [];
   let state = "";
