@@ -240,3 +240,14 @@ test("the dark dispatch bar is the only navigation, and its Sign out ends the se
   assert.equal(app.phase.value.kind, "login", "and the console is back at its sign-in");
   assert.match(render(app.view()), /id="sign-in"/);
 });
+
+test("job dashboard: stalled jobs are needs-action by default, oldest first; a state filter narrows to its label", async () => {
+  const { stalling, daysOpen } = await import("./screens/jobs.ts");
+  const now = Date.parse("2026-10-21T00:00:00Z");
+  const job = (id: string, state: string, days: number) => ({ id, state, openedAt: new Date(now - days * 86_400_000).toISOString() }) as unknown as import("../../../packages/contracts/src/index.ts").JobWire;
+  const jobs = [job("a", "assigned", 50), job("b", "created", 3), job("c", "reopened", 20), job("d", "invoiced", 90), job("e", "reassigned", 9)];
+  assert.equal(daysOpen(jobs[0]!, now), 50);
+  assert.deepEqual(stalling(jobs, "action", now).map((j) => j.id), ["c", "e", "b"]);
+  assert.deepEqual(stalling(jobs, "Unassigned", now).map((j) => j.id), ["e", "b"], "created and reassigned share one label");
+  assert.deepEqual(stalling(jobs, "open", now).map((j) => j.id), ["a", "c", "e", "b"], "closed jobs never stall");
+});

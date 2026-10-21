@@ -86,6 +86,27 @@ export const S3_CSS = `
 .dispatch-legend__item[data-tone="waiting"]::before{background:var(--color-status-at-risk)}
 .dispatch-legend__item[data-tone="neutral"]::before{background:var(--color-border-hard)}
 
+/* ---- Job Dashboard: four action buckets and the stalled-jobs table ---- */
+.s3-buckets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:var(--space-3);margin:0 0 var(--space-4)}
+.s3-bucket{--bucket-ink:var(--color-text);display:flex}
+.s3-bucket[data-tone="breached"]{--bucket-ink:var(--color-status-breached)}
+.s3-bucket[data-tone="at_risk"]{--bucket-ink:var(--color-status-at-risk)}
+.s3-bucket[data-tone="info"]{--bucket-ink:var(--color-action-text)}
+.s3-bucket[data-tone="ok"]{--bucket-ink:var(--color-status-ok)}
+.s3-bucket>section{flex:1;border-top:3px solid var(--bucket-ink)}
+.s3-bucket__head{display:flex;flex-direction:column;gap:2px;padding-bottom:var(--space-3);margin-bottom:var(--space-2);border-bottom:1px solid var(--color-border)}
+.s3-bucket__n{font-size:var(--text-display);font-weight:600;line-height:1.1;color:var(--bucket-ink)}
+.s3-bucket__title{margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
+.s3-bucket__sub,.s3-bucket__none{margin:0;color:var(--color-text-muted);font-size:var(--text-sm)}
+.s3-bucket__rows{margin:0}
+.s3-bucket__row{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-2);min-height:var(--row-height);padding-block:var(--space-1)}
+.s3-bucket__row dt{color:var(--color-text)}
+.s3-bucket__row dd{margin:0;font-weight:600}
+.s3-chips{display:flex;flex-wrap:wrap;gap:var(--space-1)}
+.s3-cust{display:flex;flex-direction:column}
+.s3-cust small{color:var(--color-text-muted);font-size:var(--text-xs);text-transform:capitalize}
+.s3-tech{display:inline-flex;align-items:center;gap:var(--space-2);font-weight:600}
+
 .s3-map-job-list{display:flex;flex-direction:column;gap:0;max-height:34rem;overflow:auto;list-style:none;margin:0;padding:0}.s3-map-job{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--color-border)}
 .s3-map-job__main{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-2)}
 .s3-map-job__site{font-weight:700}

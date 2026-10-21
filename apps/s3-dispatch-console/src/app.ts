@@ -7,6 +7,7 @@ import { createStore, type Store } from "./state.ts";
 import type { Screen, ScreenContext } from "./screens/common.ts";
 import { board } from "./screens/board.ts";
 import { dispatch } from "./screens/dispatch.ts";
+import { jobs } from "./screens/jobs.ts";
 import { S3_CSS } from "./styles.ts";
 
 /**
@@ -41,6 +42,7 @@ export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(
 export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = {
   board,
   dispatch,
+  jobs,
 };
 
 type PreviewShell = ConnectedShell & {
@@ -52,18 +54,42 @@ type PreviewShell = ConnectedShell & {
 
 type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store } | { kind: "preview"; shell: PreviewShell; store: Store };
 
+const DAY = 86_400_000;
+const previewJob = (id: string, siteName: string, serviceCode: string, priority: string, state: string, crew: string | null, daysOpen: number, sla: { due: number; stage: number } | null) => {
+  const opened = Date.now() - daysOpen * DAY;
+  return {
+    id, siteId: `site-${id}`, siteName, contractId: null, projectId: null, serviceCode, priority, state,
+    serviceWindowStart: new Date(opened).toISOString(), serviceWindowEnd: new Date(opened + DAY).toISOString(), version: 1, openedAt: new Date(opened).toISOString(),
+    regionId: "region-preview", orgId: "org-preview",
+    currentCrewId: crew ? `crew-${crew.toLowerCase().replace(/\s+/g, "-")}` : null, currentCrewLabel: crew, currentAssignmentId: crew ? `assignment-${id}` : null,
+    slaDueAt: sla ? new Date(Date.now() + sla.due * 3_600_000).toISOString() : null, slaEscalationStage: sla ? sla.stage : null, slaSatisfiedAt: null,
+  };
+};
+/** Local preview only — the same job, site and crew names the board's preview rows use, spread across every bucket the dashboard draws. */
+const PREVIEW_JOBS = [
+  previewJob("33390928", "Shipman Co", "rooftop_install", "urgent", "assigned", "Blake Keating", 2, { due: -2, stage: 2 }),
+  previewJob("33390251", "FirstKey", "repairs", "urgent", "en_route", "Brian Martinez", 1, { due: 1, stage: 1 }),
+  previewJob("33390971", "Turner Res.", "pm_route", "pm", "on_site", "Colton Dawson", 0, { due: 4, stage: 0 }),
+  previewJob("33390937", "Meridian Plaza", "new_install", "urgent", "in_progress", "Dylan Lemons", 3, null),
+  previewJob("33390948", "Shipman Co", "rtu_changeout", "urgent", "assigned", "Herberto Vega", 1, { due: -1, stage: 2 }),
+  previewJob("33187801", "Shipman Co", "repairs", "urgent", "reopened", "Garrett Howard", 41, { due: -30, stage: 3 }),
+  previewJob("33187837", "Shipman Co", "repairs", "routine", "awaiting_parts", "Garrett Howard", 36, null),
+  previewJob("32925428", "FirstKey Homes DFW", "repairs", "urgent", "created", null, 18, { due: -6, stage: 2 }),
+  previewJob("33200204", "Shipman Co", "new_install", "routine", "reassigned", null, 15, { due: 6, stage: 1 }),
+  previewJob("33187839", "Shipman Co", "repairs", "emergency", "complete", "Garrett Howard", 29, null),
+  previewJob("32452900", "Shipman Co", "new_install", "routine", "complete", "Garrett Howard", 6, null),
+  previewJob("33200206", "Shipman Co", "repairs", "routine", "awaiting_parts", "Johnny Fontez", 14, null),
+  previewJob("32100114", "Turner Res.", "pm_route", "pm", "invoiced", "Colton Dawson", 60, null),
+  previewJob("32100171", "Meridian Plaza", "repairs", "routine", "invoiced", "Dylan Lemons", 52, null),
+  previewJob("32100190", "FirstKey Homes DFW", "repairs", "routine", "cancelled", null, 45, null),
+];
+
 const createPreviewShell = (): PreviewShell => {
   const shell = {
     principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" },
     context: { principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" }, path: [{ tier: "parent", id: "org-preview", name: "AC Services" }], parent: { tier: "parent", id: "org-preview", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "region-preview" },
     gateway: {
-      listJobs: async () => ({ jobs: [
-        { id: "33390928", siteName: "Shipman Co", serviceCode: "rooftop_install", priority: "urgent", state: "assigned", currentCrewId: "crew-1", currentCrewLabel: "Blake Keating", currentAssignmentId: "assignment-1", slaDueAt: "2026-09-08T11:00:00.000Z", slaEscalationStage: 2, slaSatisfiedAt: null },
-        { id: "33390251", siteName: "FirstKey", serviceCode: "repairs", priority: "high", state: "assigned", currentCrewId: "crew-2", currentCrewLabel: "Brian Martinez", currentAssignmentId: "assignment-2", slaDueAt: "2026-09-08T10:30:00.000Z", slaEscalationStage: 2, slaSatisfiedAt: null },
-        { id: "33390971", siteName: "Turner Res.", serviceCode: "pm_route", priority: "routine", state: "assigned", currentCrewId: "crew-3", currentCrewLabel: "Colton Dawson", currentAssignmentId: "assignment-3", slaDueAt: "2026-09-08T12:00:00.000Z", slaEscalationStage: 1, slaSatisfiedAt: null },
-        { id: "33390937", siteName: "Meridian Plaza", serviceCode: "new_install", priority: "high", state: "assigned", currentCrewId: "crew-4", currentCrewLabel: "Dylan Lemons", currentAssignmentId: "assignment-4", slaDueAt: "2026-09-08T13:00:00.000Z", slaEscalationStage: 2, slaSatisfiedAt: null },
-        { id: "33390948", siteName: "Shipman Co", serviceCode: "rtu_changeout", priority: "high", state: "assigned", currentCrewId: "crew-5", currentCrewLabel: "Herberto Vega", currentAssignmentId: "assignment-5", slaDueAt: "2026-09-08T09:30:00.000Z", slaEscalationStage: 2, slaSatisfiedAt: null },
-      ] }),
+      listJobs: async () => ({ jobs: PREVIEW_JOBS }),
       health: async () => ({ ok: true }),
     },
     refusalOf: (e: unknown) => ({ kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) }),
@@ -161,7 +187,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
              aria-current=${loc?.screen === "board" ? "page" : undefined}
              onClick=${(e: Event) => { e.preventDefault(); router.navigate("board", {}); }}>Dispatch Board</a>
           <button type="button" class="ac-seg__item dispatch-header__tab">Job Detail</button>
-          <button type="button" class="ac-seg__item dispatch-header__tab">Job Dashboard</button>
+          <a class="ac-seg__item" href=${router.href("jobs", {})}
+             data-current=${loc?.screen === "jobs" ? "true" : undefined}
+             aria-current=${loc?.screen === "jobs" ? "page" : undefined}
+             onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>Job Dashboard</a>
           <button type="button" class="ac-seg__item dispatch-header__tab">Manager</button>
         </nav>
         <div class="dispatch-header__tools">
