@@ -36,6 +36,8 @@ export const TOPICS = [
   // network and compliance
   "credential.recorded", "credential.verified", "credential.expiring", "credential.expired", "crew.compliance_refused",
   "crew.created", "crew.updated",
+  // 0020: the roster. S2 refetches; nothing else reads it.
+  "technician.recorded", "technician.updated",
   "firm.created", "firm.updated", "firm.status_changed",
   "rate_card.changed",
   // item 4 — D-2a's primitive, recorded. No subscriber yet; added when a

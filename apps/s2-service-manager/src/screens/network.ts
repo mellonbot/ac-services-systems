@@ -1,6 +1,7 @@
 import { html, pageHead, panel, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { FirmWire, FirmStatus, CrewWire, CrewDocumentSummary, RegionWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
+import { technicianPanel } from "./network-technicians.ts";
 import { whenReady, refusalView, linkTo, confirmPanel, type Screen, type ScreenContext } from "./common.ts";
 
 /**
@@ -158,15 +159,19 @@ export const network: Screen = (ctx, params) => {
       </span>`, "firm")}
       ${panel(whenReady(ctx, crews.value, (c) => crewGrid(c.crews, regionList, "", "No crews rostered under this firm.")),
         "Crews", undefined, f.status === "terminated" ? null : linkTo(ctx, "network.crew.new", { firmId: f.id }, "+ Crew", "ac-action s2-link--action"))}
+      ${technicianPanel(ctx, f.id)}
       ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, refusalRoutes(ctx, outcome.value.refusal)) : null}
     </div>`;
   };
 
   const ourCrews = (regionList: readonly RegionWire[]): VNode => {
     const crews = store.read(keyOf("crews.list"), () => shell.gateway.listCrews({}));
-    return panel(whenReady(ctx, crews.value, (c) => crewGrid(c.crews.filter((x) => x.firmId === null), regionList, "", "No employed crews recorded yet.")),
-      OWN_CREWS_LABEL, "Our employed crews. A firm's crews are under the firm; the field layer sees neither distinction.",
-      linkTo(ctx, "network.crew.new", {}, "+ Crew", "ac-action s2-link--action"), "our-crews");
+    return html`<div class="s2-firm">
+      ${panel(whenReady(ctx, crews.value, (c) => crewGrid(c.crews.filter((x) => x.firmId === null), regionList, "", "No employed crews recorded yet.")),
+        OWN_CREWS_LABEL, "Our employed crews. A firm's crews are under the firm; the field layer sees neither distinction.",
+        linkTo(ctx, "network.crew.new", {}, "+ Crew", "ac-action s2-link--action"), "our-crews")}
+      ${technicianPanel(ctx, null)}
+    </div>`;
   };
 
   return html`${pageHead("Technician Network", `Our own ${OWN_CREWS_LABEL} crews and the subcontractor firms we dispatch, and whether each crew's documents clear the gate today.`)}<div class="s2-two-col">

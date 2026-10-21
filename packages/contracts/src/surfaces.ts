@@ -113,7 +113,7 @@ const REGISTRY = {
              // registry listed the firm, the document and the price, and not
              // the crew they all attach to. S8's `crew_roster` is a firm's
              // proposal; the crew row itself is ours to record.
-             "subcontractor_firm", "crew", "crew_credential", "rate_card", "brand_theme",
+             "subcontractor_firm", "crew", "crew_credential", "technician", "rate_card", "brand_theme",
              // item 4 (2026-09-17): a job is created in Office & Dispatch —
              // the SLA timer it opens is derived, never typed in (deriveDueAt
              // reads the resolved contract), so authoring a job is authoring

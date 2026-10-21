@@ -27,8 +27,11 @@ export const SCREENS = {
   "network.firm.new":  { path: "/network/firms/new",                     uses: ["firms.create", "regions.list"] },
   "network.crew.new":  { path: "/network/crews/new/:firmId?",            uses: ["crews.create", "firms.list", "regions.list"] },
   "network.crew.documents": { path: "/network/crews/:crewId/documents",  uses: ["credentials.list", "credentials.record", "credentials.verify", "crews.list"] },
+  // 0020 — the roster. Before `network`, whose optional :firmId would otherwise claim "/network/technicians".
+  "network.technician.new":  { path: "/network/technicians/new/:firmId?", uses: ["technicians.record", "crews.list", "firms.list", "regions.list"] },
+  "network.technician.edit": { path: "/network/technicians/:technicianId", uses: ["technicians.list", "technicians.update", "crews.list", "firms.list", "regions.list"] },
   "network.rates":     { path: "/network/rates/:firmId",                 uses: ["rateCards.list", "rateCards.set", "firms.list"] },
-  "network":           { path: "/network/:firmId?",                      uses: ["firms.list", "firms.update", "crews.list", "regions.list"], title: "Technician Network" },
+  "network":           { path: "/network/:firmId?",                      uses: ["firms.list", "firms.update", "crews.list", "regions.list", "technicians.list"], title: "Technician Network" },
   // item 11: purchasing — the office's side of procurement (S7 is the vendor's).
   "purchasing.vendor": { path: "/purchasing/vendors/:vendorId",          uses: ["vendors.list", "catalog.list", "catalog.addItem", "prices.decide", "receivingPoints.list", "pos.create"] },
   "purchasing.po":     { path: "/purchasing/pos/:poId",                  uses: ["pos.detail", "pos.issue", "pos.cancel", "receipts.record", "rmas.request"] },

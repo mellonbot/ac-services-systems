@@ -76,6 +76,12 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   already_verified: "structural",
   rate_begins_same_day: "structural",
   ac_credential_verification_is_earned: "structural",
+  // 0020 — the roster. A technician who is not there, a crew of another employer,
+  // and an address from a role that may not hold one: none of them is priced.
+  unknown_technician: "structural",
+  crew_employer_mismatch: "structural",
+  address_restricted: "structural",
+  ac_technician_crew_is_the_employers: "structural",
   // item 4 — S3/S5. All structural: a site that is not a site, a job past the
   // point a release is meaningful, a grant that overlaps the one device can
   // hold at a time, a technician granted onto a crew they are not on — each is

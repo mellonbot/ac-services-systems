@@ -164,6 +164,23 @@ const crews: Crew[] = [
   { id: C.fr1, label: "Front Range — Crew 1", employmentType: "subcontracted", firmId: FIRM_C, homeRegionId: REGION_MOUNTAIN, active: true },
 ];
 
+/** 0020 — the roster. Fictional people; 555 numbers. The address is served to account owners only, as the gateway does. */
+type Tech = Omit<W.TechnicianWire, "addressRestricted">;
+const tech = (name: string, firmId: string | null, crewId: string, phone: string, line1: string, city: string, postal: string, specialties: W.TechnicianSpecialty[]): Tech =>
+  ({ id: uid("t"), firmId, crewId, name, phone, homeAddress: { line1, city, state: "TX", postal }, specialties, homeRegionId: REGION_SOUTH, active: true });
+const technicians: Tech[] = [
+  tech("Marcus Bell", null, C.south1, "(214) 555-0110", "1208 Peavy Rd", "Dallas", "75228", ["commercial_rtu", "controls_bas"]),
+  tech("Ana Reyes", null, C.south1, "(214) 555-0111", "3412 Oates Dr", "Mesquite", "75150", ["residential_hvac", "install"]),
+  tech("Jordan Pike", null, C.south2, "(972) 555-0112", "77 Brookhaven Ct", "Garland", "75043", ["refrigeration", "chillers_boilers"]),
+  tech("Luis Ortega", FIRM_A, C.lsA, "(817) 555-0120", "905 Hemphill St", "Fort Worth", "76104", ["commercial_rtu", "ductwork"]),
+  tech("Kim Tran", FIRM_A, C.lsB, "(817) 555-0121", "2210 Bowen Rd", "Arlington", "76013", ["light_commercial", "residential_hvac"]),
+  tech("Dee Alvarez", FIRM_B, C.gc1, "(469) 555-0130", "618 Sunnyvale St", "Irving", "75061", ["refrigeration"]),
+];
+const techWire = (t: Tech, p: Principal): W.TechnicianWire => {
+  const sees = p.roles.includes("account_owner");
+  return { ...t, homeAddress: sees ? t.homeAddress : null, addressRestricted: !sees };
+};
+
 const verifiedBy = "u0000000-0000-0000-0000-000000000001";
 const cred = (crewId: string, kind: W.CredentialKind, identifier: string, from: number, to: number, verified: boolean): Credential =>
   ({ id: uid("d"), crewId, kind, identifier, validFrom: day(from), validTo: day(to), documentKey: `network/docs/${identifier.toLowerCase()}.pdf`, verifiedAt: verified ? at(from * DAY + 2 * DAY) : null, verifiedBy: verified ? verifiedBy : null });
@@ -850,6 +867,33 @@ const H: Partial<Record<OperationId, Handler>> = {
     const id = uid("e");
     crews.push({ id, label: i.label.trim(), employmentType: i.employmentType, firmId: i.firmId ?? null, homeRegionId: i.homeRegionId, active: true });
     return { id, regionId: i.homeRegionId, eventId: publish(surface, "crew.created", "crew", id, i.firmId ?? INTERNAL_ORG_ID, i.homeRegionId) };
+  },
+  "technicians.list": (i: W.ListTechniciansInput, { p }) => {
+    need(p.namespace === "internal", "the technician roster is the office's", "namespace");
+    return { technicians: technicians.filter((t) => !i.firmId || t.firmId === i.firmId).map((t) => techWire(t, p)) };
+  },
+  "technicians.record": (i: W.RecordTechnicianInput, { surface, p }) => {
+    need(i.name?.trim(), "name is required", "empty_name");
+    if (i.homeAddress && !p.roles.includes("account_owner")) throw input422("home addresses are recorded and read by account owners only — leave the address for an account owner to enter", "address_restricted");
+    const firm = i.firmId ? firms.find((f) => f.id === i.firmId) : null;
+    if (i.firmId) need(firm, `no firm ${i.firmId} visible in this scope`, "unknown_firm");
+    if (firm?.status === "terminated") throw input422(`firm ${firm.legalName} is terminated — it fields no technicians for us`, "firm_ended");
+    if (i.crewId) need(crews.find((c) => c.id === i.crewId)?.firmId === (i.firmId ?? null), "put a technician on a crew of the employer they work for", "crew_employer_mismatch");
+    const id = uid("t");
+    technicians.push({ id, firmId: i.firmId ?? null, crewId: i.crewId ?? null, name: i.name.trim(), phone: i.phone?.trim() || null, homeAddress: i.homeAddress ?? null, specialties: [...new Set(i.specialties)], homeRegionId: i.homeRegionId, active: true });
+    return { id, regionId: i.homeRegionId, eventId: publish(surface, "technician.recorded", "technician", id, i.firmId ?? INTERNAL_ORG_ID, i.homeRegionId) };
+  },
+  "technicians.update": (i: W.UpdateTechnicianInput, { surface, p }) => {
+    const t = technicians.find((x) => x.id === i.technicianId);
+    need(t, `no technician ${i.technicianId} visible in this scope`, "unknown_technician");
+    if (i.homeAddress !== undefined && !p.roles.includes("account_owner")) throw input422("home addresses are recorded and read by account owners only", "address_restricted");
+    if (i.crewId) need(crews.find((c) => c.id === i.crewId)?.firmId === t!.firmId, "put a technician on a crew of the employer they work for", "crew_employer_mismatch");
+    Object.assign(t!, {
+      ...(i.name !== undefined ? { name: i.name.trim() } : {}), ...(i.phone !== undefined ? { phone: i.phone.trim() || null } : {}),
+      ...(i.specialties !== undefined ? { specialties: [...new Set(i.specialties)] } : {}), ...(i.crewId !== undefined ? { crewId: i.crewId } : {}),
+      ...(i.active !== undefined ? { active: i.active } : {}), ...(i.homeAddress !== undefined ? { homeAddress: i.homeAddress } : {}),
+    });
+    return { id: t!.id, eventId: publish(surface, "technician.updated", "technician", t!.id, t!.firmId ?? INTERNAL_ORG_ID, t!.homeRegionId) };
   },
   "credentials.list": (i: W.ListCredentialsInput, { p }) => {
     const vis = new Set(visibleCrews(p).map((c) => c.id));

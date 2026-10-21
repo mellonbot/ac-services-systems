@@ -11,6 +11,7 @@ import { authorTermOverride, resolvedTermsAt } from "./handlers/terms.ts";
 import { assignCrew, candidateCrews, releaseAssignment } from "./handlers/assignment.ts";
 import { listRegions, listOrganizations, createOrganization, listAccounts, listSites, createAccount, moveAccount, updateAccount } from "./handlers/hierarchy.ts";
 import { listContracts, createContract, transitionContract, listTermOverrides, termRegister } from "./handlers/contracts.ts";
+import { listTechnicians, recordTechnician, updateTechnician } from "./handlers/technicians.ts";
 import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, listCredentials, recordCredential, verifyCredential, listRateCards, setRateCard, enrollCrew, retireCrew, submitCredential } from "./handlers/network.ts";
 import { listSettlements, listSettlementLines, acknowledgeSettlement, disputeSettlement } from "./handlers/settlements.ts";
 import { ingestSync } from "./handlers/sync.ts";
@@ -441,6 +442,10 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "crews.list": (req, input) => withRead(req, "crews.list", (uow) => listCrews(uow, input, new Date().toISOString().slice(0, 10))),
   "crews.create": (req, input) => withUow(req, "crews.create", (uow) => createCrew(uow, input, randomUUID)),
   "crews.update": (req, input) => withUow(req, "crews.update", (uow) => updateCrew(uow, input)),
+  // 0020 — the roster. Whether this principal reads or writes a home address is the handler's (account_owner).
+  "technicians.list": (req, input) => withRead(req, "technicians.list", (uow, p) => listTechnicians(uow, input, p)),
+  "technicians.record": (req, input) => withUow(req, "technicians.record", (uow, p) => recordTechnician(uow, input, p, randomUUID)),
+  "technicians.update": (req, input) => withUow(req, "technicians.update", (uow, p) => updateTechnician(uow, input, p)),
   "credentials.list": (req, input) => withRead(req, "credentials.list", (uow) => listCredentials(uow, input)),
   "credentials.record": (req, input) => withUow(req, "credentials.record", (uow) => recordCredential(uow, input, randomUUID)),
   "credentials.verify": (req, input) => withUow(req, "credentials.verify", (uow, p) => verifyCredential(uow, input, p.subjectId, new Date())),

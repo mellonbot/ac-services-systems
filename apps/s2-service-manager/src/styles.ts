@@ -42,6 +42,8 @@ export const S2_CSS = `
 .s2-terms dd{margin:0}
 .s2-firm{display:flex;flex-direction:column;gap:var(--space-3)}
 .s2-muted{color:var(--color-text-muted)}
+/* Every numeral in the company is instrument face with tabular figures — a phone number included — and does not break mid-number. */
+.s2-num{font-family:var(--font-instrument);font-variant-numeric:tabular-nums;white-space:nowrap}
 .s2-chips{display:flex;flex-wrap:wrap;gap:var(--space-1)}
 .s2-oq5{display:flex;flex-direction:column;gap:var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-3)}
 .s2-oq5 legend{padding-inline:var(--space-2);font-weight:600}

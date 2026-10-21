@@ -245,6 +245,25 @@ export const OPERATIONS = {
     surfaces: ["S2"], carrier: "body", sdkMethod: "updateCrew",
     summary: "Label and active flag. Never the firm, never the home region — a crew that changes employer or region is a new crew with a new document set.",
   },
+  // 0020: the technician roster — every person who works our jobs, ours or a
+  // firm's, login or not. S2 only: S8 is not given it. The home address is
+  // served to account owners alone; every other office role reads it as
+  // restricted and cannot write it.
+  "technicians.list": {
+    id: "technicians.list", method: "GET", path: "/network/technicians", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "query", sdkMethod: "listTechnicians",
+    summary: "The technician roster — name, phone, specialties, crew, and the home address for an account owner (restricted for every other role). Optionally one firm's.",
+  },
+  "technicians.record": {
+    id: "technicians.record", method: "POST", path: "/s2/network/technicians", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "recordTechnician",
+    summary: "Add a technician: ours (no firm) or a firm's. A crew named belongs to the same employer. Only an account owner may record a home address.",
+  },
+  "technicians.update": {
+    id: "technicians.update", method: "POST", path: "/s2/network/technicians/update", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "updateTechnician",
+    summary: "Name, phone, specialties, crew, active — and the home address, by an account owner only. Never the employer: a technician who changes firm is a new row.",
+  },
   "credentials.list": {
     id: "credentials.list", method: "GET", path: "/network/credentials", kind: "query", auth: "bearer",
     surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listCredentials",
@@ -1078,6 +1097,53 @@ export type CreateCrewOutput = { readonly id: string; readonly regionId: string;
 export type UpdateCrewInput = { readonly crewId: string; readonly label?: string; readonly active?: boolean };
 export type UpdateCrewOutput = { readonly id: string; readonly eventId: string };
 
+/** 0020. Mirrors TECHNICIAN_SPECIALTIES in packages/schema (the column's CHECK); a test holds them equal. */
+export const TECHNICIAN_SPECIALTIES = ["residential_hvac", "light_commercial", "commercial_rtu", "refrigeration", "chillers_boilers", "controls_bas", "install", "ductwork"] as const;
+export type TechnicianSpecialty = (typeof TECHNICIAN_SPECIALTIES)[number];
+export type TechnicianWire = {
+  readonly id: string;
+  /** Null: one of ours. */
+  readonly firmId: string | null;
+  readonly crewId: string | null;
+  readonly name: string;
+  readonly phone: string | null;
+  /** Null when none is recorded OR when this principal may not read it — `addressRestricted` says which. */
+  readonly homeAddress: AddressWire | null;
+  /** True for every role but account_owner: the address exists or not, and this reader is not told. */
+  readonly addressRestricted: boolean;
+  readonly specialties: readonly TechnicianSpecialty[];
+  readonly homeRegionId: string;
+  readonly active: boolean;
+};
+export type ListTechniciansInput = { readonly firmId?: string };
+export type ListTechniciansOutput = { readonly technicians: readonly TechnicianWire[] };
+export type RecordTechnicianInput = {
+  readonly name: string;
+  /** Omit for one of ours. */
+  readonly firmId?: string;
+  readonly crewId?: string;
+  readonly phone?: string;
+  /** Account owners only. */
+  readonly homeAddress?: AddressWire;
+  readonly specialties: readonly TechnicianSpecialty[];
+  /** OUR region they work from; the row's tenancy region. */
+  readonly homeRegionId: string;
+};
+export type RecordTechnicianOutput = { readonly id: string; readonly regionId: string; readonly eventId: string };
+export type UpdateTechnicianInput = {
+  readonly technicianId: string;
+  readonly name?: string;
+  /** Empty string clears it. */
+  readonly phone?: string;
+  /** Account owners only. Null clears it. */
+  readonly homeAddress?: AddressWire | null;
+  readonly specialties?: readonly TechnicianSpecialty[];
+  /** Null takes them off their crew. */
+  readonly crewId?: string | null;
+  readonly active?: boolean;
+};
+export type UpdateTechnicianOutput = { readonly id: string; readonly eventId: string };
+
 export type CredentialKind = "insurance" | "license" | "certification" | "background_check";
 export type CredentialWire = {
   readonly id: string;
@@ -1778,6 +1844,9 @@ export type OperationIO = {
   "crews.list": { input: ListCrewsInput; output: ListCrewsOutput };
   "crews.create": { input: CreateCrewInput; output: CreateCrewOutput };
   "crews.update": { input: UpdateCrewInput; output: UpdateCrewOutput };
+  "technicians.list": { input: ListTechniciansInput; output: ListTechniciansOutput };
+  "technicians.record": { input: RecordTechnicianInput; output: RecordTechnicianOutput };
+  "technicians.update": { input: UpdateTechnicianInput; output: UpdateTechnicianOutput };
   "credentials.list": { input: ListCredentialsInput; output: ListCredentialsOutput };
   "credentials.record": { input: RecordCredentialInput; output: RecordCredentialOutput };
   "credentials.verify": { input: VerifyCredentialInput; output: VerifyCredentialOutput };

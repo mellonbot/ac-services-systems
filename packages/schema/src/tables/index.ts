@@ -33,6 +33,7 @@ export const ALL_TABLES: readonly Table[] = Object.freeze([
   network.subcontractor_firms,
   network.crews,
   network.crew_credentials,
+  network.technicians,
   network.rate_cards,
   // identity
   identity.users,

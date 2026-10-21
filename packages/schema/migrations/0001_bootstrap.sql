@@ -169,6 +169,24 @@ CREATE INDEX IF NOT EXISTS crew_credentials_region_id_idx ON crew_credentials (r
 CREATE INDEX IF NOT EXISTS crew_credentials_crew_id_valid_to_idx ON crew_credentials (crew_id, valid_to);
 CREATE INDEX IF NOT EXISTS crew_credentials_valid_to_idx ON crew_credentials (valid_to);
 
+CREATE TABLE IF NOT EXISTS technicians (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  firm_id uuid REFERENCES subcontractor_firms(id),
+  crew_id uuid REFERENCES crews(id),
+  name text NOT NULL,
+  phone text,
+  home_address jsonb,
+  specialties jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(specialties) = 'array' AND specialties <@ '["residential_hvac","light_commercial","commercial_rtu","refrigeration","chillers_boilers","controls_bas","install","ductwork"]'::jsonb),
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS technicians_region_id_idx ON technicians (region_id);
+CREATE INDEX IF NOT EXISTS technicians_firm_id_idx ON technicians (firm_id);
+CREATE INDEX IF NOT EXISTS technicians_crew_id_idx ON technicians (crew_id);
+
 CREATE TABLE IF NOT EXISTS rate_cards (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   org_id uuid NOT NULL REFERENCES organizations(id),

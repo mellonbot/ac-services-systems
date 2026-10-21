@@ -1,6 +1,6 @@
 import { html, pageHead, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
-import { densityOf, SURFACE_PATHS, type AccountWire, type CrewWire, type FirmWire, type OrganizationWire, type PurchaseOrderDetailOutput, type Refusal, type VendorWire } from "../../../packages/contracts/src/index.ts";
+import { densityOf, SURFACE_PATHS, type AccountWire, type CrewWire, type FirmWire, type OrganizationWire, type PurchaseOrderDetailOutput, type Refusal, type TechnicianWire, type VendorWire } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
 import { createStore, keyOf, type Store } from "./state.ts";
@@ -18,6 +18,7 @@ import { network, OWN_CREWS_LABEL } from "./screens/network.ts";
 import { networkFirmNew, networkCrewNew } from "./screens/network-new.ts";
 import { networkCrewDocuments } from "./screens/network-documents.ts";
 import { networkRates } from "./screens/network-rates.ts";
+import { networkTechnicianNew, networkTechnicianEdit } from "./screens/network-technicians.ts";
 import { purchasing, purchasingVendor, purchasingPo, refreshProcurement } from "./screens/purchasing.ts";
 import { S2_CSS } from "./styles.ts";
 
@@ -60,6 +61,8 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "network.crew.new": networkCrewNew,
   "network.crew.documents": networkCrewDocuments,
   "network.rates": networkRates,
+  "network.technician.new": networkTechnicianNew,
+  "network.technician.edit": networkTechnicianEdit,
   "purchasing": purchasing,
   "purchasing.vendor": purchasingVendor,
   "purchasing.po": purchasingPo,
@@ -77,6 +80,10 @@ export const firmTabs = (firms: readonly FirmWire[]): readonly FirmWire[] => fir
 /** The firm the open network screen belongs to; null is our own crews. A crew's documents follow the crew's firm. */
 const networkFirmOf = (params: Readonly<Record<string, string>>, store: Store): string | null => {
   if (params.firmId) return params.firmId;
+  if (params.technicianId) {
+    const techs = store.peek<{ readonly technicians: readonly TechnicianWire[] }>(keyOf("technicians.list"));
+    return techs?.state === "ready" ? techs.value.technicians.find((t) => t.id === params.technicianId)?.firmId ?? null : null;
+  }
   if (params.crewId) {
     const crews = store.peek<{ readonly crews: readonly CrewWire[] }>(keyOf("crews.list"));
     return crews?.state === "ready" ? crews.value.crews.find((c) => c.id === params.crewId)?.firmId ?? null : null;
@@ -99,6 +106,8 @@ const ROUTE_LABELS: Readonly<Record<Exclude<ScreenId, "login">, string>> = {
   "network.crew.new": "New crew",
   "network.crew.documents": "Crew documents",
   "network.rates": "Rate card",
+  "network.technician.new": "New technician",
+  "network.technician.edit": "Edit technician",
   "purchasing": "Purchasing",
   "purchasing.vendor": "Vendor catalogue",
   "purchasing.po": "Purchase order",
@@ -188,9 +197,11 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       store.invalidate("crews.list");
       store.invalidate("credentials.list");
       store.invalidate("rateCards.list");
+      store.invalidate("technicians.list");
     }, { topics: ["account.created", "account.updated", "account.deactivated", "contract.created", "contract.amended", "contract.expired", "contract.term_overridden",
                   "firm.created", "firm.updated", "firm.status_changed", "crew.created", "crew.updated",
-                  "credential.recorded", "credential.verified", "credential.expiring", "credential.expired", "rate_card.changed"] });
+                  "credential.recorded", "credential.verified", "credential.expiring", "credential.expired", "rate_card.changed",
+                  "technician.recorded", "technician.updated"] });
     // Item 11: the vendor's side of an order lands here as a refetch — a proposed
     // price, an acknowledgement, a shipment, an invoice, an answer on a return.
     // S1's arc 1: a lead arrives, or someone here converts one.
