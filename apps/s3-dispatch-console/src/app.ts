@@ -9,6 +9,7 @@ import { board } from "./screens/board.ts";
 import { dispatch } from "./screens/dispatch.ts";
 import { jobs } from "./screens/jobs.ts";
 import { detail, pick } from "./screens/detail.ts";
+import { manager } from "./screens/manager.ts";
 import { previewDetail } from "./preview-detail.ts";
 import { S3_CSS } from "./styles.ts";
 
@@ -47,6 +48,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   jobs,
   detail,
   pick,
+  manager,
 };
 
 type PreviewShell = ConnectedShell & {
@@ -284,7 +286,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
              data-current=${loc?.screen === "jobs" ? "true" : undefined}
              aria-current=${loc?.screen === "jobs" ? "page" : undefined}
              onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>Job Dashboard</a>
-          <button type="button" class="ac-seg__item dispatch-header__tab">Manager</button>
+          <a class="ac-seg__item" href=${router.href("manager", {})}
+             data-current=${loc?.screen === "manager" ? "true" : undefined}
+             aria-current=${loc?.screen === "manager" ? "page" : undefined}
+             onClick=${(e: Event) => { e.preventDefault(); router.navigate("manager", {}); }}>Manager</a>
         </nav>
         <div class="dispatch-header__tools">
           <span class="dispatch-header__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
