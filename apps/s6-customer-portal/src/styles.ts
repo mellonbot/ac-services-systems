@@ -94,9 +94,9 @@ export const S6_CSS = `
 .s6-step{display:flex;flex-direction:column;align-items:center;gap:var(--space-1);position:relative;text-align:center}
 .s6-step::before{content:"";position:absolute;top:calc(var(--space-4) / 2 - 1px);left:-50%;width:100%;height:2px;background:var(--color-border)}
 .s6-step:first-child::before{display:none}
-.s6-step[data-state="done"]::before,.s6-step[data-state="current"]::before{background:var(--color-status-ok)}
-.s6-step__dot{width:var(--space-4);height:var(--space-4);border-radius:var(--radius-pill);border:2px solid var(--color-border-hard);background:var(--color-surface);position:relative;z-index:1}
-.s6-step[data-state="done"] .s6-step__dot{background:var(--color-status-ok);border-color:var(--color-status-ok)}
+.s6-step[data-state="done"]::before,.s6-step[data-state="current"]::before{background:var(--color-text)}
+.s6-step__dot{width:var(--space-4);height:var(--space-4);border-radius:var(--radius-pill);border:2px solid var(--color-border-control);background:var(--color-surface);position:relative;z-index:1}
+.s6-step[data-state="done"] .s6-step__dot{background:var(--color-text);border-color:var(--color-text)}
 .s6-step[data-state="current"] .s6-step__dot{background:var(--color-action-text);border-color:var(--color-action-text)}
 .s6-step__label{font-size:var(--text-xs);color:var(--color-text-muted)}
 .s6-step[data-state="current"] .s6-step__label{color:var(--color-action-text);font-weight:700}

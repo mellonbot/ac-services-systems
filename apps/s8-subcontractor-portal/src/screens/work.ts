@@ -55,7 +55,10 @@ export const work: Screen = (ctx) => {
         { key: "window", header: "Window", cell: (j) => `${when(j.serviceWindowStart)} – ${when(j.serviceWindowEnd)}` },
         {
           key: "sla", header: "Response",
-          cell: (j) => StatusPill({ density: ctx.density, status: slaStatus(j, now), label: j.slaSatisfiedAt ? `Responded ${when(j.slaSatisfiedAt)}` : j.slaDueAt ? `Due ${when(j.slaDueAt)}` : "No commitment on file" }) ?? html``,
+          // No deadline is not a state: plain words, not a green pill. A missed one says so in words, not only in red.
+          cell: (j) => !j.slaDueAt && !j.slaSatisfiedAt
+            ? html`<span class="s8-muted">No commitment on file</span>`
+            : StatusPill({ density: ctx.density, status: slaStatus(j, now), label: j.slaSatisfiedAt ? `Responded ${when(j.slaSatisfiedAt)}` : slaStatus(j, now) === "breached" ? `Missed — due ${when(j.slaDueAt!)}` : `Due ${when(j.slaDueAt!)}` }) ?? html``,
         },
       ],
     }) ?? html``, () => ctx.store.invalidate("jobs.list"))}`)}

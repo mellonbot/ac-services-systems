@@ -1,4 +1,4 @@
-import { html, pageHead, panel, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, panel, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, OrganizationWire, RegionWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, linkTo, type Screen } from "./common.ts";
@@ -39,7 +39,7 @@ export const accountsTree: Screen = (ctx, params) => {
       columns: [
         { key: "name", header: "Customer", cell: (o: OrganizationWire) => linkTo(ctx, "accounts.tree", { orgId: o.id }, o.name) },
         { key: "regionNodeCount", header: "Our regions", align: "end", numeric: true },
-        { key: "active", header: "Status", cell: (o: OrganizationWire) => StatusPill({ density: ctx.density, status: o.active ? "ok" : "blocked", label: o.active ? "Active" : "Inactive" }) },
+        { key: "active", header: "Status", cell: (o: OrganizationWire) => html`<span class="s2-state" data-tone=${o.active ? "live" : "ended"}>${o.active ? "Active" : "Inactive"}</span>` },
       ],
       rows: list,
       rowKey: (o: OrganizationWire) => o.id,
@@ -59,7 +59,7 @@ export const accountsTree: Screen = (ctx, params) => {
         { key: "tier", header: "Tier" },
         { key: "regionId", header: "Our region", cell: (n: AccountWire) => regionName(n.regionId) },
         { key: "customerGroup", header: "Customer group", cell: (n: AccountWire) => n.customerGroup ?? "—" },
-        { key: "active", header: "Status", cell: (n: AccountWire) => StatusPill({ density: ctx.density, status: n.active ? "ok" : "blocked", label: n.active ? "Active" : "Inactive" }) },
+        { key: "active", header: "Status", cell: (n: AccountWire) => html`<span class="s2-state" data-tone=${n.active ? "live" : "ended"}>${n.active ? "Active" : "Inactive"}</span>` },
         { key: "actions", header: "", align: "end", cell: (n: AccountWire) => html`<span class="s2-row-actions">
             ${childTier(n.tier) ? linkTo(ctx, "accounts.new", { orgId: orgId!, tier: childTier(n.tier)!, parentId: n.id }, `+ ${childTier(n.tier)}`) : null}
             ${n.tier !== "region" ? linkTo(ctx, "accounts.move", { orgId: orgId!, id: n.id }, "Move") : null}

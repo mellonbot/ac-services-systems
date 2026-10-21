@@ -215,7 +215,9 @@ ac-degraded[hidden]{display:none}
 .ac-stat[data-tone="ok"]{--stat-ink:var(--color-status-ok)}
 .ac-stat[data-tone="at_risk"]{--stat-ink:var(--color-status-at-risk)}
 .ac-stat[data-tone="breached"]{--stat-ink:var(--color-status-breached)}
-.ac-stat[data-tone="info"]{--stat-ink:var(--color-action-text)}
+/* E-14 on a tile: on the plate the breached ink is body-copy cream, so the fault moves into FORM — the oxide fill, the one solid chip — and every word on it takes the ink measured against that fill (Form R-4, 8.00:1). Transparent on the light stock, so this is a no-op there. */
+[data-density="field"] .ac-stat[data-tone="breached"]{background:var(--color-status-breached-fill);border-color:var(--color-status-breached)}
+[data-density="field"] .ac-stat[data-tone="breached"] .ac-stat__l,[data-density="field"] .ac-stat[data-tone="breached"] .ac-stat__s{color:var(--color-status-breached)}
 .ac-panel{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-4)}
 /* A panel is the one card on the page ground; what sits in it drops its own elevation, never a second card in a card. */
 .ac-panel .ac-grid{box-shadow:none;border-radius:var(--radius-control)}

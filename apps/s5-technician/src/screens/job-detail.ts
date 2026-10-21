@@ -101,7 +101,7 @@ export const jobDetail: Screen = (ctx, params) => {
       </ul>`, "Checklist")}
 
       ${panel(html`<p class="s5-job__clock">${runningSince ? html`Running since <span class="ac-num">${new Date(runningSince).toLocaleTimeString()}</span>` : "Not running"}</p>
-        ${PrimaryAction({ density: ctx.density, label: runningSince ? "Stop" : "Start", id: "clock-toggle", onClick: clockToggle, kind: runningSince ? "danger" : "primary" })}`, "Time clock")}
+        ${PrimaryAction({ density: ctx.density, label: runningSince ? "Stop" : "Start", id: "clock-toggle", onClick: clockToggle, kind: runningSince ? "quiet" : "primary" })}`, "Time clock")}
 
       ${panel(html`<form class="ac-form" id="parts-form" onSubmit=${addPart}>
         <label class="ac-field"><span>Part SKU</span><input class="ac-input" name="partSku" type="text" required /></label>

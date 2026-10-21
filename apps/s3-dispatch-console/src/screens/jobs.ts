@@ -20,7 +20,6 @@ import { slaStatus, isDispatchable } from "./board.ts";
  * the cell shows the newest, and a correction is a newer note.
  */
 type BucketId = "action" | "customer" | "progress" | "closed";
-type Tone = "breached" | "at_risk" | "info" | "ok";
 
 export const STATE_LABEL: Readonly<Record<JobStateWire, string>> = {
   created: "Unassigned", reassigned: "Unassigned", reopened: "Reopened", awaiting_parts: "Waiting on parts", complete: "Needs invoicing",
@@ -38,11 +37,17 @@ const MOVE_LABEL: Readonly<Partial<Record<JobStateWire, string>>> = {
   invoice_trouble: "Kicked back", invoiced: "Re-sent",
 };
 
-const BUCKETS: readonly { id: BucketId; title: string; sub: string; tone: Tone; states: readonly JobStateWire[] }[] = [
-  { id: "action", title: "Needs action", sub: "Blocked on your team", tone: "breached", states: ["needs_pricing", "awaiting_po", "invoice_trouble", "complete", "awaiting_pictures", "awaiting_parts", "created", "reassigned", "reopened"] },
-  { id: "customer", title: "Waiting on customer", sub: "Ball's in their court", tone: "at_risk", states: ["awaiting_customer", "quote_requested", "quote_submitted"] },
-  { id: "progress", title: "In progress", sub: "Scheduled or on-site", tone: "info", states: ["assigned", "en_route", "on_site", "in_progress"] },
-  { id: "closed", title: "Closed out", sub: "Invoiced, cancelled, or aborted", tone: "ok", states: ["invoiced", "cancelled", "aborted"] },
+/**
+ * The buckets are CATEGORIES — where a job sits in the work, not how it is
+ * doing — so they carry no state ink (Bulletin 2, Rule 1): a count of twelve
+ * drawn in the fault ink reads as twelve breaches when nothing is late. The
+ * figures that are states sit in the strip above, toned there.
+ */
+const BUCKETS: readonly { id: BucketId; title: string; sub: string; states: readonly JobStateWire[] }[] = [
+  { id: "action", title: "Needs action", sub: "Blocked on your team", states: ["needs_pricing", "awaiting_po", "invoice_trouble", "complete", "awaiting_pictures", "awaiting_parts", "created", "reassigned", "reopened"] },
+  { id: "customer", title: "Waiting on customer", sub: "Ball's in their court", states: ["awaiting_customer", "quote_requested", "quote_submitted"] },
+  { id: "progress", title: "In progress", sub: "Scheduled or on-site", states: ["assigned", "en_route", "on_site", "in_progress"] },
+  { id: "closed", title: "Closed out", sub: "Invoiced, cancelled, or aborted", states: ["invoiced", "cancelled", "aborted"] },
 ];
 
 const bucketOf = (state: JobStateWire): BucketId => BUCKETS.find((b) => b.states.includes(state))!.id;
@@ -107,7 +112,7 @@ export const stalling = (jobs: readonly JobWire[], filter: Filter, now: number):
 const bucketCard = (bucket: (typeof BUCKETS)[number], jobs: readonly JobWire[]): VNode => {
   const inBucket = jobs.filter((j) => bucketOf(j.state) === bucket.id);
   const rows = bucketRows(inBucket, bucket.states);
-  return html`<div class="s3-bucket" data-tone=${bucket.tone}>
+  return html`<div class="s3-bucket">
     ${panel(html`<div class="s3-bucket__head">
         <span class="s3-bucket__n s3-num">${inBucket.length.toLocaleString()}</span>
         <h2 class="s3-bucket__title">${bucket.title}</h2>

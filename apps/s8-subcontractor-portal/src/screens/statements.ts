@@ -19,7 +19,7 @@ const STATE: Readonly<Record<SettlementState, { status: Status; word: string }>>
   draft: { status: "blocked", word: "Draft" },   // never reaches the firm; here so the record is total
   issued: { status: "at_risk", word: "Waiting on you" },
   acknowledged: { status: "ok", word: "Acknowledged" },
-  disputed: { status: "breached", word: "In dispute" },
+  disputed: { status: "at_risk", word: "In dispute" },
   paid: { status: "ok", word: "Paid" },
 };
 
