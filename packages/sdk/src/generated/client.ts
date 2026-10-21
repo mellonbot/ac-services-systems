@@ -670,21 +670,21 @@ export const createGatewayClient = (transport: Transport) => ({
 
   /** `GET /network/technicians` · query · bearer · surfaces: S2
    *
-   * The technician roster — name, phone, specialties, crew, and the home address for an account owner (restricted for every other role). Optionally one firm's. */
+   * The technician roster — name, phone, specialties, crew, and the home address for an account owner or principal (restricted for every other role). Optionally one firm's. */
   listTechnicians(input: OperationIO["technicians.list"]["input"]): Promise<OperationIO["technicians.list"]["output"]> {
     return transport.request(OPERATIONS["technicians.list"], input) as Promise<OperationIO["technicians.list"]["output"]>;
   },
 
   /** `POST /s2/network/technicians` · mutation · bearer · surfaces: S2
    *
-   * Add a technician: ours (no firm) or a firm's. A crew named belongs to the same employer. Only an account owner may record a home address. */
+   * Add a technician: ours (no firm) or a firm's. A crew named belongs to the same employer. Only an account owner or principal may record a home address. */
   recordTechnician(input: OperationIO["technicians.record"]["input"]): Promise<OperationIO["technicians.record"]["output"]> {
     return transport.request(OPERATIONS["technicians.record"], input) as Promise<OperationIO["technicians.record"]["output"]>;
   },
 
   /** `POST /s2/network/technicians/update` · mutation · bearer · surfaces: S2
    *
-   * Name, phone, specialties, crew, active — and the home address, by an account owner only. Never the employer: a technician who changes firm is a new row. */
+   * Name, phone, specialties, crew, active — and the home address, by an account owner or principal only. Never the employer: a technician who changes firm is a new row. */
   updateTechnician(input: OperationIO["technicians.update"]["input"]): Promise<OperationIO["technicians.update"]["output"]> {
     return transport.request(OPERATIONS["technicians.update"], input) as Promise<OperationIO["technicians.update"]["output"]>;
   },

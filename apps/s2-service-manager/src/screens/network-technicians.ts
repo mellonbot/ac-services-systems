@@ -1,6 +1,6 @@
 import { html, pageHead, panel, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
 import {
-  TECHNICIAN_SPECIALTIES,
+  TECHNICIAN_SPECIALTIES, mayReadTechnicianAddress,
   type AddressWire, type CrewWire, type FirmWire, type Refusal, type RegionWire, type TechnicianSpecialty, type TechnicianWire,
 } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
@@ -10,8 +10,8 @@ import { OWN_CREWS_LABEL } from "./network.ts";
 /**
  * 0020 — the roster on every Technician Network tab: each person who works
  * our jobs, with their phone, specialties, crew and home address. The address
- * is an account owner's (the gateway serves it to no one else, and refuses it
- * from anyone else), so the form offers it to an account owner only and every
+ * is an account owner's or a principal's (the gateway serves it to no one else,
+ * and refuses it from anyone else), so the form offers it to those roles only and every
  * other role reads "Restricted" — told it exists or not, never shown.
  */
 export const SPECIALTY_WORD: Readonly<Record<TechnicianSpecialty, string>> = Object.freeze({
@@ -22,7 +22,7 @@ export const SPECIALTY_WORD: Readonly<Record<TechnicianSpecialty, string>> = Obj
 export const addressLine = (a: AddressWire | null): string =>
   a ? [a.line1, a.line2, [a.city, [a.state, a.postal].filter(Boolean).join(" ")].filter(Boolean).join(", ")].filter(Boolean).join(", ") : "";
 
-const isAccountOwner = (ctx: ScreenContext) => ctx.shell.principal.roles.includes("account_owner");
+const seesAddress = (ctx: ScreenContext) => mayReadTechnicianAddress(ctx.shell.principal.roles);
 
 /** The roster panel. `firmId` null is our own crews. */
 export const technicianPanel = (ctx: ScreenContext, firmId: string | null): VNode => {
@@ -46,7 +46,7 @@ export const technicianPanel = (ctx: ScreenContext, firmId: string | null): VNod
     emptyText: firmId ? "No technicians recorded for this firm yet." : `No ${OWN_CREWS_LABEL} technicians recorded yet.`,
   }), () => store.invalidate("technicians.list")),
   "Technicians",
-  isAccountOwner(ctx) ? "Every technician, with home address." : "Home addresses are shown to account owners only.",
+  seesAddress(ctx) ? "Every technician, with home address." : "Home addresses are shown to account owners and principals only.",
   linkTo(ctx, "network.technician.new", firmId ? { firmId } : {}, "+ Technician", "ac-action s2-link--action"), "technicians");
 };
 
@@ -60,7 +60,7 @@ const technicianForm = (ctx: ScreenContext, mode: { readonly firmId: string | nu
   const f = form.value;
   const t = mode.existing;
   const firmId = t ? t.firmId : mode.firmId;
-  const owner = isAccountOwner(ctx);
+  const owner = seesAddress(ctx);
   const back = () => ctx.router.navigate("network", firmId ? { firmId } : {});
   const regions = store.read(keyOf("regions.list"), () => shell.gateway.listRegions());
   const crews = store.read(keyOf("crews.list"), () => shell.gateway.listCrews({}));
@@ -109,7 +109,7 @@ const technicianForm = (ctx: ScreenContext, mode: { readonly firmId: string | nu
   </label>`;
 
   return html`<section class="s2-form-screen">
-    ${pageHead(t ? `Edit ${t.name}` : "New technician", `${employer}. Name, phone, specialty and crew are every office role's; the home address is recorded by an account owner.`)}
+    ${pageHead(t ? `Edit ${t.name}` : "New technician", `${employer}. Name, phone, specialty and crew are every office role's; the home address is recorded by an account owner or principal.`)}
     <form class="ac-form" onSubmit=${submit} id="technician-form">
       <label class="ac-field"><span>Name</span><input class="ac-input" name="name" required value=${t?.name ?? ""} autocomplete="off" /></label>
       <label class="ac-field"><span>Phone</span><input class="ac-input" name="phone" type="tel" value=${t?.phone ?? ""} autocomplete="off" /></label>
@@ -129,9 +129,9 @@ const technicianForm = (ctx: ScreenContext, mode: { readonly firmId: string | nu
               <label class="ac-field"><span>State</span><input class="ac-input" name="state" value=${t?.homeAddress?.state ?? "TX"} autocomplete="off" /></label>
               <label class="ac-field"><span>ZIP</span><input class="ac-input" name="postal" inputmode="numeric" value=${t?.homeAddress?.postal ?? ""} autocomplete="off" /></label>
             </div>
-            <small>Seen by account owners only.</small>
+            <small>Seen by account owners and principals only.</small>
           </fieldset>`
-        : html`<p class="s2-parent">Home address: recorded by an account owner. It is not shown to this role.</p>`}
+        : html`<p class="s2-parent">Home address: recorded by an account owner or principal. It is not shown to this role.</p>`}
       ${whenReady(ctx, crews.value, (c) => crewField(c.crews))}
       ${t
         ? html`<label class="s2-radio"><input type="checkbox" name="active" checked=${t.active} /> Active — works our jobs</label>`
