@@ -1,6 +1,6 @@
 import type { CrewDocumentSummary } from "../../../packages/contracts/src/operations.ts";
 import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
-import { LoginInputError } from "./rows.ts";
+import { LoginInputError } from "./errors.ts";
 
 export type NewCompany =
   | { readonly type: "ours"; readonly name: string; readonly regionId: string }
