@@ -127,14 +127,14 @@ test("boot with no session shows login, not an error; a bad password is a refusa
   assert.equal(ready.shell.token(), null, "cookie mode: script never sees the token");
   const chrome = render(app.view());
   assert.match(chrome, /aria-label="Customer records"/);
-  assert.match(chrome, /aria-label="Subcontractor network"/);
+  assert.match(chrome, /aria-label="Service Technicians"/);
   assert.match(chrome, /aria-label="Purchasing"/);
   assert.match(chrome, /data-current="true" aria-current="page" href="\/accounts"/);
   // Each domain is its own track, never one shared strip; the open one is marked on the group.
-  assert.equal(chrome.match(/<div class="ac-seg">/g)?.length, 3, "customer records, subcontractor network and purchasing each get a track");
+  assert.equal(chrome.match(/<div class="ac-seg">/g)?.length, 3, "customer records, service technicians and purchasing each get a track");
   assert.match(chrome, /class="ac-nav ac-nav--grouped"/, "the plain ac-nav is one shared track and would merge the domains again");
   assert.match(chrome, /aria-label="Customer records" data-current="true"/);
-  assert.match(chrome, /aria-label="Subcontractor network" data-current="false"/);
+  assert.match(chrome, /aria-label="Service Technicians" data-current="false"/);
   assert.match(chrome, /Signed-in scope/);
   assert.match(chrome, /AC Services/);
   const login = gw.calls.find((c) => c.path === "/auth/login")!;

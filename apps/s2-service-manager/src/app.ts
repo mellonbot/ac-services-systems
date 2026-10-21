@@ -67,7 +67,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
 
 const NAV_GROUPS = [
   { label: "Customer records", screens: ["accounts.tree", "contracts.list", "leads"] as const },
-  { label: "Subcontractor network", screens: ["network"] as const },
+  { label: "Service Technicians", screens: ["network"] as const },
   { label: "Purchasing", screens: ["purchasing"] as const },
 ] as const;
 
