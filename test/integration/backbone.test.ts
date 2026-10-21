@@ -448,6 +448,9 @@ test("sync: the office cancelled it, the crew completed it — a conflict row fo
 // B5 — the event stream
 // ---------------------------------------------------------------------------
 test("relay: unpublished outbox rows are published in order, marked, and NOTIFY fans out per region; a second run finds nothing", skip, async () => {
+  // A database an earlier run used holds its unpublished rows; they are older than this test's row, so they would fill
+  // the batch ahead of it and answer "a second run". Relay them first — the claims below are about the row written here.
+  for (;;) { const t = await beginTx(pool); if ((await relayOnce(t, notifyPublisher(t))).published === 0) break; }
   const eventId = randomUUID();
   await admin(`INSERT INTO outbox (event_id, topic, entity, entity_id, payload, actor_id, surface_id, region_id, org_id) VALUES ($1,'job.created','job',gen_random_uuid(),'{}',$2,'test',$3,$4)`, [eventId, USER_OPS, REGION_SOUTH, ORG]);
   const tx = await beginTx(pool);
