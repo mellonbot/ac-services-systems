@@ -688,7 +688,7 @@ export type LoginOutput = {
   /** Also set as the httpOnly `ac_session` cookie. A browser surface ignores this field; devices and tests use it as a bearer. */
   readonly token: string;
   readonly expiresAt: string;
-  readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId">;
+  readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId" | "segment">;
 };
 export type LogoutOutput = { readonly ok: true; readonly sessionId: string };
 
@@ -703,7 +703,7 @@ export type DeviceLoginOutput = {
   readonly expiresAt: string;
   readonly crewId: string;
   readonly crewLabel: string;
-  readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId">;
+  readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId" | "segment">;
 };
 
 export type AuthorOverrideInput = {
@@ -1265,6 +1265,8 @@ export type JobWire = {
   /** When the job entered its current state: the latest job_state_events row into it, or openedAt when none has been written (a job still "created"). */
   readonly stateChangedAt: string;
   readonly regionId: string; readonly orgId: string;
+  /** The customer's segment (0019) — null where the organization row is not visible to this principal (a firm). */
+  readonly customerSegment: CustomerSegment | null;
   /** The crew currently holding this job, unreleased — null once dispatched-and-released or never assigned. */
   readonly currentCrewId: string | null; readonly currentCrewLabel: string | null;
   /** The open assignment's own id — what `dispatch.release` names. Null exactly when currentCrewId is null. */
@@ -1291,6 +1293,8 @@ export type ServiceRequestWire = {
   /** The job the office opened against this request, if one has been. */
   readonly jobId: string | null; readonly jobState: JobStateWire | null;
   readonly orgId: string; readonly regionId: string;
+  /** The customer's segment (0019), so the office can tell a homeowner from a building. */
+  readonly customerSegment: CustomerSegment | null;
   /** Oldest first. Fetch each with `media.get`. */
   readonly photos: readonly RequestPhotoWire[];
 };

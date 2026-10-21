@@ -1,5 +1,6 @@
 import type { Tier } from "./tiers.ts";
 import type { Principal } from "./scope.ts";
+import type { CustomerSegment } from "./operations.ts";
 
 /**
  * HIERARCHY CONTEXT — the shape the gateway resolves at login and every
@@ -34,4 +35,11 @@ export type HierarchyContext = {
   /** Region nodes visible to this principal — all for org scope, one otherwise. */
   readonly regions: readonly HierarchyNode[];
   readonly activeRegionId: string;
+  /**
+   * Residential or commercial, for a customer principal (0019) — the gateway
+   * sets it for every customer. Absent or null for everyone else, and a
+   * surface reading it treats absent as commercial: the layout that was
+   * there before the split.
+   */
+  readonly segment?: CustomerSegment | null;
 };

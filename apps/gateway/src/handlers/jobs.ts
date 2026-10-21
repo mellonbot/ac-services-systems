@@ -5,7 +5,7 @@ import { InputRefused, BadInput } from "../refusals.ts";
 import type {
   CreateJobInput, CreateJobOutput, JobPriority, JobStateWire, JobWire, ListJobsOutput,
   FieldJobWire, MyJobsOutput, AddressWire, TransitionJobInput, TransitionJobOutput,
-  AddJobNoteInput, AddJobNoteOutput, SetReturnTripInput, SetReturnTripOutput,
+  AddJobNoteInput, AddJobNoteOutput, SetReturnTripInput, SetReturnTripOutput, CustomerSegment,
 } from "../../../../packages/contracts/src/operations.ts";
 import { OFFICE_JOB_TRANSITIONS } from "../../../../packages/contracts/src/operations.ts";
 
@@ -42,7 +42,7 @@ const PRIORITIES: readonly JobPriority[] = ["emergency", "urgent", "routine", "p
 export type JobRow = {
   id: string; site_id: string; site_name: string | null; site_address: AddressWire | null; contract_id: string | null; project_id: string | null;
   service_code: string; priority: JobPriority; state: JobStateWire;
-  ws: string; we: string; version: number; opened_at: string; state_changed_at: string; region_id: string; org_id: string;
+  ws: string; we: string; version: number; opened_at: string; state_changed_at: string; region_id: string; org_id: string; customer_segment: CustomerSegment | null;
   current_crew_id: string | null; current_crew_label: string | null; current_assignment_id: string | null;
   sla_due_at: string | null; sla_escalation_stage: number | null; sla_satisfied_at: string | null;
   return_trip: boolean; note_body: string | null; note_at: string | null;
@@ -52,7 +52,7 @@ export const toWire = (r: JobRow): JobWire => ({
   id: r.id, siteId: r.site_id, siteName: r.site_name, siteAddress: r.site_address, contractId: r.contract_id, projectId: r.project_id,
   serviceCode: r.service_code, priority: r.priority, state: r.state,
   serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version, openedAt: r.opened_at, stateChangedAt: r.state_changed_at,
-  regionId: r.region_id, orgId: r.org_id,
+  regionId: r.region_id, orgId: r.org_id, customerSegment: r.customer_segment ?? null,
   currentCrewId: r.current_crew_id, currentCrewLabel: r.current_crew_label, currentAssignmentId: r.current_assignment_id,
   slaDueAt: r.sla_due_at, slaEscalationStage: r.sla_escalation_stage, slaSatisfiedAt: r.sla_satisfied_at,
   returnTrip: r.return_trip, latestNote: r.note_body !== null && r.note_at !== null ? { body: r.note_body, at: r.note_at } : null,
@@ -64,13 +64,14 @@ export const JOB_SELECT = `
          to_char(j.opened_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS opened_at,
          to_char(COALESCE((SELECT max(e.occurred_at) FROM job_state_events e WHERE e.job_id = j.id AND e.to_state = j.state), j.opened_at)
                  AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS state_changed_at,
-         j.region_id, j.org_id,
+         j.region_id, j.org_id, o.segment AS customer_segment,
          a.crew_id AS current_crew_id, c.label AS current_crew_label, a.id AS current_assignment_id,
          to_char(st.due_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_due_at, st.escalation_stage AS sla_escalation_stage,
          to_char(st.satisfied_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_satisfied_at,
          j.return_trip, n.body AS note_body, to_char(n.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS note_at
     FROM jobs j
     LEFT JOIN accounts s ON s.id = j.site_id
+    LEFT JOIN organizations o ON o.id = j.org_id
     LEFT JOIN assignments a ON a.job_id = j.id AND a.released_at IS NULL
     LEFT JOIN crews c ON c.id = a.crew_id
     LEFT JOIN sla_timers st ON st.job_id = j.id

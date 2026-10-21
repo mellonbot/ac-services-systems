@@ -2,6 +2,7 @@ import { SURFACES, admits } from "../../../packages/contracts/src/surfaces.ts";
 import type { SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
 import type { Namespace } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
+import type { CustomerSegment } from "../../../packages/contracts/src/operations.ts";
 
 export type KindId = "S2" | "S3" | "S4" | "S5" | "S6" | "S7" | "S8" | "other";
 export type Kind = { readonly id: KindId; readonly name: string; readonly canAdd: boolean; readonly note?: string };
@@ -23,6 +24,8 @@ export type UserRecord = {
   readonly id: string; readonly email: string; readonly displayName: string;
   readonly namespace: Namespace; readonly roles: readonly string[];
   readonly orgId: string; readonly orgName: string; readonly regionId: string; readonly regionCode: string;
+  /** The customer's segment (0019); null for every org that is not a customer. */
+  readonly orgSegment: CustomerSegment | null;
   readonly scopeTier: Tier; readonly scopeId: string; readonly scopeName: string | null;
   readonly firmId: string | null; readonly firmName: string | null;
   readonly crewId: string | null; readonly crewLabel: string | null; readonly crewEmployment: "employed" | "subcontracted" | null;

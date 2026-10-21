@@ -40,6 +40,12 @@ export const S6_CSS = `
 .s6-home{display:grid;grid-template-columns:minmax(18rem,1fr) minmax(0,2.2fr);gap:var(--space-4);align-items:start}
 .s6-home>*{min-width:0}
 .s6-home__orders{display:flex;flex-direction:column;gap:var(--space-3)}
+.s6-house-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:var(--space-4);align-items:start}
+.s6-house-row>*{min-width:0}
+.s6-house__address{margin:0 0 var(--space-3);font-size:var(--text-md)}
+.s6-units{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.s6-unit{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);padding:var(--space-2) 0;border-top:1px solid var(--color-border)}
+.s6-unit__name{font-weight:600}
 .s6-chips{display:flex;flex-wrap:wrap;gap:var(--space-2);margin:0 0 var(--space-3)}
 .s6-seg-button{min-height:var(--control-height);appearance:none;-webkit-appearance:none;border:0;background:none;font-family:inherit;cursor:pointer}
 .s6-order__ref{font-family:var(--font-instrument);font-variant-numeric:tabular-nums}
@@ -114,7 +120,7 @@ export const S6_CSS = `
 .s6-msg__body{margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-card);background:color-mix(in srgb,var(--color-surface-sunken) 60%,var(--color-surface));color:var(--color-text)}
 .s6-msg[data-side="customer"] .s6-msg__body{background:color-mix(in srgb,var(--color-action) 14%,var(--color-surface))}
 .s6-reply{margin-top:var(--space-4)}
-@media (max-width:1100px){.s6-site__grid,.s6-home,.s6-job__grid{grid-template-columns:1fr}}
+@media (max-width:1100px){.s6-site__grid,.s6-home,.s6-house-row,.s6-job__grid{grid-template-columns:1fr}}
 @media (max-width:760px){.s6-ledger__row{grid-template-columns:1fr}.s6-ledger__amount{text-align:start}.s6-node__actions{margin-inline-start:0;width:100%}.s6-term{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){.s6-drop{transition:none}}
 `;

@@ -7,6 +7,7 @@ import { createStore, type Store } from "./state.ts";
 import type { Screen, ScreenContext } from "./screens/common.ts";
 import { sites } from "./screens/sites.ts";
 import { work } from "./screens/work.ts";
+import { home, canRequest } from "./screens/home.ts";
 import { agreements } from "./screens/agreements.ts";
 import { terms } from "./screens/terms.ts";
 import { request } from "./screens/request.ts";
@@ -40,8 +41,12 @@ export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(
   return `${doc.location.protocol}//api.${site}`;
 };
 
+/** A residential customer's portal (0019): the same bundle, one home instead of a sites tree. Absent segment reads as commercial. */
+export const isResidential = (ctx: Pick<ScreenContext, "shell">): boolean => ctx.shell.context?.segment === "residential";
+
 export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = {
-  sites, work, agreements, terms, request, site, job,
+  sites, agreements, terms, request, site, job,
+  work: (ctx, params) => (isResidential(ctx) ? home : work)(ctx, params),
 };
 
 type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
@@ -126,14 +131,15 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     void p.store.version.value;
     const loc = router.current.value;
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
-    const who = p.shell.context?.path.map((n) => n.name).join(" › ") ?? p.shell.context?.parent.name ?? "";
+    const residential = isResidential(ctx);
+    const who = residential ? p.shell.context?.parent.name ?? "" : p.shell.context?.path.map((n) => n.name).join(" › ") ?? p.shell.context?.parent.name ?? "";
     return html`<div class="s6-app">
       <nav class="ac-nav" aria-label="Screens">
-        ${nav("work", "Work orders")}
-        ${nav("sites", "Sites")}
+        ${nav("work", residential ? "Your home" : "Work orders")}
+        ${residential ? null : nav("sites", "Sites")}
         ${nav("agreements", "Agreements")}
         <span class="ac-nav__who" id="who">${who}</span>
-        ${PrimaryAction({ density: DENSITY, label: "Request service", id: "nav-request", onClick: () => router.navigate("request", {}) })}
+        ${canRequest(ctx) ? PrimaryAction({ density: DENSITY, label: "Request service", id: "nav-request", onClick: () => router.navigate("request", {}) }) : null}
         <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s6-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}

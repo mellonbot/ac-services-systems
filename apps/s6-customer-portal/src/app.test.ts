@@ -5,6 +5,7 @@ import { createApp, SCREEN_VIEWS } from "./app.ts";
 import { SCREENS } from "./screens.ts";
 import { treeOf } from "./screens/common.ts";
 import { STATE_WORD, isOpen, ordersOf, pillOf } from "./screens/work.ts";
+import { plannedVisits } from "./screens/home.ts";
 import { valueWord, wonWhere } from "./screens/terms.ts";
 import { resetRequestForm, describe, refOf, photoProblem, toBase64 } from "./screens/request.ts";
 import { money, tons, addressLines, ledgerOf } from "./screens/site.ts";
@@ -29,7 +30,7 @@ const SOUTH = U(1), WEST = U(2), ORG = U(3), SOUTH_NODE = U(4), WEST_NODE = U(5)
 
 const facility: Principal = {
   namespace: "customer", subjectId: CONTACT, orgId: ORG, regionId: SOUTH, scopeTier: "location", scopeId: AUSTIN,
-  roles: [], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "sess-6",
+  roles: ["payer", "requester"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "sess-6",
 };
 const executive: Principal = { ...facility, subjectId: U(15), scopeTier: "parent", scopeId: ORG };
 
@@ -60,7 +61,7 @@ const contextFor = (p: Principal): HierarchyContext => ({
 const job: JobWire = {
   id: JOB, siteId: AUSTIN_ROOF, siteName: "Austin — Roof", siteAddress: null, contractId: null, projectId: null, serviceCode: "HVAC-REPAIR", priority: "urgent", state: "en_route",
   serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T13:00:00.000Z", version: 3, openedAt: "2026-09-17T12:00:00.000Z", stateChangedAt: "2026-09-18T09:00:00.000Z",
-  regionId: SOUTH, orgId: ORG, currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
+  regionId: SOUTH, orgId: ORG, customerSegment: "commercial", currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 0, slaSatisfiedAt: "2026-09-17T13:00:00.000Z",
   returnTrip: false, latestNote: null,
 };
@@ -70,7 +71,7 @@ const msa: ContractWire = {
 };
 const request: ServiceRequestWire = {
   id: REQ, siteId: AUSTIN_ROOF, siteName: "Austin — Roof", priority: "urgent", description: "Short-cycling.", requestedBy: CONTACT,
-  createdAt: "2026-09-17T12:30:00.000Z", jobId: null, jobState: null, orgId: ORG, regionId: SOUTH, photos: [],
+  createdAt: "2026-09-17T12:30:00.000Z", jobId: null, jobState: null, orgId: ORG, regionId: SOUTH, customerSegment: "commercial", photos: [],
 };
 const resolved: Record<string, ResolutionWire> = {
   sla_response: { termKey: "sla_response", value: "4_hour", wonAt: { tier: "parent", id: ORG }, policy: TERMS.sla_response!, trace: [], asOf: "2026-09-17" },
@@ -462,4 +463,75 @@ test("JOB helpers: only published updates with a date are shown, newest first; a
   assert.deepEqual(publishedNewestFirst([u("a", "published", "2026-09-01T00:00:00Z"), u("d", "draft", null), u("b", "published", "2026-09-03T00:00:00Z")]).map((x) => x.id), ["b", "a"]);
   assert.equal(authorWord({ id: "m", authorKind: "office", authorName: "Dana", body: "", at: "" }), "AC Services");
   assert.equal(authorWord({ id: "m", authorKind: "customer", authorName: null, body: "", at: "" }), "You");
+});
+
+// ---- 0019: a residential customer's portal — one home, not a sites tree ----
+const HOUSE = U(50), HOUSE_NODE = U(51), HOUSEHOLD = U(52), HOME = U(53);
+const homeNodes: AccountWire[] = [
+  node(HOUSE_NODE, "region", "Turner residence", null, SOUTH, [HOUSE_NODE]),
+  node(HOUSEHOLD, "location", "905 Hidden Creek Pkwy", HOUSE_NODE, SOUTH, [HOUSE_NODE, HOUSEHOLD]),
+  { ...node(HOME, "site", "Home", HOUSEHOLD, SOUTH, [HOUSE_NODE, HOUSEHOLD, HOME]), address: { line1: "905 Hidden Creek Pkwy", city: "Burleson", state: "TX", postal: "76028" } },
+];
+const homeowner: Principal = { ...facility, orgId: HOUSE, scopeTier: "parent", scopeId: HOUSE };
+const residentialMe = (p: Principal): HierarchyContext => ({
+  principal: p, path: [{ tier: "parent", id: HOUSE, name: "Turner residence" }],
+  parent: { tier: "parent", id: HOUSE, name: "Turner residence", regionId: null, customerGroup: null },
+  regions: [{ tier: "region", id: HOUSE_NODE, name: "Turner residence", regionId: SOUTH, customerGroup: null }], activeRegionId: SOUTH, segment: "residential",
+});
+const membership: ContractWire = { ...msa, id: U(54), scopeId: HOUSE, kind: "residential_membership" as ContractWire["kind"], billingPath: "residential_membership", effectiveFrom: "2026-03-01" };
+const pmJob = (id: string, state: JobWire["state"], start: string): JobWire =>
+  ({ ...job, id, siteId: HOME, siteName: "Home", priority: "pm", serviceCode: "PM-SPRING", state, serviceWindowStart: start, serviceWindowEnd: start.replace("T09", "T13"), stateChangedAt: start, orgId: HOUSE });
+const homeReady = (p: Principal, contracts: readonly ContractWire[] = [membership]) => ready(p, homeNodes, {
+  [OPERATIONS["session.me"].path]: { status: 200, body: residentialMe(p) },
+  [OPERATIONS["contracts.list"].path]: { status: 200, body: { contracts } },
+  [OPERATIONS["serviceRequests.list"].path]: { status: 200, body: { requests: [{ ...request, siteId: HOME, siteName: "Home", orgId: HOUSE }] } },
+  [OPERATIONS["equipment.list"].path]: { status: 200, body: { equipment: [{ ...units[0]!, siteId: HOME, label: null, kind: "split", manufacturer: "Trane", model: "XR16" }] } },
+});
+
+test("YOUR HOME: a residential login lands on its home — the address, the unit there, the membership, the form — with no sites tree, site chips or account card", async () => {
+  const { app } = await homeReady(homeowner);
+  render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, /<h1[^>]*>Your home</);
+  assert.match(out, /Your home<\/a>/, "the nav names the home");
+  assert.doesNotMatch(out, />Sites<\/a>/, "one home has no sites tree to browse");
+  assert.doesNotMatch(out, /id="account"|Filter by site|Enterprise SLA/);
+  assert.match(out, /id="home-card".*905 Hidden Creek Pkwy.*Burleson, TX 76028/s);
+  assert.match(out, /id="home-units".*Split system|id="home-units".*Trane XR16/s);
+  assert.match(out, /id="membership".*Member since/s);
+  assert.match(out, /of 4 a year/, "PM visits a year from the resolved term, where one is set");
+  assert.match(out, /id="membership-card__title">Premium Cool Club</, "the plan by its name, as it was sold");
+  assert.match(out, /\$200\.00 a year plus tax · 2 preventive maintenance visits · Filter replacements included the first year\./);
+  assert.match(out, /id="request-form"/);
+  assert.match(out, /<input type="hidden" name="siteId" value="e6000000-0000-0000-0000-000000000053"/, "one home: no site to choose");
+  assert.match(out, /id="nav-request"/);
+});
+
+test("YOUR HOME, payer only: the form is not drawn and the request button is gone — the screen says who asks instead", async () => {
+  const { app } = await homeReady({ ...homeowner, roles: ["payer"] });
+  const out = render(app.view());
+  assert.doesNotMatch(out, /id="request-form"|id="nav-request"/);
+  assert.match(out, /id="request-not-yours"/);
+  assert.match(out, /Short-cycling\./, "a payer still reads the household's work");
+});
+
+test("YOUR HOME, no membership: said plainly, nothing invented", async () => {
+  const { app } = await homeReady(homeowner, []);
+  const out = render(app.view());
+  assert.match(out, /No membership — each visit is billed on its own/);
+  assert.match(out, /Premium Cool Club: \$200\.00 a year plus tax/, "the one plan there is, offered");
+});
+
+test("plannedVisits: PM jobs completed this year, and the earliest booked one still ahead", () => {
+  const now = Date.parse("2026-10-21T12:00:00Z");
+  const jobs = [
+    pmJob(U(60), "complete", "2026-04-02T09:00:00.000Z"),
+    pmJob(U(61), "invoiced", "2025-10-02T09:00:00.000Z"),
+    pmJob(U(62), "assigned", "2026-11-20T09:00:00.000Z"),
+    pmJob(U(63), "assigned", "2026-11-05T09:00:00.000Z"),
+    { ...pmJob(U(64), "complete", "2026-05-02T09:00:00.000Z"), priority: "urgent" as const },
+  ];
+  const v = plannedVisits(jobs, now);
+  assert.equal(v.done, 1, "last year's visit and a repair are not this year's planned visits");
+  assert.equal(v.next?.id, U(63));
 });

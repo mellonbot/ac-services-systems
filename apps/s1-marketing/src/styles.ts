@@ -39,8 +39,9 @@ export const S1_CSS = `
 .s1-call{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);color:var(--color-action-text);text-decoration:none;font-weight:600}
 .s1-foot{margin-top:var(--space-6);padding-top:var(--space-3);border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size:var(--text-sm)}
 
-/* ---- The sign-in floor: the service bay in 3D (src/scene.ts), after the ERS recovery line —
-   the truck turning on a turntable, a pad on the floor for each portal, and that portal's plate
+/* ---- The sign-in yard: the outdoor service yard in 3D (src/scene.ts), after the ERS recovery
+   line — the truck turning on a turntable, condensers and RTUs waiting behind it, a pad on the
+   asphalt for each portal, and that portal's plate
    pinned above its pad. The panel runs wider than the text column, to the page width less its
    gutters. Live, each plate takes --x/--y from the scene's projection; until then, and where
    WebGL is unavailable, the plates sit on a CSS ellipse over the still (public/scene-still.webp).

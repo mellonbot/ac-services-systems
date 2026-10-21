@@ -274,7 +274,7 @@ const login = async (body: Partial<OperationIO["auth.login"]["input"]>, res: Ser
     // The browser gets the token as an httpOnly cookie it cannot read; the body
     // carries it too, for devices and tests, and a browser surface ignores it.
     res.setHeader("set-cookie", sessionCookie(minted.token, expiresAt, SESSION));
-    return { token: minted.token, expiresAt: expiresAt.toISOString(), context: { path: context.path, parent: context.parent, regions: context.regions, activeRegionId: context.activeRegionId } };
+    return { token: minted.token, expiresAt: expiresAt.toISOString(), context: { path: context.path, parent: context.parent, regions: context.regions, activeRegionId: context.activeRegionId, segment: context.segment ?? null } };
   } catch (e) {
     await tx.rollback().catch(() => {});
     throw e;
@@ -319,7 +319,7 @@ const deviceLogin = async (body: Partial<OperationIO["auth.deviceLogin"]["input"
     res.setHeader("set-cookie", sessionCookie(minted.token, expiresAt, SESSION));
     return {
       token: minted.token, expiresAt: expiresAt.toISOString(), crewId: resolved.crewId, crewLabel: resolved.crewLabel,
-      context: { path: context.path, parent: context.parent, regions: context.regions, activeRegionId: context.activeRegionId },
+      context: { path: context.path, parent: context.parent, regions: context.regions, activeRegionId: context.activeRegionId, segment: context.segment ?? null },
     };
   } catch (e) {
     await tx.rollback().catch(() => {});

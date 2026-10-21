@@ -1,5 +1,5 @@
 import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { AccountWire, ContractWire, CreateContractInput, Refusal, RegionWire, Tier } from "../../../../packages/contracts/src/index.ts";
+import { COOL_CLUB, type AccountWire, type ContractWire, type CreateContractInput, type Refusal, type RegionWire, type Tier } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
@@ -127,7 +127,7 @@ export const contractsNew: Screen = (ctx, params) => {
       <label class="ac-field">
         <span>Kind</span>
         <select name="kind" class="ac-input" onChange=${(e: Event) => { form.value = { ...form.value, kind: (e.currentTarget as HTMLSelectElement).value }; }}>
-          ${KINDS.map((k) => html`<option value=${k} selected=${f.kind === k}>${k.replace(/_/g, " ")}</option>`)}
+          ${KINDS.map((k) => html`<option value=${k} selected=${f.kind === k}>${k === "residential_membership" ? `residential membership — ${COOL_CLUB.name}` : k.replace(/_/g, " ")}</option>`)}
         </select>
       </label>
       ${f.kind === "amendment" ? whenReady(ctx, existing.value, (c) => amendmentField(c.contracts)) : null}

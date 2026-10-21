@@ -101,6 +101,7 @@ test("a commercial customer is made the old way and is commercial; only a custom
   const c = await s2.gateway.createOrganization({ name: `Shipman Co ${RUN}`, firstRegionNode: { regionId: REGION_SOUTH, name: "Shipman / South" } });
   const org = (await s2.gateway.listOrganizations({ kind: "customer" })).organizations.find((o) => o.id === c.orgId)!;
   assert.equal(org.segment, "commercial");
+  assert.equal(s2.context?.segment, null, "our own people carry no segment");
   await assert.rejects(admin(`UPDATE organizations SET segment = 'commercial' WHERE id = $1`, [home.orgId]),
     (e: { code?: string; message: string }) => e.code === "AC422" && /segment does not change/.test(e.message));
   await assert.rejects(admin(`INSERT INTO organizations (id, name, kind) VALUES ($1, $2, 'customer')`, [randomUUID(), `No segment ${RUN}`]),
@@ -138,6 +139,7 @@ test("in a household, who pays is not who asks: a payer-only login cannot reques
     return shell("S6", `${who}.${RUN}@turner.test`);
   };
   const payer = await login("payer", ["payer"]);
+  assert.equal(payer.context?.segment, "residential", "the home view is chosen from the context the gateway resolved at login");
   const requester = await login("requester", ["requester"]);
   const both = await login("both", ["payer", "requester"]);
   const ask = (s: ConnectedShell) => s.gateway.createServiceRequest({ siteId: home.siteId, description: "No cooling upstairs." });
@@ -148,4 +150,7 @@ test("in a household, who pays is not who asks: a payer-only login cannot reques
   await ask(both);
   const seen = (await payer.gateway.listServiceRequests({})).requests.filter((q) => q.siteId === home.siteId);
   assert.equal(seen.length, 2, "everyone in the household reads the home's requests");
+  assert.ok(seen.every((q) => q.customerSegment === "residential"));
+  const office = (await s2.gateway.listServiceRequests({})).requests.filter((q) => q.siteId === home.siteId);
+  assert.ok(office.length === 2 && office.every((q) => q.customerSegment === "residential"), "the office reads the mark off the same rows");
 });

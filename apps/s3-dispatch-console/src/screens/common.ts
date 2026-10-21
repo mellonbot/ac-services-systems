@@ -1,6 +1,6 @@
 import { html, retryable, RefusalCard, PrimaryAction, type VNode, type Router } from "../../../../packages/ui/src/index.ts";
 import type { Shell } from "../../../../packages/shell/src/index.ts";
-import type { Refusal, DensityOf } from "../../../../packages/contracts/src/index.ts";
+import type { Refusal, DensityOf, CustomerSegment } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
 import type { SCREENS } from "../screens.ts";
 export { linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
@@ -41,3 +41,7 @@ export const submitAction = (ctx: ScreenContext, label: string, onClick: () => v
     ...(id ? { id } : {}),
     ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : {}),
   }) ?? html``;
+
+/** A homeowner, marked where the office reads a site (0019) — commercial is the default and carries no mark. */
+export const homeMark = (segment: CustomerSegment | null): VNode | null =>
+  segment === "residential" ? html`<span class="s3-flag" data-segment="residential">Residential</span>` : null;
