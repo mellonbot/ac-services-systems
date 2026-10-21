@@ -6,6 +6,11 @@ import type { UserRecord } from "./kinds.ts";
 import { buildUserRow, checkPassword, accessChanged, LoginInputError } from "./rows.ts";
 import type { NewLogin, Access } from "./rows.ts";
 import { hashPassword } from "../../../apps/gateway/src/auth.ts";
+import { summarizeDocuments } from "../../../apps/gateway/src/handlers/network.ts";
+import type { CredentialWire } from "../../../packages/contracts/src/operations.ts";
+import { randomUUID } from "node:crypto";
+import { buildCrewRow, buildFirmRows, documentsLabel, normaliseName } from "./companies.ts";
+import type { NewCompany } from "./companies.ts";
 
 /** Reads run as internal at the parent tier, so one query can join users to crew, firm, org and scope names. */
 export const INTERNAL_READ_BINDING: Readonly<Record<string, string>> = {
@@ -16,8 +21,9 @@ export const INTERNAL_READ_BINDING: Readonly<Record<string, string>> = {
 export class LoginsDbError extends Error {}
 
 export type Region = { id: string; code: string; name: string };
-export type Crew = { id: string; label: string; homeRegionId: string };
-export type Firm = { id: string; legalName: string; regionId: string };
+export type Crew = { id: string; label: string; homeRegionId: string; employmentType: "employed" | "subcontracted"; firmName: string | null };
+export type Firm = { id: string; legalName: string; regionId: string; status: "onboarding" | "active" | "suspended" | "terminated" };
+export type Company = Crew & { regionCode: string; active: boolean; firmId: string | null; firmStatus: Firm["status"] | null; technicians: number; documents: string };
 export type CustomerOrg = { id: string; name: string };
 export type AccountNode = { id: string; tier: "region" | "location" | "site"; name: string; parentId: string | null; regionId: string };
 export type LoginEdit = {
@@ -33,6 +39,10 @@ export type LoginsDb = {
   listRegions(): Promise<readonly Region[]>;
   listCrews(): Promise<readonly Crew[]>;
   listFirms(): Promise<readonly Firm[]>;
+  listCompanies(opts: { includeInactive: boolean }): Promise<readonly Company[]>;
+  addCompany(n: NewCompany): Promise<{ id: string; firmId: string | null }>;
+  removeCompany(id: string): Promise<void>;
+  reactivateCompany(id: string): Promise<void>;
   listCustomerOrgs(): Promise<readonly CustomerOrg[]>;
   listAccountTree(orgId: string): Promise<readonly AccountNode[]>;
   addLogin(n: NewLogin): Promise<{ id: string }>;
@@ -65,6 +75,11 @@ const toRecord = (r: UserRow): UserRecord => ({
 
 const LOST = "Lost the connection to the database.";
 const GONE = "That login no longer exists";
+const COMPANY_GONE = "That company no longer exists";
+const NO_REGION = "That region is not available";
+const removedMessage = (label: string): string => `${label} has been removed — choose another company`;
+const terminatedMessage = (legalName: string): string => `${legalName} is terminated — it can't take a new company`;
+const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 const NOT_THIS_CUSTOMER = "That site or location doesn't belong to the chosen customer";
 
 /** Never an empty message: a refused connect (autoSelectFamily) is an AggregateError whose own message is "". */
@@ -108,6 +123,36 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
     }
   });
 
+  type Q = <R>(sql: string, params?: readonly unknown[]) => Promise<readonly R[]>;
+
+  /** Company writes — and technician writes, which must share a transaction with the company-row lock — run as the office: internal, bound, one commit. */
+  const writeAsOffice = <T>(f: (q: Q) => Promise<T>): Promise<T> => attempt(async () => {
+    const tx = await beginTx(pool, "ac_gateway");
+    try {
+      await tx.setLocal(INTERNAL_READ_BINDING as ScopeBinding);
+      const out = await f((sql, params) => tx.query(sql, params));
+      await tx.commit();
+      return out;
+    } catch (e) {
+      await tx.rollback();
+      throw e;
+    }
+  });
+
+  /** A technician may only stand under an active company; the share lock keeps removeCompany from slipping in before the users write commits. */
+  const requireActiveCompany = async (q: Q, crewId: string): Promise<void> => {
+    const [c] = await q<{ label: string; active: boolean }>(`SELECT label, active FROM crews WHERE id = $1 FOR SHARE`, [crewId]);
+    if (!c) throw new LoginInputError(COMPANY_GONE);
+    if (!c.active) throw new LoginInputError(removedMessage(c.label));
+  };
+
+  const requireRegion = async (q: Q, regionId: string): Promise<void> => {
+    if ((await q(`SELECT 1 FROM regions WHERE id = $1 AND active AND id <> $2`, [regionId, UNASSIGNED_REGION_ID])).length === 0) throw new LoginInputError(NO_REGION);
+  };
+
+  /** Same normalisation as sameName, in SQL: trimmed, whitespace collapsed, case-folded. */
+  const NORMALISED = (col: string): string => `lower(regexp_replace(btrim(${col}), '\\s+', ' ', 'g'))`;
+
   /** A customer's scope node must be its own org's (whole company: the org itself). Read bound — unbound cannot see accounts. */
   const checkCustomerScope = async (orgId: string, tier: Tier, scopeId: string): Promise<void> => {
     const ok = tier === "parent"
@@ -139,13 +184,109 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
 
     listRegions: () => read<Region>(`SELECT id, code, name FROM regions WHERE active AND id <> $1 ORDER BY code`, [UNASSIGNED_REGION_ID]),
 
-    listCrews: async () => (await read<{ id: string; label: string; home_region_id: string }>(
-      `SELECT id, label, home_region_id FROM crews WHERE active AND employment_type = 'employed' ORDER BY label`))
-      .map((c) => ({ id: c.id, label: c.label, homeRegionId: c.home_region_id })),
+    listCrews: async () => (await read<{ id: string; label: string; home_region_id: string; employment_type: Crew["employmentType"]; firm_name: string | null }>(
+      `SELECT c.id, c.label, c.home_region_id, c.employment_type, f.legal_name AS firm_name
+         FROM crews c LEFT JOIN subcontractor_firms f ON f.id = c.firm_id
+        WHERE c.active ORDER BY c.employment_type, c.label`))
+      .map((c) => ({ id: c.id, label: c.label, homeRegionId: c.home_region_id, employmentType: c.employment_type, firmName: c.firm_name })),
 
-    listFirms: async () => (await read<{ id: string; legal_name: string; region_id: string }>(
-      `SELECT id, legal_name, region_id FROM subcontractor_firms ORDER BY legal_name`))
-      .map((f) => ({ id: f.id, legalName: f.legal_name, regionId: f.region_id })),
+    listFirms: async () => (await read<{ id: string; legal_name: string; region_id: string; status: Firm["status"] }>(
+      `SELECT id, legal_name, region_id, status FROM subcontractor_firms WHERE status <> 'terminated' ORDER BY legal_name`))
+      .map((f) => ({ id: f.id, legalName: f.legal_name, regionId: f.region_id, status: f.status })),
+
+    listCompanies: async ({ includeInactive }) => {
+      const crews = await read<{
+        id: string; label: string; home_region_id: string; region_code: string; employment_type: Crew["employmentType"]; active: boolean;
+        firm_id: string | null; firm_name: string | null; firm_status: Firm["status"] | null; technicians: number;
+      }>(
+        `SELECT c.id, c.label, c.home_region_id, r.code AS region_code, c.employment_type, c.active,
+                c.firm_id, f.legal_name AS firm_name, f.status AS firm_status,
+                (SELECT count(*)::int FROM users u WHERE u.crew_id = c.id AND u.active) AS technicians
+           FROM crews c
+           JOIN regions r ON r.id = c.home_region_id
+           LEFT JOIN subcontractor_firms f ON f.id = c.firm_id
+          WHERE $1 OR c.active
+          ORDER BY c.employment_type, c.label`, [includeInactive]);
+      const creds = crews.length === 0 ? [] : await read<{ crew_id: string; kind: CredentialWire["kind"]; valid_from: string; valid_to: string; verified_at: string | null }>(
+        `SELECT crew_id, kind, to_char(valid_from, 'YYYY-MM-DD') AS valid_from, to_char(valid_to, 'YYYY-MM-DD') AS valid_to,
+                to_char(verified_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS verified_at
+           FROM crew_credentials WHERE crew_id = ANY($1::uuid[])`, [crews.map((c) => c.id)]);
+      const byCrew = new Map<string, CredentialWire[]>();
+      for (const d of creds) {
+        const wire = { crewId: d.crew_id, kind: d.kind, validFrom: d.valid_from, validTo: d.valid_to, verifiedAt: d.verified_at } as CredentialWire;
+        byCrew.set(d.crew_id, [...(byCrew.get(d.crew_id) ?? []), wire]);
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      return crews.map((c) => ({
+        id: c.id, label: c.label, homeRegionId: c.home_region_id, employmentType: c.employment_type, firmName: c.firm_name,
+        regionCode: c.region_code, active: c.active, firmId: c.firm_id, firmStatus: c.firm_status, technicians: c.technicians,
+        documents: documentsLabel(summarizeDocuments(c.employment_type, byCrew.get(c.id) ?? [], today)),
+      }));
+    },
+
+    addCompany: async (n) => {
+      // Rows are built (and validated) before any connection is taken; the checks that need the database run in the same transaction as the inserts.
+      const newFirm = n.type === "contractor" && !("existing" in n.firm) ? n.firm : null;
+      const firmRows = newFirm ? buildFirmRows(randomUUID(), newFirm) : null;
+      const name = normaliseName(n.name);
+      if (name === "") throw new LoginInputError("The name cannot be empty.");
+      return writeAsOffice(async (q) => {
+        let crew;
+        if (n.type === "ours") {
+          await requireRegion(q, n.regionId);
+          crew = buildCrewRow(name, n);
+        } else if (firmRows) {
+          await requireRegion(q, firmRows.firm.region_id);
+          if ((await q(`SELECT 1 FROM subcontractor_firms WHERE ${NORMALISED("legal_name")} = lower($1)`, [firmRows.firm.legal_name])).length > 0) {
+            throw new LoginInputError(`A firm named ${firmRows.firm.legal_name} already exists`);
+          }
+          crew = buildCrewRow(name, { type: "contractor", firmId: firmRows.firm.id, firmOrgId: firmRows.firm.id, firmRegionId: firmRows.firm.region_id });
+        } else {
+          const existing = (n.firm as { existing: string }).existing;
+          const [f] = await q<{ id: string; org_id: string; region_id: string; status: Firm["status"]; legal_name: string }>(
+            `SELECT id, org_id, region_id, status, legal_name FROM subcontractor_firms WHERE id = $1 FOR SHARE`, [existing]);
+          if (!f) throw new LoginInputError("That firm no longer exists");
+          if (f.status === "terminated") throw new LoginInputError(terminatedMessage(f.legal_name));
+          crew = buildCrewRow(name, { type: "contractor", firmId: f.id, firmOrgId: f.org_id, firmRegionId: f.region_id });
+        }
+        if ((await q(`SELECT 1 FROM crews WHERE active AND ${NORMALISED("label")} = lower($1)`, [crew.label])).length > 0) {
+          throw new LoginInputError(`A company named ${crew.label} already exists`);
+        }
+        if (firmRows) {
+          await q(`INSERT INTO organizations (id, name, kind) VALUES ($1, $2, 'subcontractor')`, [firmRows.organization.id, firmRows.organization.name]);
+          const f = firmRows.firm;
+          await q(
+            `INSERT INTO subcontractor_firms (id, org_id, region_id, legal_name, status, settlement_terms_days, msa_signed_at, diagnostic_data_rights_reserved)
+             VALUES ($1, $1, $2, $3, 'onboarding', $4, $5::date, $6)`,
+            [f.id, f.region_id, f.legal_name, f.settlement_terms_days, f.msa_signed_at, f.diagnostic_data_rights_reserved]);
+        }
+        const [made] = await q<{ id: string }>(
+          `INSERT INTO crews (org_id, region_id, label, employment_type, firm_id, home_region_id, active) VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING id`,
+          [crew.org_id, crew.region_id, crew.label, crew.employment_type, crew.firm_id, crew.home_region_id]);
+        return { id: made!.id, firmId: crew.firm_id };
+      });
+    },
+
+    removeCompany: (id) => writeAsOffice(async (q) => {
+      const [c] = await q<{ id: string }>(`SELECT id FROM crews WHERE id = $1 FOR UPDATE`, [id]);
+      if (!c) throw new LoginInputError(COMPANY_GONE);
+      const [{ n: techs }] = await q<{ n: number }>(`SELECT count(*)::int AS n FROM users WHERE crew_id = $1 AND active`, [id]) as [{ n: number }];
+      if (techs > 0) throw new LoginInputError(`Move its ${plural(techs, "technician", "technicians")} to another company first`);
+      const [{ n: jobs }] = await q<{ n: number }>(`SELECT count(*)::int AS n FROM assignments WHERE crew_id = $1 AND released_at IS NULL`, [id]) as [{ n: number }];
+      if (jobs > 0) throw new LoginInputError(`It has ${plural(jobs, "job", "jobs")} assigned — release them in Dispatch first`);
+      await q(`UPDATE crews SET active = false WHERE id = $1`, [id]);
+    }),
+
+    reactivateCompany: (id) => writeAsOffice(async (q) => {
+      const [c] = await q<{ label: string; firm_status: Firm["status"] | null; legal_name: string | null }>(
+        `SELECT c.label, f.status AS firm_status, f.legal_name FROM crews c LEFT JOIN subcontractor_firms f ON f.id = c.firm_id WHERE c.id = $1 FOR UPDATE OF c`, [id]);
+      if (!c) throw new LoginInputError(COMPANY_GONE);
+      if (c.firm_status === "terminated") throw new LoginInputError(terminatedMessage(c.legal_name!));
+      if ((await q(`SELECT 1 FROM crews WHERE active AND id <> $1 AND ${NORMALISED("label")} = lower($2)`, [id, normaliseName(c.label)])).length > 0) {
+        throw new LoginInputError(`A company named ${normaliseName(c.label)} already exists`);
+      }
+      await q(`UPDATE crews SET active = true WHERE id = $1`, [id]);
+    }),
 
     listCustomerOrgs: () => read<CustomerOrg>(`SELECT id, name FROM organizations WHERE kind = 'customer' AND active ORDER BY name`),
 
@@ -155,8 +296,9 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
 
     addLogin: async (n) => {
       if (n.kind === "customer") await checkCustomerScope(n.orgId, n.tier, n.nodeId);
-      return write(async (q) => {
-        const row = buildUserRow(n);
+      const row = buildUserRow(n);
+      return (n.kind === "technician" ? writeAsOffice : write)(async (q) => {
+        if (n.kind === "technician") await requireActiveCompany(q, n.crewId);
         try {
           const [made] = await q<{ id: string }>(
             `INSERT INTO users (org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, firm_id, crew_id, password_hash)
@@ -182,7 +324,8 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
         const [who] = await read<{ namespace: string; org_id: string }>(`SELECT namespace, org_id FROM users WHERE id = $1`, [userId]);
         if (who?.namespace === "customer") await checkCustomerScope(who.org_id, edit.scope.tier, edit.scope.scopeId);
       }
-      return write(async (q) => {
+      return (edit.crew ? writeAsOffice : write)(async (q) => {
+        if (edit.crew) await requireActiveCompany(q, edit.crew.id);
         const [cur] = await q<{ roles: Role[]; region_id: string; scope_tier: Tier; scope_id: string; org_id: string; crew_id: string | null }>(
           `SELECT roles, region_id, scope_tier, scope_id, org_id, crew_id FROM users WHERE id = $1 FOR UPDATE`, [userId]);
         if (!cur) throw new LoginInputError(GONE);
@@ -203,10 +346,16 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       return { revokedSessions: await revoke(q, userId) };
     }),
 
-    reactivate: (userId) => write(async (q) => {
-      const hit = await q(`UPDATE users SET active = true WHERE id = $1 RETURNING id`, [userId]);
-      if (hit.length === 0) throw new LoginInputError(GONE);
-    }),
+    reactivate: async (userId) => {
+      const [who] = await read<{ crew_id: string | null }>(`SELECT crew_id FROM users WHERE id = $1`, [userId]);
+      if (!who) throw new LoginInputError(GONE);
+      const crewId = who.crew_id;
+      return (crewId ? writeAsOffice : write)(async (q) => {
+        if (crewId) await requireActiveCompany(q, crewId);
+        const hit = await q(`UPDATE users SET active = true WHERE id = $1 RETURNING id`, [userId]);
+        if (hit.length === 0) throw new LoginInputError(GONE);
+      });
+    },
 
     close: () => pool.end(),
   };

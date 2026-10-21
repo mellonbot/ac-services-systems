@@ -8,7 +8,7 @@ export const S2_CSS = `
 .s2-notice{display:flex;gap:var(--space-3);align-items:baseline;padding:var(--space-2) var(--space-3);background:var(--color-surface-sunken);border:1px solid var(--color-status-at-risk);border-radius:var(--radius-control)}
 .s2-notice p{margin:0}
 .s2-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2)}
-.s2-two-col{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,3fr);gap:var(--space-6);align-items:start}
+.s2-two-col{display:grid;grid-template-columns:minmax(var(--column-side),1fr) minmax(0,3fr);gap:var(--space-6);align-items:start}
 .s2-col--orgs{position:sticky;top:var(--space-3)}
 .s2-node{display:inline-block;padding-inline-start:calc(var(--depth,0) * var(--space-6))}
 .s2-node[data-depth="1"]{--depth:1}
@@ -18,12 +18,12 @@ export const S2_CSS = `
 .s2-row-actions{display:inline-flex;gap:var(--space-3);white-space:nowrap}
 .s2-link--action{display:inline-flex;align-items:center;text-decoration:none}
 .s2-empty,.s2-loading{color:var(--color-text-muted)}
-.s2-form-screen{max-width:64ch;display:flex;flex-direction:column;gap:var(--space-3)}
+.s2-form-screen{max-width:var(--measure-text);display:flex;flex-direction:column;gap:var(--space-3)}
 .s2-fieldset small{color:var(--color-text-muted);font-size:var(--text-sm)}
 .s2-fieldset{border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-3)}
 .s2-form__actions{display:flex;align-items:center;gap:var(--space-4)}
 .s2-parent{margin:0;color:var(--color-text-muted)}
-.s2-login{max-width:40ch;margin:10vh auto 0}
+.s2-login{max-width:var(--measure-narrow);margin:10vh auto 0}
 
 /* C2 — agreements, the register-driven override form, and the resolution trace. */
 .s2-state{display:inline-block;padding:0 var(--space-2);border-radius:var(--radius-pill);border:1px solid var(--color-border);font-size:var(--text-sm)}
@@ -50,7 +50,7 @@ export const S2_CSS = `
 .s2-purchasing{display:flex;flex-direction:column;gap:var(--space-3)}
 .s2-list{margin:0;padding-inline-start:var(--space-4)}
 .s2-trace{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
-.s2-trace__step{display:grid;grid-template-columns:minmax(7rem,1fr) max-content minmax(8rem,1fr);gap:var(--space-1) var(--space-3);align-items:baseline;padding-block:var(--space-1);border-bottom:1px solid var(--color-border)}
+.s2-trace__step{display:grid;grid-template-columns:minmax(var(--label-min),1fr) max-content minmax(var(--label-min),1fr);gap:var(--space-1) var(--space-3);align-items:baseline;padding-block:var(--space-1);border-bottom:1px solid var(--color-border)}
 .s2-trace__outcome{font-variant-caps:all-small-caps;letter-spacing:var(--track-normal)}
 .s2-trace__step[data-outcome="won"] .s2-trace__outcome{color:var(--color-action-text)}
 .s2-trace__step[data-outcome="not_walked"]{color:var(--color-text-muted)}
@@ -92,7 +92,7 @@ export const S2_CSS = `
 .s2-mutation:disabled{opacity:0.55;cursor:not-allowed}
 .s2-mutation--danger{border-color:var(--color-status-breached);color:var(--color-status-breached)}
 .s2-mutation--quiet{color:var(--color-text-muted)}
-.s2-confirm{display:flex;flex-direction:column;gap:var(--space-1);min-width:min(32ch,100%);max-width:48ch;padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
+.s2-confirm{display:flex;flex-direction:column;gap:var(--space-1);min-width:min(var(--measure-narrow),100%);max-width:var(--measure-short);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
 .s2-confirm p{margin:0;color:var(--color-text-muted)}
 .s2-confirm__actions{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-1)}
 .s2-help{color:var(--color-text-muted);font-size:var(--text-sm)}

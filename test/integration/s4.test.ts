@@ -84,6 +84,12 @@ before(async () => {
   mig.stderr!.on("data", (d) => { mlog += String(d); });
   if (await new Promise<number>((r) => mig.on("exit", (c) => r(c ?? 1))) !== 0) throw new Error(`migrate failed on ${SCRATCH}:\n${mlog}`);
   pool = createPool(URL_, "ac-s4-test");
+  // pool.end() resolves once its client list is empty, but each socket closes
+  // after that; the DROP ... WITH (FORCE) in after() can terminate a backend
+  // still attached, and a pool with no 'error' listener turns that into an
+  // uncaught exception — a file whose every test passed, failed on the way
+  // out (drive-s2-c4.ts, same shape).
+  pool.on("error", () => {});
 
   await admin(`INSERT INTO regions (id, code, name, min_crew_density) VALUES ($1,'SOUTH','South',2), ($2,'WEST','West',1) ON CONFLICT (id) DO NOTHING`, [REGION_SOUTH, REGION_WEST]);
   await admin(`INSERT INTO organizations (id, name, kind) VALUES ($1,'S4 Customer','customer'), ($2,'S4 Firm LLC','subcontractor')`, [ORG, FIRM]);
@@ -148,7 +154,8 @@ before(async () => {
 });
 
 after(async () => {
-  gateway?.kill("SIGTERM");
+  // The gateway's own connections close when it exits; wait for that before the drop terminates them.
+  if (gateway && gateway.exitCode === null) await new Promise((r) => { gateway.once("exit", r); gateway.kill("SIGTERM"); });
   await pool?.end();
   if (maintenance) {
     const c = await maintenance.connect().catch(() => null);

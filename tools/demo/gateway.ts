@@ -234,6 +234,21 @@ const jobs: Job[] = [
   job(J.elPasoAug, S.elPasoFloor, "REPAIR-HVAC", "urgent", "invoiced", -22 * DAY, 4, null, [E.elPasoSplit]),
   job(J.austinJulyPm, S.austinPool, "PM-RTU", "pm", "invoiced", -60 * DAY, 3, null, [E.austinDehu]),
 ];
+
+// The Austin leak's conversation (0016): one published update, one draft the
+// customer must not see, and the thread — so S3's Job Detail and S6's job page
+// both open on something.
+{
+  const leak = jobs.find((j) => j.id === J.austinLeak)!;
+  leak.updates.push(
+    { id: uid("u"), sourceNoteId: null, body: "We have your emergency call. A technician is being dispatched to the roof units now.", state: "published", updatedAt: at(-10 * MIN), publishedAt: at(-10 * MIN), publishedByName: "South dispatcher" },
+    { id: uid("u"), sourceNoteId: null, body: "Draft — water traced to RTU-2 condensate line; confirm before telling the customer.", state: "draft", updatedAt: at(-2 * MIN), publishedAt: null, publishedByName: null },
+  );
+  leak.messages.push(
+    { id: uid("m"), authorKind: "customer", authorName: "Amped Austin manager", body: "Water is coming through the ceiling over the front desk. Roof hatch is by the loading dock.", at: at(-25 * MIN) },
+    { id: uid("m"), authorKind: "office", authorName: "South dispatcher", body: "Thanks — the crew will use the loading-dock hatch. Please keep the area clear.", at: at(-12 * MIN) },
+  );
+}
 const assignments: Assignment[] = [
   { id: uid("x"), jobId: J.austinPm, crewId: C.lsA, assignedAt: at(-3 * HOUR), releasedAt: null },
   { id: uid("x"), jobId: J.austinPoolPm, crewId: C.south1, assignedAt: at(-5 * HOUR), releasedAt: null },

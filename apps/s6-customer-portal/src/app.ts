@@ -11,6 +11,7 @@ import { agreements } from "./screens/agreements.ts";
 import { terms } from "./screens/terms.ts";
 import { request } from "./screens/request.ts";
 import { site } from "./screens/site.ts";
+import { job } from "./screens/job.ts";
 import { S6_CSS } from "./styles.ts";
 
 /**
@@ -40,7 +41,7 @@ export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(
 };
 
 export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = {
-  sites, work, agreements, terms, request, site,
+  sites, work, agreements, terms, request, site, job,
 };
 
 type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
@@ -68,12 +69,15 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       store.invalidate("equipment.list");
       store.invalidate("contacts.list");
       store.invalidate("invoices.list");
+      // 0016: what the office published about a job, and its thread.
+      store.invalidate("jobs.conversation");
     }, { topics: [
       "job.created", "job.assigned", "job.reassigned", "job.transitioned", "job.completed", "job.cancelled",
       "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",
       "service_request.created", "contract.created", "contract.amended", "contract.term_overridden", "contract.expired",
       "account.created", "account.updated", "account.deactivated",
       "equipment.registered", "account_contact.set", "invoice.issued",
+      "job.update_published", "job.message_posted",
     ] });
   };
 

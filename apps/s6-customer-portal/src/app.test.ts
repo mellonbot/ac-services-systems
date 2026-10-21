@@ -384,3 +384,61 @@ test("the request stepper: the customer's five steps, from our job states, and a
   assert.equal(stepOf({ jobState: "invoiced" }), 4);
   assert.equal(stepOf({ jobState: "cancelled" }), -1);
 });
+
+test("JOB: what the office published, newest first, and the thread — the office is 'AC Services', never a staff name; a reply posts only the job and the words", async () => {
+  const conversation = {
+    jobId: JOB,
+    updates: [
+      { id: U(40), sourceNoteId: null, body: "Technician found a failed run capacitor. Part ordered.", state: "published", updatedAt: "2026-09-15T19:12:00.000Z", publishedAt: "2026-09-15T19:12:00.000Z", publishedByName: null },
+      { id: U(41), sourceNoteId: null, body: "The part has arrived. A technician returns Thursday morning.", state: "published", updatedAt: "2026-09-17T15:00:00.000Z", publishedAt: "2026-09-17T15:00:00.000Z", publishedByName: null },
+    ],
+    messages: [
+      { id: U(42), authorKind: "customer", authorName: "Dana Ortiz", body: "Can we get it done before the Friday inspection?", at: "2026-09-15T20:01:00.000Z" },
+      { id: U(43), authorKind: "office", authorName: null, body: "Yes — holding Thursday morning for you.", at: "2026-09-15T20:20:00.000Z" },
+    ],
+  };
+  const { app, gateway } = await ready(facility, FACILITY_NODES, {
+    [OPERATIONS["jobs.conversation"].path]: { status: 200, body: conversation },
+    [OPERATIONS["jobs.postMessage"].path]: { status: 200, body: { id: U(44), authorKind: "customer", eventId: U(45) } },
+  });
+  app.router.navigate("job", { jobId: JOB });
+  render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, /Updates from AC Services/);
+  assert.ok(out.indexOf("The part has arrived") < out.indexOf("failed run capacitor"), "newest update first");
+  assert.match(out, /data-side="office"[^]*?AC Services/, "the office speaks as the company");
+  assert.match(out, /Dana Ortiz/, "a customer is named");
+  assert.match(out, /Crew en route/, "the state in the customer's words");
+  assert.doesNotMatch(out, /en_route|currentCrew/);
+  assert.match(out, /id="reply-form"/);
+  assert.match(out, /id="reply-send"/);
+
+  const shellOf = app.phase.value;
+  assert.equal(shellOf.kind, "ready");
+  if (shellOf.kind !== "ready") return;
+  await shellOf.shell.gateway.postJobMessage({ jobId: JOB, body: "Gate code is 4410." });
+  const call = gateway.calls.find((c) => c.path === OPERATIONS["jobs.postMessage"].path)!;
+  assert.deepEqual(Object.keys(JSON.parse(String(call.init?.body))).sort(), ["body", "jobId"], "which side wrote it is the gateway's to decide, not a field");
+});
+
+test("JOB: a job not in view says so, and an empty conversation says what will appear", async () => {
+  const { app } = await ready(facility, FACILITY_NODES, {
+    [OPERATIONS["jobs.conversation"].path]: { status: 200, body: { jobId: JOB, updates: [], messages: [] } },
+  });
+  app.router.navigate("job", { jobId: U(90) });
+  render(app.view()); await settle();
+  assert.match(render(app.view()), /Job not found/);
+  app.router.navigate("job", { jobId: JOB });
+  render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, /No updates yet/);
+  assert.match(out, /No messages yet/);
+});
+
+test("JOB helpers: only published updates with a date are shown, newest first; authors in the customer's words", async () => {
+  const { publishedNewestFirst, authorWord } = await import("./screens/job.ts");
+  const u = (id: string, state: "draft" | "published", publishedAt: string | null) => ({ id, sourceNoteId: null, body: id, state, updatedAt: "2026-09-01T00:00:00Z", publishedAt, publishedByName: null });
+  assert.deepEqual(publishedNewestFirst([u("a", "published", "2026-09-01T00:00:00Z"), u("d", "draft", null), u("b", "published", "2026-09-03T00:00:00Z")]).map((x) => x.id), ["b", "a"]);
+  assert.equal(authorWord({ id: "m", authorKind: "office", authorName: "Dana", body: "", at: "" }), "AC Services");
+  assert.equal(authorWord({ id: "m", authorKind: "customer", authorName: null, body: "", at: "" }), "You");
+});

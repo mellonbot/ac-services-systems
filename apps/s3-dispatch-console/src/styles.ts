@@ -11,7 +11,7 @@ export const S3_CSS = `
 .s3-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2)}
 .s3-loading,.s3-empty,.s3-muted{color:var(--color-text-muted)}
 .s3-row-actions{display:inline-flex;gap:var(--space-3);white-space:nowrap}
-.s3-login{max-width:40ch;margin:10vh auto 0}
+.s3-login{max-width:var(--measure-narrow);margin:10vh auto 0}
 .s3-job-facts{display:grid;grid-template-columns:auto 1fr;gap:var(--space-2) var(--space-4);margin:0 0 var(--space-4);align-items:baseline}
 .s3-job-facts dt{color:var(--color-text-muted);font-size:var(--text-sm)}
 .s3-job-facts dd{margin:0}
@@ -22,7 +22,7 @@ export const S3_CSS = `
 
 /* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */
 
-.s3-map-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(20rem,1fr);gap:var(--space-4);align-items:stretch}
+.s3-map-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(var(--column-side),1fr);gap:var(--space-4);align-items:stretch}
 .s3-map-scene__badge{padding:var(--space-1) var(--space-2);border:1px solid var(--color-status-blocked);border-radius:var(--radius-pill);color:var(--color-status-blocked);font-size:var(--text-xs);font-weight:700;white-space:nowrap}
 .s3-map-scene__art{position:relative;min-height:34rem;overflow:hidden;border-radius:var(--radius-control);background:var(--color-page)}
 .s3-map-lines{position:absolute;inset:0;width:100%;height:100%}
@@ -62,11 +62,11 @@ export const S3_CSS = `
 .dispatch-dashboard__date{appearance:none;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text-muted);padding:var(--space-2) var(--space-3);font-family:var(--font-label);font-size:var(--text-sm);cursor:pointer}
 .dispatch-dashboard__date.is-active{background:var(--color-surface-sunken);color:var(--color-text);border-color:var(--color-border-hard)}
 .dispatch-dashboard__board{border:1px solid var(--color-border);border-radius:var(--radius-control);overflow:hidden}
-.dispatch-board__header{display:grid;grid-template-columns:220px 1fr;align-items:center;padding:var(--space-2) var(--space-4);border-bottom:1px solid var(--color-border);background:var(--color-surface-sunken)}
+.dispatch-board__header{display:grid;grid-template-columns:var(--column-rail) 1fr;align-items:center;padding:var(--space-2) var(--space-4);border-bottom:1px solid var(--color-border);background:var(--color-surface-sunken)}
 .dispatch-board__label{font-family:var(--font-label);font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
 .dispatch-board__hours{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:0;font-family:var(--font-instrument);font-variant-numeric:tabular-nums;font-size:var(--text-xs);color:var(--color-text-muted);text-transform:uppercase}
 .dispatch-board__hours span{padding:0 var(--space-1);text-align:center}
-.dispatch-board__row{display:grid;grid-template-columns:220px 1fr;border-bottom:1px solid var(--color-border);min-height:64px;background:color-mix(in srgb,var(--color-surface-sunken) 20%,var(--color-surface))}
+.dispatch-board__row{display:grid;grid-template-columns:var(--column-rail) 1fr;border-bottom:1px solid var(--color-border);min-height:64px;background:color-mix(in srgb,var(--color-surface-sunken) 20%,var(--color-surface))}
 .dispatch-board__tech{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3);border-right:1px solid var(--color-border);background:color-mix(in srgb,var(--color-surface-sunken) 35%,var(--color-surface))}
 .dispatch-board__avatar{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:var(--radius-control);background:var(--color-surface-sunken);color:var(--color-text);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700}
 .dispatch-board__meta{display:flex;flex-direction:column;min-width:0}
@@ -115,7 +115,7 @@ export const S3_CSS = `
 .s3-act{appearance:none;border:0;background:none;padding:0;color:var(--color-action-text);font:inherit;font-size:var(--text-sm);padding-block:2px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
 .s3-act:disabled{color:var(--color-text-muted);cursor:not-allowed;text-decoration:none}
 .s3-act:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
-.s3-note{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;max-width:30ch}
+.s3-note{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;max-width:var(--measure-narrow)}
 .s3-note__body{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .s3-note-edit{display:flex;flex-direction:column;gap:var(--space-1);min-width:24ch}
 

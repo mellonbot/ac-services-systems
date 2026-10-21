@@ -396,7 +396,9 @@ async function main(): Promise<void> {
     await cdp.eval(`(() => { document.querySelector(".ac-nav__signout").click(); return true; })()`);
     await cdp.waitFor(`document.getElementById("login-form")`, "the login form after sign-out");
     await cdp.eval(fillAndSubmit("login-form", { email: EXEC_EMAIL, password: PASSWORD }));
-    await cdp.waitFor(`!document.getElementById("login-form") && ${has("Reno — Roof")}`, "the executive's sites");
+    await cdp.waitFor(`!document.getElementById("login-form") && document.getElementById("request-form")`, "the executive's work orders");
+    await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Sites").click(); return true; })()`);
+    await cdp.waitFor(has("Reno — Roof"), "the executive's sites");
     const page9 = await cdp.eval<string>(text);
     must(/Every region, location and site under this agreement\./.test(page9), "the executive's scope sentence");
     must(/Amped \/ West/.test(page9) && /Austin — Roof/.test(page9) && /Reno — Roof/.test(page9), "both regions, every site");
@@ -419,7 +421,7 @@ async function main(): Promise<void> {
     check(13, "Agreements: the master agreement, in force, data rights reserved");
 
     // ── 14. the executive's Work spans both regions, though the token is bound to South
-    await cdp.navigate(`${CUSTOMER}/work`);
+    await cdp.navigate(`${CUSTOMER}/`);
     await cdp.waitFor(has("PM-VISIT"), "Reno's job on the executive's board");
     must(await cdp.eval<boolean>(has("HVAC-REPAIR")), "and Austin's");
     check(14, "the executive's Work carries both regions' jobs");

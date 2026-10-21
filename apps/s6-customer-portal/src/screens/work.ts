@@ -141,7 +141,7 @@ export const orderCard = (ctx: ScreenContext, o: WorkOrder, invoices: readonly I
   return html`<article class="s6-order" data-order=${o.key}>
     <header class="s6-order__head">
       <div><h3 class="s6-order__title"><span class="s6-order__ref">${o.ref}</span> · ${o.title}</h3>
-        <p class="s6-order__meta">${linkTo(ctx, "site", { siteId: o.siteId }, o.siteName)} · ${o.priority ? "submitted" : "opened by the office"} <span class="ac-num">${day(o.submittedAt)}, ${time(o.submittedAt)}</span>${o.priority && o.priority !== "routine" ? ` · ${o.priority}` : ""}</p></div>
+        <p class="s6-order__meta">${linkTo(ctx, "site", { siteId: o.siteId }, o.siteName)} · ${o.priority ? "submitted" : "opened by the office"} <span class="ac-num">${day(o.submittedAt)}, ${time(o.submittedAt)}</span>${o.priority && o.priority !== "routine" ? ` · ${o.priority}` : ""}${o.job ? html` · ${linkTo(ctx, "job", { jobId: o.job.id }, "updates and messages")}` : null}</p></div>
       ${StatusPill({ density: ctx.density, status: pill.status, label: pill.label })}
     </header>
     ${at < 0 ? null : html`<ol class="s6-steps" aria-label="Where this work order stands">

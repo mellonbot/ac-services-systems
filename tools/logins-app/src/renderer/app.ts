@@ -6,7 +6,9 @@ import type { Tier } from "../../../../packages/contracts/src/tiers.ts";
 import type { Api } from "../preload.ts";
 import type { DbName } from "../connections.ts";
 import type { NewLogin } from "../rows.ts";
-import type { AccountNode, LoginEdit } from "../db.ts";
+import type { AccountNode, Company, Crew, LoginEdit } from "../db.ts";
+import { DEFAULT_COMPANY_NAME, DEFAULT_PAYMENT_TERMS_DAYS, sameName } from "../companies.ts";
+import type { NewCompany } from "../companies.ts";
 
 // Injected by build.mjs from connections.ts, which the browser bundle cannot import (node:fs).
 declare const LOCAL_DEFAULT: string;
@@ -32,9 +34,10 @@ const state = {
   db: "local" as DbName,
   production: false,
   localIsDefault: true,
-  kind: "S2" as KindId,
+  kind: "S2" as KindId | "companies",
   showInactive: false,
   users: [] as readonly UserRecord[],
+  companies: [] as readonly Company[],
 };
 
 // ── Banner ────────────────────────────────────────────────────────────────
@@ -61,28 +64,60 @@ const inKind = (u: UserRecord, id: KindId): boolean => kindsOf(u).includes(id);
 
 const renderSidebar = (): void => {
   const active = state.users.filter((u) => u.active);
-  $("kinds").replaceChildren(...KINDS.map((k) => h("li", {},
-    h("button", { type: "button", "aria-current": k.id === state.kind ? "true" : undefined, onclick: () => { state.kind = k.id; render(); } },
-      h("span", { class: "name" }, k.name),
-      h("span", { class: "count" }, String(active.filter((u) => inKind(u, k.id)).length))))));
+  const item = (id: KindId | "companies", name: string, count: number, cls = ""): HTMLLIElement => h("li", { class: cls },
+    h("button", { type: "button", "aria-current": id === state.kind ? "true" : undefined, onclick: () => { state.kind = id; render(); } },
+      h("span", { class: "name" }, name),
+      h("span", { class: "count" }, String(count))));
+  $("kinds").replaceChildren(
+    ...KINDS.map((k) => item(k.id, k.name, active.filter((u) => inKind(u, k.id)).length)),
+    item("companies", "Companies", state.companies.filter((c) => c.active).length, "companies"));
 };
 
 const roles = (u: UserRecord): string => u.roles.join(", ") || "—";
+const companyType = (t: Crew["employmentType"]): string => (t === "employed" ? "Ours" : "Contractor");
 const COLUMNS: Record<KindId, readonly [string, (u: UserRecord) => string][]> = {
   S2: [["Roles", roles], ["Scope", (u) => (u.scopeTier === "parent" ? "org-wide" : u.regionCode)]],
   S3: [["Roles", roles], ["Scope", (u) => (u.scopeTier === "parent" ? "org-wide" : u.regionCode)]],
   S4: [["Roles", roles], ["Scope", (u) => (u.scopeTier === "parent" ? "org-wide" : u.regionCode)]],
-  S5: [["Crew", (u) => u.crewLabel ?? "—"], ["Employment", (u) => u.crewEmployment ?? "—"]],
+  S5: [["Company (HVAC license)", (u) => u.crewLabel ?? "—"], ["Type", (u) => (u.crewEmployment ? companyType(u.crewEmployment) : "—")]],
   S6: [["Customer", (u) => u.orgName], ["Sees", (u) => (u.scopeTier === "parent" ? "Whole company" : u.scopeName ?? "—")]],
   S8: [["Firm", (u) => u.firmName ?? "—"]],
   S7: [],
   other: [["Namespace", (u) => u.namespace], ["Roles", roles]],
 };
 
+const COMPANY_COLUMNS: readonly [string, (c: Company) => string, string?][] = [
+  ["Type", (c) => companyType(c.employmentType)],
+  ["Firm", (c) => c.firmName ?? ""],
+  ["Region", (c) => c.regionCode],
+  ["Technicians", (c) => String(c.technicians), "num"],
+  ["Documents", (c) => c.documents],
+  ["Firm status", (c) => (c.employmentType === "subcontracted" ? c.firmStatus ?? "" : "")],
+];
+
+const renderCompanies = (): void => {
+  $("title").textContent = "Companies";
+  $("add").hidden = false;
+  $("add").textContent = "+ Add company";
+  $("note").hidden = true;
+  $("thead").replaceChildren(...["Company", ...COMPANY_COLUMNS.map(([t]) => t), ""].map((t) => h("th", { scope: "col" }, t)));
+  const rows = state.companies.filter((c) => state.showInactive || c.active);
+  $("tbody").replaceChildren(...(rows.length === 0
+    ? [h("tr", {}, h("td", { colspan: COMPANY_COLUMNS.length + 2, class: "empty" }, "No companies."))]
+    : rows.map((c) => h("tr", { class: c.active ? "" : "inactive" },
+      h("td", {}, c.label, !c.active && h("span", { class: "tag" }, "inactive")),
+      ...COMPANY_COLUMNS.map(([, f, cls]) => h("td", cls ? { class: cls } : {}, f(c))),
+      h("td", { class: "actions" }, c.active
+        ? h("button", { type: "button", onclick: () => void removeCompany(c) }, "Remove")
+        : h("button", { type: "button", onclick: () => void reactivateCompany(c) }, "Reactivate"))))));
+};
+
 const renderTable = (): void => {
+  if (state.kind === "companies") { renderCompanies(); return; }
   const kind = kindOf(state.kind);
   $("title").textContent = `${kind.name} logins`;
   $("add").hidden = !kind.canAdd;
+  $("add").textContent = "+ Add login";
   const note = $("note");
   note.hidden = !kind.note;
   note.textContent = kind.note ?? "";
@@ -112,12 +147,14 @@ const stale = (db: DbName): boolean => state.db !== db;
 const reload = async (): Promise<void> => {
   const db = state.db;
   try {
-    const users = await api.listUsers(db, state.showInactive);
+    const [users, companies] = await Promise.all([api.listUsers(db, state.showInactive), api.listCompanies(db, state.showInactive)]);
     if (stale(db)) return;
     state.users = users;
+    state.companies = companies;
   } catch (e) {
     if (stale(db)) return;
     state.users = [];
+    state.companies = [];
     banner(message(e));
   }
   render();
@@ -141,6 +178,27 @@ const reactivate = async (u: UserRecord): Promise<void> => {
   try {
     clearBanner();
     await api.reactivate(db, u.id);
+  } catch (e) { if (stale(db)) return; banner(message(e)); }
+  if (stale(db)) return;
+  await reload();
+};
+
+const removeCompany = async (c: Company): Promise<void> => {
+  const db = state.db;
+  if (db === "production" && !confirm(`Remove ${c.label}?`)) return;
+  try {
+    clearBanner();
+    await api.removeCompany(db, c.id);
+  } catch (e) { if (stale(db)) return; banner(message(e)); }
+  if (stale(db)) return;
+  await reload();
+};
+
+const reactivateCompany = async (c: Company): Promise<void> => {
+  const db = state.db;
+  try {
+    clearBanner();
+    await api.reactivateCompany(db, c.id);
   } catch (e) { if (stale(db)) return; banner(message(e)); }
   if (stale(db)) return;
   await reload();
@@ -219,6 +277,85 @@ const indented = (nodes: readonly AccountNode[]): [string, string][] => {
   return out;
 };
 
+const COMPANY_FIELD = "Company (HVAC license)";
+
+/** Every active company, grouped Ours / Contractors. */
+const companyPicker = (crews: readonly Crew[]): HTMLSelectElement => h("select", { name: "crewId", required: true },
+  h("option", { value: "" }, "Choose…"),
+  ...([["Ours", "employed"], ["Contractors", "subcontracted"]] as const).map(([label, type]) => {
+    const xs = crews.filter((c) => c.employmentType === type);
+    return xs.length > 0 && h("optgroup", { label }, ...xs.map((c) => h("option", { value: c.id }, type === "employed" ? c.label : `${c.label} — ${c.firmName ?? ""}`)));
+  }));
+
+const radios = (name: string, legend: string, options: readonly [string, string][], checked: string | null): HTMLFieldSetElement =>
+  h("fieldset", { class: "choice" }, h("legend", {}, legend),
+    ...options.map(([v, t]) => h("label", { class: "check" }, h("input", { type: "radio", name, value: v, checked: v === checked }), t)));
+
+/** A group of fields shown for one choice; disabled while hidden, so its controls are neither validated nor submitted. */
+const branch = (...children: HTMLElement[]): HTMLFieldSetElement => h("fieldset", { class: "group" }, ...children);
+const showBranch = (g: HTMLFieldSetElement, on: boolean): void => { g.hidden = !on; g.disabled = !on; };
+
+const DATA_RIGHTS_UNCHOSEN = "Choose whether diagnostic data rights are reserved";
+
+const companyForm = async (db: DbName): Promise<void> => {
+  const [regions, firms] = await Promise.all([api.listRegions(db), api.listFirms(db)]);
+  if (stale(db)) return;
+  const regionOptions = regions.map((r): [string, string] => [r.id, `${r.code} — ${r.name}`]);
+
+  const type = radios("type", "Type", [["ours", "Ours"], ["contractor", "Contractor"]], "ours");
+  const ours = branch(field("Name", input("name")), field("Region", select("regionId", regionOptions)));
+
+  const firmMode = radios("firmMode", "Firm", [["new", "New firm"], ["existing", "Existing firm"]], "new");
+  firmMode.querySelector<HTMLInputElement>("[value=existing]")!.disabled = firms.length === 0;
+  const firm = select("firmId", firms.map((x) => [x.id, x.status === "suspended" ? `${x.legalName} (suspended)` : x.legalName]));
+  const existing = branch(field("Firm", firm));
+  const legalName = input("legalName");
+  const fresh = branch(
+    field("Legal name", legalName),
+    field("Region", select("firmRegionId", regionOptions)),
+    field("Payment terms (days)", input("paymentTermsDays", { type: "number", min: 0, step: 1, value: DEFAULT_PAYMENT_TERMS_DAYS })),
+    radios("dataRights", "Diagnostic data rights reserved", [["yes", "Yes"], ["no", "No"]], null),
+    field("MSA signed date", h("input", { name: "msaSignedAt", type: "date" })),
+  );
+  // The company name follows the firm's legal name until the user types their own.
+  const companyName = input("companyName");
+  let named = false;
+  companyName.addEventListener("input", () => { named = companyName.value !== ""; });
+  const follow = (text: string): void => { if (!named) companyName.value = text; };
+  legalName.addEventListener("input", () => follow(legalName.value));
+  firm.addEventListener("change", () => follow(firms.find((x) => x.id === firm.value)?.legalName ?? ""));
+  const contractor = branch(firmMode, existing, fresh, field("Company name", companyName));
+
+  const sync = (): void => {
+    const isOurs = type.querySelector<HTMLInputElement>("[value=ours]")!.checked;
+    const isNew = firmMode.querySelector<HTMLInputElement>("[value=new]")!.checked;
+    showBranch(ours, isOurs);
+    showBranch(contractor, !isOurs);
+    showBranch(existing, !isOurs && !isNew);
+    showBranch(fresh, !isOurs && isNew);
+    follow(isNew ? legalName.value : firms.find((x) => x.id === firm.value)?.legalName ?? "");
+  };
+  type.addEventListener("change", sync);
+  firmMode.addEventListener("change", sync);
+  sync();
+
+  openForm("Add company", [type, ours, contractor], async (f) => {
+    let n: NewCompany;
+    if (str(f, "type") === "ours") {
+      n = { type: "ours", name: str(f, "name"), regionId: str(f, "regionId") };
+    } else if (str(f, "firmMode") === "existing") {
+      n = { type: "contractor", name: str(f, "companyName"), firm: { existing: str(f, "firmId") } };
+    } else {
+      if (!f.has("dataRights")) throw new Error(DATA_RIGHTS_UNCHOSEN);
+      n = { type: "contractor", name: str(f, "companyName"), firm: {
+        legalName: str(f, "legalName"), regionId: str(f, "firmRegionId"), paymentTermsDays: Number(str(f, "paymentTermsDays")),
+        dataRightsReserved: str(f, "dataRights") === "yes", msaSignedAt: str(f, "msaSignedAt") || null,
+      } };
+    }
+    await api.addCompany(db, n);
+  });
+};
+
 const WHOLE = "parent";
 
 /** Customer scope: "Whole company" (+ a region from the org's region nodes) or one node of the tree. */
@@ -249,8 +386,12 @@ const scopeRadios = (current: "org" | "region"): HTMLElement => h("fieldset", { 
     h("input", { type: "radio", name: "scope", value: v, checked: v === current, required: true }), v === "org" ? "org-wide" : "one region")));
 
 const addForm = async (): Promise<void> => {
-  const kind = kindOf(state.kind);
   const db = state.db;
+  if (state.kind === "companies") {
+    try { await companyForm(db); } catch (e) { if (!stale(db)) banner(message(e)); }
+    return;
+  }
+  const kind = kindOf(state.kind);
   const base = (f: FormData) => ({ email: str(f, "email"), displayName: str(f, "displayName"), password: str(f, "password") });
   const head = [field("Email", input("email", { type: "email", autocomplete: "off" })), field("Name", input("displayName"))];
   try {
@@ -269,7 +410,9 @@ const addForm = async (): Promise<void> => {
       case "S5": {
         const crews = await api.listCrews(db);
         if (stale(db)) return;
-        openForm("Add Technician login", [...head, field("Crew (employed)", select("crewId", crews.map((c) => [c.id, c.label]))), ...passwordFields()],
+        const picker = companyPicker(crews);
+        picker.value = crews.find((c) => c.employmentType === "employed" && sameName(c.label, DEFAULT_COMPANY_NAME))?.id ?? "";
+        openForm("Add Technician login", [...head, field(COMPANY_FIELD, picker), ...passwordFields()],
           async (f) => {
             const crew = crews.find((c) => c.id === str(f, "crewId"))!;
             await api.addLogin(db, { ...base(f), kind: "technician", crewId: crew.id, crewHomeRegionId: crew.homeRegionId });
@@ -344,11 +487,10 @@ const editForm = async (u: UserRecord): Promise<void> => {
   try {
     if (u.namespace === "internal" && u.crewId !== null) {
       const crews = await api.listCrews(db);
-      const options: [string, string][] = crews.map((c) => [c.id, c.label]);
-      if (!crews.some((c) => c.id === u.crewId)) options.unshift([u.crewId, u.crewLabel ?? u.crewId]);
-      const crew = select("crewId", options);
-      crew.value = u.crewId;
-      body.push(roleBoxes(u.roles), field("Crew", crew));
+      const crew = companyPicker(crews);
+      keepOption(crew, u.crewId, `${u.crewLabel ?? u.crewId} (removed)`);
+      body.push(roleBoxes(u.roles), field(COMPANY_FIELD, crew));
+      // `crew` is sent only when the picker moved: an unchanged company may have been removed, and naming it would refuse the edit.
       build = (f) => {
         const id = str(f, "crewId");
         const c = crews.find((x) => x.id === id);
