@@ -17,3 +17,7 @@ Claude outputs/
 # Local secrets for `wrangler dev` — never committed
 .dev.vars
 .dev.vars.*
+
+# AC Logins desktop app — build output and its own Electron install
+tools/logins-app/dist/
+tools/logins-app/node_modules/

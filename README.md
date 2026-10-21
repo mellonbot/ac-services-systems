@@ -194,11 +194,17 @@ npm run surfaces:check              # fail on drift (the guard runs this too)
 export DATABASE_URL=postgres://user:pass@host/db
 node tools/ci/migrate.ts            # versioned migrations + the repeatable term-register mirror
 node tools/ci/migrate.ts --assert   # region_id is total in the LIVE schema
-AC_TEST_LOGIN_PASSWORD=… [AC_TEST_LOGIN_REGION=SOUTH] npm run db:seed-test-logins
+AC_TEST_LOGIN_PASSWORD=… [AC_TEST_LOGIN_REGION=SOUTH] [AC_TEST_LOGIN_CUSTOMER_ORG="Amped"] npm run db:seed-test-logins
                                     # idempotent: superadmin-test@ac.test (principal, org-wide → S2, S3, S4),
                                     #   dispatcher-test@ac.test (dispatcher, one region → S3) and service_manager-test@ac.test
-                                    #   (office_manager, org-wide → S2). No default password; the region is a code, required
+                                    #   (office_manager, org-wide → S2), plus customer-test@ac.test
+                                    #   (that customer org's executive → S6) when AC_TEST_LOGIN_CUSTOMER_ORG names one. No default password; the region is a code, required
                                     #   when the database has more than one. A login is refused at the door of any other surface.
+(cd tools/logins-app && npm install && npm start)
+                                    # AC Logins: desktop app listing and managing the users table by surface (S2..S8), against Local or Production.
+                                    #   bash tools/logins-app/install-desktop.sh adds an "AC Logins" launcher (~/.local/share/applications).
+                                    #   Connections live in ~/.config/ac-logins/connections.json (0600). Production needs the PlanetScale string
+                                    #   for the gateway Worker's login (migration 0012 grants it SET ROLE ac_gateway).
 npm run test:integration            # 158 tests: the contract with RLS on (29) + the shell and the browser session over the wire (19) + C1 (12) + C2 (11) + C4 (8) + item 4, S3/S5: the gated door, the shift token, the offline replay (10) + item 6, S6: tier scoping as four customer principals see it (10) + item 7, S8: firm visibility as two firms and the office see it, and the four writes (10) + item 8, S1: what a stranger's binding reads (nothing) and its two writes (15) + item 9, the S6 site card: units, contacts, invoice lines and imagery as four customer principals see them (7) + the worker's sweeps bound under RLS and on the right calendar day, on a scratch database (5) + item 10, S4: the rollup's figures under RLS and over the wire, on a scratch database (6) + item 11, procurement: the office's side over the wire and the vendor's bound as a vendor, the vendor wall on every job table (11) + the three test logins: each opens only its own surfaces, at its own level (5)
 npm run drive:s2-c4                 # 13 checks through a REAL browser: the C4 screens end to end against the live gateway.
 npm run drive:s6                    # 15 checks through a REAL browser: a facility manager, their site card (roof, units, contacts, ledger, both request buttons) and then the executive, same bundle — AC_DRIVE_SHOTS=<dir> keeps a PNG per screen

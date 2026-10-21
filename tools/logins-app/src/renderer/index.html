@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
+  <title>AC Logins</title>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="app.css">
+  <script type="module" src="renderer.js"></script>
+</head>
+<body>
+  <header class="mast">
+    <h1>AC Logins</h1>
+    <div class="segmented" role="group" aria-label="Database">
+      <button type="button" data-db="local">Local</button>
+      <button type="button" data-db="production">Production</button>
+    </div>
+    <span id="prod-label" class="prod-label" hidden>PRODUCTION</span>
+    <button type="button" id="settings" class="icon" aria-label="Connections" title="Connections">⚙</button>
+  </header>
+  <div id="banner" class="banner" role="alert" hidden></div>
+  <div class="layout">
+    <nav class="sidebar" aria-label="Kinds of login"><ul id="kinds"></ul></nav>
+    <main class="pane">
+      <div class="pane-head">
+        <h2 id="title"></h2>
+        <p id="note" class="note" hidden></p>
+        <label class="toggle"><input type="checkbox" id="inactive"> Show inactive</label>
+        <button type="button" id="add" class="primary">+ Add login</button>
+      </div>
+      <div class="panel">
+        <table>
+          <thead><tr id="thead"></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+  <dialog id="dialog"><form id="form"></form></dialog>
+</body>
+</html>
