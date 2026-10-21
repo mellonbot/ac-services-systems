@@ -51,6 +51,8 @@ export const TOPICS = [
   // visible: the row is in the database either way, but only the event reaches
   // a board.
   "lead.captured", "call_record.logged",
+  // the office turned a lead into a residential customer (leads.convert) — arc 1's second half.
+  "lead.converted",
   // sync
   "sync.conflict_queued",
   // item 11 — purchasing. OFC hears the vendor; INV (S7) hears the office.
@@ -96,7 +98,7 @@ export type EventEnvelope = Pick<DomainEvent, "eventId" | "topic" | "entity" | "
 
 /** Block subscriptions declared, not discovered. */
 export const SUBSCRIBERS: Readonly<Record<"OFC" | "FLD" | "INV" | "WORKER", readonly Topic[]>> = {
-  OFC: ["lead.captured", "call_record.logged", "service_request.created", "service_request.photo_attached", "service_request.job_opened", "job.transitioned", "job.annotated", "job.message_posted", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended",
+  OFC: ["lead.captured", "lead.converted", "call_record.logged", "service_request.created", "service_request.photo_attached", "service_request.job_opened", "job.transitioned", "job.annotated", "job.message_posted", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended",
         // item 7: a firm's document arrived (to verify), a firm's position on a statement (to act on).
         "credential.recorded", "settlement.acknowledged", "settlement.disputed",
         // item 11: the vendor's side — a proposed price, an acknowledgement, a shipment, an invoice, an answer on a return.

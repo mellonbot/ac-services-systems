@@ -92,7 +92,7 @@ before(async () => {
   pool.on("error", () => {});
 
   await admin(`INSERT INTO regions (id, code, name, min_crew_density) VALUES ($1,'SOUTH','South',2), ($2,'WEST','West',1) ON CONFLICT (id) DO NOTHING`, [REGION_SOUTH, REGION_WEST]);
-  await admin(`INSERT INTO organizations (id, name, kind) VALUES ($1,'S4 Customer','customer'), ($2,'S4 Firm LLC','subcontractor')`, [ORG, FIRM]);
+  await admin(`INSERT INTO organizations (id, name, kind, segment) VALUES ($1,'S4 Customer','customer','commercial'), ($2,'S4 Firm LLC','subcontractor',NULL)`, [ORG, FIRM]);
   await admin(`INSERT INTO accounts (id, org_id, region_id, tier, parent_id, name) VALUES ($1,$2,$3,'region',NULL,'C / South')`, [RNODE, ORG, REGION_SOUTH]);
   await admin(`INSERT INTO accounts (id, org_id, region_id, tier, parent_id, name) VALUES ($1,$2,$3,'location',$4,'C Austin')`, [LOC, ORG, REGION_SOUTH, RNODE]);
   await admin(`INSERT INTO accounts (id, org_id, region_id, tier, parent_id, name) VALUES ($1,$2,$3,'site',$4,'C Austin Roof')`, [SITE, ORG, REGION_SOUTH, LOC]);

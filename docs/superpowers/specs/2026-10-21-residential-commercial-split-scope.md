@@ -121,7 +121,10 @@ Everyone in the household reads the home, its work orders and its
 agreements. Writes are gated by role at the unit of work, the same way S2–S4
 roles gate staff writes, so a request from a payer-only login is refused at
 the gateway, not hidden in the bundle. The first login on a home holds both.
-This serves commercial accounts unchanged and for free: the AP clerk is a
+A household is never made to have more than one login: one person
+registering on a home becomes its payer and its requester, and roles only
+narrow when the office adds a second person and gives them one job. This
+serves commercial accounts unchanged and for free: the AP clerk is a
 `payer`, the facility manager a `requester`.
 
 ## Work
@@ -143,6 +146,14 @@ This serves commercial accounts unchanged and for free: the AP clerk is a
 Roughly **3½ weeks** for one builder without the email work, **4½** with it.
 
 ## Recommended order
+
+> **Step 1 built (2026-10-21):** migration 0019 (`organizations.segment`,
+> fixed by trigger, customers only; existing customer logins backfilled to
+> payer + requester), `customers.createResidential`, `leads.list`,
+> `leads.convert`, `CUSTOMER_ROLES` with `writeRoles` gated in the unit of
+> work, S2's New customer (commercial / residential) and Leads screens, and
+> household roles in the AC Logins app. Lead conversion needed a leads list
+> first — none existed, so no screen showed a lead to the office.
 
 1. **Segment (immutable) + one-step creation + lead conversion + household
    roles.** Unblocked. The office can carry homeowners as real customers, and
