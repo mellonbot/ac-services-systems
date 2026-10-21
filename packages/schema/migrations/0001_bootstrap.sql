@@ -355,9 +355,10 @@ CREATE TABLE IF NOT EXISTS jobs (
   service_code text NOT NULL,
   priority text NOT NULL DEFAULT 'routine' CHECK (priority IN ('emergency','urgent','routine','pm')),
   service_window tstzrange NOT NULL,
-  state text NOT NULL DEFAULT 'created' CHECK (state IN ('created','assigned','en_route','on_site','in_progress','awaiting_parts','complete','reopened','invoiced','cancelled','aborted')),
+  state text NOT NULL DEFAULT 'created' CHECK (state IN ('created','assigned','en_route','on_site','in_progress','awaiting_parts','complete','reopened','invoiced','cancelled','aborted','quote_requested','quote_submitted','awaiting_customer','needs_pricing','awaiting_po','awaiting_pictures','invoice_trouble')),
   version integer NOT NULL DEFAULT 1,
   opened_at timestamptz NOT NULL DEFAULT now(),
+  return_trip boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (id)
 );
@@ -418,6 +419,53 @@ CREATE TABLE IF NOT EXISTS job_state_events (
 );
 CREATE INDEX IF NOT EXISTS job_state_events_region_id_idx ON job_state_events (region_id);
 CREATE INDEX IF NOT EXISTS job_state_events_job_id_occurred_at_idx ON job_state_events (job_id, occurred_at);
+
+CREATE TABLE IF NOT EXISTS job_notes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  job_id uuid NOT NULL REFERENCES jobs(id),
+  body text NOT NULL CHECK (length(btrim(body)) BETWEEN 1 AND 2000),
+  author_id uuid NOT NULL,
+  kind text NOT NULL DEFAULT 'note' CHECK (kind IN ('note','standing')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS job_notes_region_id_idx ON job_notes (region_id);
+CREATE INDEX IF NOT EXISTS job_notes_job_id_created_at_idx ON job_notes (job_id, created_at);
+
+CREATE TABLE IF NOT EXISTS job_updates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  job_id uuid NOT NULL REFERENCES jobs(id),
+  source_note_id uuid REFERENCES job_notes(id),
+  body text NOT NULL CHECK (length(btrim(body)) BETWEEN 1 AND 2000),
+  state text NOT NULL DEFAULT 'draft' CHECK (state IN ('draft','published')),
+  author_id uuid NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  published_at timestamptz,
+  published_by uuid,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  CONSTRAINT job_updates_published_is_stamped CHECK ((state = 'published') = (published_at IS NOT NULL AND published_by IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS job_updates_region_id_idx ON job_updates (region_id);
+CREATE INDEX IF NOT EXISTS job_updates_job_id_created_at_idx ON job_updates (job_id, created_at);
+
+CREATE TABLE IF NOT EXISTS job_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  job_id uuid NOT NULL REFERENCES jobs(id),
+  author_kind text NOT NULL CHECK (author_kind IN ('customer','office')),
+  author_id uuid NOT NULL,
+  body text NOT NULL CHECK (length(btrim(body)) BETWEEN 1 AND 2000),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS job_messages_region_id_idx ON job_messages (region_id);
+CREATE INDEX IF NOT EXISTS job_messages_job_id_created_at_idx ON job_messages (job_id, created_at);
 
 CREATE TABLE IF NOT EXISTS job_media (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

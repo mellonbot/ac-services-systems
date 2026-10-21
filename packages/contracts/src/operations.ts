@@ -343,6 +343,46 @@ export const OPERATIONS = {
     surfaces: ["S3"], carrier: "body", sdkMethod: "releaseAssignment",
     summary: "Release a crew from a job that has not yet started (state still 'assigned') and return it to 'created' for re-dispatch. Once field execution has begun this is refused by name — that is a cancellation or a reassignment conversation, not a release.",
   },
+  "jobs.transition": {
+    id: "jobs.transition", method: "POST", path: "/s3/jobs/transition", kind: "mutation", auth: "bearer",
+    surfaces: ["S3"], carrier: "body", sdkMethod: "transitionJob",
+    summary: "The office's hand on a job's state: waiting on the customer (quote requested, quote submitted, approved or declined; held mid-job and resumed) and what blocks the invoice (needs pricing, waiting on a PO or pictures, an invoice kicked back). Only the edges OFFICE_JOB_TRANSITIONS lists; anything else is refused by name as an illegal transition.",
+  },
+  "jobs.addNote": {
+    id: "jobs.addNote", method: "POST", path: "/s3/jobs/note", kind: "mutation", auth: "bearer",
+    surfaces: ["S3"], carrier: "body", sdkMethod: "addJobNote",
+    summary: "Write a note on a job. Append-only — a correction is a newer note — and internal: RLS shows notes to the office in the job's region and to nobody outside it. jobs.list carries the newest.",
+  },
+  "jobs.setReturnTrip": {
+    id: "jobs.setReturnTrip", method: "POST", path: "/s3/jobs/return-trip", kind: "mutation", auth: "bearer",
+    surfaces: ["S3"], carrier: "body", sdkMethod: "setReturnTrip",
+    summary: "Flag or clear a job as owing a second visit. Set by hand, never read out of note text. Does not bump the job's version — a flag is not a state change a device's offline log should be superseded by.",
+  },
+  "jobs.detail": {
+    id: "jobs.detail", method: "GET", path: "/s3/jobs/detail", kind: "query", auth: "bearer",
+    surfaces: ["S3"], carrier: "query", sdkMethod: "jobDetail",
+    summary: "One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — and the customer thread. RLS decides; nothing here filters.",
+  },
+  "jobs.conversation": {
+    id: "jobs.conversation", method: "GET", path: "/jobs/conversation", kind: "query", auth: "bearer",
+    surfaces: ["S6"], carrier: "query", sdkMethod: "jobConversation",
+    summary: "What a customer reads about its job beyond the state: the updates dispatch PUBLISHED and the thread. A draft, an internal note, a crew or a photo key is not here — RLS (0016) returns only published updates to a customer.",
+  },
+  "jobs.saveUpdate": {
+    id: "jobs.saveUpdate", method: "POST", path: "/s3/jobs/update", kind: "mutation", auth: "bearer",
+    surfaces: ["S3"], carrier: "body", sdkMethod: "saveJobUpdate",
+    summary: "Write or edit a DRAFT of what the customer is told, usually from an internal note. A draft is invisible to the customer; a published update cannot be edited (0016's trigger) — a correction is a new update.",
+  },
+  "jobs.publishUpdate": {
+    id: "jobs.publishUpdate", method: "POST", path: "/s3/jobs/update/publish", kind: "mutation", auth: "bearer",
+    surfaces: ["S3"], carrier: "body", sdkMethod: "publishJobUpdate",
+    summary: "Publish a draft update to the customer. Once, by name: a second publish is refused as already_published. Delivery is the customer finding it in the portal — no email or push is sent.",
+  },
+  "jobs.postMessage": {
+    id: "jobs.postMessage", method: "POST", path: "/jobs/message", kind: "mutation", auth: "bearer",
+    surfaces: ["S3", "S6"], carrier: "body", sdkMethod: "postJobMessage",
+    summary: "Write in the job's customer thread. The office (S3) and the customer (S6) post through the same door; which side wrote it is the caller's namespace, never a field. Append-only.",
+  },
   // ---- item 4: the device shift grant (D-2a) — this device, this crew, this window ----
   "devices.list": {
     id: "devices.list", method: "GET", path: "/s2/devices", kind: "query", auth: "bearer",
@@ -1070,7 +1110,46 @@ export type DisputeSettlementOutput = { readonly id: string; readonly state: "di
 export type JobPriority = "emergency" | "urgent" | "routine" | "pm";
 export type JobStateWire =
   | "created" | "assigned" | "reassigned" | "en_route" | "on_site" | "in_progress" | "awaiting_parts"
-  | "complete" | "reopened" | "invoiced" | "cancelled" | "aborted";
+  | "complete" | "reopened" | "invoiced" | "cancelled" | "aborted"
+  | "quote_requested" | "quote_submitted" | "awaiting_customer"
+  | "needs_pricing" | "awaiting_po" | "awaiting_pictures" | "invoice_trouble";
+
+/**
+ * The work is done: every state between a technician finishing and the
+ * invoice standing. A job here is not open field work — the board, the HQ
+ * rollup and "last serviced" all read it as finished — whatever is still
+ * blocking the bill. One list, because six copies of "complete or invoiced"
+ * each missed the states 0014 added.
+ */
+export const WORK_DONE_STATES: readonly JobStateWire[] = Object.freeze(["complete", "needs_pricing", "awaiting_po", "awaiting_pictures", "invoiced", "invoice_trouble"]);
+
+/**
+ * The moves the office makes by hand (`jobs.transition`, S3) — every one is
+ * the job waiting on the customer, or coming back from it. A subset of
+ * packages/domain's JOB_TRANSITIONS (the gateway test holds it there), kept
+ * here because a surface reads it to offer the buttons and a surface may not
+ * import the domain. Before dispatch the wait is a quote: requested,
+ * submitted, then approved back to `created` or declined to `cancelled`.
+ * Mid-job it is `awaiting_customer` — an approval, or access — and back to
+ * `in_progress`. After the work, whatever blocks the invoice (pricing, a PO,
+ * pictures) and back to `complete`; an invoice kicked back and re-sent.
+ * Assignment, release and the field's own moves keep their own doors.
+ */
+export const OFFICE_JOB_TRANSITIONS: Readonly<Partial<Record<JobStateWire, readonly JobStateWire[]>>> = Object.freeze({
+  created: ["quote_requested"],
+  quote_requested: ["quote_submitted", "cancelled"],
+  quote_submitted: ["created", "cancelled"],
+  on_site: ["awaiting_customer"],
+  in_progress: ["awaiting_customer"],
+  awaiting_customer: ["in_progress"],
+  // After the work: what blocks the invoice, and back to ready-to-invoice.
+  complete: ["needs_pricing", "awaiting_po", "awaiting_pictures"],
+  needs_pricing: ["complete"],
+  awaiting_po: ["complete"],
+  awaiting_pictures: ["complete"],
+  invoiced: ["invoice_trouble"],
+  invoice_trouble: ["invoiced"],
+});
 
 export type CreateJobInput = {
   readonly siteId: string;
@@ -1097,9 +1176,13 @@ export type JobWire = {
   readonly id: string; readonly siteId: string;
   /** The site's name as RLS lets this principal see the row — null when the account row is not visible to it (item 7: a firm sees the site it was sent to). */
   readonly siteName: string | null;
+  /** The site's address as recorded (accounts.address), or null — same RLS as the name. */
+  readonly siteAddress: AddressWire | null;
   readonly contractId: string | null; readonly projectId: string | null;
   readonly serviceCode: string; readonly priority: JobPriority; readonly state: JobStateWire;
   readonly serviceWindowStart: string; readonly serviceWindowEnd: string; readonly version: number; readonly openedAt: string;
+  /** When the job entered its current state: the latest job_state_events row into it, or openedAt when none has been written (a job still "created"). */
+  readonly stateChangedAt: string;
   readonly regionId: string; readonly orgId: string;
   /** The crew currently holding this job, unreleased — null once dispatched-and-released or never assigned. */
   readonly currentCrewId: string | null; readonly currentCrewLabel: string | null;
@@ -1107,6 +1190,10 @@ export type JobWire = {
   readonly currentAssignmentId: string | null;
   /** The open (unsatisfied) SLA timer, if this job still has one. */
   readonly slaDueAt: string | null; readonly slaEscalationStage: number | null; readonly slaSatisfiedAt: string | null;
+  /** 0015: a second visit is owed. The office's flag, set by hand. */
+  readonly returnTrip: boolean;
+  /** 0015: the newest job_notes row — null when there is none, and always null outside the office (RLS: notes are internal). */
+  readonly latestNote: { readonly body: string; readonly at: string } | null;
 };
 // ---- item 6: service requests ----
 export type ServiceRequestPriority = "emergency" | "urgent" | "routine";
@@ -1149,6 +1236,57 @@ export type CandidateCrewsOutput = { readonly jobId: string; readonly candidates
 
 export type ReleaseAssignmentInput = { readonly assignmentId: string; readonly orgId: string; readonly regionId: string; readonly reason?: string };
 export type ReleaseAssignmentOutput = { readonly jobId: string; readonly eventId: string };
+export type TransitionJobInput = { readonly jobId: string; readonly orgId: string; readonly regionId: string; readonly to: JobStateWire };
+export type TransitionJobOutput = { readonly jobId: string; readonly state: JobStateWire; readonly version: number; readonly eventId: string };
+export type JobNoteKind = "note" | "standing";
+export type AddJobNoteInput = { readonly jobId: string; readonly orgId: string; readonly regionId: string; readonly body: string; readonly kind?: JobNoteKind };
+export type AddJobNoteOutput = { readonly id: string; readonly jobId: string; readonly eventId: string };
+export type SetReturnTripInput = { readonly jobId: string; readonly orgId: string; readonly regionId: string; readonly returnTrip: boolean };
+export type SetReturnTripOutput = { readonly jobId: string; readonly returnTrip: boolean; readonly eventId: string };
+
+// ---- 0016: job detail and customer communication ----
+/** One visit: an assignment of a crew to the job, with the span its time entries cover inside it. */
+export type JobVisitWire = {
+  readonly id: string; readonly crewId: string; readonly crewLabel: string | null;
+  readonly assignedAt: string; readonly releasedAt: string | null;
+  /** First and last instant the crew logged time on this job during the assignment — null until it logs any. */
+  readonly workStart: string | null; readonly workEnd: string | null;
+};
+export type JobMediaWire = { readonly id: string; readonly kind: string; readonly storageKey: string; readonly label: string | null; readonly capturedAt: string };
+export type JobNoteWire = { readonly id: string; readonly body: string; readonly kind: JobNoteKind; readonly at: string; readonly authorName: string | null };
+export type JobUpdateState = "draft" | "published";
+export type JobUpdateWire = {
+  readonly id: string; readonly sourceNoteId: string | null; readonly body: string; readonly state: JobUpdateState;
+  readonly updatedAt: string; readonly publishedAt: string | null; readonly publishedByName: string | null;
+};
+/** The writer's name is null where the reader may not see the writer (a customer does not see office users). */
+export type JobMessageWire = { readonly id: string; readonly authorKind: "customer" | "office"; readonly authorName: string | null; readonly body: string; readonly at: string };
+export type JobContactWire = { readonly name: string; readonly phone: string | null; readonly email: string | null };
+export type JobDetailInput = { readonly jobId: string };
+export type JobDetailOutput = {
+  readonly job: JobWire;
+  /** The site's contact, or the nearest ancestor's — what a crew calls ahead. */
+  readonly contact: JobContactWire | null;
+  readonly visits: readonly JobVisitWire[];
+  readonly media: readonly JobMediaWire[];
+  readonly notes: readonly JobNoteWire[];
+  readonly updates: readonly JobUpdateWire[];
+  readonly messages: readonly JobMessageWire[];
+};
+export type JobConversationInput = { readonly jobId: string };
+export type JobConversationOutput = { readonly jobId: string; readonly updates: readonly JobUpdateWire[]; readonly messages: readonly JobMessageWire[] };
+export type SaveJobUpdateInput = {
+  readonly jobId: string; readonly orgId: string; readonly regionId: string; readonly body: string;
+  /** Present: edit that draft. Absent: a new draft. */
+  readonly updateId?: string;
+  /** The internal note the update was written from, if any. */
+  readonly sourceNoteId?: string;
+};
+export type SaveJobUpdateOutput = { readonly id: string; readonly state: "draft"; readonly eventId: string };
+export type PublishJobUpdateInput = { readonly updateId: string };
+export type PublishJobUpdateOutput = { readonly id: string; readonly publishedAt: string; readonly eventId: string };
+export type PostJobMessageInput = { readonly jobId: string; readonly body: string };
+export type PostJobMessageOutput = { readonly id: string; readonly authorKind: "customer" | "office"; readonly eventId: string };
 
 export type DeviceKind = "android_pilot" | "yocto_tablet" | "web_fallback";
 export type DeviceWire = {
@@ -1499,6 +1637,14 @@ export type OperationIO = {
   "dispatch.assign": { input: AssignInput; output: AssignOutput };
   "dispatch.candidates": { input: CandidateCrewsInput; output: CandidateCrewsOutput };
   "dispatch.release": { input: ReleaseAssignmentInput; output: ReleaseAssignmentOutput };
+  "jobs.transition": { input: TransitionJobInput; output: TransitionJobOutput };
+  "jobs.addNote": { input: AddJobNoteInput; output: AddJobNoteOutput };
+  "jobs.setReturnTrip": { input: SetReturnTripInput; output: SetReturnTripOutput };
+  "jobs.detail": { input: JobDetailInput; output: JobDetailOutput };
+  "jobs.conversation": { input: JobConversationInput; output: JobConversationOutput };
+  "jobs.saveUpdate": { input: SaveJobUpdateInput; output: SaveJobUpdateOutput };
+  "jobs.publishUpdate": { input: PublishJobUpdateInput; output: PublishJobUpdateOutput };
+  "jobs.postMessage": { input: PostJobMessageInput; output: PostJobMessageOutput };
   "devices.list": { input: ListDevicesInput; output: ListDevicesOutput };
   "devices.register": { input: RegisterDeviceInput; output: RegisterDeviceOutput };
   "devices.grantShift": { input: GrantShiftInput; output: GrantShiftOutput };

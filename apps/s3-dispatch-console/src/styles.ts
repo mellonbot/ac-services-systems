@@ -86,6 +86,104 @@ export const S3_CSS = `
 .dispatch-legend__item[data-tone="waiting"]::before{background:var(--color-status-at-risk)}
 .dispatch-legend__item[data-tone="neutral"]::before{background:var(--color-border-hard)}
 
+/* ---- Job Dashboard: four action buckets and the stalled-jobs table ---- */
+.s3-buckets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:var(--space-3);margin:0 0 var(--space-4)}
+.s3-bucket{--bucket-ink:var(--color-text);display:flex}
+.s3-bucket[data-tone="breached"]{--bucket-ink:var(--color-status-breached)}
+.s3-bucket[data-tone="at_risk"]{--bucket-ink:var(--color-status-at-risk)}
+.s3-bucket[data-tone="info"]{--bucket-ink:var(--color-action-text)}
+.s3-bucket[data-tone="ok"]{--bucket-ink:var(--color-status-ok)}
+.s3-bucket>section{flex:1;border-top:3px solid var(--bucket-ink)}
+.s3-bucket__head{display:flex;flex-direction:column;gap:2px;padding-bottom:var(--space-3);margin-bottom:var(--space-2);border-bottom:1px solid var(--color-border)}
+.s3-bucket__n{font-size:var(--text-display);font-weight:600;line-height:1.1;color:var(--bucket-ink)}
+.s3-bucket__title{margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
+.s3-bucket__sub,.s3-bucket__none{margin:0;color:var(--color-text-muted);font-size:var(--text-sm)}
+.s3-bucket__rows{margin:0}
+.s3-bucket__row{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-2);min-height:var(--row-height);padding-block:var(--space-1)}
+.s3-bucket__row dt{color:var(--color-text)}
+.s3-bucket__row dd{margin:0;font-weight:600}
+.s3-chips{display:flex;flex-wrap:wrap;gap:var(--space-1)}
+.s3-cust{display:flex;flex-direction:column}
+.s3-cust small{color:var(--color-text-muted);font-size:var(--text-xs)}
+.s3-cust__svc{text-transform:capitalize}
+.s3-tech{display:inline-flex;align-items:center;gap:var(--space-2);font-weight:600}
+.s3-flags{display:inline-flex;flex-wrap:wrap;align-items:center;gap:var(--space-1)}
+.s3-flag{display:inline-flex;align-items:center;padding:2px var(--space-2);border:1px solid var(--color-text-muted);border-radius:var(--radius-pill);color:var(--color-text);font-size:var(--text-xs);font-weight:600;white-space:nowrap}
+.s3-grid-scroll{overflow-x:auto}
+.s3-cust strong,.s3-tech{white-space:nowrap}
+.s3-moves{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-1)}
+.s3-act{appearance:none;border:0;background:none;padding:0;color:var(--color-action-text);font:inherit;font-size:var(--text-sm);padding-block:2px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
+.s3-act:disabled{color:var(--color-text-muted);cursor:not-allowed;text-decoration:none}
+.s3-act:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
+.s3-note{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;max-width:30ch}
+.s3-note__body{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.s3-note-edit{display:flex;flex-direction:column;gap:var(--space-1);min-width:24ch}
+
+/* ---- Job Detail (0016): header card, visit timeline, customer communication ---- */
+.s3-detail-grid{display:grid;grid-template-columns:minmax(18rem,1fr) minmax(0,2.4fr);gap:var(--space-4);align-items:start;margin:0 0 var(--space-4)}
+.s3-eyebrow{margin:0 0 var(--space-1);font-family:var(--font-label);font-size:var(--text-xs);font-weight:600;letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
+.s3-detail-head{display:flex;flex-direction:column;gap:var(--space-1);padding-bottom:var(--space-3);border-bottom:1px solid var(--color-border)}
+.s3-detail-head__site{margin:0;font-family:var(--font-display);font-size:var(--text-xl);font-weight:700}
+.s3-detail-head__where{margin:0;color:var(--color-text-muted);font-size:var(--text-sm)}
+.s3-detail-head__crews{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-3);margin:0 0 var(--space-3)}
+.s3-jobfacts{margin:0 0 var(--space-3)}
+.s3-jobfacts>div{display:flex;justify-content:space-between;gap:var(--space-3);padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}
+.s3-jobfacts dt{color:var(--color-text-muted)}
+.s3-jobfacts dd{margin:0;font-weight:600}
+.s3-standing{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-1);padding:var(--space-3);border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface-sunken)}
+.s3-standing__body{margin:0;color:var(--color-text)}
+.s3-draftbox{width:100%;min-height:4.5rem;resize:vertical;font:inherit}
+.s3-seg-btn{appearance:none;border:0;background:none;font-family:inherit;cursor:pointer}
+.s3-seg-btn:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
+.s3-visits{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3)}
+.s3-visit{display:grid;grid-template-columns:5.5rem minmax(0,1fr);gap:var(--space-3)}
+.s3-visit__date{display:flex;flex-direction:column;align-items:flex-end;padding-top:var(--space-2);color:var(--color-text-muted);font-size:var(--text-xs)}
+.s3-visit__date strong{color:var(--color-text);font-size:var(--text-md)}
+.s3-visit__card{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-3);border:1px solid var(--color-border);border-top:3px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface);min-width:0}
+.s3-visit[data-kind="office"] .s3-visit__card{border-top-color:var(--color-border)}
+.s3-visit__card--next{border-style:dashed;border-top:3px solid var(--color-action-text);background:var(--color-page)}
+.s3-visit__head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:var(--space-2)}
+.s3-visit__crews{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-3)}
+.s3-visit__when{color:var(--color-text-muted);font-size:var(--text-sm)}
+.s3-visit__sched{font-weight:700;color:var(--color-action-text)}
+.s3-visit__note{margin:0;display:flex;flex-direction:column;gap:2px}
+.s3-visit__by{color:var(--color-text-muted);font-size:var(--text-xs)}
+.s3-visits__earlier{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:var(--space-2);padding:var(--space-3);border:1px dashed var(--color-border-hard);border-radius:var(--radius-control);color:var(--color-text-muted)}
+.s3-photos{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.s3-photo{display:flex;flex-direction:column;gap:2px;width:6.5rem;margin:0}
+.s3-photo__well{display:block;height:3.5rem;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface-sunken)}
+.s3-photo figcaption{display:flex;flex-direction:column;font-size:var(--text-xs);min-width:0}
+.s3-photo figcaption strong,.s3-photo figcaption span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.s3-photo figcaption span{color:var(--color-text-muted)}
+.s3-photo--more{appearance:none;justify-content:center;align-items:center;height:3.5rem;border:1px dashed var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action-text);font:inherit;font-size:var(--text-sm);font-weight:600;cursor:pointer}
+.s3-photo--more:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
+.s3-comms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4);align-items:start}
+.s3-comms__col{display:flex;flex-direction:column;gap:var(--space-3);min-width:0}
+.s3-update{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
+.s3-update__note{margin:0;font-size:var(--text-sm)}
+.s3-update__foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:var(--space-2);margin:0;color:var(--color-text-muted);font-size:var(--text-xs)}
+.s3-customer-text{margin:0;padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface-sunken)}
+.s3-thread{display:flex;flex-direction:column;gap:var(--space-3);padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
+.s3-thread__list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3)}
+.s3-msg{display:flex;flex-direction:column;gap:2px;max-width:80%}
+.s3-msg[data-side="office"]{align-self:flex-end;align-items:flex-end}
+.s3-msg__by{color:var(--color-text-muted);font-size:var(--text-xs)}
+.s3-msg__body{margin:0;padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-card);background:var(--color-surface-sunken)}
+.s3-msg[data-side="office"] .s3-msg__body{border-color:color-mix(in srgb,var(--color-action-text) 45%,transparent);background:color-mix(in srgb,var(--color-action) 14%,var(--color-surface));color:var(--color-text)}
+.s3-thread__reply{display:flex;gap:var(--space-2);align-items:center}
+.s3-grow{flex:1;min-width:0}
+.s3-notify{display:flex;gap:var(--space-2);align-items:flex-start;color:var(--color-text-muted);font-size:var(--text-sm)}
+.s3-notify span{display:flex;flex-direction:column}
+.s3-notify small{font-size:var(--text-xs)}
+.s3-internal{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-3);border:1px dashed var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-page)}
+.s3-internal__list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.s3-internal__list li{padding-bottom:var(--space-2);border-bottom:1px solid var(--color-border)}
+.s3-internal__list p{margin:2px 0 0}
+.s3-pick{list-style:none;margin:0;padding:0}
+.s3-pick li{display:grid;grid-template-columns:7rem minmax(0,1fr) auto;gap:var(--space-3);align-items:baseline;padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}
+@media (max-width:980px){.s3-detail-grid,.s3-comms{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:600px){.s3-visit{grid-template-columns:minmax(0,1fr)}.s3-visit__date{flex-direction:row;gap:var(--space-2);align-items:baseline;padding:0}.s3-pick li{grid-template-columns:minmax(0,1fr)}.s3-msg{max-width:95%}}
+
 .s3-map-job-list{display:flex;flex-direction:column;gap:0;max-height:34rem;overflow:auto;list-style:none;margin:0;padding:0}.s3-map-job{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--color-border)}
 .s3-map-job__main{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-2)}
 .s3-map-job__site{font-weight:700}

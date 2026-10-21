@@ -21,6 +21,7 @@
 - `service_request`
 - `payment`
 - `contact_update`
+- `job_message`
 
 ## Degraded mode
 

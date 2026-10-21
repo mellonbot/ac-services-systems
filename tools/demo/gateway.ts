@@ -10,7 +10,7 @@
  * (term resolution, override admission, the compliance gate, context
  * resolution) the real module is imported and run.
  */
-import { OPERATIONS, routeKey, type OperationId } from "../../packages/contracts/src/operations.ts";
+import { OPERATIONS, OFFICE_JOB_TRANSITIONS, WORK_DONE_STATES, routeKey, type OperationId } from "../../packages/contracts/src/operations.ts";
 import type * as W from "../../packages/contracts/src/operations.ts";
 import { SURFACES, type SurfaceId } from "../../packages/contracts/src/surfaces.ts";
 import type { Principal } from "../../packages/contracts/src/scope.ts";
@@ -64,7 +64,7 @@ type Account = { id: string; orgId: string; tier: W.AccountTierWire; name: strin
 type Firm = Mutable<Omit<W.FirmWire, "crewCount" | "activeCrewCount">>;
 type Crew = Mutable<Omit<W.CrewWire, "documents">>;
 type Credential = Mutable<W.CredentialWire>;
-type Job = { id: string; siteId: string; orgId: string; regionId: string; contractId: string | null; serviceCode: string; priority: W.JobPriority; state: W.JobStateWire; serviceWindowStart: string; serviceWindowEnd: string; version: number; openedAt: string; slaDueAt: string | null; slaEscalationStage: number | null; slaSatisfiedAt: string | null; equipmentIds: string[] };
+type Job = { id: string; siteId: string; orgId: string; regionId: string; contractId: string | null; serviceCode: string; priority: W.JobPriority; state: W.JobStateWire; serviceWindowStart: string; serviceWindowEnd: string; version: number; openedAt: string; stateChangedAt: string; slaDueAt: string | null; slaEscalationStage: number | null; slaSatisfiedAt: string | null; equipmentIds: string[]; returnTrip: boolean; notes: W.JobNoteWire[]; updates: Mutable<W.JobUpdateWire>[]; messages: W.JobMessageWire[] };
 type Assignment = { id: string; jobId: string; crewId: string; assignedAt: string; releasedAt: string | null };
 type Settlement = Mutable<Omit<W.SettlementWire, "lineCount">>;
 type User = { id: string; email: string; password: string; name: string; principal: Omit<Principal, "sessionId">; surfaces: SurfaceId[]; crewId?: string };
@@ -197,9 +197,9 @@ const job = (id: string, siteId: string, serviceCode: string, priority: W.JobPri
   return {
     id, siteId, orgId: site.orgId, regionId: site.regionId, contractId, serviceCode, priority, state,
     serviceWindowStart: at(startMs), serviceWindowEnd: at(startMs + hours * HOUR), version: state === "created" ? 1 : 3,
-    openedAt: at(Math.min(startMs, 0) - 2 * HOUR),
+    openedAt: at(Math.min(startMs, 0) - 2 * HOUR), stateChangedAt: state === "created" ? at(Math.min(startMs, 0) - 2 * HOUR) : at(Math.min(startMs, 0)),
     slaDueAt: sla ? at(sla.dueMs) : null, slaEscalationStage: sla ? sla.stage : null, slaSatisfiedAt: sla?.satisfiedMs !== undefined ? at(sla.satisfiedMs) : null,
-    equipmentIds,
+    equipmentIds, returnTrip: false, notes: [], updates: [], messages: [],
   };
 };
 
@@ -458,6 +458,10 @@ const visibleCrews = (p: Principal): Crew[] =>
 // Wire shaping.
 // ---------------------------------------------------------------------------
 const liveAssignment = (jobId: string) => assignments.filter((a) => a.jobId === jobId && a.releasedAt === null).at(-1) ?? null;
+const latestNoteOf = (j: Job): { body: string; at: string } | null => {
+  const n = j.notes.filter((x) => x.kind === "note").at(-1);
+  return n ? { body: n.body, at: n.at } : null;
+};
 const jobWire = (j: Job, p: Principal): W.JobWire => {
   const site = accounts.find((a) => a.id === j.siteId)!;
   let a = liveAssignment(j.id);
@@ -467,10 +471,12 @@ const jobWire = (j: Job, p: Principal): W.JobWire => {
   const crew = a ? crews.find((c) => c.id === a!.crewId) ?? null : null;
   const open = j.slaDueAt !== null && j.slaSatisfiedAt === null;
   return {
-    id: j.id, siteId: j.siteId, siteName: site.name, contractId: j.contractId, projectId: null, serviceCode: j.serviceCode, priority: j.priority, state: j.state,
-    serviceWindowStart: j.serviceWindowStart, serviceWindowEnd: j.serviceWindowEnd, version: j.version, openedAt: j.openedAt, regionId: j.regionId, orgId: j.orgId,
+    id: j.id, siteId: j.siteId, siteName: site.name, siteAddress: site.address, contractId: j.contractId, projectId: null, serviceCode: j.serviceCode, priority: j.priority, state: j.state,
+    serviceWindowStart: j.serviceWindowStart, serviceWindowEnd: j.serviceWindowEnd, version: j.version, openedAt: j.openedAt, stateChangedAt: j.stateChangedAt, regionId: j.regionId, orgId: j.orgId,
     currentCrewId: crew?.id ?? null, currentCrewLabel: crew?.label ?? null, currentAssignmentId: a?.id ?? null,
     slaDueAt: open ? j.slaDueAt : null, slaEscalationStage: open ? j.slaEscalationStage : null, slaSatisfiedAt: j.slaSatisfiedAt,
+    // Notes are the office's (0015): nobody outside the internal namespace reads one.
+    returnTrip: j.returnTrip, latestNote: p.namespace === "internal" ? latestNoteOf(j) : null,
   };
 };
 const docSummary = (crew: Crew): W.CrewDocumentSummary => {
@@ -526,7 +532,7 @@ const hqRegions = (): W.HqRegionWire[] => [
   ...REGIONS.map((r) => ({ id: r.id, code: r.code, name: r.name, active: r.active, placed: true })),
   { id: UNASSIGNED_REGION_ID, code: "UNASSIGNED", name: "Unassigned (pre-account)", active: true, placed: false },
 ];
-const CLOSED = ["complete", "invoiced", "cancelled", "aborted"];
+const CLOSED: readonly string[] = [...WORK_DONE_STATES, "cancelled", "aborted"];
 const hqFigures = (regionId: string, now: number): Record<HqMetricKey, number> => {
   const in30 = (iso: string | null | undefined) => !!iso && Date.parse(iso) > now - 30 * DAY && Date.parse(iso) <= now;
   const t = new Date(now).toISOString().slice(0, 10);
@@ -546,7 +552,7 @@ const hqFigures = (regionId: string, now: number): Record<HqMetricKey, number> =
   const wc = workingCapital[regionId];
   return {
     jobs_opened_30d: rj.filter((j) => in30(j.openedAt)).length,
-    jobs_completed_30d: rj.filter((j) => in30(j.openedAt) && ["complete", "invoiced"].includes(j.state)).length,
+    jobs_completed_30d: rj.filter((j) => in30(j.openedAt) && WORK_DONE_STATES.includes(j.state)).length,
     jobs_open_now: open.length,
     jobs_unassigned_now: open.filter((j) => !liveAssignment(j.id)).length,
     jobs_at_risk_now: open.filter((j) => j.slaDueAt && !j.slaSatisfiedAt && ((j.slaEscalationStage ?? 0) > 0 || Date.parse(j.slaDueAt) <= now + HOUR)).length,
@@ -706,7 +712,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     if (!visibleAccounts(p).some((a) => a.id === i.siteId)) return { equipment: [] };
     return {
       equipment: equipment.filter((e) => e.siteId === i.siteId).map((e) => {
-        const done = jobs.filter((j) => j.equipmentIds.includes(e.id) && (j.state === "complete" || j.state === "invoiced")).sort((a, b) => a.serviceWindowEnd.localeCompare(b.serviceWindowEnd)).at(-1);
+        const done = jobs.filter((j) => j.equipmentIds.includes(e.id) && WORK_DONE_STATES.includes(j.state)).sort((a, b) => a.serviceWindowEnd.localeCompare(b.serviceWindowEnd)).at(-1);
         return { ...e, lastServicedAt: done?.serviceWindowEnd ?? null, lastServicedJobId: done?.id ?? null, lastServicedServiceCode: done?.serviceCode ?? null, jobCount: jobs.filter((j) => j.equipmentIds.includes(e.id)).length };
       }),
     };
@@ -960,7 +966,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     if (prev) prev.releasedAt = new Date().toISOString();
     const a: Assignment = { id: uid("x"), jobId: j!.id, crewId: c!.id, assignedAt: new Date().toISOString(), releasedAt: null };
     assignments.push(a);
-    j!.state = prev ? "reassigned" : "assigned"; j!.version++;
+    j!.state = prev ? "reassigned" : "assigned"; j!.version++; j!.stateChangedAt = new Date().toISOString();
     if (j!.slaSatisfiedAt === null && j!.slaDueAt) j!.slaSatisfiedAt = new Date().toISOString();
     const req = serviceRequests.find((s) => s.jobId === j!.id);
     if (req) req.jobState = j!.state;
@@ -973,15 +979,94 @@ const H: Partial<Record<OperationId, Handler>> = {
     const j = jobs.find((x) => x.id === a!.jobId)!;
     if (j.state !== "assigned" && j.state !== "reassigned") throw new Refused(422, "TriggerRefused", `job is ${j.state.replace("_", " ")} — field execution has begun; this is a cancellation or a reassignment, not a release`, "ac_release_before_start");
     a!.releasedAt = new Date().toISOString();
-    j.state = "created"; j.version++;
+    j.state = "created"; j.version++; j.stateChangedAt = new Date().toISOString();
     return { jobId: j.id, eventId: publish(surface, "job.reassigned", "job", j.id, j.orgId, j.regionId) };
+  },
+
+  "jobs.transition": (i: W.TransitionJobInput, { surface }) => {
+    const j = jobs.find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    const legal = OFFICE_JOB_TRANSITIONS[j!.state] ?? [];
+    if (!legal.includes(i.to)) throw input422(`job ${i.jobId} is "${j!.state}" — the office may move it to ${legal.length ? legal.map((s) => `"${s}"`).join(" or ") : "nothing from here"}, not "${String(i.to)}"`, "illegal_transition");
+    j!.state = i.to; j!.version++; j!.stateChangedAt = new Date().toISOString();
+    return { jobId: j!.id, state: j!.state, version: j!.version, eventId: publish(surface, "job.transitioned", "job", j!.id, j!.orgId, j!.regionId) };
+  },
+
+  "jobs.addNote": (i: W.AddJobNoteInput, { surface, session }) => {
+    const j = jobs.find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    const body = String(i.body ?? "").trim();
+    need(body && body.length <= 2000, "a note is 1 to 2000 characters", "bad_input");
+    const id = uid("n");
+    j!.notes.push({ id, body, kind: i.kind === "standing" ? "standing" : "note", at: new Date().toISOString(), authorName: session?.user.name ?? null });
+    return { id, jobId: j!.id, eventId: publish(surface, "job.annotated", "job", j!.id, j!.orgId, j!.regionId) };
+  },
+  // 0016 — the job as dispatch reads it, and what the customer is told. A customer reads published updates only.
+  "jobs.detail": (i: W.JobDetailInput, { p, surface }) => {
+    const j = visibleJobs(p, surface).find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    const up = [...ancestorsOf(j!.siteId)];
+    const contact = contacts.filter((c) => up.includes(c.accountId) && c.active)
+      .sort((a, b) => up.indexOf(a.accountId) - up.indexOf(b.accountId) || Number(b.isPrimary) - Number(a.isPrimary))[0];
+    return {
+      job: jobWire(j!, p),
+      contact: contact ? { name: contact.name, phone: contact.phone, email: contact.email } : null,
+      visits: assignments.filter((a) => a.jobId === j!.id).map((a) => ({ id: a.id, crewId: a.crewId, crewLabel: crews.find((c) => c.id === a.crewId)?.label ?? null, assignedAt: a.assignedAt, releasedAt: a.releasedAt, workStart: null, workEnd: null })),
+      media: [], notes: j!.notes, updates: j!.updates, messages: j!.messages,
+    };
+  },
+  "jobs.conversation": (i: W.JobConversationInput, { p, surface }) => {
+    const j = visibleJobs(p, surface).find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    return { jobId: j!.id, updates: j!.updates.filter((u) => u.state === "published"), messages: j!.messages.map((m) => (m.authorKind === "office" ? { ...m, authorName: null } : m)) };
+  },
+  "jobs.saveUpdate": (i: W.SaveJobUpdateInput, { surface }) => {
+    const j = jobs.find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    const body = String(i.body ?? "").trim();
+    need(body && body.length <= 2000, "an update is 1 to 2000 characters", "bad_input");
+    const now = new Date().toISOString();
+    let u = i.updateId ? j!.updates.find((x) => x.id === i.updateId) : undefined;
+    if (i.updateId) {
+      need(u, `update ${i.updateId} is not a draft on job ${i.jobId}`, "unknown_update");
+      need(u!.state === "draft", `update ${i.updateId} is already published to the customer`, "already_published");
+      u!.body = body; u!.updatedAt = now;
+    } else {
+      u = { id: uid("u"), sourceNoteId: i.sourceNoteId ?? null, body, state: "draft", updatedAt: now, publishedAt: null, publishedByName: null };
+      j!.updates.push(u);
+    }
+    return { id: u!.id, state: "draft", eventId: publish(surface, "job.annotated", "job", j!.id, j!.orgId, j!.regionId) };
+  },
+  "jobs.publishUpdate": (i: W.PublishJobUpdateInput, { surface, session }) => {
+    const j = jobs.find((x) => x.updates.some((u) => u.id === i.updateId));
+    need(j, `update ${i.updateId} not found in scope`, "unknown_update");
+    const u = j!.updates.find((x) => x.id === i.updateId)!;
+    need(u.state === "draft", `update ${i.updateId} is already published to the customer`, "already_published");
+    u.state = "published"; u.publishedAt = new Date().toISOString(); u.updatedAt = u.publishedAt; u.publishedByName = session?.user.name ?? null;
+    return { id: u.id, publishedAt: u.publishedAt, eventId: publish(surface, "job.update_published", "job", j!.id, j!.orgId, j!.regionId) };
+  },
+  "jobs.postMessage": (i: W.PostJobMessageInput, { p, surface, session }) => {
+    const j = visibleJobs(p, surface).find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    const body = String(i.body ?? "").trim();
+    need(body && body.length <= 2000, "a message is 1 to 2000 characters", "bad_input");
+    const authorKind = p.namespace === "customer" ? "customer" : "office";
+    const id = uid("m");
+    j!.messages.push({ id, authorKind, authorName: session?.user.name ?? null, body, at: new Date().toISOString() });
+    return { id, authorKind, eventId: publish(surface, "job.message_posted", "job", j!.id, j!.orgId, j!.regionId) };
+  },
+  "jobs.setReturnTrip": (i: W.SetReturnTripInput, { surface }) => {
+    const j = jobs.find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    j!.returnTrip = i.returnTrip === true;
+    return { jobId: j!.id, returnTrip: j!.returnTrip, eventId: publish(surface, "job.annotated", "job", j!.id, j!.orgId, j!.regionId) };
   },
 
   // ---- S5 ----
   "jobs.mine": (_i, { session }) => {
     const crewId = session?.user.crewId;
     return {
-      jobs: jobs.filter((j) => liveAssignment(j.id)?.crewId === crewId && !["complete", "invoiced", "cancelled"].includes(j.state))
+      jobs: jobs.filter((j) => liveAssignment(j.id)?.crewId === crewId && ![...WORK_DONE_STATES, "cancelled"].includes(j.state))
         .map((j) => ({ id: j.id, siteId: j.siteId, serviceCode: j.serviceCode, priority: j.priority, state: j.state, serviceWindowStart: j.serviceWindowStart, serviceWindowEnd: j.serviceWindowEnd, version: j.version })),
     };
   },
@@ -998,7 +1083,7 @@ const H: Partial<Record<OperationId, Handler>> = {
           outcomes.push({ outcome: "superseded", mutationId: m.mutationId, note: `the office changed this job while the device was offline (v${j.version})`, serverState: { version: j.version, state: j.state, fields: {} } });
           continue;
         }
-        if (to) { j.state = to as W.JobStateWire; j.version++; publish(surface, to === "complete" ? "job.completed" : "job.transitioned", "job", j.id, j.orgId, j.regionId); }
+        if (to) { j.state = to as W.JobStateWire; j.version++; j.stateChangedAt = new Date().toISOString(); publish(surface, to === "complete" ? "job.completed" : "job.transitioned", "job", j.id, j.orgId, j.regionId); }
         outcomes.push({ outcome: "applied", mutationId: m.mutationId, newVersion: j.version });
       } else {
         outcomes.push({ outcome: "applied", mutationId: m.mutationId, newVersion: (j?.version ?? 0) + 1 });

@@ -20,6 +20,12 @@ export const TOPICS = [
   // node. INV subscribes: the site card refetches the list the event touched.
   "equipment.registered", "account_contact.set",
   "job.created", "job.assigned", "job.transitioned", "job.reassigned", "job.cancelled", "job.completed",
+  // 0015: a note written or the return-trip flag changed. OFC subscribes so
+  // every dispatcher's dashboard refetches; nobody outside the office does.
+  "job.annotated",
+  // 0016: the customer was told something (an update published), or either side
+  // wrote in the thread. OFC refetches the job; INV (S6) refetches the conversation.
+  "job.update_published", "job.message_posted",
   "project.created", "project.crew_requested", "project.crew_released", "project.closed",
   // SLA
   "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",
@@ -86,14 +92,14 @@ export type EventEnvelope = Pick<DomainEvent, "eventId" | "topic" | "entity" | "
 
 /** Block subscriptions declared, not discovered. */
 export const SUBSCRIBERS: Readonly<Record<"OFC" | "FLD" | "INV" | "WORKER", readonly Topic[]>> = {
-  OFC: ["lead.captured", "call_record.logged", "service_request.created", "job.transitioned", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended",
+  OFC: ["lead.captured", "call_record.logged", "service_request.created", "job.transitioned", "job.annotated", "job.message_posted", "job.completed", "sla.escalated", "sla.breached", "credential.expiring", "credential.expired", "crew.compliance_refused", "sync.conflict_queued", "contract.amended",
         // item 7: a firm's document arrived (to verify), a firm's position on a statement (to act on).
         "credential.recorded", "settlement.acknowledged", "settlement.disputed",
         // item 11: the vendor's side — a proposed price, an acknowledgement, a shipment, an invoice, an answer on a return.
         "vendor_price.proposed", "po.acknowledged", "po.shipped", "vendor_invoice.submitted", "rma.responded"],
   FLD: ["job.assigned", "job.reassigned", "job.cancelled", "contract.term_overridden"],
   // S8 learns of its own verification and its own price the same way S2 does — by refetch.
-  INV: ["job.completed", "contract.amended", "contract.term_overridden", "sla.breached", "settlement.statement_issued", "firm.status_changed", "credential.verified", "rate_card.changed", "brand.theme_set",
+  INV: ["job.completed", "job.update_published", "job.message_posted", "contract.amended", "contract.term_overridden", "sla.breached", "settlement.statement_issued", "firm.status_changed", "credential.verified", "rate_card.changed", "brand.theme_set",
         // item 9: the site card's own facts.
         "equipment.registered", "account_contact.set", "invoice.issued",
         // item 11: what S7 refetches on — the office issued, cancelled, received, decided a price, asked for a return.

@@ -4,8 +4,10 @@ import { deriveDueAt } from "../../../../packages/domain/src/sla/index.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type {
   CreateJobInput, CreateJobOutput, JobPriority, JobStateWire, JobWire, ListJobsOutput,
-  FieldJobWire, MyJobsOutput,
+  FieldJobWire, MyJobsOutput, AddressWire, TransitionJobInput, TransitionJobOutput,
+  AddJobNoteInput, AddJobNoteOutput, SetReturnTripInput, SetReturnTripOutput,
 } from "../../../../packages/contracts/src/operations.ts";
+import { OFFICE_JOB_TRANSITIONS } from "../../../../packages/contracts/src/operations.ts";
 
 /**
  * ITEM 4 — THE JOB ITSELF. A job is created in Office & Dispatch (00 §2.2)
@@ -20,11 +22,11 @@ import type {
  * one this system will silently invent.
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const requireUuid = (v: unknown, field: string): string => {
+export const requireUuid = (v: unknown, field: string): string => {
   if (typeof v !== "string" || !UUID.test(v)) throw new BadInput(`${field} must be a uuid`);
   return v;
 };
-const requireText = (v: unknown, field: string): string => {
+export const requireText = (v: unknown, field: string): string => {
   if (typeof v !== "string" || v.trim().length === 0) throw new BadInput(`${field} is required`);
   return v.trim();
 };
@@ -37,35 +39,42 @@ const requireIso = (v: unknown, field: string): Date => {
 
 const PRIORITIES: readonly JobPriority[] = ["emergency", "urgent", "routine", "pm"];
 
-type JobRow = {
-  id: string; site_id: string; site_name: string | null; contract_id: string | null; project_id: string | null;
+export type JobRow = {
+  id: string; site_id: string; site_name: string | null; site_address: AddressWire | null; contract_id: string | null; project_id: string | null;
   service_code: string; priority: JobPriority; state: JobStateWire;
-  ws: string; we: string; version: number; opened_at: string; region_id: string; org_id: string;
+  ws: string; we: string; version: number; opened_at: string; state_changed_at: string; region_id: string; org_id: string;
   current_crew_id: string | null; current_crew_label: string | null; current_assignment_id: string | null;
   sla_due_at: string | null; sla_escalation_stage: number | null; sla_satisfied_at: string | null;
+  return_trip: boolean; note_body: string | null; note_at: string | null;
 };
 
-const toWire = (r: JobRow): JobWire => ({
-  id: r.id, siteId: r.site_id, siteName: r.site_name, contractId: r.contract_id, projectId: r.project_id,
+export const toWire = (r: JobRow): JobWire => ({
+  id: r.id, siteId: r.site_id, siteName: r.site_name, siteAddress: r.site_address, contractId: r.contract_id, projectId: r.project_id,
   serviceCode: r.service_code, priority: r.priority, state: r.state,
-  serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version, openedAt: r.opened_at,
+  serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version, openedAt: r.opened_at, stateChangedAt: r.state_changed_at,
   regionId: r.region_id, orgId: r.org_id,
   currentCrewId: r.current_crew_id, currentCrewLabel: r.current_crew_label, currentAssignmentId: r.current_assignment_id,
   slaDueAt: r.sla_due_at, slaEscalationStage: r.sla_escalation_stage, slaSatisfiedAt: r.sla_satisfied_at,
+  returnTrip: r.return_trip, latestNote: r.note_body !== null && r.note_at !== null ? { body: r.note_body, at: r.note_at } : null,
 });
 
-const JOB_SELECT = `
-  SELECT j.id, j.site_id, s.name AS site_name, j.contract_id, j.project_id, j.service_code, j.priority, j.state,
+export const JOB_SELECT = `
+  SELECT j.id, j.site_id, s.name AS site_name, s.address AS site_address, j.contract_id, j.project_id, j.service_code, j.priority, j.state,
          lower(j.service_window) AS ws, upper(j.service_window) AS we, j.version,
-         to_char(j.opened_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS opened_at, j.region_id, j.org_id,
+         to_char(j.opened_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS opened_at,
+         to_char(COALESCE((SELECT max(e.occurred_at) FROM job_state_events e WHERE e.job_id = j.id AND e.to_state = j.state), j.opened_at)
+                 AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS state_changed_at,
+         j.region_id, j.org_id,
          a.crew_id AS current_crew_id, c.label AS current_crew_label, a.id AS current_assignment_id,
          to_char(st.due_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_due_at, st.escalation_stage AS sla_escalation_stage,
-         to_char(st.satisfied_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_satisfied_at
+         to_char(st.satisfied_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_satisfied_at,
+         j.return_trip, n.body AS note_body, to_char(n.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS note_at
     FROM jobs j
     LEFT JOIN accounts s ON s.id = j.site_id
     LEFT JOIN assignments a ON a.job_id = j.id AND a.released_at IS NULL
     LEFT JOIN crews c ON c.id = a.crew_id
-    LEFT JOIN sla_timers st ON st.job_id = j.id`;
+    LEFT JOIN sla_timers st ON st.job_id = j.id
+    LEFT JOIN LATERAL (SELECT body, created_at FROM job_notes WHERE job_id = j.id AND kind = 'note' ORDER BY created_at DESC, id DESC LIMIT 1) n ON true`;
 
 export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: () => string, now: Date): Promise<CreateJobOutput> => {
   const siteId = requireUuid(input.siteId, "siteId");
@@ -188,4 +197,97 @@ export const listMyJobs = async (uow: UnitOfWork, shiftId: string): Promise<MyJo
     serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version,
   }));
   return { jobs };
+};
+
+/**
+ * S3 → gateway: the office's hand on a job's state, and only for waiting on
+ * the customer (OFFICE_JOB_TRANSITIONS). Assignment and release keep their
+ * own doors; the field's moves arrive through sync.replay. The UPDATE names
+ * the state it read, so a job the field moved in the meantime is refused as
+ * a stale transition instead of being overwritten.
+ */
+export const transitionJob = async (uow: UnitOfWork, actorId: string, input: TransitionJobInput, at: Date): Promise<TransitionJobOutput> => {
+  const jobId = requireUuid(input.jobId, "jobId");
+  const job = (await uow.tx.query<{ state: JobStateWire; version: number; org_id: string; region_id: string }>(
+    `SELECT state, version, org_id, region_id FROM jobs WHERE id = $1`, [jobId],
+  ))[0];
+  if (!job) throw new InputRefused(`job ${jobId} not found in scope`, "unknown_job");
+  if (job.org_id !== input.orgId || job.region_id !== input.regionId) throw new InputRefused(`job ${jobId} tenancy does not match input`, "tenancy_mismatch");
+  const legal = OFFICE_JOB_TRANSITIONS[job.state] ?? [];
+  if (!legal.includes(input.to)) {
+    throw new InputRefused(
+      `job ${jobId} is "${job.state}" — the office may move it to ${legal.length ? legal.map((s) => `"${s}"`).join(" or ") : "nothing from here"}, not "${String(input.to)}"`,
+      "illegal_transition",
+    );
+  }
+
+  const version = job.version + 1;
+  const eventId = await uow.apply(
+    {
+      entity: "job_state", entityId: jobId, action: "job.transition", topic: "job.transitioned",
+      before: { state: job.state, version: job.version }, after: { state: input.to, version },
+      orgId: job.org_id, regionId: job.region_id,
+      payload: { jobId, from: job.state, to: input.to },
+    },
+    async (tx) => {
+      const moved = await tx.query(`UPDATE jobs SET state = $2, version = $4 WHERE id = $1 AND state = $3 AND version = $5 RETURNING id`, [jobId, input.to, job.state, version, job.version]);
+      if (moved.length === 0) throw new InputRefused(`job ${jobId} changed while this transition was in flight — read it again`, "illegal_transition");
+      await tx.insert("job_state_events", {
+        org_id: job.org_id, region_id: job.region_id, job_id: jobId, from_state: job.state, to_state: input.to,
+        actor_id: actorId, surface_id: "S3", mutation_id: `office:v${version}`, occurred_at: at.toISOString(),
+      });
+    },
+  );
+  return { jobId, state: input.to, version, eventId };
+};
+
+/** The job a note or flag is about, in scope and matching the tenancy the caller named. */
+export const jobInScope = async (uow: UnitOfWork, input: { jobId: string; orgId: string; regionId: string }) => {
+  const jobId = requireUuid(input.jobId, "jobId");
+  const job = (await uow.tx.query<{ org_id: string; region_id: string; return_trip: boolean }>(
+    `SELECT org_id, region_id, return_trip FROM jobs WHERE id = $1`, [jobId],
+  ))[0];
+  if (!job) throw new InputRefused(`job ${jobId} not found in scope`, "unknown_job");
+  if (job.org_id !== input.orgId || job.region_id !== input.regionId) throw new InputRefused(`job ${jobId} tenancy does not match input`, "tenancy_mismatch");
+  return { jobId, ...job };
+};
+
+/** S3 → gateway: a note on a job. Append-only (0015's trigger), internal only (0015's policy). */
+export const addJobNote = async (uow: UnitOfWork, actorId: string, input: AddJobNoteInput, newId: () => string): Promise<AddJobNoteOutput> => {
+  const body = requireText(input.body, "body");
+  if (body.length > 2000) throw new BadInput("body must be 2000 characters or fewer — a note, not a report");
+  const kind = input.kind ?? "note";
+  if (kind !== "note" && kind !== "standing") throw new BadInput("kind must be note or standing");
+  const job = await jobInScope(uow, input);
+  const id = newId();
+  const eventId = await uow.apply(
+    {
+      entity: "job_note", entityId: job.jobId, action: "job.note.add", topic: "job.annotated",
+      before: null, after: { noteId: id, body, kind },
+      orgId: job.org_id, regionId: job.region_id,
+      payload: { jobId: job.jobId, noteId: id },
+    },
+    async (tx) => {
+      await tx.insert("job_notes", { id, org_id: job.org_id, region_id: job.region_id, job_id: job.jobId, body, author_id: actorId, kind });
+    },
+  );
+  return { id, jobId: job.jobId, eventId };
+};
+
+/** S3 → gateway: flag or clear a return trip. No version bump: a flag is not a state a device's offline log should lose to. */
+export const setReturnTrip = async (uow: UnitOfWork, input: SetReturnTripInput): Promise<SetReturnTripOutput> => {
+  if (typeof input.returnTrip !== "boolean") throw new BadInput("returnTrip must be true or false");
+  const job = await jobInScope(uow, input);
+  const eventId = await uow.apply(
+    {
+      entity: "job_flag", entityId: job.jobId, action: "job.return_trip.set", topic: "job.annotated",
+      before: { returnTrip: job.return_trip }, after: { returnTrip: input.returnTrip },
+      orgId: job.org_id, regionId: job.region_id,
+      payload: { jobId: job.jobId, returnTrip: input.returnTrip },
+    },
+    async (tx) => {
+      await tx.query(`UPDATE jobs SET return_trip = $2 WHERE id = $1`, [job.jobId, input.returnTrip]);
+    },
+  );
+  return { jobId: job.jobId, returnTrip: input.returnTrip, eventId };
 };

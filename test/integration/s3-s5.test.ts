@@ -157,6 +157,9 @@ test("the board: S2 sees the job org-wide, the South dispatcher sees it region-l
   assert.equal(south.currentCrewId, null);
   assert.equal(south.currentAssignmentId, null, "no open assignment — the id S3's release names is null exactly when the crew is");
   assert.ok(south.slaDueAt, "the board carries the timer");
+  assert.equal(south.stateChangedAt, south.openedAt, "no state event yet — a created job has been in its state since it opened");
+  const siteRow = (await admin(`SELECT address FROM accounts WHERE id = $1`, [south.siteId]))[0]!;
+  assert.deepEqual(south.siteAddress, siteRow.address ?? null, "the board carries the site's address as recorded");
   assert.equal((await west.gateway.listJobs({})).jobs.filter(mine).length, 0, "RLS: zero South rows on the West board, no error");
   assert.equal((await s3.gateway.listJobs({ state: "assigned,en_route" })).jobs.filter(mine).length, 0, "a state filter is honoured");
   await west.logout();
@@ -225,6 +228,8 @@ test("the same door, admitted: an assignment citing its clearance, the job assig
   assert.equal(board.currentCrewId, crewCleared);
   assert.equal(board.currentAssignmentId, assignmentId, "the board carries the id release will name — the crew id cannot stand in for it");
   assert.ok(board.slaSatisfiedAt);
+  const entered = (await admin(`SELECT occurred_at FROM job_state_events WHERE job_id = $1 AND to_state = 'assigned' ORDER BY occurred_at DESC LIMIT 1`, [jobId]))[0]!;
+  assert.equal(board.stateChangedAt, (entered.occurred_at as Date).toISOString(), "time in state starts at the assignment's state event, not at the open");
 });
 
 test("release before the field moves: the crew comes off, the job returns for re-dispatch, and a second release is refused by name", { skip }, async () => {
@@ -247,6 +252,35 @@ test("release before the field moves: the crew comes off, the job returns for re
   const again = await s3.gateway.assignCrew({ jobId, crewId: crewCleared, orgId, regionId: REGION_SOUTH });
   assert.equal(again.ok, true);
   if (again.ok) assignmentId = again.assignmentId;
+});
+
+test("waiting on the customer, before dispatch: quote requested, quote submitted, approved back to created — each move logged, and a move the office does not have refused by name", { skip }, async () => {
+  const west = await westDispatcher();
+  // Its own job: the one above is back on a crew for the field half below.
+  const quoteJob = (await s2.gateway.createJob({ siteId: site, serviceCode: "CONDENSER-INSTALL", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;
+  const move = (to: string) => s3.gateway.transitionJob({ jobId: quoteJob, orgId, regionId: REGION_SOUTH, to: to as never });
+  await assert.rejects(move("awaiting_customer"), (e: unknown) => code(s3, e) === "illegal_transition", "a hold for the customer is mid-job; this job has no crew yet");
+  await assert.rejects(
+    west.gateway.transitionJob({ jobId: quoteJob, orgId, regionId: REGION_WEST, to: "quote_requested" }),
+    (e: unknown) => code(west, e) === "unknown_job",
+    "RLS: the West dispatcher cannot see the South job, so cannot move it",
+  );
+
+  for (const to of ["quote_requested", "quote_submitted"] as const) {
+    const out = await move(to);
+    assert.equal(out.state, to);
+    assert.equal((await admin(`SELECT topic FROM outbox WHERE event_id = $1`, [out.eventId]))[0]!.topic, "job.transitioned");
+    const board = (await s3.gateway.listJobs({})).jobs.find((j) => j.id === quoteJob)!;
+    assert.equal(board.state, to);
+    const entered = (await admin(`SELECT max(occurred_at) AS at FROM job_state_events WHERE job_id = $1 AND to_state = $2 AND surface_id = 'S3'`, [quoteJob, to]))[0]!;
+    assert.equal(board.stateChangedAt, (entered.at as Date).toISOString(), "time in status restarts at the office's move");
+  }
+  await assert.rejects(move("in_progress"), (e: unknown) => code(s3, e) === "illegal_transition", "a quote is approved back to dispatch, never straight into the work");
+  const approved = await move("created");
+  assert.equal(approved.state, "created");
+  const log = await admin(`SELECT from_state, to_state FROM job_state_events WHERE job_id = $1 AND surface_id = 'S3' AND mutation_id LIKE 'office:%' ORDER BY occurred_at`, [quoteJob]);
+  assert.deepEqual(log.map((r) => `${r.from_state}→${r.to_state}`), ["created→quote_requested", "quote_requested→quote_submitted", "quote_submitted→created"]);
+  await west.logout();
 });
 
 test("D-2a: a device, a grant for this crew and this technician over this window — and a technician not on the crew is refused", { skip }, async () => {
@@ -353,8 +387,81 @@ test("sync.replay: the device log replays in device order, a duplicate replay is
     s3.gateway.releaseAssignment({ assignmentId, orgId, regionId: REGION_SOUTH }),
     (e: unknown) => code(s3, e) === "job_in_progress",
   );
-  assert.equal((await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!.state, "on_site", "the dispatcher's board reads the field's state");
+  const onBoard = (await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!;
+  assert.equal(onBoard.state, "on_site", "the dispatcher's board reads the field's state");
+  const onSite = (await admin(`SELECT max(occurred_at) AS at FROM job_state_events WHERE job_id = $1 AND to_state = 'on_site'`, [jobId]))[0]!;
+  assert.equal(onBoard.stateChangedAt, (onSite.at as Date).toISOString(), "a field transition restarts the time-in-state clock");
   await s5.logout();
+});
+
+test("waiting on the customer, mid-job: the office holds an on-site job for the customer and resumes it into the work", { skip }, async () => {
+  const move = (to: string) => s3.gateway.transitionJob({ jobId, orgId, regionId: REGION_SOUTH, to: to as never });
+  assert.equal((await admin(`SELECT state FROM jobs WHERE id = $1`, [jobId]))[0]!.state, "on_site");
+  assert.equal((await move("awaiting_customer")).state, "awaiting_customer");
+  assert.equal((await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!.state, "awaiting_customer");
+  await assert.rejects(move("created"), (e: unknown) => code(s3, e) === "illegal_transition", "a held job resumes; it does not go back to dispatch from here");
+  assert.equal((await move("in_progress")).state, "in_progress");
+});
+
+test("what blocks the invoice: a finished job goes to needs pricing, a PO or pictures and back to ready-to-invoice; a kicked-back invoice is fixed and re-sent", { skip }, async () => {
+  const move = (to: string) => s3.gateway.transitionJob({ jobId, orgId, regionId: REGION_SOUTH, to: to as never });
+  // The field finishing and billing invoicing have their own doors; this test starts on the far side of each.
+  await admin(`UPDATE jobs SET state = 'complete' WHERE id = $1`, [jobId]);
+  for (const blocker of ["needs_pricing", "awaiting_po", "awaiting_pictures"] as const) {
+    assert.equal((await move(blocker)).state, blocker);
+    await assert.rejects(move("invoiced"), (e: unknown) => code(s3, e) === "illegal_transition", `${blocker} is cleared back to ready-to-invoice, not invoiced from here`);
+    assert.equal((await move("complete")).state, "complete");
+  }
+  await admin(`UPDATE jobs SET state = 'invoiced' WHERE id = $1`, [jobId]);
+  assert.equal((await move("invoice_trouble")).state, "invoice_trouble");
+  assert.equal((await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!.state, "invoice_trouble");
+  assert.equal((await move("invoiced")).state, "invoiced");
+  const log = await admin(`SELECT to_state FROM job_state_events WHERE job_id = $1 AND mutation_id LIKE 'office:%' AND to_state IN ('needs_pricing','awaiting_po','awaiting_pictures','invoice_trouble') ORDER BY occurred_at`, [jobId]);
+  assert.deepEqual(log.map((r) => r.to_state), ["needs_pricing", "awaiting_po", "awaiting_pictures", "invoice_trouble"]);
+});
+
+test("notes and the return-trip flag (0015): append-only notes with the newest on the board, a flag that does not move the job's version, both refused outside the region", { skip }, async () => {
+  const west = await westDispatcher();
+  const version = (await admin(`SELECT version FROM jobs WHERE id = $1`, [jobId]))[0]!.version as number;
+  const first = await s3.gateway.addJobNote({ jobId, orgId, regionId: REGION_SOUTH, body: "  Freon leak at suction line  " });
+  assert.equal((await admin(`SELECT topic FROM outbox WHERE event_id = $1`, [first.eventId]))[0]!.topic, "job.annotated");
+  await s3.gateway.addJobNote({ jobId, orgId, regionId: REGION_SOUTH, body: "Return trip — customer wants a call first" });
+  const board = () => s3.gateway.listJobs({}).then((o) => o.jobs.find((j) => j.id === jobId)!);
+  assert.equal((await board()).latestNote?.body, "Return trip — customer wants a call first", "the newest note is the one on the board");
+  assert.equal((await admin(`SELECT body FROM job_notes WHERE id = $1`, [first.id]))[0]!.body, "Freon leak at suction line", "trimmed, and kept");
+  await assert.rejects(s3.gateway.addJobNote({ jobId, orgId, regionId: REGION_SOUTH, body: "   " }), "an empty note is refused");
+  await assert.rejects(admin(`UPDATE job_notes SET body = 'rewritten' WHERE id = $1`, [first.id]), "a note is never edited — a correction is a newer note");
+
+  assert.equal((await board()).returnTrip, false);
+  const flagged = await s3.gateway.setReturnTrip({ jobId, orgId, regionId: REGION_SOUTH, returnTrip: true });
+  assert.equal(flagged.returnTrip, true);
+  assert.equal((await board()).returnTrip, true);
+  assert.equal((await admin(`SELECT version FROM jobs WHERE id = $1`, [jobId]))[0]!.version, version, "a flag is not a state change: a device's offline log is not superseded by it");
+  await s3.gateway.setReturnTrip({ jobId, orgId, regionId: REGION_SOUTH, returnTrip: false });
+  assert.equal((await board()).returnTrip, false);
+
+  for (const attempt of [
+    west.gateway.addJobNote({ jobId, orgId, regionId: REGION_WEST, body: "not mine" }),
+    west.gateway.setReturnTrip({ jobId, orgId, regionId: REGION_WEST, returnTrip: true }),
+  ]) await assert.rejects(attempt, (e: unknown) => code(west, e) === "unknown_job", "RLS: the West dispatcher cannot see the South job");
+  assert.equal((await west.gateway.listJobs({})).jobs.filter((j) => j.id === jobId).length, 0);
+  await west.logout();
+});
+
+test("job detail (0016): the job's visits are its assignments with the crew's logged span, its standing note is the newest standing one, and the board's note ignores it", { skip }, async () => {
+  await s3.gateway.addJobNote({ jobId, orgId, regionId: REGION_SOUTH, body: "Roof access through the mechanical room. Bring the 24 ft ladder.", kind: "standing" });
+  const d = await s3.gateway.jobDetail({ jobId });
+  assert.equal(d.job.id, jobId);
+  const assigned = await admin(`SELECT id FROM assignments WHERE job_id = $1 ORDER BY assigned_at, id`, [jobId]);
+  assert.deepEqual(d.visits.map((v) => v.id), assigned.map((a) => a.id), "a visit is an assignment, in order");
+  assert.ok(d.visits.every((v) => v.crewLabel), "each with its crew");
+  assert.ok(d.visits.some((v) => v.workStart !== null && v.workEnd !== null), "the field's time entry sets the span of the visit it was logged in");
+  assert.equal(d.notes.at(-1)!.kind, "standing");
+  assert.notEqual((await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!.latestNote?.body, "Roof access through the mechanical room. Bring the 24 ft ladder.", "a standing note is not the board's latest note");
+  await assert.rejects(s3.gateway.jobDetail({ jobId: "00000000-0000-0000-0000-00000000dead" }), (e: unknown) => code(s3, e) === "unknown_job");
+  const west = await westDispatcher();
+  await assert.rejects(west.gateway.jobDetail({ jobId }), (e: unknown) => code(west, e) === "unknown_job", "RLS: West cannot read the South job's detail");
+  await west.logout();
 });
 
 test("a revoked grant is a dead token: logout ends the session, and the next call is refused as revoked", { skip }, async () => {

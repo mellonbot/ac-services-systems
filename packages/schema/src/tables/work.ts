@@ -15,6 +15,10 @@ export const projects = operationalTable("projects", {
 export const JOB_STATES = [
   "created", "assigned", "en_route", "on_site", "in_progress", "awaiting_parts",
   "complete", "reopened", "invoiced", "cancelled", "aborted",
+  // 0013: waiting on the customer — a quote before dispatch, an approval or access mid-job.
+  "quote_requested", "quote_submitted", "awaiting_customer",
+  // 0014: the work is done but the invoice is blocked — pricing, a PO, pictures, or a kicked-back invoice.
+  "needs_pricing", "awaiting_po", "awaiting_pictures", "invoice_trouble",
 ] as const;
 
 export const jobs = operationalTable("jobs", {
@@ -28,6 +32,7 @@ export const jobs = operationalTable("jobs", {
     { name: "state", type: "text", check: `state IN (${JOB_STATES.map((s) => `'${s}'`).join(",")})`, default: "'created'" },
     { name: "version", type: "integer", default: "1", comment: "Optimistic version the sync engine compares against." },
     { name: "opened_at", type: "timestamptz", default: "now()" },
+    { name: "return_trip", type: "boolean", default: "false", comment: "0015: a second visit is owed on this job. The office's flag, set by hand — not read out of the notes." },
   ],
   indexes: [["site_id"], ["state"], ["project_id"], ["contract_id"]],
 });
@@ -89,6 +94,52 @@ export const job_state_events = operationalTable("job_state_events", {
 });
 
 /** Field artefacts — append-only under sync. */
+/**
+ * 0015: what the office writes down about a job — append-only, internal
+ * only, tenancy inherited from the job. The dashboard shows the latest; the
+ * rest is the history of who said what, when.
+ */
+export const job_notes = operationalTable("job_notes", {
+  columns: [
+    { name: "job_id", type: "uuid", references: "jobs(id)" },
+    { name: "body", type: "text", check: "length(btrim(body)) BETWEEN 1 AND 2000" },
+    { name: "author_id", type: "uuid" },
+    { name: "kind", type: "text", check: "kind IN ('note','standing')", default: "'note'", comment: "0016: 'standing' is what every tech should know before rolling; the newest one is the job's standing note." },
+  ],
+  indexes: [["job_id", "created_at"]],
+});
+
+/**
+ * 0016: what the customer is told. Dispatch writes it — usually from an
+ * internal note — as a draft no customer can read, and publishes it. A
+ * published update is never edited again.
+ */
+export const job_updates = operationalTable("job_updates", {
+  columns: [
+    { name: "job_id", type: "uuid", references: "jobs(id)" },
+    { name: "source_note_id", type: "uuid", nullable: true, references: "job_notes(id)" },
+    { name: "body", type: "text", check: "length(btrim(body)) BETWEEN 1 AND 2000" },
+    { name: "state", type: "text", check: "state IN ('draft','published')", default: "'draft'" },
+    { name: "author_id", type: "uuid" },
+    { name: "updated_at", type: "timestamptz", default: "now()" },
+    { name: "published_at", type: "timestamptz", nullable: true },
+    { name: "published_by", type: "uuid", nullable: true },
+  ],
+  indexes: [["job_id", "created_at"]],
+  constraints: [{ name: "job_updates_published_is_stamped", sql: "CHECK ((state = 'published') = (published_at IS NOT NULL AND published_by IS NOT NULL))" }],
+});
+
+/** 0016: the customer ↔ dispatch thread on a job. Append-only; who wrote it is the writer's namespace, not a field they choose. */
+export const job_messages = operationalTable("job_messages", {
+  columns: [
+    { name: "job_id", type: "uuid", references: "jobs(id)" },
+    { name: "author_kind", type: "text", check: "author_kind IN ('customer','office')" },
+    { name: "author_id", type: "uuid" },
+    { name: "body", type: "text", check: "length(btrim(body)) BETWEEN 1 AND 2000" },
+  ],
+  indexes: [["job_id", "created_at"]],
+});
+
 export const job_media = operationalTable("job_media", {
   columns: [
     { name: "job_id", type: "uuid", references: "jobs(id)" },

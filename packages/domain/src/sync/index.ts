@@ -59,22 +59,32 @@ export const mayDeviceWrite = (entityTable: string): boolean => {
 
 /** The job state machine. Legal transitions only; anything else is a conflict, not a coercion. */
 export const JOB_TRANSITIONS: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  created: ["assigned", "cancelled"],
+  created: ["assigned", "cancelled", "quote_requested"],
   assigned: ["en_route", "reassigned", "cancelled"],
   reassigned: ["assigned", "cancelled"],
   en_route: ["on_site", "cancelled"],
-  on_site: ["in_progress", "aborted"],
-  in_progress: ["awaiting_parts", "complete", "aborted"],
+  on_site: ["in_progress", "aborted", "awaiting_customer"],
+  in_progress: ["awaiting_parts", "complete", "aborted", "awaiting_customer"],
   awaiting_parts: ["in_progress", "aborted"],
-  complete: ["invoiced", "reopened"],
+  complete: ["invoiced", "reopened", "needs_pricing", "awaiting_po", "awaiting_pictures"],
   reopened: ["in_progress"],
-  invoiced: [],
+  invoiced: ["invoice_trouble"],
   cancelled: [],
   aborted: ["reopened"],
+  // Waiting on the customer (0013). A quote is the office's, before dispatch;
+  // an approval or access mid-job is either the office's or the technician's.
+  quote_requested: ["quote_submitted", "cancelled"],
+  quote_submitted: ["created", "cancelled"],
+  awaiting_customer: ["in_progress", "aborted"],
+  // What blocks the invoice (0014) — the office's, every one.
+  needs_pricing: ["complete"],
+  awaiting_po: ["complete"],
+  awaiting_pictures: ["complete"],
+  invoice_trouble: ["invoiced"],
 });
 
 /** Transitions a DEVICE may drive. Assignment and cancellation are the office's. */
-export const DEVICE_TRANSITIONS: readonly string[] = ["en_route", "on_site", "in_progress", "awaiting_parts", "complete", "aborted"];
+export const DEVICE_TRANSITIONS: readonly string[] = ["en_route", "on_site", "in_progress", "awaiting_parts", "awaiting_customer", "complete", "aborted"];
 
 export type Mutation = {
   readonly mutationId: string;     // client-generated; replay is idempotent by construction

@@ -4,6 +4,7 @@ import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
 import { listEquipment, registerEquipment, listContacts, setContact, listInvoices } from "./site-record.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
+import { WORK_DONE_STATES } from "../../../../packages/contracts/src/operations.ts";
 
 /**
  * Item 9 at the handler: which inputs are admissible, that tenancy follows
@@ -75,7 +76,8 @@ test("listEquipment: last serviced is READ off the completed jobs that named the
   assert.equal(out.equipment[0]!.jobCount, 4);
   const q = s.queries.find((q) => q.sql.includes("FROM equipment e"))!;
   assert.match(q.sql, /job_equipment je JOIN jobs j/, "the LATERAL reads the jobs that named the unit");
-  assert.match(q.sql, /j\.state IN \('complete', 'invoiced'\)/, "only a finished job is a service");
+  assert.match(q.sql, /j\.state = ANY\(\$3::text\[\]\)/, "only a finished job is a service");
+  assert.deepEqual(q.params[2], [...WORK_DONE_STATES], "finished is WORK_DONE_STATES — a job waiting on pricing or a PO was still serviced");
   assert.match(q.sql, /array_position\(\$2::text\[\], e\.kind\)/, "ordered as the closed list orders kinds, not alphabetically");
   assert.ok(!/last_serviced/.test(q.sql.split("FROM equipment e")[0]!.replace(/AS last_serviced\w*/g, "")), "no stored last_serviced column is read");
 });

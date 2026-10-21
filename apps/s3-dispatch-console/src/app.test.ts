@@ -32,10 +32,11 @@ const context: HierarchyContext = {
 };
 
 const jobCreated: JobWire = {
-  id: JOB_CREATED, siteId: SITE, siteName: "Austin — Roof", contractId: null, projectId: null, serviceCode: "hvac_repair", priority: "urgent", state: "created",
-  serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T17:00:00.000Z", version: 1, openedAt: "2026-09-17T12:00:00.000Z",
+  id: JOB_CREATED, siteId: SITE, siteName: "Austin — Roof", siteAddress: null, contractId: null, projectId: null, serviceCode: "hvac_repair", priority: "urgent", state: "created",
+  serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T17:00:00.000Z", version: 1, openedAt: "2026-09-17T12:00:00.000Z", stateChangedAt: "2026-09-17T12:00:00.000Z",
   regionId: SOUTH, orgId: ORG, currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 1, slaSatisfiedAt: null,
+  returnTrip: false, latestNote: null,
 };
 const jobAssigned: JobWire = {
   ...jobCreated, id: JOB_ASSIGNED, state: "assigned", currentCrewId: CREW_A, currentCrewLabel: "Crew A1", currentAssignmentId: ASSIGNMENT,
@@ -239,4 +240,82 @@ test("the dark dispatch bar is the only navigation, and its Sign out ends the se
   assert.ok(gateway.calls.some((c) => c.path === OPERATIONS["auth.logout"].path), "the gateway is told");
   assert.equal(app.phase.value.kind, "login", "and the console is back at its sign-in");
   assert.match(render(app.view()), /id="sign-in"/);
+});
+
+test("job dashboard: stalled jobs are needs-action by default, longest in status first; a state filter narrows to its label", async () => {
+  const { stalling, daysInState } = await import("./screens/jobs.ts");
+  const now = Date.parse("2026-10-21T00:00:00Z");
+  const job = (id: string, state: string, days: number) => ({ id, state, openedAt: new Date(now - 400 * 86_400_000).toISOString(), stateChangedAt: new Date(now - days * 86_400_000).toISOString() }) as unknown as import("../../../packages/contracts/src/index.ts").JobWire;
+  const jobs = [job("a", "assigned", 50), job("b", "created", 3), job("c", "reopened", 20), job("d", "invoiced", 90), job("e", "reassigned", 9)];
+  assert.equal(daysInState(jobs[0]!, now), 50, "measured from the state change, not the open date");
+  assert.deepEqual(stalling(jobs, "action", now).map((j) => j.id), ["c", "e", "b"]);
+  assert.deepEqual(stalling(jobs, "Unassigned", now).map((j) => j.id), ["e", "b"], "created and reassigned share one label");
+  assert.deepEqual(stalling(jobs, "open", now).map((j) => j.id), ["a", "c", "e", "b"], "closed jobs never stall");
+});
+
+test("job dashboard: the place line is city, state and postal code, falling back to the street, then to nothing", async () => {
+  const { placeLine } = await import("./screens/jobs.ts");
+  assert.equal(placeLine({ line1: "1200 S Main St", city: "Crowley", state: "TX", postal: "76036" }), "Crowley, TX 76036");
+  assert.equal(placeLine({ city: "Crowley" }), "Crowley");
+  assert.equal(placeLine({ line1: "1200 S Main St" }), "1200 S Main St");
+  assert.equal(placeLine({}), null);
+  assert.equal(placeLine(null), null);
+});
+
+test("job dashboard: the waiting-on-customer filter holds the quote and hold states, and 'all open' carries them too", async () => {
+  const { stalling } = await import("./screens/jobs.ts");
+  const now = Date.parse("2026-10-21T00:00:00Z");
+  const job = (id: string, state: string, days: number) => ({ id, state, openedAt: new Date(now - 400 * 86_400_000).toISOString(), stateChangedAt: new Date(now - days * 86_400_000).toISOString() }) as unknown as JobWire;
+  const jobs = [job("q", "quote_requested", 4), job("s", "quote_submitted", 11), job("h", "awaiting_customer", 2), job("c", "created", 30), job("i", "invoiced", 90)];
+  assert.deepEqual(stalling(jobs, "customer", now).map((j) => j.id), ["s", "q", "h"]);
+  assert.deepEqual(stalling(jobs, "open", now).map((j) => j.id), ["c", "s", "q", "h"]);
+});
+
+test("job dashboard: the invoice blockers are needs-action, and each has its own filter", async () => {
+  const { stalling } = await import("./screens/jobs.ts");
+  const now = Date.parse("2026-10-21T00:00:00Z");
+  const job = (id: string, state: string, days: number) => ({ id, state, openedAt: new Date(now - 400 * 86_400_000).toISOString(), stateChangedAt: new Date(now - days * 86_400_000).toISOString() }) as unknown as JobWire;
+  const jobs = [job("p", "needs_pricing", 22), job("o", "awaiting_po", 24), job("t", "invoice_trouble", 13), job("x", "awaiting_pictures", 5), job("v", "invoiced", 60)];
+  assert.deepEqual(stalling(jobs, "action", now).map((j) => j.id), ["o", "p", "t", "x"], "a kicked-back invoice is ours to fix; a clean one is closed");
+  assert.deepEqual(stalling(jobs, "Trouble invoicing", now).map((j) => j.id), ["t"]);
+  assert.deepEqual(stalling(jobs, "Waiting on a PO", now).map((j) => j.id), ["o"]);
+});
+
+test("job dashboard: the return-trip filter holds flagged open jobs only — a flag on closed work is history, not a truck to roll", async () => {
+  const { stalling } = await import("./screens/jobs.ts");
+  const now = Date.parse("2026-10-21T00:00:00Z");
+  const job = (id: string, state: string, returnTrip: boolean, days: number) => ({ id, state, returnTrip, openedAt: new Date(now - 400 * 86_400_000).toISOString(), stateChangedAt: new Date(now - days * 86_400_000).toISOString() }) as unknown as JobWire;
+  const jobs = [job("a", "reopened", true, 41), job("b", "awaiting_parts", true, 36), job("c", "assigned", false, 50), job("d", "invoiced", true, 90)];
+  assert.deepEqual(stalling(jobs, "returnTrip", now).map((j) => j.id), ["a", "b"]);
+});
+
+test("job detail: a visit is the crews on site one day — photos and notes land in the visit under way when they were made, earlier ones are the office's", async () => {
+  const { groupVisits } = await import("./screens/detail.ts");
+  const v = (id: string, crew: string, start: string, end: string) => ({ id, crewId: crew, crewLabel: crew, assignedAt: start, releasedAt: end, workStart: start, workEnd: end });
+  const groups = groupVisits({
+    visits: [v("a2", "Brian Martinez", "2026-03-31T14:00:00.000Z", "2026-03-31T19:00:00.000Z"), v("a1", "Johnny Fontez", "2026-03-31T15:00:00.000Z", "2026-03-31T18:00:00.000Z"), v("a3", "Herberto Vega", "2026-04-07T15:00:00.000Z", "2026-04-07T17:00:00.000Z")],
+    media: [{ id: "m1", kind: "photo", storageKey: "k/IMG_1.jpg", label: "Coil", capturedAt: "2026-03-31T16:00:00.000Z" }, { id: "m2", kind: "photo", storageKey: "k/IMG_2.jpg", label: null, capturedAt: "2026-04-07T16:00:00.000Z" }],
+    notes: [
+      { id: "n0", body: "quoted on the phone", kind: "note", at: "2026-03-30T12:00:00.000Z", authorName: "Dana" },
+      { id: "n1", body: "filter changed", kind: "note", at: "2026-03-31T18:00:00.000Z", authorName: null },
+      { id: "s1", body: "bring the ladder", kind: "standing", at: "2026-04-01T12:00:00.000Z", authorName: "Dana" },
+    ],
+  });
+  assert.deepEqual(groups.map((g) => g.kind), ["office", "visit", "visit"]);
+  assert.deepEqual(groups[1]!.crews, ["Brian Martinez", "Johnny Fontez"], "two crews the same day are one visit");
+  assert.equal(groups[1]!.end, "2026-03-31T19:00:00.000Z", "spanning both");
+  assert.deepEqual(groups[1]!.media.map((m) => m.id), ["m1"]);
+  assert.deepEqual(groups[1]!.notes.map((n) => n.id), ["n1"], "a standing note is the header's, not a visit's");
+  assert.deepEqual(groups[0]!.notes.map((n) => n.id), ["n0"], "before the first visit is the office's");
+  assert.deepEqual(groups[2]!.media.map((m) => m.id), ["m2"]);
+});
+
+test("job detail: the next visit is scheduled only while nobody holds the job and the work is still ahead", async () => {
+  const { scheduledNext } = await import("./screens/detail.ts");
+  const now = Date.parse("2026-10-21T00:00:00Z");
+  const job = (state: string, crew: string | null, end: string) => ({ state, currentCrewId: crew, serviceWindowEnd: end }) as unknown as JobWire;
+  assert.equal(scheduledNext(job("created", null, "2026-11-01T00:00:00Z"), now), true);
+  assert.equal(scheduledNext(job("assigned", "crew-1", "2026-11-01T00:00:00Z"), now), false, "a crew holds it — that is a visit");
+  assert.equal(scheduledNext(job("created", null, "2026-10-01T00:00:00Z"), now), false, "the window has passed");
+  assert.equal(scheduledNext(job("needs_pricing", null, "2026-11-01T00:00:00Z"), now), false, "the work is done");
 });

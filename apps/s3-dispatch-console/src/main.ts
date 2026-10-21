@@ -8,7 +8,7 @@ import type { Principal } from "../../../packages/contracts/src/index.ts";
  * Block OFC · Phase 1 · console density · enabled
  *
  * Auth: region-scoped
- * Writes: assignment, job_state, crew_release, escalation
+ * Writes: assignment, job_state, crew_release, escalation, job_note, job_flag, job_update, job_message
  *
  * Degraded mode:
  *   Board freezes with a visible staleness clock and stops accepting assignments. A dispatcher acting on a stale board is worse than a dispatcher who knows the board is stale. The compliance gate is enforced HERE, at assignment, with no override path.

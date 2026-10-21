@@ -6,6 +6,7 @@ import type {
   ListInvoicesInput, ListInvoicesOutput, InvoiceWire, InvoiceLineWire, BillingPath, AccountTierWire,
 } from "../../../../packages/contracts/src/operations.ts";
 import { EQUIPMENT_KINDS, CONTACT_ROLES } from "../../../../packages/schema/src/tables/hierarchy.ts";
+import { WORK_DONE_STATES } from "../../../../packages/contracts/src/operations.ts";
 
 /**
  * ITEM 9 — THE SITE RECORD. What a site IS, as opposed to what is happening
@@ -96,12 +97,12 @@ export const listEquipment = async (uow: UnitOfWork, input: ListEquipmentInput):
        LEFT JOIN LATERAL (
          SELECT j.id AS job_id, j.service_code, upper(j.service_window) AS we
            FROM job_equipment je JOIN jobs j ON j.id = je.job_id
-          WHERE je.equipment_id = e.id AND j.state IN ('complete', 'invoiced')
+          WHERE je.equipment_id = e.id AND j.state = ANY($3::text[])
           ORDER BY upper(j.service_window) DESC LIMIT 1
        ) last ON true
       WHERE e.site_id = $1
       ORDER BY e.active DESC, array_position($2::text[], e.kind), e.label NULLS LAST, e.model`,
-    [siteId, [...EQUIPMENT_KINDS]],
+    [siteId, [...EQUIPMENT_KINDS], [...WORK_DONE_STATES]],
   );
   const equipment: EquipmentWire[] = rows.map((r) => ({
     id: r.id, siteId: r.site_id, kind: r.kind, label: r.label, manufacturer: r.manufacturer, model: r.model, serial: r.serial,

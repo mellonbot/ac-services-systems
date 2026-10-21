@@ -130,7 +130,7 @@ const REGISTRY = {
     block: "OFC", phase: 1, enabled: true,
     namespace: "internal", authScope: "region-scoped", scopeBinding: "region",
     roles: ["dispatcher", "foreman", "ops_leadership", "principal"],
-    writes: ["assignment", "job_state", "crew_release", "escalation"],
+    writes: ["assignment", "job_state", "crew_release", "escalation", "job_note", "job_flag", "job_update", "job_message"],
     density: "console", realtime: true, offline: false,
     degraded: "Board freezes with a visible staleness clock and stops accepting assignments. A dispatcher acting on a stale board is worse than a dispatcher who knows the board is stale. The compliance gate is enforced HERE, at assignment, with no override path.",
     stateRamp: true,
@@ -168,7 +168,7 @@ const REGISTRY = {
     id: "S6", name: "Customer Portal", app: "s6-customer-portal",
     block: "INV", phase: 1, enabled: true,
     namespace: "customer", authScope: "customer IdP + tier claim", scopeBinding: "customer_tier",
-    writes: ["service_request", "payment", "contact_update"],
+    writes: ["service_request", "payment", "contact_update", "job_message"],
     density: "comfort", realtime: false, offline: false,
     // "request intake queues" was the design's line (05 §S6); the registry
     // says `offline: false`, and the registry is what runs. A request the

@@ -1,5 +1,5 @@
 import { html, pageHead, panel, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
-import type { FirmStatus } from "../../../../packages/contracts/src/index.ts";
+import { WORK_DONE_STATES, type FirmStatus } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readFirm, readCrews, firmOf, readiness, linkTo, day, money, type Screen } from "./common.ts";
 
@@ -55,7 +55,7 @@ export const firm: Screen = (ctx) => {
     }, () => ctx.store.invalidate("crews.list")), "Crews", undefined, linkTo(ctx, "crews", {}, "Roster and documents"))}
 
     ${panel(whenReady(ctx, jobs.value, (out) => html`<p class="s8-summary" id="work-summary">
-      <strong>${out.jobs.filter((j) => !["complete", "invoiced", "cancelled"].includes(j.state)).length}</strong><span>open job${out.jobs.length === 1 ? "" : "s"} your crews are on.</span>
+      <strong>${out.jobs.filter((j) => ![...WORK_DONE_STATES, "cancelled"].includes(j.state)).length}</strong><span>open job${out.jobs.length === 1 ? "" : "s"} your crews are on.</span>
     </p>`, () => ctx.store.invalidate("jobs.list")), "Work", undefined, linkTo(ctx, "work", {}, "See work"))}
 
     ${panel(whenReady(ctx, statements.value, (out) => {

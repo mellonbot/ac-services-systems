@@ -1,5 +1,5 @@
 import { html, signal, StatusPill, pageHead, statStrip, panel, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { JobWire } from "../../../../packages/contracts/src/index.ts";
+import { WORK_DONE_STATES, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, submitAction, linkTo, type Screen } from "./common.ts";
 
@@ -28,7 +28,7 @@ export const isReleasable = (job: JobWire): boolean => job.state === "assigned" 
 /** A job is dispatchable when nobody currently holds it and it has not moved past the point dispatch.assign accepts (see assignCrew's own WHERE). */
 export const isDispatchable = (job: JobWire): boolean => job.currentCrewId === null && (job.state === "created" || job.state === "reassigned");
 
-const CLOSED = ["complete", "invoiced", "cancelled", "aborted"];
+const CLOSED: readonly string[] = [...WORK_DONE_STATES, "cancelled", "aborted"];
 type BoardFilter = "all" | "unassigned" | "assigned";
 const boardFilters = new WeakMap<Store, Signal<BoardFilter>>();
 const filterFor = (store: Store): Signal<BoardFilter> => {

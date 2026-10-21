@@ -1,5 +1,5 @@
 import { html, pageHead, panel, DataGrid, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
-import type { JobWire, JobStateWire, ServiceRequestWire } from "../../../../packages/contracts/src/index.ts";
+import { WORK_DONE_STATES, type JobWire, type JobStateWire, type ServiceRequestWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, when, type Screen } from "./common.ts";
 
@@ -24,7 +24,7 @@ export const slaStatus = (job: Pick<JobWire, "slaDueAt" | "slaEscalationStage" |
   return "ok";
 };
 
-const CLOSED: readonly JobStateWire[] = ["complete", "invoiced", "cancelled"];
+const CLOSED: readonly JobStateWire[] = [...WORK_DONE_STATES, "cancelled"];
 export const isOpen = (job: Pick<JobWire, "state">): boolean => !CLOSED.includes(job.state);
 
 /** The customer's word for a state. The wire's enum is ours; a customer reads plain words, as the pill's own register does. */
@@ -32,6 +32,8 @@ export const STATE_WORD: Readonly<Record<JobStateWire, string>> = {
   created: "Scheduled", assigned: "Crew assigned", reassigned: "Being reassigned", en_route: "Crew en route", on_site: "Crew on site",
   in_progress: "In progress", awaiting_parts: "Awaiting parts", complete: "Complete", reopened: "Reopened", invoiced: "Invoiced",
   cancelled: "Cancelled", aborted: "Stopped",
+  quote_requested: "Quote requested", quote_submitted: "Quote sent to you", awaiting_customer: "Waiting on you",
+  needs_pricing: "Complete", awaiting_po: "Waiting on your PO", awaiting_pictures: "Complete", invoice_trouble: "Invoice being corrected",
 };
 
 /**
@@ -42,10 +44,10 @@ export const STATE_WORD: Readonly<Record<JobStateWire, string>> = {
 export const STEPS = ["Requested", "Scheduled", "In progress", "Completed", "Invoiced"] as const;
 export const stepOf = (r: Pick<ServiceRequestWire, "jobState">): number => {
   switch (r.jobState) {
-    case null: case "created": return 0;
+    case null: case "created": case "quote_requested": case "quote_submitted": return 0;
     case "assigned": case "reassigned": case "en_route": return 1;
-    case "on_site": case "in_progress": case "awaiting_parts": case "reopened": return 2;
-    case "complete": return 3;
+    case "on_site": case "in_progress": case "awaiting_parts": case "awaiting_customer": case "reopened": return 2;
+    case "complete": case "needs_pricing": case "awaiting_po": case "awaiting_pictures": case "invoice_trouble": return 3;
     case "invoiced": return 4;
     default: return -1;
   }

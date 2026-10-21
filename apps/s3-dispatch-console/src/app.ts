@@ -7,6 +7,9 @@ import { createStore, type Store } from "./state.ts";
 import type { Screen, ScreenContext } from "./screens/common.ts";
 import { board } from "./screens/board.ts";
 import { dispatch } from "./screens/dispatch.ts";
+import { jobs } from "./screens/jobs.ts";
+import { detail, pick } from "./screens/detail.ts";
+import { previewDetail } from "./preview-detail.ts";
 import { S3_CSS } from "./styles.ts";
 
 /**
@@ -41,29 +44,137 @@ export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(
 export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = {
   board,
   dispatch,
+  jobs,
+  detail,
+  pick,
 };
 
 type PreviewShell = ConnectedShell & {
   gateway: {
     listJobs: (input: Record<string, unknown>) => Promise<{ jobs: unknown[] }>;
+    transitionJob: (input: { jobId: string; to: string }) => Promise<unknown>;
+    addJobNote: (input: { jobId: string; body: string; kind?: "note" | "standing" }) => Promise<unknown>;
+    jobDetail: (input: { jobId: string }) => Promise<unknown>;
+    saveJobUpdate: (input: { jobId: string; body: string; updateId?: string; sourceNoteId?: string }) => Promise<unknown>;
+    publishJobUpdate: (input: { updateId: string }) => Promise<unknown>;
+    postJobMessage: (input: { jobId: string; body: string }) => Promise<unknown>;
+    setReturnTrip: (input: { jobId: string; returnTrip: boolean }) => Promise<unknown>;
     health: () => Promise<{ ok: boolean }>;
   };
 };
 
 type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store } | { kind: "preview"; shell: PreviewShell; store: Store };
 
+const DAY = 86_400_000;
+const PREVIEW_PLACES: Readonly<Record<string, { line1: string; city: string; state: string; postal: string }>> = {
+  "Shipman Co": { line1: "1200 S Main St", city: "Crowley", state: "TX", postal: "76036" },
+  "FirstKey Homes DFW": { line1: "7310 Glenview Dr", city: "Richland Hills", state: "TX", postal: "76118" },
+  "FirstKey": { line1: "7310 Glenview Dr", city: "Richland Hills", state: "TX", postal: "76118" },
+  "Turner Res.": { line1: "905 Hidden Creek Pkwy", city: "Burleson", state: "TX", postal: "76028" },
+  "Meridian Plaza": { line1: "4500 Mercantile Dr", city: "Fort Worth", state: "TX", postal: "76137" },
+};
+const previewJob = (id: string, siteName: string, serviceCode: string, priority: string, state: string, crew: string | null, daysOpen: number, sla: { due: number; stage: number } | null, daysInState = daysOpen) => {
+  const opened = Date.now() - daysOpen * DAY;
+  return {
+    id, siteId: `site-${id}`, siteName, siteAddress: PREVIEW_PLACES[siteName] ?? null, stateChangedAt: new Date(Date.now() - daysInState * DAY).toISOString(), contractId: null, projectId: null, serviceCode, priority, state,
+    serviceWindowStart: new Date(opened).toISOString(), serviceWindowEnd: new Date(opened + DAY).toISOString(), version: 1, openedAt: new Date(opened).toISOString(),
+    regionId: "region-preview", orgId: "org-preview",
+    currentCrewId: crew ? `crew-${crew.toLowerCase().replace(/\s+/g, "-")}` : null, currentCrewLabel: crew, currentAssignmentId: crew ? `assignment-${id}` : null,
+    slaDueAt: sla ? new Date(Date.now() + sla.due * 3_600_000).toISOString() : null, slaEscalationStage: sla ? sla.stage : null, slaSatisfiedAt: null,
+    returnTrip: false, latestNote: null as { body: string; at: string } | null,
+  };
+};
+/** Notes and return-trip flags for the preview, in the dashboard mock's words. */
+const PREVIEW_NOTES: Readonly<Record<string, { body: string; daysAgo: number; returnTrip?: boolean }>> = {
+  "33187801": { body: "Return trip — not cooling, customer wants a call before the tech rolls", daysAgo: 3, returnTrip: true },
+  "33187837": { body: "Freon leak at suction line, found before evap coil", daysAgo: 6, returnTrip: true },
+  "33187839": { body: "Burning plastic smell reported, needs same-day call back", daysAgo: 2 },
+  "32925428": { body: "High priority — possible bad thermostat, replacement on the truck", daysAgo: 1 },
+  "33200310": { body: "Condenser install — pick up at the shop, Bradley to approve price", daysAgo: 4 },
+  "33200206": { body: "Trim materials, locking caps and drain pipe priced — waiting on supply", daysAgo: 5 },
+  "32452900": { body: "New construction — ready to invoice, awaiting final walk", daysAgo: 1 },
+};
+/** Local preview only — the same job, site and crew names the board's preview rows use, spread across every bucket the dashboard draws. */
+const PREVIEW_JOBS = [
+  previewJob("33390928", "Shipman Co", "rooftop_install", "urgent", "assigned", "Blake Keating", 2, { due: -2, stage: 2 }, 1),
+  previewJob("33390251", "FirstKey", "repairs", "urgent", "en_route", "Brian Martinez", 1, { due: 1, stage: 1 }),
+  previewJob("33390971", "Turner Res.", "pm_route", "pm", "on_site", "Colton Dawson", 0, { due: 4, stage: 0 }),
+  previewJob("33390937", "Meridian Plaza", "new_install", "urgent", "in_progress", "Dylan Lemons", 3, null),
+  previewJob("33390948", "Shipman Co", "rtu_changeout", "urgent", "assigned", "Herberto Vega", 1, { due: -1, stage: 2 }),
+  previewJob("33187801", "Shipman Co", "repairs", "urgent", "reopened", "Garrett Howard", 58, { due: -30, stage: 3 }, 41),
+  previewJob("33187837", "Shipman Co", "repairs", "routine", "awaiting_parts", "Garrett Howard", 40, null, 36),
+  previewJob("32925428", "FirstKey Homes DFW", "repairs", "urgent", "created", null, 18, { due: -6, stage: 2 }),
+  previewJob("33200204", "Shipman Co", "new_install", "routine", "reassigned", null, 15, { due: 6, stage: 1 }),
+  previewJob("33187839", "Shipman Co", "repairs", "emergency", "complete", "Garrett Howard", 33, null, 29),
+  previewJob("32452900", "Shipman Co", "new_install", "routine", "complete", "Garrett Howard", 12, null, 6),
+  previewJob("33200206", "Shipman Co", "repairs", "routine", "awaiting_parts", "Johnny Fontez", 21, null, 14),
+  previewJob("33200310", "Shipman Co", "condenser_install", "routine", "quote_requested", null, 9, null, 4),
+  previewJob("33200318", "FirstKey Homes DFW", "repairs", "routine", "quote_requested", null, 7, null, 7),
+  previewJob("33200322", "Turner Res.", "new_install", "routine", "quote_submitted", null, 16, null, 11),
+  previewJob("33200329", "Meridian Plaza", "rtu_changeout", "urgent", "quote_submitted", null, 6, null, 3),
+  previewJob("33390962", "Shipman Co", "repairs", "urgent", "awaiting_customer", "Herberto Vega", 5, null, 2),
+  previewJob("33187720", "Shipman Co", "repairs", "urgent", "needs_pricing", "Garrett Howard", 30, null, 22),
+  previewJob("33187744", "Shipman Co", "rtu_changeout", "routine", "needs_pricing", "Herberto Vega", 19, null, 9),
+  previewJob("33187760", "FirstKey Homes DFW", "repairs", "routine", "awaiting_po", "Brian Martinez", 27, null, 24),
+  previewJob("33187775", "Meridian Plaza", "new_install", "routine", "awaiting_pictures", "Dylan Lemons", 11, null, 5),
+  previewJob("32100155", "Turner Res.", "pm_route", "pm", "invoice_trouble", "Colton Dawson", 48, null, 13),
+  previewJob("32100114", "Turner Res.", "pm_route", "pm", "invoiced", "Colton Dawson", 60, null),
+  previewJob("32100171", "Meridian Plaza", "repairs", "routine", "invoiced", "Dylan Lemons", 52, null),
+  previewJob("32100190", "FirstKey Homes DFW", "repairs", "routine", "cancelled", null, 45, null),
+];
+
+for (const job of PREVIEW_JOBS) {
+  const n = PREVIEW_NOTES[job.id];
+  if (n) Object.assign(job, { latestNote: { body: n.body, at: new Date(Date.now() - n.daysAgo * DAY).toISOString() }, returnTrip: n.returnTrip ?? false });
+}
+
 const createPreviewShell = (): PreviewShell => {
   const shell = {
     principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" },
     context: { principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" }, path: [{ tier: "parent", id: "org-preview", name: "AC Services" }], parent: { tier: "parent", id: "org-preview", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "region-preview" },
     gateway: {
-      listJobs: async () => ({ jobs: [
-        { id: "33390928", siteName: "Shipman Co", serviceCode: "rooftop_install", priority: "urgent", state: "assigned", currentCrewId: "crew-1", currentCrewLabel: "Blake Keating", currentAssignmentId: "assignment-1", slaDueAt: "2026-09-08T11:00:00.000Z", slaEscalationStage: 2, slaSatisfiedAt: null },
-        { id: "33390251", siteName: "FirstKey", serviceCode: "repairs", priority: "high", state: "assigned", currentCrewId: "crew-2", currentCrewLabel: "Brian Martinez", currentAssignmentId: "assignment-2", slaDueAt: "2026-09-08T10:30:00.000Z", slaEscalationStage: 2, slaSatisfiedAt: null },
-        { id: "33390971", siteName: "Turner Res.", serviceCode: "pm_route", priority: "routine", state: "assigned", currentCrewId: "crew-3", currentCrewLabel: "Colton Dawson", currentAssignmentId: "assignment-3", slaDueAt: "2026-09-08T12:00:00.000Z", slaEscalationStage: 1, slaSatisfiedAt: null },
-        { id: "33390937", siteName: "Meridian Plaza", serviceCode: "new_install", priority: "high", state: "assigned", currentCrewId: "crew-4", currentCrewLabel: "Dylan Lemons", currentAssignmentId: "assignment-4", slaDueAt: "2026-09-08T13:00:00.000Z", slaEscalationStage: 2, slaSatisfiedAt: null },
-        { id: "33390948", siteName: "Shipman Co", serviceCode: "rtu_changeout", priority: "high", state: "assigned", currentCrewId: "crew-5", currentCrewLabel: "Herberto Vega", currentAssignmentId: "assignment-5", slaDueAt: "2026-09-08T09:30:00.000Z", slaEscalationStage: 2, slaSatisfiedAt: null },
-      ] }),
+      listJobs: async () => ({ jobs: PREVIEW_JOBS }),
+      addJobNote: async (input: { jobId: string; body: string; kind?: "note" | "standing" }) => {
+        const job = PREVIEW_JOBS.find((j) => j.id === input.jobId)!;
+        const at = new Date().toISOString();
+        if (input.kind !== "standing") Object.assign(job, { latestNote: { body: input.body, at } });
+        previewDetail(job).notes.push({ id: `n-${at}`, body: input.body, kind: input.kind ?? "note", at, authorName: "Dana" });
+        return { id: `n-${at}`, jobId: input.jobId, eventId: "preview" };
+      },
+      jobDetail: async (input: { jobId: string }) => {
+        const job = PREVIEW_JOBS.find((j) => j.id === input.jobId);
+        if (!job) throw new Error(`job ${input.jobId} not found in scope`);
+        return { ...previewDetail(job), job };
+      },
+      saveJobUpdate: async (input: { jobId: string; body: string; updateId?: string; sourceNoteId?: string }) => {
+        const d = previewDetail(PREVIEW_JOBS.find((j) => j.id === input.jobId)!);
+        const at = new Date().toISOString();
+        const existing = input.updateId ? d.updates.find((u) => u.id === input.updateId) : undefined;
+        if (existing) Object.assign(existing, { body: input.body, updatedAt: at });
+        else d.updates.push({ id: `u-${at}`, sourceNoteId: input.sourceNoteId ?? null, body: input.body, state: "draft", updatedAt: at, publishedAt: null, publishedByName: null });
+        return { id: existing?.id ?? `u-${at}`, state: "draft", eventId: "preview" };
+      },
+      publishJobUpdate: async (input: { updateId: string }) => {
+        for (const job of PREVIEW_JOBS) {
+          const u = previewDetail(job).updates.find((x) => x.id === input.updateId);
+          if (u) { const at = new Date().toISOString(); Object.assign(u, { state: "published", publishedAt: at, updatedAt: at, publishedByName: "Dana" }); return { id: u.id, publishedAt: at, eventId: "preview" }; }
+        }
+        throw new Error("unknown update");
+      },
+      postJobMessage: async (input: { jobId: string; body: string }) => {
+        const at = new Date().toISOString();
+        previewDetail(PREVIEW_JOBS.find((j) => j.id === input.jobId)!).messages.push({ id: `m-${at}`, authorKind: "office", authorName: "Dana", body: input.body, at });
+        return { id: `m-${at}`, authorKind: "office", eventId: "preview" };
+      },
+      setReturnTrip: async (input: { jobId: string; returnTrip: boolean }) => {
+        Object.assign(PREVIEW_JOBS.find((j) => j.id === input.jobId)!, { returnTrip: input.returnTrip });
+        return { jobId: input.jobId, returnTrip: input.returnTrip, eventId: "preview" };
+      },
+      transitionJob: async (input: { jobId: string; to: string }) => {
+        const job = PREVIEW_JOBS.find((j) => j.id === input.jobId)!;
+        Object.assign(job, { state: input.to, version: job.version + 1, stateChangedAt: new Date().toISOString() });
+        return { jobId: job.id, state: job.state, version: job.version, eventId: "preview" };
+      },
       health: async () => ({ ok: true }),
     },
     refusalOf: (e: unknown) => ({ kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) }),
@@ -93,9 +204,11 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     // change what candidateCrews would say about a crew already on screen.
     shell.subscribe(() => {
       store.invalidate("jobs.list");
+      store.invalidate("jobs.detail");
       store.invalidate("dispatch.candidates");
     }, { topics: [
-      "job.created", "job.assigned", "job.reassigned", "job.transitioned", "job.completed", "job.cancelled",
+      "job.created", "job.assigned", "job.reassigned", "job.transitioned", "job.completed", "job.cancelled", "job.annotated",
+      "job.update_published", "job.message_posted",
       "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",
       "crew.compliance_refused", "credential.verified", "credential.expiring", "credential.expired",
     ] });
@@ -144,6 +257,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     p.shell.gateway.health().catch(() => {});
   };
 
+  /** The job the Job Detail tab returns to — the last one opened, until another is. */
+  let lastDetail: string | null = null;
   const view = (): VNode => {
     const p = phase.value;
     if (p.kind === "booting") return html`<p class="s3-loading" role="status">Connecting…</p>`;
@@ -151,6 +266,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const ctx: ScreenContext = { shell: p.shell, store: p.store, router, density: DENSITY, degraded: degraded.value };
     void p.store.version.value; // subscribe: an invalidate re-renders the mounted screen, which re-reads its resources
     const loc = router.current.value;
+    if (loc?.screen === "detail" && loc.params.jobId) lastDetail = loc.params.jobId;
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     const notice = p.store.notice.value;
     return html`<div class="s3-app">
@@ -160,8 +276,14 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
              data-current=${loc?.screen === "board" ? "true" : undefined}
              aria-current=${loc?.screen === "board" ? "page" : undefined}
              onClick=${(e: Event) => { e.preventDefault(); router.navigate("board", {}); }}>Dispatch Board</a>
-          <button type="button" class="ac-seg__item dispatch-header__tab">Job Detail</button>
-          <button type="button" class="ac-seg__item dispatch-header__tab">Job Dashboard</button>
+          <a class="ac-seg__item" href=${lastDetail ? router.href("detail", { jobId: lastDetail }) : router.href("pick", {})}
+             data-current=${loc?.screen === "detail" || loc?.screen === "pick" ? "true" : undefined}
+             aria-current=${loc?.screen === "detail" || loc?.screen === "pick" ? "page" : undefined}
+             onClick=${(e: Event) => { e.preventDefault(); if (lastDetail) router.navigate("detail", { jobId: lastDetail }); else router.navigate("pick", {}); }}>Job Detail</a>
+          <a class="ac-seg__item" href=${router.href("jobs", {})}
+             data-current=${loc?.screen === "jobs" ? "true" : undefined}
+             aria-current=${loc?.screen === "jobs" ? "page" : undefined}
+             onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>Job Dashboard</a>
           <button type="button" class="ac-seg__item dispatch-header__tab">Manager</button>
         </nav>
         <div class="dispatch-header__tools">
