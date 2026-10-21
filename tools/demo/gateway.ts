@@ -64,7 +64,7 @@ type Account = { id: string; orgId: string; tier: W.AccountTierWire; name: strin
 type Firm = Mutable<Omit<W.FirmWire, "crewCount" | "activeCrewCount">>;
 type Crew = Mutable<Omit<W.CrewWire, "documents">>;
 type Credential = Mutable<W.CredentialWire>;
-type Job = { id: string; siteId: string; orgId: string; regionId: string; contractId: string | null; serviceCode: string; priority: W.JobPriority; state: W.JobStateWire; serviceWindowStart: string; serviceWindowEnd: string; version: number; openedAt: string; stateChangedAt: string; slaDueAt: string | null; slaEscalationStage: number | null; slaSatisfiedAt: string | null; equipmentIds: string[] };
+type Job = { id: string; siteId: string; orgId: string; regionId: string; contractId: string | null; serviceCode: string; priority: W.JobPriority; state: W.JobStateWire; serviceWindowStart: string; serviceWindowEnd: string; version: number; openedAt: string; stateChangedAt: string; slaDueAt: string | null; slaEscalationStage: number | null; slaSatisfiedAt: string | null; equipmentIds: string[]; returnTrip: boolean; notes: { body: string; at: string }[] };
 type Assignment = { id: string; jobId: string; crewId: string; assignedAt: string; releasedAt: string | null };
 type Settlement = Mutable<Omit<W.SettlementWire, "lineCount">>;
 type User = { id: string; email: string; password: string; name: string; principal: Omit<Principal, "sessionId">; surfaces: SurfaceId[]; crewId?: string };
@@ -199,7 +199,7 @@ const job = (id: string, siteId: string, serviceCode: string, priority: W.JobPri
     serviceWindowStart: at(startMs), serviceWindowEnd: at(startMs + hours * HOUR), version: state === "created" ? 1 : 3,
     openedAt: at(Math.min(startMs, 0) - 2 * HOUR), stateChangedAt: state === "created" ? at(Math.min(startMs, 0) - 2 * HOUR) : at(Math.min(startMs, 0)),
     slaDueAt: sla ? at(sla.dueMs) : null, slaEscalationStage: sla ? sla.stage : null, slaSatisfiedAt: sla?.satisfiedMs !== undefined ? at(sla.satisfiedMs) : null,
-    equipmentIds,
+    equipmentIds, returnTrip: false, notes: [],
   };
 };
 
@@ -471,6 +471,8 @@ const jobWire = (j: Job, p: Principal): W.JobWire => {
     serviceWindowStart: j.serviceWindowStart, serviceWindowEnd: j.serviceWindowEnd, version: j.version, openedAt: j.openedAt, stateChangedAt: j.stateChangedAt, regionId: j.regionId, orgId: j.orgId,
     currentCrewId: crew?.id ?? null, currentCrewLabel: crew?.label ?? null, currentAssignmentId: a?.id ?? null,
     slaDueAt: open ? j.slaDueAt : null, slaEscalationStage: open ? j.slaEscalationStage : null, slaSatisfiedAt: j.slaSatisfiedAt,
+    // Notes are the office's (0015): nobody outside the internal namespace reads one.
+    returnTrip: j.returnTrip, latestNote: p.namespace === "internal" ? j.notes.at(-1) ?? null : null,
   };
 };
 const docSummary = (crew: Crew): W.CrewDocumentSummary => {
@@ -984,6 +986,21 @@ const H: Partial<Record<OperationId, Handler>> = {
     if (!legal.includes(i.to)) throw input422(`job ${i.jobId} is "${j!.state}" — the office may move it to ${legal.length ? legal.map((s) => `"${s}"`).join(" or ") : "nothing from here"}, not "${String(i.to)}"`, "illegal_transition");
     j!.state = i.to; j!.version++; j!.stateChangedAt = new Date().toISOString();
     return { jobId: j!.id, state: j!.state, version: j!.version, eventId: publish(surface, "job.transitioned", "job", j!.id, j!.orgId, j!.regionId) };
+  },
+
+  "jobs.addNote": (i: W.AddJobNoteInput, { surface }) => {
+    const j = jobs.find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    const body = String(i.body ?? "").trim();
+    need(body && body.length <= 2000, "a note is 1 to 2000 characters", "bad_input");
+    j!.notes.push({ body, at: new Date().toISOString() });
+    return { id: uid("n"), jobId: j!.id, eventId: publish(surface, "job.annotated", "job", j!.id, j!.orgId, j!.regionId) };
+  },
+  "jobs.setReturnTrip": (i: W.SetReturnTripInput, { surface }) => {
+    const j = jobs.find((x) => x.id === i.jobId);
+    need(j, `job ${i.jobId} not found in scope`, "unknown_job");
+    j!.returnTrip = i.returnTrip === true;
+    return { jobId: j!.id, returnTrip: j!.returnTrip, eventId: publish(surface, "job.annotated", "job", j!.id, j!.orgId, j!.regionId) };
   },
 
   // ---- S5 ----

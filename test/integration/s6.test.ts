@@ -235,6 +235,18 @@ test("AT THE TABLE: a customer principal reads zero crews, credentials, clearanc
   assert.equal((await asBinding(firm, `SELECT count(*)::int AS n FROM contracts`))[0]!.n, 0);
 });
 
+test("NOTES ARE THE OFFICE'S (0015): a dispatcher's note on the customer's job is on the board and absent from the portal — through the gateway and at the table", { skip }, async () => {
+  const job = (await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobAustin)!;
+  await s3.gateway.addJobNote({ jobId: jobAustin, orgId: job.orgId, regionId: job.regionId, body: "Customer wants a call before we roll a truck" });
+  assert.equal((await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobAustin)!.latestNote?.body, "Customer wants a call before we roll a truck");
+  assert.equal((await fmAustin.gateway.listJobs({})).jobs.find((j) => j.id === jobAustin)!.latestNote, null, "the customer's portal reads no note");
+  assert.equal((await exec.gateway.listJobs({})).jobs.find((j) => j.id === jobAustin)!.latestNote, null, "nor does the customer's executive");
+  const b = customerBinding(amped, REGION_SOUTH, "location", austin, USER_FM_AUSTIN);
+  assert.equal((await asBinding(b, `SELECT count(*)::int AS n FROM job_notes`))[0]!.n, 0, "zero rows for a customer, not an error");
+  const firm = { ...b, "ac.namespace": "subcontractor", "ac.firm_id": U(77), "ac.org_id": U(77) };
+  assert.equal((await asBinding(firm, `SELECT count(*)::int AS n FROM job_notes`))[0]!.n, 0, "zero rows for a firm");
+});
+
 test("TIER SCOPING — terms: a REGION-tier override applies to a location-scoped manager (the truncated path 0006 mended); another org's terms are unreachable by any orgId", { skip }, async () => {
   // Austin: parent 4_hour, location pm 4 — and the region node in the trace, walked.
   const at = await fmAustin.gateway.resolvedTerms({ tier: "site", nodeId: austinRoof, termKeys: "sla_response,pm_visits_per_year" });

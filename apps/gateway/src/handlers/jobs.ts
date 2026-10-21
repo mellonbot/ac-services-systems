@@ -5,6 +5,7 @@ import { InputRefused, BadInput } from "../refusals.ts";
 import type {
   CreateJobInput, CreateJobOutput, JobPriority, JobStateWire, JobWire, ListJobsOutput,
   FieldJobWire, MyJobsOutput, AddressWire, TransitionJobInput, TransitionJobOutput,
+  AddJobNoteInput, AddJobNoteOutput, SetReturnTripInput, SetReturnTripOutput,
 } from "../../../../packages/contracts/src/operations.ts";
 import { OFFICE_JOB_TRANSITIONS } from "../../../../packages/contracts/src/operations.ts";
 
@@ -44,6 +45,7 @@ type JobRow = {
   ws: string; we: string; version: number; opened_at: string; state_changed_at: string; region_id: string; org_id: string;
   current_crew_id: string | null; current_crew_label: string | null; current_assignment_id: string | null;
   sla_due_at: string | null; sla_escalation_stage: number | null; sla_satisfied_at: string | null;
+  return_trip: boolean; note_body: string | null; note_at: string | null;
 };
 
 const toWire = (r: JobRow): JobWire => ({
@@ -53,6 +55,7 @@ const toWire = (r: JobRow): JobWire => ({
   regionId: r.region_id, orgId: r.org_id,
   currentCrewId: r.current_crew_id, currentCrewLabel: r.current_crew_label, currentAssignmentId: r.current_assignment_id,
   slaDueAt: r.sla_due_at, slaEscalationStage: r.sla_escalation_stage, slaSatisfiedAt: r.sla_satisfied_at,
+  returnTrip: r.return_trip, latestNote: r.note_body !== null && r.note_at !== null ? { body: r.note_body, at: r.note_at } : null,
 });
 
 const JOB_SELECT = `
@@ -64,12 +67,14 @@ const JOB_SELECT = `
          j.region_id, j.org_id,
          a.crew_id AS current_crew_id, c.label AS current_crew_label, a.id AS current_assignment_id,
          to_char(st.due_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_due_at, st.escalation_stage AS sla_escalation_stage,
-         to_char(st.satisfied_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_satisfied_at
+         to_char(st.satisfied_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sla_satisfied_at,
+         j.return_trip, n.body AS note_body, to_char(n.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS note_at
     FROM jobs j
     LEFT JOIN accounts s ON s.id = j.site_id
     LEFT JOIN assignments a ON a.job_id = j.id AND a.released_at IS NULL
     LEFT JOIN crews c ON c.id = a.crew_id
-    LEFT JOIN sla_timers st ON st.job_id = j.id`;
+    LEFT JOIN sla_timers st ON st.job_id = j.id
+    LEFT JOIN LATERAL (SELECT body, created_at FROM job_notes WHERE job_id = j.id ORDER BY created_at DESC, id DESC LIMIT 1) n ON true`;
 
 export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: () => string, now: Date): Promise<CreateJobOutput> => {
   const siteId = requireUuid(input.siteId, "siteId");
@@ -234,4 +239,53 @@ export const transitionJob = async (uow: UnitOfWork, actorId: string, input: Tra
     },
   );
   return { jobId, state: input.to, version, eventId };
+};
+
+/** The job a note or flag is about, in scope and matching the tenancy the caller named. */
+const jobInScope = async (uow: UnitOfWork, input: { jobId: string; orgId: string; regionId: string }) => {
+  const jobId = requireUuid(input.jobId, "jobId");
+  const job = (await uow.tx.query<{ org_id: string; region_id: string; return_trip: boolean }>(
+    `SELECT org_id, region_id, return_trip FROM jobs WHERE id = $1`, [jobId],
+  ))[0];
+  if (!job) throw new InputRefused(`job ${jobId} not found in scope`, "unknown_job");
+  if (job.org_id !== input.orgId || job.region_id !== input.regionId) throw new InputRefused(`job ${jobId} tenancy does not match input`, "tenancy_mismatch");
+  return { jobId, ...job };
+};
+
+/** S3 → gateway: a note on a job. Append-only (0015's trigger), internal only (0015's policy). */
+export const addJobNote = async (uow: UnitOfWork, actorId: string, input: AddJobNoteInput, newId: () => string): Promise<AddJobNoteOutput> => {
+  const body = requireText(input.body, "body");
+  if (body.length > 2000) throw new BadInput("body must be 2000 characters or fewer — a note, not a report");
+  const job = await jobInScope(uow, input);
+  const id = newId();
+  const eventId = await uow.apply(
+    {
+      entity: "job_note", entityId: job.jobId, action: "job.note.add", topic: "job.annotated",
+      before: null, after: { noteId: id, body },
+      orgId: job.org_id, regionId: job.region_id,
+      payload: { jobId: job.jobId, noteId: id },
+    },
+    async (tx) => {
+      await tx.insert("job_notes", { id, org_id: job.org_id, region_id: job.region_id, job_id: job.jobId, body, author_id: actorId });
+    },
+  );
+  return { id, jobId: job.jobId, eventId };
+};
+
+/** S3 → gateway: flag or clear a return trip. No version bump: a flag is not a state a device's offline log should lose to. */
+export const setReturnTrip = async (uow: UnitOfWork, input: SetReturnTripInput): Promise<SetReturnTripOutput> => {
+  if (typeof input.returnTrip !== "boolean") throw new BadInput("returnTrip must be true or false");
+  const job = await jobInScope(uow, input);
+  const eventId = await uow.apply(
+    {
+      entity: "job_flag", entityId: job.jobId, action: "job.return_trip.set", topic: "job.annotated",
+      before: { returnTrip: job.return_trip }, after: { returnTrip: input.returnTrip },
+      orgId: job.org_id, regionId: job.region_id,
+      payload: { jobId: job.jobId, returnTrip: input.returnTrip },
+    },
+    async (tx) => {
+      await tx.query(`UPDATE jobs SET return_trip = $2 WHERE id = $1`, [job.jobId, input.returnTrip]);
+    },
+  );
+  return { jobId: job.jobId, returnTrip: input.returnTrip, eventId };
 };

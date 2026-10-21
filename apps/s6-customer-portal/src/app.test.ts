@@ -61,6 +61,7 @@ const job: JobWire = {
   serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T13:00:00.000Z", version: 3, openedAt: "2026-09-17T12:00:00.000Z", stateChangedAt: "2026-09-18T09:00:00.000Z",
   regionId: SOUTH, orgId: ORG, currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 0, slaSatisfiedAt: "2026-09-17T13:00:00.000Z",
+  returnTrip: false, latestNote: null,
 };
 const msa: ContractWire = {
   id: MSA, scopeTier: "parent", scopeId: ORG, kind: "msa", parentContractId: null, billingPath: "enterprise_sla", regionId: SOUTH,

@@ -23,6 +23,8 @@ export const WRITE_ENTITIES = [
   "equipment", "account_contact",
   // S3 — dispatch
   "assignment", "job_state", "crew_release", "escalation",
+  // 0015: what the office writes about a job — a note, and the return-trip flag.
+  "job_note", "job_flag",
   // S4 — commentary (see OPEN-S4 in docs/OPEN_DECISIONS.md; not granted)
   "annotation", "acknowledgement",
   // S5 — field execution

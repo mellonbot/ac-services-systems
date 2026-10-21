@@ -107,6 +107,17 @@ export const S3_CSS = `
 .s3-cust small{color:var(--color-text-muted);font-size:var(--text-xs)}
 .s3-cust__svc{text-transform:capitalize}
 .s3-tech{display:inline-flex;align-items:center;gap:var(--space-2);font-weight:600}
+.s3-flags{display:inline-flex;flex-wrap:wrap;align-items:center;gap:var(--space-1)}
+.s3-flag{display:inline-flex;align-items:center;padding:2px var(--space-2);border:1px solid var(--color-text-muted);border-radius:var(--radius-pill);color:var(--color-text);font-size:var(--text-xs);font-weight:600;white-space:nowrap}
+.s3-grid-scroll{overflow-x:auto}
+.s3-cust strong,.s3-tech{white-space:nowrap}
+.s3-moves{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-1)}
+.s3-act{appearance:none;border:0;background:none;padding:0;color:var(--color-action-text);font:inherit;font-size:var(--text-sm);padding-block:2px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
+.s3-act:disabled{color:var(--color-text-muted);cursor:not-allowed;text-decoration:none}
+.s3-act:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
+.s3-note{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;max-width:30ch}
+.s3-note__body{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.s3-note-edit{display:flex;flex-direction:column;gap:var(--space-1);min-width:24ch}
 
 .s3-map-job-list{display:flex;flex-direction:column;gap:0;max-height:34rem;overflow:auto;list-style:none;margin:0;padding:0}.s3-map-job{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--color-border)}
 .s3-map-job__main{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-2)}

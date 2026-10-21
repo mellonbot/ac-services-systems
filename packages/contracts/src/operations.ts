@@ -348,6 +348,16 @@ export const OPERATIONS = {
     surfaces: ["S3"], carrier: "body", sdkMethod: "transitionJob",
     summary: "The office's hand on a job's state: waiting on the customer (quote requested, quote submitted, approved or declined; held mid-job and resumed) and what blocks the invoice (needs pricing, waiting on a PO or pictures, an invoice kicked back). Only the edges OFFICE_JOB_TRANSITIONS lists; anything else is refused by name as an illegal transition.",
   },
+  "jobs.addNote": {
+    id: "jobs.addNote", method: "POST", path: "/s3/jobs/note", kind: "mutation", auth: "bearer",
+    surfaces: ["S3"], carrier: "body", sdkMethod: "addJobNote",
+    summary: "Write a note on a job. Append-only — a correction is a newer note — and internal: RLS shows notes to the office in the job's region and to nobody outside it. jobs.list carries the newest.",
+  },
+  "jobs.setReturnTrip": {
+    id: "jobs.setReturnTrip", method: "POST", path: "/s3/jobs/return-trip", kind: "mutation", auth: "bearer",
+    surfaces: ["S3"], carrier: "body", sdkMethod: "setReturnTrip",
+    summary: "Flag or clear a job as owing a second visit. Set by hand, never read out of note text. Does not bump the job's version — a flag is not a state change a device's offline log should be superseded by.",
+  },
   // ---- item 4: the device shift grant (D-2a) — this device, this crew, this window ----
   "devices.list": {
     id: "devices.list", method: "GET", path: "/s2/devices", kind: "query", auth: "bearer",
@@ -1155,6 +1165,10 @@ export type JobWire = {
   readonly currentAssignmentId: string | null;
   /** The open (unsatisfied) SLA timer, if this job still has one. */
   readonly slaDueAt: string | null; readonly slaEscalationStage: number | null; readonly slaSatisfiedAt: string | null;
+  /** 0015: a second visit is owed. The office's flag, set by hand. */
+  readonly returnTrip: boolean;
+  /** 0015: the newest job_notes row — null when there is none, and always null outside the office (RLS: notes are internal). */
+  readonly latestNote: { readonly body: string; readonly at: string } | null;
 };
 // ---- item 6: service requests ----
 export type ServiceRequestPriority = "emergency" | "urgent" | "routine";
@@ -1199,6 +1213,10 @@ export type ReleaseAssignmentInput = { readonly assignmentId: string; readonly o
 export type ReleaseAssignmentOutput = { readonly jobId: string; readonly eventId: string };
 export type TransitionJobInput = { readonly jobId: string; readonly orgId: string; readonly regionId: string; readonly to: JobStateWire };
 export type TransitionJobOutput = { readonly jobId: string; readonly state: JobStateWire; readonly version: number; readonly eventId: string };
+export type AddJobNoteInput = { readonly jobId: string; readonly orgId: string; readonly regionId: string; readonly body: string };
+export type AddJobNoteOutput = { readonly id: string; readonly jobId: string; readonly eventId: string };
+export type SetReturnTripInput = { readonly jobId: string; readonly orgId: string; readonly regionId: string; readonly returnTrip: boolean };
+export type SetReturnTripOutput = { readonly jobId: string; readonly returnTrip: boolean; readonly eventId: string };
 
 export type DeviceKind = "android_pilot" | "yocto_tablet" | "web_fallback";
 export type DeviceWire = {
@@ -1550,6 +1568,8 @@ export type OperationIO = {
   "dispatch.candidates": { input: CandidateCrewsInput; output: CandidateCrewsOutput };
   "dispatch.release": { input: ReleaseAssignmentInput; output: ReleaseAssignmentOutput };
   "jobs.transition": { input: TransitionJobInput; output: TransitionJobOutput };
+  "jobs.addNote": { input: AddJobNoteInput; output: AddJobNoteOutput };
+  "jobs.setReturnTrip": { input: SetReturnTripInput; output: SetReturnTripOutput };
   "devices.list": { input: ListDevicesInput; output: ListDevicesOutput };
   "devices.register": { input: RegisterDeviceInput; output: RegisterDeviceOutput };
   "devices.grantShift": { input: GrantShiftInput; output: GrantShiftOutput };

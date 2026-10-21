@@ -36,6 +36,7 @@ const jobCreated: JobWire = {
   serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T17:00:00.000Z", version: 1, openedAt: "2026-09-17T12:00:00.000Z", stateChangedAt: "2026-09-17T12:00:00.000Z",
   regionId: SOUTH, orgId: ORG, currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 1, slaSatisfiedAt: null,
+  returnTrip: false, latestNote: null,
 };
 const jobAssigned: JobWire = {
   ...jobCreated, id: JOB_ASSIGNED, state: "assigned", currentCrewId: CREW_A, currentCrewLabel: "Crew A1", currentAssignmentId: ASSIGNMENT,
@@ -278,4 +279,12 @@ test("job dashboard: the invoice blockers are needs-action, and each has its own
   assert.deepEqual(stalling(jobs, "action", now).map((j) => j.id), ["o", "p", "t", "x"], "a kicked-back invoice is ours to fix; a clean one is closed");
   assert.deepEqual(stalling(jobs, "Trouble invoicing", now).map((j) => j.id), ["t"]);
   assert.deepEqual(stalling(jobs, "Waiting on a PO", now).map((j) => j.id), ["o"]);
+});
+
+test("job dashboard: the return-trip filter holds flagged open jobs only — a flag on closed work is history, not a truck to roll", async () => {
+  const { stalling } = await import("./screens/jobs.ts");
+  const now = Date.parse("2026-10-21T00:00:00Z");
+  const job = (id: string, state: string, returnTrip: boolean, days: number) => ({ id, state, returnTrip, openedAt: new Date(now - 400 * 86_400_000).toISOString(), stateChangedAt: new Date(now - days * 86_400_000).toISOString() }) as unknown as JobWire;
+  const jobs = [job("a", "reopened", true, 41), job("b", "awaiting_parts", true, 36), job("c", "assigned", false, 50), job("d", "invoiced", true, 90)];
+  assert.deepEqual(stalling(jobs, "returnTrip", now).map((j) => j.id), ["a", "b"]);
 });

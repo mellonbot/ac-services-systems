@@ -420,6 +420,34 @@ test("what blocks the invoice: a finished job goes to needs pricing, a PO or pic
   assert.deepEqual(log.map((r) => r.to_state), ["needs_pricing", "awaiting_po", "awaiting_pictures", "invoice_trouble"]);
 });
 
+test("notes and the return-trip flag (0015): append-only notes with the newest on the board, a flag that does not move the job's version, both refused outside the region", { skip }, async () => {
+  const west = await westDispatcher();
+  const version = (await admin(`SELECT version FROM jobs WHERE id = $1`, [jobId]))[0]!.version as number;
+  const first = await s3.gateway.addJobNote({ jobId, orgId, regionId: REGION_SOUTH, body: "  Freon leak at suction line  " });
+  assert.equal((await admin(`SELECT topic FROM outbox WHERE event_id = $1`, [first.eventId]))[0]!.topic, "job.annotated");
+  await s3.gateway.addJobNote({ jobId, orgId, regionId: REGION_SOUTH, body: "Return trip — customer wants a call first" });
+  const board = () => s3.gateway.listJobs({}).then((o) => o.jobs.find((j) => j.id === jobId)!);
+  assert.equal((await board()).latestNote?.body, "Return trip — customer wants a call first", "the newest note is the one on the board");
+  assert.equal((await admin(`SELECT body FROM job_notes WHERE id = $1`, [first.id]))[0]!.body, "Freon leak at suction line", "trimmed, and kept");
+  await assert.rejects(s3.gateway.addJobNote({ jobId, orgId, regionId: REGION_SOUTH, body: "   " }), "an empty note is refused");
+  await assert.rejects(admin(`UPDATE job_notes SET body = 'rewritten' WHERE id = $1`, [first.id]), "a note is never edited — a correction is a newer note");
+
+  assert.equal((await board()).returnTrip, false);
+  const flagged = await s3.gateway.setReturnTrip({ jobId, orgId, regionId: REGION_SOUTH, returnTrip: true });
+  assert.equal(flagged.returnTrip, true);
+  assert.equal((await board()).returnTrip, true);
+  assert.equal((await admin(`SELECT version FROM jobs WHERE id = $1`, [jobId]))[0]!.version, version, "a flag is not a state change: a device's offline log is not superseded by it");
+  await s3.gateway.setReturnTrip({ jobId, orgId, regionId: REGION_SOUTH, returnTrip: false });
+  assert.equal((await board()).returnTrip, false);
+
+  for (const attempt of [
+    west.gateway.addJobNote({ jobId, orgId, regionId: REGION_WEST, body: "not mine" }),
+    west.gateway.setReturnTrip({ jobId, orgId, regionId: REGION_WEST, returnTrip: true }),
+  ]) await assert.rejects(attempt, (e: unknown) => code(west, e) === "unknown_job", "RLS: the West dispatcher cannot see the South job");
+  assert.equal((await west.gateway.listJobs({})).jobs.filter((j) => j.id === jobId).length, 0);
+  await west.logout();
+});
+
 test("a revoked grant is a dead token: logout ends the session, and the next call is refused as revoked", { skip }, async () => {
   const s5 = await technician();
   const held = s5.token()!;

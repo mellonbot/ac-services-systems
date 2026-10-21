@@ -32,6 +32,7 @@ export const jobs = operationalTable("jobs", {
     { name: "state", type: "text", check: `state IN (${JOB_STATES.map((s) => `'${s}'`).join(",")})`, default: "'created'" },
     { name: "version", type: "integer", default: "1", comment: "Optimistic version the sync engine compares against." },
     { name: "opened_at", type: "timestamptz", default: "now()" },
+    { name: "return_trip", type: "boolean", default: "false", comment: "0015: a second visit is owed on this job. The office's flag, set by hand — not read out of the notes." },
   ],
   indexes: [["site_id"], ["state"], ["project_id"], ["contract_id"]],
 });
@@ -93,6 +94,20 @@ export const job_state_events = operationalTable("job_state_events", {
 });
 
 /** Field artefacts — append-only under sync. */
+/**
+ * 0015: what the office writes down about a job — append-only, internal
+ * only, tenancy inherited from the job. The dashboard shows the latest; the
+ * rest is the history of who said what, when.
+ */
+export const job_notes = operationalTable("job_notes", {
+  columns: [
+    { name: "job_id", type: "uuid", references: "jobs(id)" },
+    { name: "body", type: "text", check: "length(btrim(body)) BETWEEN 1 AND 2000" },
+    { name: "author_id", type: "uuid" },
+  ],
+  indexes: [["job_id", "created_at"]],
+});
+
 export const job_media = operationalTable("job_media", {
   columns: [
     { name: "job_id", type: "uuid", references: "jobs(id)" },

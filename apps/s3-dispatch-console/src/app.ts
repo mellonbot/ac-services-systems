@@ -49,6 +49,8 @@ type PreviewShell = ConnectedShell & {
   gateway: {
     listJobs: (input: Record<string, unknown>) => Promise<{ jobs: unknown[] }>;
     transitionJob: (input: { jobId: string; to: string }) => Promise<unknown>;
+    addJobNote: (input: { jobId: string; body: string }) => Promise<unknown>;
+    setReturnTrip: (input: { jobId: string; returnTrip: boolean }) => Promise<unknown>;
     health: () => Promise<{ ok: boolean }>;
   };
 };
@@ -71,7 +73,18 @@ const previewJob = (id: string, siteName: string, serviceCode: string, priority:
     regionId: "region-preview", orgId: "org-preview",
     currentCrewId: crew ? `crew-${crew.toLowerCase().replace(/\s+/g, "-")}` : null, currentCrewLabel: crew, currentAssignmentId: crew ? `assignment-${id}` : null,
     slaDueAt: sla ? new Date(Date.now() + sla.due * 3_600_000).toISOString() : null, slaEscalationStage: sla ? sla.stage : null, slaSatisfiedAt: null,
+    returnTrip: false, latestNote: null as { body: string; at: string } | null,
   };
+};
+/** Notes and return-trip flags for the preview, in the dashboard mock's words. */
+const PREVIEW_NOTES: Readonly<Record<string, { body: string; daysAgo: number; returnTrip?: boolean }>> = {
+  "33187801": { body: "Return trip — not cooling, customer wants a call before the tech rolls", daysAgo: 3, returnTrip: true },
+  "33187837": { body: "Freon leak at suction line, found before evap coil", daysAgo: 6, returnTrip: true },
+  "33187839": { body: "Burning plastic smell reported, needs same-day call back", daysAgo: 2 },
+  "32925428": { body: "High priority — possible bad thermostat, replacement on the truck", daysAgo: 1 },
+  "33200310": { body: "Condenser install — pick up at the shop, Bradley to approve price", daysAgo: 4 },
+  "33200206": { body: "Trim materials, locking caps and drain pipe priced — waiting on supply", daysAgo: 5 },
+  "32452900": { body: "New construction — ready to invoice, awaiting final walk", daysAgo: 1 },
 };
 /** Local preview only — the same job, site and crew names the board's preview rows use, spread across every bucket the dashboard draws. */
 const PREVIEW_JOBS = [
@@ -102,12 +115,25 @@ const PREVIEW_JOBS = [
   previewJob("32100190", "FirstKey Homes DFW", "repairs", "routine", "cancelled", null, 45, null),
 ];
 
+for (const job of PREVIEW_JOBS) {
+  const n = PREVIEW_NOTES[job.id];
+  if (n) Object.assign(job, { latestNote: { body: n.body, at: new Date(Date.now() - n.daysAgo * DAY).toISOString() }, returnTrip: n.returnTrip ?? false });
+}
+
 const createPreviewShell = (): PreviewShell => {
   const shell = {
     principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" },
     context: { principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" }, path: [{ tier: "parent", id: "org-preview", name: "AC Services" }], parent: { tier: "parent", id: "org-preview", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "region-preview" },
     gateway: {
       listJobs: async () => ({ jobs: PREVIEW_JOBS }),
+      addJobNote: async (input: { jobId: string; body: string }) => {
+        Object.assign(PREVIEW_JOBS.find((j) => j.id === input.jobId)!, { latestNote: { body: input.body, at: new Date().toISOString() } });
+        return { id: "preview-note", jobId: input.jobId, eventId: "preview" };
+      },
+      setReturnTrip: async (input: { jobId: string; returnTrip: boolean }) => {
+        Object.assign(PREVIEW_JOBS.find((j) => j.id === input.jobId)!, { returnTrip: input.returnTrip });
+        return { jobId: input.jobId, returnTrip: input.returnTrip, eventId: "preview" };
+      },
       transitionJob: async (input: { jobId: string; to: string }) => {
         const job = PREVIEW_JOBS.find((j) => j.id === input.jobId)!;
         Object.assign(job, { state: input.to, version: job.version + 1, stateChangedAt: new Date().toISOString() });
@@ -144,7 +170,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       store.invalidate("jobs.list");
       store.invalidate("dispatch.candidates");
     }, { topics: [
-      "job.created", "job.assigned", "job.reassigned", "job.transitioned", "job.completed", "job.cancelled",
+      "job.created", "job.assigned", "job.reassigned", "job.transitioned", "job.completed", "job.cancelled", "job.annotated",
       "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",
       "crew.compliance_refused", "credential.verified", "credential.expiring", "credential.expired",
     ] });

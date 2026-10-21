@@ -22,6 +22,8 @@
 - `job_state`
 - `crew_release`
 - `escalation`
+- `job_note`
+- `job_flag`
 
 ## Degraded mode
 

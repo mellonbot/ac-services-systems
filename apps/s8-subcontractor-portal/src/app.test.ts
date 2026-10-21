@@ -54,6 +54,7 @@ const job: JobWire = {
   serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T13:00:00.000Z", version: 4, openedAt: "2026-09-17T12:00:00.000Z", stateChangedAt: "2026-09-18T09:00:00.000Z",
   regionId: SOUTH, orgId: U(80), currentCrewId: CREW_A, currentCrewLabel: "Crew A1", currentAssignmentId: U(81),
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 0, slaSatisfiedAt: "2026-09-17T13:00:00.000Z",
+  returnTrip: false, latestNote: null,
 };
 const stmt: SettlementWire = {
   id: STMT, firmId: FIRM, regionId: SOUTH, periodFrom: "2026-08-01", periodTo: "2026-08-31", totalMinor: "1250000", currency: "USD", state: "issued",
