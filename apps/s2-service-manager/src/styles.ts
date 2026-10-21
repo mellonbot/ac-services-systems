@@ -10,6 +10,9 @@ export const S2_CSS = `
 .s2-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2);min-height:var(--control-height)}
 .s2-two-col{display:grid;grid-template-columns:minmax(var(--column-side),1fr) minmax(0,3fr);gap:var(--space-6);align-items:start}
 .s2-col--orgs{position:sticky;top:var(--space-3)}
+/* Accounts: the customer list is a four-column table, not a list of names — give the side column room for it rather than letting it run out of its panel. */
+.s2-two-col--wide-side{grid-template-columns:minmax(min-content,2fr) minmax(0,3fr)}
+@media (max-width:1100px){.s2-two-col--wide-side{grid-template-columns:minmax(0,1fr)}.s2-two-col--wide-side .s2-col--orgs{position:static}}
 .s2-node{display:inline-block;padding-inline-start:calc(var(--depth,0) * var(--space-6))}
 .s2-node[data-depth="1"]{--depth:1}
 .s2-node[data-depth="2"]{--depth:2}

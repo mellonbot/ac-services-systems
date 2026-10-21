@@ -156,7 +156,7 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
 @media (max-width:840px){
 .ac-grid[data-density="comfort"],.ac-grid[data-density="comfort"] tbody,.ac-grid[data-density="comfort"] tr{display:block}
 .ac-grid[data-density="comfort"] thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.ac-grid[data-density="comfort"] .ac-grid__row{padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}
+.ac-grid[data-density="comfort"] .ac-grid__row{height:auto;padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}
 .ac-grid[data-density="comfort"] tbody tr:last-child{border-bottom:0}
 .ac-grid[data-density="comfort"] caption{display:block;padding:var(--space-3) var(--space-3) 0}
 .ac-grid[data-density="comfort"] .ac-grid__td{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:var(--space-3);align-items:baseline;justify-items:start;height:auto;min-height:0;padding:var(--space-1) var(--space-3);border-bottom:0;text-align:start;white-space:normal;overflow-wrap:anywhere}
@@ -264,7 +264,8 @@ ac-degraded[hidden]{display:none}
   .ac-grid[data-stack="narrow"]{display:block;width:100%;max-width:100%;overflow-x:auto}
   .ac-grid[data-stack="narrow"] thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   .ac-grid[data-stack="narrow"] tbody,.ac-grid[data-stack="narrow"] .ac-grid__row{display:block}
-  .ac-grid[data-stack="narrow"] .ac-grid__row{padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}
+  /* height:auto — a selectable row carries the console row height, and a stacked row is several lines tall; without it each row overprints the next. */
+  .ac-grid[data-stack="narrow"] .ac-grid__row{height:auto;padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}
   .ac-grid[data-stack="narrow"] .ac-grid__td{display:grid;grid-template-columns:minmax(var(--label-min),1fr) minmax(0,2fr);gap:var(--space-3);align-items:baseline;justify-items:start;height:auto;min-height:0;padding:var(--space-1) var(--space-3);border-bottom:0;text-align:start;white-space:normal;overflow-wrap:anywhere}
   .ac-grid[data-stack="narrow"] .ac-grid__td::before{content:attr(data-label);color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
   .ac-grid[data-stack="narrow"] .ac-grid__empty td{display:block}

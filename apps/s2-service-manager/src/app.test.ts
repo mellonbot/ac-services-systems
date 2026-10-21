@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToString as render } from "../../../packages/ui/src/testing.ts";
 import { createApp, gatewayOrigin, SCREEN_VIEWS } from "./app.ts";
+import { S2_CSS } from "./styles.ts";
+import { UI_CSS } from "../../../packages/ui/src/styles.ts";
 import { SCREENS } from "./screens.ts";
 import { confirmPanel } from "./screens/common.ts";
 import { orderTree, showSegment, showCustomerCard } from "./screens/accounts-tree.ts";
@@ -206,6 +208,19 @@ test("hovering a customer shows S6's card for it: a commercial account's sites a
   assert.doesNotMatch(render(app.view()), /role="tooltip"/);
   // The name carries the hover AND the focus handlers — keyboard users get the card too.
   assert.match(render(app.view()), /<a class="ac-link" href="\/accounts\/a2000000-0000-0000-0000-000000000001"/);
+});
+
+test("the Customers list: one heading (the panel's), and a selectable row that can grow to a stacked row's height", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, /class="s2-two-col s2-two-col--wide-side"/);
+  const customers = out.split('id="customers"')[1]!.split("</section>")[0]!;
+  assert.doesNotMatch(customers, /<caption/, "the panel title already names the table");
+  assert.match(S2_CSS, /\.s2-two-col--wide-side\{grid-template-columns:minmax\(min-content,2fr\)/, "the side column is never narrower than the table it holds");
+  assert.match(UI_CSS, /\.ac-grid\[data-stack="narrow"\] \.ac-grid__row\{height:auto/, "a stacked selectable row is not held to one console row");
 });
 
 test("the tree screen: customers on the left, the selected tree ordered region → location → site with OUR region on every row", async () => {
