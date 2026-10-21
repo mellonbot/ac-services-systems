@@ -15,6 +15,7 @@
  *   bundle.js    esbuild of src/app.ts (the surface's own entry) or, absent, src/main.ts (the
  *                generated registry boot) — esm, es2022, browser, sourcemapped
  *   bundle.js.map
+ *   chunks/      one per dynamic import() (S1's truck renderer), loaded when reached
  *   ui.css       the self-hosted @font-face block, then packages/ui UI_CSS — roles only, no colours
  *   fonts/       packages/tokens/fonts — the subset faces and their licences
  *   (public/)    apps/<app>/public, copied as-is when the surface has one (S1's truck turntable)
@@ -58,7 +59,12 @@ export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean; gate
 
   const result = await build({
     entryPoints: [entry],
-    outfile: join(outDir, "bundle.js"),
+    outdir: outDir,
+    entryNames: "bundle",
+    // A dynamic import() becomes its own chunk, fetched when it is reached —
+    // S1's three.js loads after the sign-in ring has rendered, not before.
+    splitting: true,
+    chunkNames: "chunks/[name]-[hash]",
     bundle: true,
     format: "esm",
     platform: "browser",

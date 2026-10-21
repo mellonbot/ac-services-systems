@@ -17,6 +17,24 @@ const surfaceLoginLabel = (id: SurfaceId): string => {
   }
 };
 
+let stopTruck: (() => void) | undefined;
+
+/**
+ * The truck's canvas, mounted and unmounted. Module-level so preact sees the
+ * same ref on every render and calls it only when the canvas comes or goes;
+ * three.js loads in its own chunk, after the page has rendered.
+ */
+const truckRef = (canvas: HTMLCanvasElement | null): void => {
+  stopTruck?.();
+  stopTruck = undefined;
+  if (!canvas) return;
+  let stopped = false;
+  stopTruck = () => { stopped = true; };
+  void import("../truck.ts").then(({ spinTruck }) => {
+    if (!stopped) stopTruck = spinTruck(canvas, "/truck.glb");
+  });
+};
+
 /**
  * THE FRONT PAGE, and a short list of things it does not say.
  *
@@ -46,7 +64,7 @@ export const home: Screen = (ctx: ScreenContext): VNode => {
     <section class="s1-surface-access" id="surface-logins" aria-labelledby="surface-logins-title">
       <h2 class="s1-label" id="surface-logins-title">Sign in to a portal</h2>
       <div class="s1-orbit">
-        <div class="s1-orbit__truck" role="img" aria-label="AC Services service truck, Unit TACLA-14402C"></div>
+        <div class="s1-orbit__truck" role="img" aria-label="AC Services service truck, Unit TACLA-14402C"><canvas ref=${truckRef}></canvas></div>
         <ul class="s1-orbit__ring">
           ${portals.map((id, i) => html`<li class="s1-orbit__slot" style=${`--slot:${30 + (i * 360) / portals.length}deg`}>
             <a class="s1-portal" href="${SURFACE_PATHS[id]}/">

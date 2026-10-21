@@ -40,14 +40,14 @@ export const S1_CSS = `
 .s1-foot{margin-top:var(--space-6);padding-top:var(--space-3);border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size:var(--text-sm)}
 
 /* ---- The sign-in ring: six portals around the service truck, which turns once every 36s.
-   The truck is a 90-frame turntable rendered from the unit's 3D model (10 x 9 sprite,
-   public/truck-turntable.webp); steps() shows one frame at a time, so the image never blurs
-   between angles. Reduced motion holds the first frame. Under 30rem the ring folds to a grid. ---- */
+   The truck is drawn live by three.js (src/truck.ts) on a transparent canvas; until the
+   first frame, or where WebGL is unavailable, a still of it (public/truck-still.webp)
+   stands in its place. Under 30rem the ring folds to a grid. ---- */
 .s1-surface-access{container-type:inline-size}
 .s1-orbit{position:relative;width:100%;aspect-ratio:1;margin-top:var(--space-4)}
-.s1-orbit__truck{position:absolute;left:50%;top:50%;width:50cqi;aspect-ratio:3/2;transform:translate(-50%,-50%);background:url(/truck-turntable.webp) 0 0/1000% 900% no-repeat;animation:s1-turn-x 4s steps(10) infinite,s1-turn-y 36s steps(9) infinite}
-@keyframes s1-turn-x{to{background-position-x:111.111%}}
-@keyframes s1-turn-y{to{background-position-y:112.5%}}
+.s1-orbit__truck{position:absolute;left:50%;top:50%;width:50cqi;aspect-ratio:3/2;transform:translate(-50%,-50%);background:url(/truck-still.webp) center/contain no-repeat}
+.s1-orbit__truck[data-live]{background:none}
+.s1-orbit__truck canvas{display:block;width:100%;height:100%}
 .s1-orbit__ring{position:absolute;inset:0;margin:0;padding:0;list-style:none}
 .s1-orbit__slot{position:absolute;left:50%;top:50%;width:28cqi;transform:translate(-50%,-50%) rotate(var(--slot)) translateY(-36cqi) rotate(calc(-1 * var(--slot)))}
 .s1-portal{display:flex;flex-direction:column;justify-content:center;gap:var(--space-1);min-height:calc(2 * var(--control-height));padding:var(--space-3);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);color:var(--color-text);text-align:center;text-decoration:none;transition:border-color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease)}
@@ -61,7 +61,7 @@ export const S1_CSS = `
   .s1-orbit__ring{position:static;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2)}
   .s1-orbit__slot{position:static;width:auto;transform:none}
 }
-@media (prefers-reduced-motion:reduce){.s1-orbit__truck{animation:none}.s1-portal{transition:none}}
+@media (prefers-reduced-motion:reduce){.s1-portal{transition:none}}
 
 /* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */
 .s1-h1{font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);text-transform:none;line-height:1.15}
