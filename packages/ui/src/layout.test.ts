@@ -26,7 +26,8 @@ test("a panel draws its head only when titled", () => {
 });
 
 test("nothing inside a panel draws a second card", () => {
-  assert.match(UI_CSS, /\.ac-panel \.ac-grid,\.ac-panel \.ac-stat\{box-shadow:none/);
+  assert.match(UI_CSS, /\.ac-panel \.ac-grid\{box-shadow:none/);
+  assert.match(UI_CSS, /\.ac-panel \.ac-stat\{padding:0;background:transparent;border:0/);
   assert.match(UI_CSS, /\.ac-panel \.ac-form\{padding:0;background:transparent;border:0/);
 });
 

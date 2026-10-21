@@ -219,8 +219,11 @@ ac-degraded[hidden]{display:none}
 .ac-stat[data-tone="info"]{--stat-ink:var(--color-action-text)}
 .ac-panel{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-4)}
 /* A panel is the one card on the page ground; what sits in it drops its own elevation, never a second card in a card. */
-.ac-panel .ac-grid,.ac-panel .ac-stat{box-shadow:none;border-radius:var(--radius-control)}
+.ac-panel .ac-grid{box-shadow:none;border-radius:var(--radius-control)}
+.ac-panel .ac-stat{padding:0;background:transparent;border:0;border-radius:var(--radius-none);box-shadow:none}
+.ac-panel .ac-stat__n{font-size:var(--text-xl)}
 .ac-panel .ac-form{padding:0;background:transparent;border:0;border-radius:var(--radius-none);box-shadow:none}
+.ac-panel>:first-child{margin-top:0}
 .ac-panel>:last-child{margin-bottom:0}
 .ac-panel__head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:var(--space-2);margin:0 0 var(--space-3)}
 .ac-panel__title{margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}

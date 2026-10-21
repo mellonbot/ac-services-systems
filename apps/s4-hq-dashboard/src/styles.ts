@@ -10,7 +10,7 @@ export const S4_CSS = `
 .s4-app{display:flex;flex-direction:column;gap:var(--space-3)}
 .s4-asof{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;color:var(--color-text-muted);font-size:var(--text-sm)}
 .s4-loading,.s4-empty,.s4-muted{color:var(--color-text-muted)}
-.s4-areas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}
+.s4-areas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4);margin:0 0 var(--space-4)}
 @media (min-width:1360px){.s4-areas{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (max-width:640px){.s4-areas{grid-template-columns:1fr}}
 .s4-sub{font-size:var(--text-sm);color:var(--color-text-muted)}
