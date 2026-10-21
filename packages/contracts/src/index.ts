@@ -8,3 +8,4 @@ export * from "./surfaces.ts";
 export * from "./operations.ts";
 export * from "./refusals.ts";
 export * from "./hq.ts";
+export * from "./memberships.ts";

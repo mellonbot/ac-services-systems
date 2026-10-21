@@ -500,6 +500,8 @@ test("YOUR HOME: a residential login lands on its home — the address, the unit
   assert.match(out, /id="home-units".*Split system|id="home-units".*Trane XR16/s);
   assert.match(out, /id="membership".*Member since/s);
   assert.match(out, /of 4 a year/, "PM visits a year from the resolved term, where one is set");
+  assert.match(out, /id="membership-card__title">Premium Cool Club</, "the plan by its name, as it was sold");
+  assert.match(out, /\$200\.00 a year plus tax · 2 preventive maintenance visits · Filter replacements included the first year\./);
   assert.match(out, /id="request-form"/);
   assert.match(out, /<input type="hidden" name="siteId" value="e6000000-0000-0000-0000-000000000053"/, "one home: no site to choose");
   assert.match(out, /id="nav-request"/);
@@ -515,7 +517,9 @@ test("YOUR HOME, payer only: the form is not drawn and the request button is gon
 
 test("YOUR HOME, no membership: said plainly, nothing invented", async () => {
   const { app } = await homeReady(homeowner, []);
-  assert.match(render(app.view()), /No membership — each visit is billed on its own/);
+  const out = render(app.view());
+  assert.match(out, /No membership — each visit is billed on its own/);
+  assert.match(out, /Premium Cool Club: \$200\.00 a year plus tax/, "the one plan there is, offered");
 });
 
 test("plannedVisits: PM jobs completed this year, and the earliest booked one still ahead", () => {

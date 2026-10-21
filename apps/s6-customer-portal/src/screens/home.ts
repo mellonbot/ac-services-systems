@@ -1,9 +1,9 @@
 import { html, pageHead, panel, statStrip, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { ContractWire, EquipmentWire, JobWire } from "../../../../packages/contracts/src/index.ts";
+import { COOL_CLUB, type ContractWire, type EquipmentWire, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, type Screen, type ScreenContext } from "./common.ts";
 import { requestForm, outcomeView } from "./request.ts";
-import { KIND_WORD, addressLines } from "./site.ts";
+import { KIND_WORD, addressLines, money } from "./site.ts";
 import { ordersOf, ordersPanel, stepOf, windowOf } from "./work.ts";
 
 /**
@@ -58,24 +58,37 @@ const unitsView = (units: readonly EquipmentWire[]): VNode => {
   </li>`)}</ul>`;
 };
 
+/** What the plan is, in one line: the price, the visits, and what else it includes. */
+const planLine = [
+  `${money(String(COOL_CLUB.feeMinor))} a ${COOL_CLUB.period}${COOL_CLUB.taxable ? " plus tax" : ""}`,
+  `${COOL_CLUB.pmVisitsPerYear} preventive maintenance visits`,
+  ...COOL_CLUB.includes,
+].join(" · ") + ".";
+
 const membershipCard = (ctx: ScreenContext, siteId: string | null, contracts: readonly ContractWire[], jobs: readonly JobWire[], nowMs: number): VNode => {
   const member = contracts.find((c) => c.state === "active" && c.billingPath === MEMBERSHIP) ?? null;
   if (!member) {
-    return panel(html`<p class="s6-muted" id="membership">No membership — each visit is billed on its own. Ask the office about a maintenance plan.</p>`, "Membership", undefined, undefined, "membership-card");
+    return panel(html`<div id="membership">
+      <p class="s6-muted">No membership — each visit is billed on its own.</p>
+      <p>${COOL_CLUB.name}: ${planLine} Ask the office to sign you up.</p>
+    </div>`, "Membership", undefined, undefined, "membership-card");
   }
   const asOf = new Date(nowMs).toISOString().slice(0, 10);
   const terms = siteId ? ctx.store.read(keyOf("terms.resolved", { tier: "site", nodeId: siteId, asOf }), () => ctx.shell.gateway.resolvedTerms({ tier: "site", nodeId: siteId, asOf })) : null;
-  const perYear = terms?.value.state === "ready" ? terms.value.value.resolved["pm_visits_per_year"]?.value : undefined;
+  // The agreed term wins where the office set one; otherwise the plan's own count.
+  const agreed = terms?.value.state === "ready" ? terms.value.value.resolved["pm_visits_per_year"]?.value : undefined;
+  const perYear = typeof agreed === "number" ? agreed : COOL_CLUB.pmVisitsPerYear;
   const { done, next } = plannedVisits(jobs, nowMs);
   return panel(html`<div id="membership">
     ${statStrip([
-      { n: done, label: "Planned visits this year", ...(typeof perYear === "number" ? { sub: `of ${perYear} a year` } : {}), tone: "ok" },
+      { n: done, label: "Planned visits this year", sub: `of ${perYear} a year`, tone: "ok" },
     ], "membership-stats")}
     <p class="s6-order__note">${next
       ? html`Next planned visit <strong class="ac-num">${windowOf(next.serviceWindowStart, next.serviceWindowEnd)}</strong>.`
       : "No planned visit booked yet — the office schedules it and it appears here."}</p>
+    <p>${planLine}</p>
     <p class="s6-muted">Member since <span class="ac-num">${day(member.effectiveFrom)}</span>${member.effectiveTo ? html`, through <span class="ac-num">${day(member.effectiveTo)}</span>` : null}.</p>
-  </div>`, "Membership", undefined, undefined, "membership-card");
+  </div>`, COOL_CLUB.name, undefined, undefined, "membership-card");
 };
 
 export const home: Screen = (ctx) => {
