@@ -9,7 +9,8 @@
 export const S6_CSS = `
 .s6-app{display:flex;flex-direction:column;gap:var(--space-3)}
 .s6-app>section,.s6-app>article{display:flex;flex-direction:column;gap:var(--space-4)}
-.s6-crumbs{margin:0;color:var(--color-text-muted);display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.s6-crumbs{margin:0;color:var(--color-text-muted)}
+.s6-site__where{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
 .s6-loading,.s6-empty,.s6-muted{color:var(--color-text-muted)}
 .s6-actions{display:flex;gap:var(--space-4);margin:0}
 .s6-tree{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}

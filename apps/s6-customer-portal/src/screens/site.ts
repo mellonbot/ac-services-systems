@@ -126,12 +126,12 @@ export const site: Screen = (ctx, params) => {
     const siteRequests = requests.value.state === "ready" ? requests.value.value.requests.filter((r) => r.siteId === node.id) : [];
 
     return html`<article class="s6-site" id="site-card" data-site=${node.id}>
-      <p class="s6-crumbs" id="site-crumbs">
-        ${crumbs.map((c, i) => html`${i ? " › " : ""}<span>${c}</span>`)}
+      <div class="s6-site__where">
+        <p class="s6-crumbs" id="site-crumbs">${crumbs.map((c, i) => html`${i ? " › " : ""}<span>${c}</span>`)}</p>
         <span class="s6-node__tier">${TIER_WORD.site}</span>
         ${node.customerGroup ? html`<span class="s6-node__group" title="Your own grouping — reportable, never structure">${node.customerGroup}</span>` : null}
         ${node.externalRef ? html`<span class="s6-node__group" title="Your site code">${node.externalRef}</span>` : null}
-      </p>
+      </div>
       ${pageHead(html`<span id="site-name">${node.name}</span>`, "Where this site is, what runs on its roof, who is there, and everything that has happened to it.", html`
         ${PrimaryAction({ density: ctx.density, label: "Request service here", id: "site-request", onClick: () => ctx.router.navigate("request", { siteId: node.id }) })}
         ${linkTo(ctx, "terms", { tier: "site", nodeId: node.id }, "Terms at this site")}`)}
