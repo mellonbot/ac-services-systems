@@ -150,4 +150,7 @@ test("in a household, who pays is not who asks: a payer-only login cannot reques
   await ask(both);
   const seen = (await payer.gateway.listServiceRequests({})).requests.filter((q) => q.siteId === home.siteId);
   assert.equal(seen.length, 2, "everyone in the household reads the home's requests");
+  assert.ok(seen.every((q) => q.customerSegment === "residential"));
+  const office = (await s2.gateway.listServiceRequests({})).requests.filter((q) => q.siteId === home.siteId);
+  assert.ok(office.length === 2 && office.every((q) => q.customerSegment === "residential"), "the office reads the mark off the same rows");
 });

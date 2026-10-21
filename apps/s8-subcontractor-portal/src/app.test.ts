@@ -52,7 +52,7 @@ const lic: CredentialWire = { id: LIC, crewId: CREW_B, kind: "license", identifi
 const job: JobWire = {
   id: JOB, siteId: SITE, siteName: "Austin — Roof", siteAddress: null, contractId: null, projectId: null, serviceCode: "HVAC-REPAIR", priority: "urgent", state: "on_site",
   serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T13:00:00.000Z", version: 4, openedAt: "2026-09-17T12:00:00.000Z", stateChangedAt: "2026-09-18T09:00:00.000Z",
-  regionId: SOUTH, orgId: U(80), currentCrewId: CREW_A, currentCrewLabel: "Crew A1", currentAssignmentId: U(81),
+  regionId: SOUTH, orgId: U(80), customerSegment: null, currentCrewId: CREW_A, currentCrewLabel: "Crew A1", currentAssignmentId: U(81),
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 0, slaSatisfiedAt: "2026-09-17T13:00:00.000Z",
   returnTrip: false, latestNote: null,
 };

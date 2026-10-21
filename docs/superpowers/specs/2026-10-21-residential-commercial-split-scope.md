@@ -163,7 +163,10 @@ Roughly **3½ weeks** for one builder without the email work, **4½** with it.
 > filters; no Sites tab. A payer-only login sees no form and no request
 > button. The AC Logins app's Customer Portal tab filters by
 > residential / commercial and the add form narrows the customer list by it.
-> S2/S3 marks are still to do.
+> Office marks: job and request rows carry `customerSegment`; S2 Accounts has
+> a Type column and All / Residential / Commercial chips; S3 Intake, the jobs
+> list, the job detail and the map flag a homeowner "Residential" (commercial,
+> the default, carries no mark). Step 2 is complete.
 
 1. **Segment (immutable) + one-step creation + lead conversion + household
    roles.** Unblocked. The office can carry homeowners as real customers, and
