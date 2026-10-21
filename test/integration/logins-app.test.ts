@@ -18,13 +18,27 @@ import { connectShell, type ConnectedShell } from "../../packages/shell/src/inde
 import { GatewayRefusal, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
-import { openDb, attachIdleErrorHandler, LoginsDbError, type LoginsDb } from "../../tools/logins-app/src/db.ts";
+import { openDb, attachIdleErrorHandler, failure, LoginsDbError, type LoginsDb } from "../../tools/logins-app/src/db.ts";
 import { kindsOf } from "../../tools/logins-app/src/kinds.ts";
 import { LoginInputError } from "../../tools/logins-app/src/rows.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — the logins app's database access was not verified over the wire";
 if (!URL_) test("logins app database access over the wire", { skip }, () => {});
+
+// No database needed — kept here because db.ts imports pg, which the zero-install guard cannot load.
+
+test("failure: a refused connect's empty AggregateError names its inner errors", () => {
+  const e = Object.assign(new AggregateError([new Error("connect ECONNREFUSED ::1:5433"), new Error("connect ECONNREFUSED 127.0.0.1:5433")], ""), { code: "ECONNREFUSED" });
+  const f = failure(e);
+  assert.ok(f instanceof LoginsDbError);
+  assert.equal(f.message, "connect ECONNREFUSED ::1:5433; connect ECONNREFUSED 127.0.0.1:5433");
+});
+
+test("failure: never an empty message", () => {
+  assert.equal(failure(Object.assign(new AggregateError([], ""), { code: "ECONNRESET" })).message, "ECONNRESET");
+  assert.equal(failure(new Error("")).message, "Lost the connection to the database.");
+});
 
 const PORT = 25080 + Math.floor(Math.random() * 1000);
 const BASE = `http://127.0.0.1:${PORT}`;
