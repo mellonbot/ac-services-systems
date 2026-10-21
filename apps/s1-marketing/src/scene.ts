@@ -1,6 +1,7 @@
 import {
-  Box3, BoxGeometry, Color, CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight, Mesh, MeshStandardMaterial, PerspectiveCamera,
-  PlaneGeometry, RepeatWrapping, SRGBColorSpace, Scene, TextureLoader, Vector3, WebGLRenderer, type Object3D,
+  Box3, BoxGeometry, CatmullRomCurve3, Color, ConeGeometry, CylinderGeometry, DirectionalLight, DoubleSide, Fog, Group, HemisphereLight, Mesh,
+  MeshStandardMaterial, PerspectiveCamera, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Scene, TextureLoader, TorusGeometry, TubeGeometry,
+  Vector3, WebGLRenderer, type Object3D,
 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
@@ -26,7 +27,9 @@ const FLAT_BELOW_PX = 640;
  * asphalt for each portal with that portal's sign-in plate pinned above it,
  * and behind the bay the stock waiting to go out — residential condensers on
  * pallets and packaged rooftop units on skids — in front of the shop, inside
- * a chain-link fence.
+ * a chain-link fence. Spiral duct and fittings lie by the bay, a dumpster and
+ * empty pallets stand by the shop, and a forklift in the house red works its
+ * lane between the bay and the condenser pallets.
  *
  * Modelled on the ERS recovery line (erektor-return.systems): depth depicts
  * plant, not interface. The plates are ordinary links in the page, positioned
@@ -42,7 +45,7 @@ const FLAT_BELOW_PX = 640;
  *
  * `[data-live]` goes on the scene root at the truck's first frame; until then,
  * and where WebGL is unavailable, the still poster and the CSS ring stand in.
- * Under `prefers-reduced-motion` nothing turns: one frame is drawn, and
+ * Under `prefers-reduced-motion` nothing turns or drives: one frame is drawn, and
  * redrawn on resize, when a unit arrives, or when a pad lights. The returned
  * function stops the loop and releases the GPU context.
  */
@@ -229,6 +232,100 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     return models.get(url)!;
   };
   const pallet = mat("surface-sunken", 0.9);
+  // --- Props, built in real metres inside a group drawn at the yard's scale.
+  const prop = (x: number, z: number, heading: number): Group => {
+    const g = new Group();
+    g.position.set(x, 0, z);
+    g.rotation.y = heading;
+    g.scale.setScalar(TRUCK_SCALE);
+    scene.add(g);
+    return g;
+  };
+  const red = mat("brand", 0.55);
+  const black = mat("text", 0.7);
+  const galv = new MeshStandardMaterial({ color: role("border"), roughness: 0.35, metalness: 0.75, side: DoubleSide });
+
+  // Spiral duct: a galvanized length with its helical lock seam, lying along z.
+  const duct = (parent: Object3D, r: number, len: number, x: number, y: number, z: number): void => {
+    const pipe = add(new Mesh(new CylinderGeometry(r, r, len, 40, 1, true), galv), parent);
+    pipe.rotation.x = Math.PI / 2;
+    pipe.position.set(x, y, z);
+    const turns = Math.round(len / 0.15), pts: Vector3[] = [];
+    for (let i = 0; i <= turns * 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      pts.push(new Vector3(x + Math.cos(a) * r, y + Math.sin(a) * r, z - len / 2 + (i / (turns * 16)) * len));
+    }
+    add(new Mesh(new TubeGeometry(new CatmullRomCurve3(pts), turns * 16, 0.008, 4), galv), parent);
+  };
+  const ducts = prop(26.5, -8, 0);
+  for (const dx of [-0.75, 0.75]) box(0.1, 0.1, 3.2, dx, 0.05, 0, pallet, ducts).rotation.y = Math.PI / 2;
+  [[-0.63, -0.21, 0.21, 0.63], [-0.42, 0, 0.42], [-0.21, 0.21]].forEach((row, i) => {
+    for (const x of row) duct(ducts, 0.2, 3, x, 0.3 + i * 0.37, 0);
+  });
+  const fittings = prop(26, 4, 0.4);
+  for (const [x, z, a] of [[0, 0, 0], [0.7, 0.4, 1.2], [-0.5, 0.6, 2.4]] as const) {
+    const elbow = add(new Mesh(new TorusGeometry(0.4, 0.15, 12, 24, Math.PI / 2), galv), fittings);
+    elbow.position.set(x, 0.15, z);
+    elbow.rotation.set(-Math.PI / 2, 0, a);
+  }
+  for (const [x, z] of [[1.2, -0.5], [1.55, -0.1]] as const) {
+    const stub = add(new Mesh(new CylinderGeometry(0.15, 0.15, 1.1, 32, 1, true), galv), fittings);
+    stub.position.set(x, 0.55, z);
+  }
+
+  // Cones at the bay's corners, in the house red with a white collar.
+  for (const [x, z] of [[-bx, -bz], [bx, -bz], [-bx, bz], [bx, bz]] as const) {
+    const c = prop(x, z, 0);
+    box(0.36, 0.03, 0.36, 0, 0.015, 0, black, c);
+    add(new Mesh(new ConeGeometry(0.15, 0.7, 24), red), c).position.y = 0.36;
+    add(new Mesh(new CylinderGeometry(0.085, 0.1, 0.1, 24), stripe), c).position.y = 0.4;
+  }
+
+  // A dumpster against the shop, and a stack of empty pallets beside the RTUs.
+  const bin = prop(-14, -30.5, 0.05);
+  box(1.9, 1.15, 1.2, 0, 0.62, 0, mat("text-muted", 0.6), bin);
+  box(1.95, 0.06, 1.25, 0, 1.22, -0.03, black, bin).rotation.x = -0.12;
+  for (const x of [-0.8, 0.8]) box(0.1, 0.1, 1.25, x, 0.05, 0, black, bin);
+  const stack = prop(13, -27, -0.2);
+  for (let i = 0; i < 6; i++) box(1.2, 0.14, 1.0, (i % 2) * 0.04, 0.07 + i * 0.145, 0, pallet, stack);
+
+  // Tyre ruts down the forklift's lane, and the forklift itself.
+  const rut = new MeshStandardMaterial({ color: role("text"), transparent: true, opacity: 0.22, roughness: 1 });
+  const LANE_X = -25.5, LANE_NEAR = 6, LANE_FAR = -13;
+  for (const dx of [-1.4, 1.4]) paint(0.9, LANE_NEAR - LANE_FAR + 8, LANE_X + dx, (LANE_NEAR + LANE_FAR) / 2, rut);
+  const lift = prop(LANE_X, LANE_NEAR, 0);
+  box(1.1, 0.5, 2.0, 0, 0.5, 0, red, lift);
+  box(1.12, 0.75, 0.5, 0, 0.85, 0.85, red, lift);
+  box(0.8, 0.35, 0.7, 0, 0.9, 0.2, black, lift);
+  for (const [x, z] of [[-0.48, -0.35], [0.48, -0.35], [-0.48, 0.6], [0.48, 0.6]] as const) box(0.06, 1.35, 0.06, x, 1.6, z, black, lift);
+  box(1.02, 0.05, 1.05, 0, 2.28, 0.12, black, lift);
+  for (const [z, r] of [[-0.62, 0.3], [0.68, 0.26]] as const) for (const x of [-0.52, 0.52]) {
+    const w = add(new Mesh(new CylinderGeometry(r, r, 0.22, 24), black), lift);
+    w.rotation.z = Math.PI / 2;
+    w.position.set(x, r, z);
+  }
+  for (const x of [-0.36, 0.36]) box(0.08, 2.3, 0.1, x, 1.25, -1.08, black, lift);
+  box(0.8, 0.08, 0.1, 0, 2.35, -1.08, black, lift);
+  const carriage = new Group();
+  carriage.position.set(0, 0.3, -1.16);
+  lift.add(carriage);
+  box(0.9, 0.5, 0.05, 0, 0.25, 0, black, carriage);
+  for (const x of [-0.26, 0.26]) box(0.1, 0.05, 1.1, x, 0.02, -0.58, black, carriage);
+  const liftPallet = box(1.1, 0.14, 1.0, 0, 0.12, -0.6, pallet, carriage);
+
+  // One shuttle every 26 s: drive to the condenser pallets, raise, lower, reverse to the bay, wait.
+  const SHUTTLE_MS = 26_000;
+  const ease = (t: number): number => t * t * (3 - 2 * t);
+  const span = (t: number, a: number, b: number): number => ease(Math.min(Math.max((t - a) / (b - a), 0), 1));
+  const shuttle = (ms: number): void => {
+    const t = (ms % SHUTTLE_MS) / SHUTTLE_MS;
+    const out = span(t, 0.04, 0.34), back = span(t, 0.58, 0.9);
+    lift.position.z = LANE_NEAR + (LANE_FAR - LANE_NEAR) * (out - back);
+    carriage.position.y = 0.3 + 1.1 * (span(t, 0.36, 0.45) - span(t, 0.48, 0.56));
+    liftPallet.visible = t > 0.47 && t < 0.97;
+  };
+  shuttle(0);
+
   for (const [url, x, z, heading] of STOCK) {
     void load(url).then((model) => {
       if (stopped) return;
@@ -266,6 +363,7 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     const start = performance.now();
     renderer.setAnimationLoop((now) => {
       table.rotation.y = -((now - start) / REVOLUTION_MS) * Math.PI * 2;
+      shuttle(now - start);
       draw();
     });
   }, () => { /* no model, no WebGL frame: the poster stays */ });
