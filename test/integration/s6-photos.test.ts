@@ -163,6 +163,8 @@ test("the requester attaches a JPEG and a PNG; the bytes land in the store under
 test("a photo is seen wherever its request is — the executive, the region's dispatcher — and is unknown, not forbidden, to everyone else", { skip }, async () => {
   assert.equal((await exec.gateway.getMedia({ id: photoJpeg })).contentType, "image/jpeg", "the executive, above the location");
   assert.equal((await disp.gateway.getMedia({ id: photoJpeg })).contentType, "image/jpeg", "the office, by region (S3)");
+  const intake = (await disp.gateway.listServiceRequests({})).requests.find((r) => r.id === request);
+  assert.deepEqual(intake?.photos.map((p) => p.id), [photoJpeg, photoPng], "S3's Intake read carries the same photos, in the same order");
   assert.equal((await fmAustin2.gateway.getMedia({ id: photoJpeg })).contentType, "image/jpeg", "a colleague at the same location sees the request, so the photo");
   await refusedWith(fmReno, fmReno.gateway.getMedia({ id: photoJpeg }), "unknown_photo");
   await refusedWith(otherFm, otherFm.gateway.getMedia({ id: photoJpeg }), "unknown_photo");

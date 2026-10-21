@@ -9,6 +9,7 @@ import { board } from "./screens/board.ts";
 import { dispatch } from "./screens/dispatch.ts";
 import { jobs } from "./screens/jobs.ts";
 import { detail, pick } from "./screens/detail.ts";
+import { intake } from "./screens/intake.ts";
 import { previewDetail } from "./preview-detail.ts";
 import { S3_CSS } from "./styles.ts";
 
@@ -47,11 +48,14 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   jobs,
   detail,
   pick,
+  intake,
 };
 
 type PreviewShell = ConnectedShell & {
   gateway: {
     listJobs: (input: Record<string, unknown>) => Promise<{ jobs: unknown[] }>;
+    listServiceRequests: (input: Record<string, unknown>) => Promise<{ requests: unknown[] }>;
+    getMedia: (input: { id: string }) => Promise<{ id: string; contentType: string; image: string }>;
     transitionJob: (input: { jobId: string; to: string }) => Promise<unknown>;
     addJobNote: (input: { jobId: string; body: string; kind?: "note" | "standing" }) => Promise<unknown>;
     jobDetail: (input: { jobId: string }) => Promise<unknown>;
@@ -128,12 +132,29 @@ for (const job of PREVIEW_JOBS) {
   if (n) Object.assign(job, { latestNote: { body: n.body, at: new Date(Date.now() - n.daysAgo * DAY).toISOString() }, returnTrip: n.returnTrip ?? false });
 }
 
+/** Local preview only — what customers asked for, in the same sites the preview jobs use; one request is already a job. */
+const PREVIEW_PHOTO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAeUlEQVR4nAXBIRYAERQAQKdzgI2CJAkTPflnTxQkR92ZlIuvqEUvRhHFLm6RcvM1tenNaKLZzW1S5qPSGQSbS8rTN9WpT2OKaU93Sjl8oYYeRoiwww0pL99Sl76MJZa93CXl4zvq0Y9xxLGPe6T8fE99+jOeePZznx9uyFbBTUcGaQAAAABJRU5ErkJggg==";
+const previewRequest = (n: number, siteName: string, priority: "emergency" | "urgent" | "routine", description: string, hoursAgo: number, photos: number, jobId: string | null = null) => ({
+  id: `5e${String(n).padStart(6, "0")}-0000-4000-8000-000000000000`, siteId: `site-${n}`, siteName, priority, description, requestedBy: "preview-customer",
+  createdAt: new Date(Date.now() - hoursAgo * 3_600_000).toISOString(), jobId, jobState: jobId ? PREVIEW_JOBS.find((j) => j.id === jobId)?.state ?? null : null,
+  orgId: "org-preview", regionId: "region-preview",
+  photos: Array.from({ length: photos }, (_, i) => ({ id: `p${n}-${i}`, contentType: "image/png", bytes: 68 })),
+});
+const PREVIEW_REQUESTS = [
+  previewRequest(1, "Shipman Co", "urgent", "No cooling — server closet unit isn't keeping up; temp alarm went off twice overnight.", 2, 2),
+  previewRequest(2, "Meridian Plaza", "emergency", "Water coming through the ceiling tiles under the rooftop unit on the 3rd floor.", 0.5, 3),
+  previewRequest(3, "Turner Res.", "routine", "Routine maintenance — filter change due on both units.\nPreferred date: next Tuesday.", 26, 0),
+  previewRequest(4, "FirstKey Homes DFW", "urgent", "Noise / smell — burning plastic smell from the return vent.", 50, 1, "33187839"),
+];
+
 const createPreviewShell = (): PreviewShell => {
   const shell = {
     principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" },
     context: { principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "region", scopeId: "region-preview", roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" }, path: [{ tier: "parent", id: "org-preview", name: "AC Services" }], parent: { tier: "parent", id: "org-preview", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "region-preview" },
     gateway: {
       listJobs: async () => ({ jobs: PREVIEW_JOBS }),
+      listServiceRequests: async () => ({ requests: PREVIEW_REQUESTS }),
+      getMedia: async (input: { id: string }) => ({ id: input.id, contentType: "image/png", image: PREVIEW_PHOTO }),
       addJobNote: async (input: { jobId: string; body: string; kind?: "note" | "standing" }) => {
         const job = PREVIEW_JOBS.find((j) => j.id === input.jobId)!;
         const at = new Date().toISOString();
@@ -206,7 +227,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       store.invalidate("jobs.list");
       store.invalidate("jobs.detail");
       store.invalidate("dispatch.candidates");
+      store.invalidate("serviceRequests.list");
     }, { topics: [
+      // a customer asked, or sent a photo with what they asked (Intake)
+      "service_request.created", "service_request.photo_attached",
       "job.created", "job.assigned", "job.reassigned", "job.transitioned", "job.completed", "job.cancelled", "job.annotated",
       "job.update_published", "job.message_posted",
       "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",
@@ -280,6 +304,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
              data-current=${loc?.screen === "detail" || loc?.screen === "pick" ? "true" : undefined}
              aria-current=${loc?.screen === "detail" || loc?.screen === "pick" ? "page" : undefined}
              onClick=${(e: Event) => { e.preventDefault(); if (lastDetail) router.navigate("detail", { jobId: lastDetail }); else router.navigate("pick", {}); }}>Job Detail</a>
+          <a class="ac-seg__item" href=${router.href("intake", {})}
+             data-current=${loc?.screen === "intake" ? "true" : undefined}
+             aria-current=${loc?.screen === "intake" ? "page" : undefined}
+             onClick=${(e: Event) => { e.preventDefault(); router.navigate("intake", {}); }}>Intake</a>
           <a class="ac-seg__item" href=${router.href("jobs", {})}
              data-current=${loc?.screen === "jobs" ? "true" : undefined}
              aria-current=${loc?.screen === "jobs" ? "page" : undefined}

@@ -14,6 +14,7 @@ export const SCREENS = {
   "board":    { path: "/board",             uses: ["jobs.list", "dispatch.release"], title: "Board" },
   "jobs":     { path: "/jobs",              uses: ["jobs.list", "jobs.transition", "jobs.addNote", "jobs.setReturnTrip"], title: "Job Dashboard" },
   "pick":     { path: "/detail",            uses: ["jobs.list"], title: "Job Detail" },
+  "intake":   { path: "/intake",            uses: ["serviceRequests.list", "media.get"], title: "Intake" },
 } as const satisfies Record<string, ScreenSpec>;
 
 export type ScreenId = keyof typeof SCREENS;

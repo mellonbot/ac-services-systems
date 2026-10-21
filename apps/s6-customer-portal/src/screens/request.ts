@@ -1,4 +1,4 @@
-import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, signal, shortRef, type VNode } from "../../../../packages/ui/src/index.ts";
 import { PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, type Refusal, type ServiceRequestPriority } from "../../../../packages/contracts/src/index.ts";
 import { whenReady, readNodes, treeOf, submitAction, refusalView, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
@@ -46,8 +46,8 @@ export const describe = (problem: string, details: string, preferred: string): s
   return `${head}${details.trim()}${when}`;
 };
 
-/** A short reference the customer can read back to the office: the first block of the id, which both sides hold. */
-export const refOf = (id: string): string => id.slice(0, 8).toUpperCase();
+/** A short reference the customer can read back to the office — the same one S3's intake prints. */
+export const refOf = shortRef;
 
 /** One photo that did not go, and why — in the gateway's words, or ours when it was refused before sending. */
 export type PhotoMiss = { readonly name: string; readonly why: string };

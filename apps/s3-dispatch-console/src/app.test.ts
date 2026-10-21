@@ -5,7 +5,8 @@ import { createApp, SCREEN_VIEWS, gatewayOrigin } from "./app.ts";
 import { SCREENS } from "./screens.ts";
 import { slaStatus, isReleasable, isDispatchable } from "./screens/board.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import type { Principal, JobWire, HierarchyContext, CandidateCrewWire } from "../../../packages/contracts/src/index.ts";
+import type { Principal, JobWire, HierarchyContext, CandidateCrewWire, ServiceRequestWire } from "../../../packages/contracts/src/index.ts";
+import { intakeRows, age } from "./screens/intake.ts";
 import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
 
 /**
@@ -318,4 +319,61 @@ test("job detail: the next visit is scheduled only while nobody holds the job an
   assert.equal(scheduledNext(job("assigned", "crew-1", "2026-11-01T00:00:00Z"), now), false, "a crew holds it — that is a visit");
   assert.equal(scheduledNext(job("created", null, "2026-10-01T00:00:00Z"), now), false, "the window has passed");
   assert.equal(scheduledNext(job("needs_pricing", null, "2026-11-01T00:00:00Z"), now), false, "the work is done");
+});
+
+// ---- Intake: what customers asked for in S6, as the region's dispatcher reads it ----
+const REQ_ROUTINE = "5e000001-0000-4000-8000-000000000001", REQ_EMERGENCY = "5e000002-0000-4000-8000-000000000002", REQ_OPENED = "5e000003-0000-4000-8000-000000000003";
+const PHOTO_A = U(40), PHOTO_B = U(41);
+const req = (id: string, priority: ServiceRequestWire["priority"], createdAt: string, extra: Partial<ServiceRequestWire> = {}): ServiceRequestWire => ({
+  id, siteId: SITE, siteName: "Austin — Roof", priority, description: `Request ${id.slice(0, 8)}`, requestedBy: "u-cust", createdAt,
+  jobId: null, jobState: null, orgId: ORG, regionId: SOUTH, photos: [], ...extra,
+});
+const REQUESTS: ServiceRequestWire[] = [
+  req(REQ_ROUTINE, "routine", "2026-09-17T11:00:00.000Z"),
+  req(REQ_OPENED, "emergency", "2026-09-17T12:30:00.000Z", { jobId: JOB_CREATED, jobState: "created" }),
+  req(REQ_EMERGENCY, "emergency", "2026-09-17T10:00:00.000Z", { description: "Water through the ceiling under RTU-2.", photos: [{ id: PHOTO_A, contentType: "image/jpeg", bytes: 2048 }, { id: PHOTO_B, contentType: "image/png", bytes: 1024 }] }),
+];
+
+test("intakeRows: waiting before opened, then the customer's declared priority, then newest; 'waiting' drops what already has a job", () => {
+  assert.deepEqual(intakeRows(REQUESTS, "all").map((r) => r.id), [REQ_EMERGENCY, REQ_ROUTINE, REQ_OPENED]);
+  assert.deepEqual(intakeRows(REQUESTS, "waiting").map((r) => r.id), [REQ_EMERGENCY, REQ_ROUTINE]);
+  const now = Date.parse("2026-09-17T12:00:00Z");
+  assert.equal(age("2026-09-17T11:48:00Z", now), "12m");
+  assert.equal(age("2026-09-17T09:00:00Z", now), "3h");
+  assert.equal(age("2026-09-15T11:00:00Z", now), "2d");
+});
+
+test("INTAKE: the tab is in the header; requests read from serviceRequests.list, the photos through media.get, under the customer's own reference", async () => {
+  const { app, gateway } = await ready({
+    [OPERATIONS["serviceRequests.list"].path]: { status: 200, body: { requests: REQUESTS } },
+    [OPERATIONS["media.get"].path]: (init) => ({ status: 200, body: { id: "x", contentType: "image/png", image: `data:image/png;base64,${init ? "QQ==" : ""}` } }),
+  });
+  assert.match(render(app.view()), />Intake<\/a>/, "a tab, beside the board");
+  app.router.navigate("intake", {});
+  render(app.view()); await settle(); await settle();
+  let out = render(app.view());
+  assert.match(out, /id="intake-stats"/);
+  assert.match(out, /5E000002/, "the reference the customer was given (shortRef)");
+  assert.match(out, /Water through the ceiling under RTU-2\./);
+  assert.match(out, /data-status="breached"[^]*?Emergency/, "a declared emergency takes the state ramp");
+  assert.match(out, /Waiting — no job yet/);
+  assert.doesNotMatch(out, /5E000003/, "Waiting hides a request a job already answers");
+  assert.ok(gateway.calls.filter((c) => c.path === OPERATIONS["media.get"].path).length >= 2, "each thumbnail read through the gateway");
+  assert.match(out, /aria-label="Open Photo 1 of 2, request 5E000002"/);
+
+  // All shows the answered one too, linked to its job
+  (nodesIn(app.view()).find((n) => n.type === "button" && n.props?.children === "All")!.props!.onClick as () => void)();
+  out = render(app.view());
+  assert.match(out, /Job opened · Unassigned/);
+  assert.match(out, new RegExp(`href="[^"]*/jobs/${JOB_CREATED}"`));
+
+  // a thumbnail opens the viewer; Close puts it away
+  (nodesIn(app.view()).find((n) => n.type === "button" && n.props?.["aria-label"] === "Open Photo 2 of 2, request 5E000002")!.props!.onClick as () => void)();
+  await settle();
+  out = render(app.view());
+  assert.match(out, /id="intake-viewer"/);
+  assert.match(out, /photo <span class="s3-num">2<\/span> of <span class="s3-num">2<\/span>/);
+  assert.match(out, /alt="Photo 2 of 2 sent with request 5E000002 at Austin — Roof"/);
+  (nodesIn(app.view()).find((n) => n.type === "button" && n.props?.id === "intake-viewer-close")!.props!.onClick as () => void)();
+  assert.doesNotMatch(render(app.view()), /id="intake-viewer"/);
 });

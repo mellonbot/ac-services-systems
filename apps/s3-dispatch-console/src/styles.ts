@@ -209,4 +209,17 @@ export const S3_CSS = `
   .s3-map-job__main,.s3-map-job__assignment{align-items:flex-start;flex-direction:column}
   .s3-map-job__location{text-align:start}
 }
+.s3-intake{display:flex;flex-direction:column;gap:var(--space-3)}
+.s3-intake__layout{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);align-items:start}
+.s3-intake__layout[data-viewing="true"]{grid-template-columns:minmax(0,2fr) minmax(16rem,1fr)}
+.s3-intake__asked{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:var(--measure-narrow);white-space:pre-line}
+.s3-intake__thumbs{display:flex;gap:var(--space-1)}
+.s3-intake__thumb{appearance:none;-webkit-appearance:none;padding:0;width:var(--control-height);height:var(--control-height);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface-sunken);overflow:hidden;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--color-text-muted);font-size:var(--text-xs)}
+.s3-intake__thumb img{display:block;width:100%;height:100%;object-fit:cover}
+.s3-intake__thumb[aria-pressed="true"]{border:2px solid var(--color-action-text)}
+.s3-intake__thumb:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
+.s3-intake__view{margin:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.s3-intake__view img{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain;border-radius:var(--radius-control);background:var(--color-surface-sunken)}
+.s3-intake__view figcaption{font-size:var(--text-sm);color:var(--color-text-muted)}
+@media (max-width:1100px){.s3-intake__layout[data-viewing="true"]{grid-template-columns:minmax(0,1fr)}}
 `;
