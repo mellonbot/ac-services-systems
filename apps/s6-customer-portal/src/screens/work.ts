@@ -95,7 +95,7 @@ export const work: Screen = (ctx) => {
       rowKey: (j) => j.id,
       columns: [
         { key: "site", header: "Site", cell: (j) => linkTo(ctx, "site", { siteId: j.siteId }, siteName(j.siteId)) },
-        { key: "serviceCode", header: "Service" },
+        { key: "serviceCode", header: "Service", cell: (j) => linkTo(ctx, "job", { jobId: j.id }, j.serviceCode) },
         { key: "state", header: "State", cell: (j) => STATE_WORD[j.state] },
         { key: "window", header: "Window", numeric: true, cell: (j) => html`${when(j.serviceWindowStart)}<br />– ${when(j.serviceWindowEnd)}` },
         {
