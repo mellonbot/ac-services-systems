@@ -20,6 +20,8 @@ export const SCREENS = {
   "request":    { path: "/request/:siteId?",       uses: ["accounts.list", "serviceRequests.create", "serviceRequests.list"] },
   // item 9: the site card — what a site IS. Seven reads; the rows are 0009's.
   "site":       { path: "/site/:siteId",           uses: ["accounts.list", "equipment.list", "contacts.list", "invoices.list", "jobs.list", "serviceRequests.list", "sites.imagery"], title: "Site" },
+  // A customer's one job: where it stands, what the office published, and the thread (0016).
+  "job":        { path: "/job/:jobId",             uses: ["jobs.list", "accounts.list", "jobs.conversation", "jobs.postMessage"], title: "Job" },
   "work":       { path: "/work",                   uses: ["jobs.list", "accounts.list", "serviceRequests.list"], title: "Work" },
   "agreements": { path: "/agreements",             uses: ["contracts.list", "accounts.list"], title: "Agreements" },
   "sites":      { path: "/",                       uses: ["accounts.list", "jobs.list", "serviceRequests.list"], title: "Sites" },
