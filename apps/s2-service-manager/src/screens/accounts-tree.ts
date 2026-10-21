@@ -106,7 +106,6 @@ export const accountsTree: Screen = (ctx, params) => {
     DataGrid({
       density: ctx.density,
       stack: true,
-      caption: "Customers",
       columns: [
         {
           key: "name", header: "Customer",
@@ -151,7 +150,7 @@ export const accountsTree: Screen = (ctx, params) => {
   };
 
   const hovered = hover.value && orgs.value.state === "ready" ? orgs.value.value.organizations.find((o) => o.id === hover.value!.orgId) : undefined;
-  return html`${hovered ? html`<div class="s2-hovercard" role="tooltip" style=${`left:${hover.value!.left}px;top:${hover.value!.top}px`}>${customerCard(ctx, hovered)}</div>` : null}${pageHead("Accounts", "Every customer and its tree of regions, locations and sites, against the regions we serve them from. Pick a customer to see its tree.", linkTo(ctx, "organizations.new", {}, "+ New customer", "ac-action s2-link--action"))}<div class="s2-two-col">
+  return html`${hovered ? html`<div class="s2-hovercard" role="tooltip" style=${`left:${hover.value!.left}px;top:${hover.value!.top}px`}>${customerCard(ctx, hovered)}</div>` : null}${pageHead("Accounts", "Every customer and its tree of regions, locations and sites, against the regions we serve them from. Pick a customer to see its tree.", linkTo(ctx, "organizations.new", {}, "+ New customer", "ac-action s2-link--action"))}<div class="s2-two-col s2-two-col--wide-side">
     <aside class="s2-col s2-col--orgs">
       ${panel(whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations), () => store.invalidate("organizations.list")), "Customers", undefined,
         html`<div class="s2-chips" role="group" aria-label="Customer type" id="customer-type">
