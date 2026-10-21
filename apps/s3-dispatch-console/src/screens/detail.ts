@@ -1,7 +1,7 @@
 import { html, signal, StatusPill, pageHead, panel, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import { WORK_DONE_STATES, type JobDetailOutput, type JobMediaWire, type JobNoteWire, type JobUpdateWire, type JobVisitWire, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
-import { whenReady, linkTo, submitAction, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, homeMark, linkTo, submitAction, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL, initials, placeLine, daysInState } from "./jobs.ts";
 
 /**
@@ -138,7 +138,7 @@ const header = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiState>): VN
   const street = j.siteAddress?.line1;
   return panel(html`<div class="s3-detail-head">
     <p class="s3-eyebrow">Job # <span class="s3-num">${j.id}</span></p>
-    <h2 class="s3-detail-head__site">${j.siteName ?? "Site name unavailable"}</h2>
+    <h2 class="s3-detail-head__site">${j.siteName ?? "Site name unavailable"}</h2>${homeMark(j.customerSegment)}
     <p class="s3-detail-head__where">${[street, place].filter(Boolean).join(", ") || "Address not recorded"}${d.contact ? html` · ${d.contact.name}${d.contact.phone ? html`, <span class="s3-num">${d.contact.phone}</span>` : null}` : null}</p>
     <p class="s3-flags"><span class="s3-flag">${STATE_LABEL[j.state]}</span><span class="s3-flag">${j.priority[0]!.toUpperCase()}${j.priority.slice(1)} priority</span>${j.returnTrip ? html`<span class="s3-flag">Return trip</span>` : null}</p>
   </div>

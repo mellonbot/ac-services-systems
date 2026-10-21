@@ -104,6 +104,7 @@ export const S3_CSS = `
 .s3-bucket__row dd{margin:0;font-weight:600}
 .s3-chips{display:flex;flex-wrap:wrap;gap:var(--space-1)}
 .s3-cust{display:flex;flex-direction:column}
+.s3-cust .s3-flag,.s3-detail-head .s3-flag{align-self:flex-start;margin:var(--space-1) 0}
 .s3-cust small{color:var(--color-text-muted);font-size:var(--text-xs)}
 .s3-cust__svc{text-transform:capitalize}
 .s3-tech{display:inline-flex;align-items:center;gap:var(--space-2);font-weight:600}

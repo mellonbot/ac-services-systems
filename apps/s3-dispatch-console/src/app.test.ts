@@ -35,7 +35,7 @@ const context: HierarchyContext = {
 const jobCreated: JobWire = {
   id: JOB_CREATED, siteId: SITE, siteName: "Austin — Roof", siteAddress: null, contractId: null, projectId: null, serviceCode: "hvac_repair", priority: "urgent", state: "created",
   serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T17:00:00.000Z", version: 1, openedAt: "2026-09-17T12:00:00.000Z", stateChangedAt: "2026-09-17T12:00:00.000Z",
-  regionId: SOUTH, orgId: ORG, currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
+  regionId: SOUTH, orgId: ORG, customerSegment: "commercial", currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 1, slaSatisfiedAt: null,
   returnTrip: false, latestNote: null,
 };
@@ -401,10 +401,10 @@ const REQ_ROUTINE = "5e000001-0000-4000-8000-000000000001", REQ_EMERGENCY = "5e0
 const PHOTO_A = U(40), PHOTO_B = U(41);
 const req = (id: string, priority: ServiceRequestWire["priority"], createdAt: string, extra: Partial<ServiceRequestWire> = {}): ServiceRequestWire => ({
   id, siteId: SITE, siteName: "Austin — Roof", priority, description: `Request ${id.slice(0, 8)}`, requestedBy: "u-cust", createdAt,
-  jobId: null, jobState: null, orgId: ORG, regionId: SOUTH, photos: [], ...extra,
+  jobId: null, jobState: null, orgId: ORG, regionId: SOUTH, customerSegment: "commercial", photos: [], ...extra,
 });
 const REQUESTS: ServiceRequestWire[] = [
-  req(REQ_ROUTINE, "routine", "2026-09-17T11:00:00.000Z"),
+  req(REQ_ROUTINE, "routine", "2026-09-17T11:00:00.000Z", { siteName: "Home", customerSegment: "residential" }),
   req(REQ_OPENED, "emergency", "2026-09-17T12:30:00.000Z", { jobId: JOB_CREATED, jobState: "created" }),
   req(REQ_EMERGENCY, "emergency", "2026-09-17T10:00:00.000Z", { description: "Water through the ceiling under RTU-2.", photos: [{ id: PHOTO_A, contentType: "image/jpeg", bytes: 2048 }, { id: PHOTO_B, contentType: "image/png", bytes: 1024 }] }),
 ];
@@ -432,6 +432,8 @@ test("INTAKE: the tab is in the header; requests read from serviceRequests.list,
   assert.match(out, /Water through the ceiling under RTU-2\./);
   assert.match(out, /data-status="breached"[^]*?Emergency/, "a declared emergency takes the state ramp");
   assert.match(out, /Waiting — no job yet/);
+  assert.match(out, /<strong>Home<\/strong><span class="s3-flag" data-segment="residential">Residential<\/span>/, "a homeowner is marked, so a dispatcher tells a house from a building");
+  assert.equal((out.match(/data-segment="residential"/g) ?? []).length, 1, "commercial carries no mark");
   assert.doesNotMatch(out, /5E000003/, "Waiting hides a request a job already answers");
   assert.ok(gateway.calls.filter((c) => c.path === OPERATIONS["media.get"].path).length >= 2, "each thumbnail read through the gateway");
   assert.match(out, /aria-label="Open Photo 1 of 2, request 5E000002"/);

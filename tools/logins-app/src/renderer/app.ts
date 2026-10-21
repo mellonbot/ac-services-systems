@@ -3,6 +3,7 @@ import type { Kind, KindId, UserRecord } from "../kinds.ts";
 import { ROLES, CUSTOMER_ROLES, type CustomerRole } from "../../../../packages/contracts/src/scope.ts";
 import type { Role } from "../../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../../packages/contracts/src/tiers.ts";
+import type { CustomerSegment } from "../../../../packages/contracts/src/operations.ts";
 import type { Api } from "../preload.ts";
 import type { DbName } from "../connections.ts";
 import type { NewLogin } from "../rows.ts";
@@ -36,6 +37,8 @@ const state = {
   localIsDefault: true,
   kind: "S2" as KindId | "companies",
   showInactive: false,
+  /** The Customer Portal tab's residential / commercial selection (0019). */
+  segment: "all" as CustomerSegment | "all",
   users: [] as readonly UserRecord[],
   companies: [] as readonly Company[],
 };
@@ -73,6 +76,19 @@ const renderSidebar = (): void => {
     item("companies", "Companies", state.companies.filter((c) => c.active).length, "companies"));
 };
 
+const SEGMENT_WORD: Readonly<Record<CustomerSegment, string>> = { residential: "Residential", commercial: "Commercial" };
+const SEGMENT_CHOICES = [["all", "All"], ["residential", "Residential"], ["commercial", "Commercial"]] as const;
+const inSegment = (segment: CustomerSegment | null): boolean => state.segment === "all" || segment === state.segment;
+
+/** Residential / Commercial / All — shown on the Customer Portal tab only. */
+const renderSegment = (): void => {
+  const wrap = $("segment");
+  wrap.hidden = state.kind !== "S6";
+  wrap.replaceChildren(...SEGMENT_CHOICES.map(([v, t]) => h("button", {
+    type: "button", "aria-pressed": String(state.segment === v), onclick: () => { state.segment = v; render(); },
+  }, t)));
+};
+
 const roles = (u: UserRecord): string => u.roles.join(", ") || "—";
 const companyType = (t: Crew["employmentType"]): string => (t === "employed" ? "Ours" : "Contractor");
 const COLUMNS: Record<KindId, readonly [string, (u: UserRecord) => string][]> = {
@@ -80,7 +96,7 @@ const COLUMNS: Record<KindId, readonly [string, (u: UserRecord) => string][]> = 
   S3: [["Roles", roles], ["Scope", (u) => (u.scopeTier === "parent" ? "org-wide" : u.regionCode)]],
   S4: [["Roles", roles], ["Scope", (u) => (u.scopeTier === "parent" ? "org-wide" : u.regionCode)]],
   S5: [["Company (HVAC license)", (u) => u.crewLabel ?? "—"], ["Type", (u) => (u.crewEmployment ? companyType(u.crewEmployment) : "—")]],
-  S6: [["Customer", (u) => u.orgName], ["Sees", (u) => (u.scopeTier === "parent" ? "Whole company" : u.scopeName ?? "—")]],
+  S6: [["Customer", (u) => u.orgName], ["Type", (u) => (u.orgSegment ? SEGMENT_WORD[u.orgSegment] : "—")], ["Sees", (u) => (u.scopeTier === "parent" ? (u.orgSegment === "residential" ? "Whole household" : "Whole company") : u.scopeName ?? "—")]],
   S8: [["Firm", (u) => u.firmName ?? "—"]],
   S7: [],
   other: [["Namespace", (u) => u.namespace], ["Roles", roles]],
@@ -113,6 +129,7 @@ const renderCompanies = (): void => {
 };
 
 const renderTable = (): void => {
+  renderSegment();
   if (state.kind === "companies") { renderCompanies(); return; }
   const kind = kindOf(state.kind);
   $("title").textContent = `${kind.name} logins`;
@@ -123,7 +140,7 @@ const renderTable = (): void => {
   note.textContent = kind.note ?? "";
   const cols = COLUMNS[kind.id];
   $("thead").replaceChildren(...["Email", "Name", ...cols.map(([t]) => t), ""].map((t) => h("th", { scope: "col" }, t)));
-  const rows = state.users.filter((u) => inKind(u, kind.id) && (state.showInactive || u.active));
+  const rows = state.users.filter((u) => inKind(u, kind.id) && (state.showInactive || u.active) && (kind.id !== "S6" || inSegment(u.orgSegment)));
   $("tbody").replaceChildren(...(rows.length === 0
     ? [h("tr", {}, h("td", { colspan: cols.length + 3, class: "empty" }, "No logins."))]
     : rows.map((u) => h("tr", { class: u.active ? "" : "inactive" },
@@ -386,6 +403,11 @@ const HOUSEHOLD_WORD: Readonly<Record<CustomerRole, string>> = { payer: "Pays th
 const householdBoxes = (checked: readonly string[]): HTMLElement => h("fieldset", { class: "roles" }, h("legend", {}, "Does"),
   ...CUSTOMER_ROLES.map((r) => h("label", { class: "check" }, h("input", { type: "checkbox", name: "householdRoles", value: r, checked: checked.includes(r) }), HOUSEHOLD_WORD[r])));
 
+/** Which kind of customer the new login belongs to; narrows the Customer list to that segment. */
+const segmentRadios = (current: CustomerSegment): HTMLElement => h("fieldset", { class: "scope" }, h("legend", {}, "Customer type"),
+  ...(["residential", "commercial"] as const).map((v) => h("label", { class: "check" },
+    h("input", { type: "radio", name: "segment", value: v, checked: v === current }), SEGMENT_WORD[v])));
+
 const scopeRadios = (current: "org" | "region"): HTMLElement => h("fieldset", { class: "scope" }, h("legend", {}, "Scope"),
   ...(["org", "region"] as const).map((v) => h("label", { class: "check" },
     h("input", { type: "radio", name: "scope", value: v, checked: v === current, required: true }), v === "org" ? "org-wide" : "one region")));
@@ -431,8 +453,15 @@ const addForm = async (): Promise<void> => {
         let nodes: readonly AccountNode[] = [];
         let treeOf = "";
         const scope = h("div", { class: "group" });
-        const org = select("orgId", orgs.map((o) => [o.id, o.name]));
-        const form = openForm("Add Customer Portal login", [...head, field("Customer", org), scope, householdBoxes(CUSTOMER_ROLES), ...passwordFields()], async (f) => {
+        const org = h("select", { name: "orgId", required: true });
+        const segment = segmentRadios(state.segment === "all" ? "residential" : state.segment);
+        const fillOrgs = (): void => {
+          const chosen = (segment.querySelector<HTMLInputElement>("input:checked")?.value ?? "residential") as CustomerSegment;
+          org.replaceChildren(h("option", { value: "" }, "Choose…"), ...orgs.filter((o) => o.segment === chosen).map((o) => h("option", { value: o.id }, o.name)));
+          if (org.options.length === 2) org.value = org.options[1]!.value;
+        };
+        fillOrgs();
+        const form = openForm("Add Customer Portal login", [...head, segment, field("Customer", org), scope, householdBoxes(CUSTOMER_ROLES), ...passwordFields()], async (f) => {
           const orgId = str(f, "orgId");
           if (treeOf !== orgId) throw new Error("The customer's sites have not loaded yet.");
           await api.addLogin(db, { ...base(f), kind: "customer", orgId, ...customerPlacement(f, nodes, orgId), roles: f.getAll("householdRoles") as CustomerRole[] });
@@ -457,6 +486,7 @@ const addForm = async (): Promise<void> => {
           }
         };
         org.addEventListener("change", () => void loadTree());
+        segment.addEventListener("change", () => { fillOrgs(); void loadTree(); });
         await loadTree();
         return;
       }

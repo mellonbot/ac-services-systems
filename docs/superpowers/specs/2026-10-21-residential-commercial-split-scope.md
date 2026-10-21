@@ -1,6 +1,6 @@
 # Residential and commercial customers
 
-**2026-10-21 · Scope · Owner: unassigned · Partner answers recorded 2026-10-21 (R1, R2, R4–R6); R3 open**
+**2026-10-21 · Scope · Owner: unassigned · Partner answers recorded 2026-10-21 (R1, R2, R4–R7); R3 open (provider due 2026-10-21)**
 
 Today there is one kind of customer. Everything built so far — the S6 work
 orders home, Intake, photos, Open job — was shaped by commercial accounts:
@@ -86,6 +86,7 @@ is **billed**:
 | R4 | Self-serve sign-up, or invite only? | **Invite only.** | No public sign-up write; S1 stays lead-only. A homeowner's first login comes from an invite the office sends. |
 | R5 | A residential response-time default? | **Yes.** | Each plan tier carries its own response time; a home with no membership (one-time work) gets a residential default. The values are still to be set (proposal: emergency same day, otherwise next business day). |
 | R6 | Several logins per household? | **Yes — with different jobs.** E.g. one parent pays the balance, the other submits requests. | **Customer roles** (below), not just more logins. |
+| R7 | Who may invite a second household member? | **The office, and the household member who pays.** | An invite screen in S6 for a `payer`, beside S2's. A payer invites into their own household only, and chooses the new login's roles (payer, requester, or both). |
 
 ### Still open
 
@@ -93,7 +94,6 @@ is **billed**:
 |---|---|---|
 | R3 | Email provider (Cloudflare Email, Postmark, SES…) and the sending domain | Invites and password reset — and with R4, every homeowner login |
 | R5a | The residential default response time, and each tier's | The plan catalogue's values (not its build) |
-| R7 | Who may invite a second household member: only the office, or also the household member who pays? | The invite screen's placement (S2 only, or S6 too) |
 
 ### The plan catalogue (R2, R5)
 
@@ -140,7 +140,7 @@ serves commercial accounts unchanged and for free: the AP clerk is a
 | Household roles `payer` / `requester`: registry, role gate on S6 writes, AC Logins app and S2 assign them | S | — |
 | S6 residential layout (home card, membership card with tier and visits used, work orders); writes shown or hidden by role | M | segment, roles |
 | S2/S3 segment column, filter and mark | S | segment |
-| Outbound email module + invite and password-reset operations, S6 set-password screen | M | R3 (and R7 for where invites are sent from) |
+| Outbound email module + invite and password-reset operations, S6 set-password screen, S6 invite screen for a payer (R7) | M | R3 |
 | Integration tests: one-step tree, segment immutable, conversion once-only, a payer-only login refused a request, a residential login sees only its home, a tier's terms land on its contract and the membership bills its fee and overage | M | the above |
 
 Roughly **3½ weeks** for one builder without the email work, **4½** with it.
@@ -155,6 +155,19 @@ Roughly **3½ weeks** for one builder without the email work, **4½** with it.
 > household roles in the AC Logins app. Lead conversion needed a leads list
 > first — none existed, so no screen showed a lead to the office.
 
+> **Step 2, S6 part built (2026-10-21):** the hierarchy context carries the
+> customer's `segment`; a residential login's S6 home is "Your home" — the
+> address and its equipment, a membership card (PM visits this year against
+> the resolved `pm_visits_per_year`, the next planned visit, member since), the
+> request form with no site to choose, and the work orders with no site
+> filters; no Sites tab. A payer-only login sees no form and no request
+> button. The AC Logins app's Customer Portal tab filters by
+> residential / commercial and the add form narrows the customer list by it.
+> Office marks: job and request rows carry `customerSegment`; S2 Accounts has
+> a Type column and All / Residential / Commercial chips; S3 Intake, the jobs
+> list, the job detail and the map flag a homeowner "Residential" (commercial,
+> the default, carries no mark). Step 2 is complete.
+
 1. **Segment (immutable) + one-step creation + lead conversion + household
    roles.** Unblocked. The office can carry homeowners as real customers, and
    the roles exist before the first second login does.
@@ -162,7 +175,7 @@ Roughly **3½ weeks** for one builder without the email work, **4½** with it.
 3. **Membership terms and the plan catalogue**, once the partners sign off on
    the register entries; values once R5a is set. Until then, membership
    contracts should not be invoiced.
-4. **Email, invite and reset** once R3 (and R7) are decided. Invite-only (R4)
+4. **Email, invite and reset** once R3 is decided. Invite-only (R4)
    means this is the door every homeowner comes through — until it exists,
    residential logins are made in the AC Logins app.
 

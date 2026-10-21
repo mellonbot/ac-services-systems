@@ -22,8 +22,9 @@ export const SCREENS = {
   "site":       { path: "/site/:siteId",           uses: ["accounts.list", "equipment.list", "contacts.list", "invoices.list", "jobs.list", "serviceRequests.list", "sites.imagery"], title: "Site" },
   // A customer's one job: where it stands, what the office published, and the thread (0016).
   "job":        { path: "/job/:jobId",             uses: ["jobs.list", "accounts.list", "jobs.conversation", "jobs.postMessage"], title: "Job" },
-  // The home: request a work order and follow every one to its invoice.
-  "work":       { path: "/",                       uses: ["jobs.list", "accounts.list", "serviceRequests.list", "serviceRequests.create", "serviceRequests.attachPhoto", "media.get", "invoices.list", "contracts.list"], title: "Work orders" },
+  // The home: request a work order and follow every one to its invoice. A residential customer's home also
+  // draws the house — its equipment, and the membership's planned visits from the resolved terms (0019).
+  "work":       { path: "/",                       uses: ["jobs.list", "accounts.list", "serviceRequests.list", "serviceRequests.create", "serviceRequests.attachPhoto", "media.get", "invoices.list", "contracts.list", "equipment.list", "terms.resolved"], title: "Work orders" },
   "agreements": { path: "/agreements",             uses: ["contracts.list", "accounts.list"], title: "Agreements" },
   "sites":      { path: "/sites",                  uses: ["accounts.list", "jobs.list", "serviceRequests.list"], title: "Sites" },
 } as const satisfies Record<string, ScreenSpec>;

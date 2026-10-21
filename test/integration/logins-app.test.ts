@@ -109,7 +109,7 @@ test("the pickers see what the unbound role cannot", { skip }, async () => {
   const tree = await db.listAccountTree(orgId);
   assert.ok(tree.some((n) => n.id === regionNodeId && n.tier === "region" && n.parentId === null));
   assert.ok(tree.some((n) => n.id === locationId && n.tier === "location" && n.parentId === regionNodeId));
-  assert.ok((await db.listCustomerOrgs()).some((o) => o.id === orgId));
+  assert.ok((await db.listCustomerOrgs()).some((o) => o.id === orgId && o.segment === "commercial"), "each customer carries its segment, for the Customer type choice");
   const regions = await db.listRegions();
   assert.ok(regions.some((r) => r.id === REGION_SOUTH));
   assert.ok(!regions.some((r) => r.id === UNASSIGNED_REGION_ID));
