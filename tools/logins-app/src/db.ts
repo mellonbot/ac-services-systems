@@ -68,8 +68,12 @@ const failure = (e: unknown): Error => {
   return new LoginsDbError(e instanceof Error ? e.message : String(e));
 };
 
+/** pg emits 'error' on the pool when the server drops an idle connection; unhandled, that kills the process. pg discards the client and the next query opens a fresh one. */
+export const attachIdleErrorHandler = (pool: Pool): void => { pool.on("error", () => {}); };
+
 export const openDb = async (connectionString: string): Promise<LoginsDb> => {
   const pool: Pool = createPool(connectionString, "ac-logins-app");
+  attachIdleErrorHandler(pool);
 
   const attempt = async <T>(f: () => Promise<T>): Promise<T> => {
     try { return await f(); } catch (e) { throw failure(e); }

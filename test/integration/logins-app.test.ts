@@ -18,7 +18,7 @@ import { connectShell, type ConnectedShell } from "../../packages/shell/src/inde
 import { GatewayRefusal, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
-import { openDb, LoginsDbError, type LoginsDb } from "../../tools/logins-app/src/db.ts";
+import { openDb, attachIdleErrorHandler, LoginsDbError, type LoginsDb } from "../../tools/logins-app/src/db.ts";
 import { kindsOf } from "../../tools/logins-app/src/kinds.ts";
 import { LoginInputError } from "../../tools/logins-app/src/rows.ts";
 
@@ -175,4 +175,15 @@ test("remove ends a technician's device session", { skip }, async () => {
   const r = await db.deactivate(techId);
   assert.ok(r.revokedSessions >= 1);
   assert.notEqual((await admin(`SELECT revoked_at FROM sessions WHERE id = $1`, [session]))[0].revoked_at, null);
+});
+
+test("a dropped idle connection is swallowed, and the next query still works", { skip }, async () => {
+  const p = createPool(URL_!, "ac-logins-app-idle-test");
+  try {
+    assert.equal(p.listenerCount("error"), 0);
+    attachIdleErrorHandler(p);
+    assert.equal(p.listenerCount("error"), 1);
+    assert.doesNotThrow(() => p.emit("error", new Error("idle drop")));
+  } finally { await p.end(); }
+  await db.ping();
 });
