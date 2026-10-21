@@ -229,9 +229,9 @@ ac-degraded[hidden]{display:none}
 .ac-panel__title{margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
 .ac-panel__sub{margin:2px 0 0;color:var(--color-text-muted);font-size:var(--text-sm)}
 .ac-seg,.ac-nav{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface));border:1px solid var(--color-border);border-radius:var(--radius-card)}
-.ac-seg__item{display:inline-flex;align-items:center;gap:6px;padding:var(--space-2) var(--space-4);border-radius:var(--radius-control);color:var(--color-text-muted);font-weight:600;font-size:var(--text-sm);text-decoration:none;white-space:nowrap;transition:background-color var(--motion-base) var(--ease),color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease)}
+.ac-seg__item{display:inline-flex;align-items:center;gap:6px;padding:var(--space-2) var(--space-4);border-radius:var(--radius-control);color:var(--color-text-muted);font-weight:600;font-size:var(--text-sm);text-decoration:none;white-space:nowrap;transition:background-color var(--motion-base) var(--ease),color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease);min-height:var(--control-height)}
 .ac-seg__item[data-current="true"]{background:var(--color-surface);color:var(--color-action-text);box-shadow:var(--elevation-raised)}
-.ac-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--radius-pill);border:1px solid var(--color-border-hard);background:var(--color-surface);color:var(--color-text);font-size:var(--text-sm);font-weight:600;text-decoration:none;cursor:pointer;transition:background-color var(--motion-fast) var(--ease),border-color var(--motion-fast) var(--ease),color var(--motion-fast) var(--ease)}
+.ac-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--radius-pill);border:1px solid var(--color-border-hard);background:var(--color-surface);color:var(--color-text);font-size:var(--text-sm);font-weight:600;text-decoration:none;cursor:pointer;transition:background-color var(--motion-fast) var(--ease),border-color var(--motion-fast) var(--ease),color var(--motion-fast) var(--ease);min-height:var(--control-height)}
 .ac-chip[aria-pressed="true"]{background:color-mix(in srgb,var(--color-action) 14%,var(--color-surface));border-color:color-mix(in srgb,var(--color-action-text) 45%,transparent);color:var(--color-action-text)}
 
 /* ---- The chrome every surface shares — Rev A, drawn once ----
@@ -260,7 +260,7 @@ ac-degraded[hidden]{display:none}
    cursor it is drawn in transparent. */
 .ac-link{color:var(--color-action-text);text-decoration:none;transition:text-decoration-color var(--motion-fast) var(--ease)}
 .ac-link:hover{text-decoration:underline;text-decoration-color:color-mix(in srgb,currentColor calc(100% * var(--hover)),transparent)}
-.ac-link--button{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;font:inherit}
+.ac-link--button{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;font:inherit;min-height:var(--space-6)}
 .ac-link--button:disabled{color:var(--color-text-muted);cursor:default;text-decoration:none}
 .ac-form{display:flex;flex-direction:column;gap:var(--space-3);max-width:var(--measure-text);padding:var(--space-4);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 .ac-form--inline{display:flex;flex-direction:row;flex-wrap:wrap;gap:var(--space-4);align-items:end;max-width:none}

@@ -114,7 +114,7 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
       emptyText: "Nothing on file for this crew.",
     });
 
-  const summary = (crew: CrewWire): VNode => html`<p class="s2-row-actions">
+  const summary = (crew: CrewWire): VNode => html`<p class="s2-doc-summary">
     ${crew.documents.required.map((k) => {
       const ok = crew.documents.satisfied.includes(k);
       const unverified = crew.documents.unverified.includes(k);

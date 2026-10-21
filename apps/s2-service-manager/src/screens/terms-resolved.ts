@@ -81,7 +81,7 @@ export const termsResolved: Screen = (ctx, params) => {
           { key: "wonAt", header: "Won at", cell: (r: ResolutionWire) => (r.wonAt === "fallback" ? "register fallback" : `${r.wonAt.tier}`) },
           {
             key: "trace", header: "", align: "end",
-            cell: (r: ResolutionWire) => html`<button type="button" class="ac-link" onClick=${() => { q.value = { ...q.value, open: q.value.open === r.termKey ? "" : r.termKey }; }}>
+            cell: (r: ResolutionWire) => html`<button type="button" class="ac-link ac-link--button" onClick=${() => { q.value = { ...q.value, open: q.value.open === r.termKey ? "" : r.termKey }; }}>
               ${q.value.open === r.termKey ? "Hide trace" : "Trace"}
             </button>`,
           },
