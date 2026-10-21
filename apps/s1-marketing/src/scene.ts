@@ -1,6 +1,6 @@
 import {
   Box3, BoxGeometry, Color, CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight, Mesh, MeshStandardMaterial, PerspectiveCamera,
-  PlaneGeometry, Scene, Vector3, WebGLRenderer, type Object3D,
+  PlaneGeometry, RepeatWrapping, SRGBColorSpace, Scene, TextureLoader, Vector3, WebGLRenderer, type Object3D,
 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
@@ -21,7 +21,7 @@ const STOCK: readonly (readonly [string, number, number, number])[] = [
 const FLAT_BELOW_PX = 640;
 
 /**
- * THE SIGN-IN YARD — the outdoor service yard, seen from a camera above it:
+ * THE SIGN-IN YARD — the outdoor service yard on packed dirt, seen from a camera above it:
  * Unit TACLA-14402C turning on a turntable at the centre, a pad on the
  * asphalt for each portal with that portal's sign-in plate pinned above it,
  * and behind the bay the stock waiting to go out — residential condensers on
@@ -33,11 +33,12 @@ const FLAT_BELOW_PX = 640;
  * each frame by projecting their pad into the view; the canvas takes no input.
  *
  * Every colour but the equipment's is read from the page's Arc Foundry roles
- * at mount — asphalt from the muted text, stall lines from the surface, the
+ * at mount — stall lines from the surface, the
  * shop from the sunken well, posts, rails and doors from the hard border, fog
  * from the page ground, a lit pad from the action fill — so no colour literal
  * enters the surface. The truck, condensers and RTUs are assets
- * (public/truck.glb, condenser.glb, rtu.glb) and wear their own paint.
+ * (public/truck.glb, condenser.glb, rtu.glb) and wear their own paint; the
+ * ground is one too (public/dirt.webp), so its earth is the texture's, not an ink.
  *
  * `[data-live]` goes on the scene root at the truck's first frame; until then,
  * and where WebGL is unavailable, the still poster and the CSS ring stand in.
@@ -94,11 +95,24 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   fill.position.set(-18, 12, -16);
   scene.add(fill);
 
-  // --- The yard: asphalt in the muted slate, stall lines in surface white, a kerb around the pads.
-  const yard = new Mesh(new PlaneGeometry(260, 260), mat("text-muted", 0.97));
+  // --- The yard: packed dirt (public/dirt.webp, tiled every 8 m; the hard border stands in until it
+  // arrives), stall lines in surface white, a kerb around the pads.
+  const dirt = mat("border-hard", 1);
+  const yard = new Mesh(new PlaneGeometry(260, 260), dirt);
   yard.rotation.x = -Math.PI / 2;
   yard.receiveShadow = true;
   scene.add(yard);
+  void new TextureLoader().loadAsync("/dirt.webp").then((map) => {
+    if (stopped) return;
+    map.wrapS = map.wrapT = RepeatWrapping;
+    map.repeat.set(32, 32);
+    map.colorSpace = SRGBColorSpace;
+    map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    dirt.map = map;
+    dirt.color.setScalar(1);
+    dirt.needsUpdate = true;
+    if (still && loaded) draw();
+  }, () => { /* no texture: the ground stays in the hard border */ });
   const stripe = mat("surface", 0.8);
   for (let x = -36; x <= 36; x += 6) if (Math.abs(x) > 24) paint(0.16, 9, x, 4, stripe);
   const kerb = mat("border-hard");
