@@ -32,8 +32,9 @@ const openFor = async (name: DbName): Promise<LoginsDb> => {
 };
 
 // `current` holds the open database, or the rejection that says why it is not open.
-let selected: DbName = "local";
-let current: Promise<LoginsDb> = openFor("local");
+// Production when it is configured — it is the database the live site reads; Local otherwise.
+let selected: DbName = conns.production ? "production" : "local";
+let current: Promise<LoginsDb> = openFor(selected);
 current.catch(() => {});
 
 const use = (name: DbName): Promise<LoginsDb> => {
@@ -52,7 +53,7 @@ const select = async (name: DbName): Promise<void> => {
 type Handlers = { [K in keyof Api]: (...args: Parameters<Api[K]>) => ReturnType<Api[K]> };
 
 const handlers: Handlers = {
-  connections: async () => ({ production: Boolean(conns.production), local: Boolean(conns.local), localIsDefault: conns.local === LOCAL_DEFAULT, error: connectionsError }),
+  connections: async () => ({ production: Boolean(conns.production), local: Boolean(conns.local), localIsDefault: conns.local === LOCAL_DEFAULT, selected, error: connectionsError }),
   setConnection: async (name, url) => {
     conns = { ...conns, [name]: url.trim() };
     saveConnections(CONFIG_DIR, conns);

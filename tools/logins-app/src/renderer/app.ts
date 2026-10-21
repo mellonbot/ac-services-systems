@@ -623,6 +623,7 @@ const start = async (): Promise<void> => {
   const c = await api.connections();
   state.production = c.production;
   state.localIsDefault = c.localIsDefault;
+  state.db = c.selected;
   render();
   await reload();
   if (c.error) banner(c.error);
