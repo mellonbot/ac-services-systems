@@ -26,10 +26,11 @@ export const statStrip = (tiles: readonly StatTile[], id?: string): VNode =>
 /**
  * A panel: the card content sits in on the page ground. Title and one line of
  * sub are optional — a panel holding a single captioned grid needs neither.
+ * Given an id and a title, the panel is a named region labelled by its h2.
  */
 export const panel = (body: ComponentChildren, title?: ComponentChildren, sub?: ComponentChildren, side?: ComponentChildren, id?: string): VNode =>
-  html`<section class="ac-panel" id=${id}>
-    ${title ? html`<header class="ac-panel__head"><div><h2 class="ac-panel__title">${title}</h2>${sub ? html`<p class="ac-panel__sub">${sub}</p>` : null}</div>${side ?? null}</header>` : null}
+  html`<section class="ac-panel" id=${id} aria-labelledby=${title && id ? `${id}__title` : undefined}>
+    ${title ? html`<header class="ac-panel__head"><div><h2 class="ac-panel__title" id=${id ? `${id}__title` : undefined}>${title}</h2>${sub ? html`<p class="ac-panel__sub">${sub}</p>` : null}</div>${side ?? null}</header>` : null}
     ${body}
   </section>`;
 

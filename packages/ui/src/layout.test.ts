@@ -22,6 +22,12 @@ test("a panel draws its head only when titled", () => {
   const out = render(panel("body", "Crews", "Who can be sent today."));
   assert.match(out, /<section class="ac-panel"><header class="ac-panel__head"><div><h2 class="ac-panel__title">Crews<\/h2><p class="ac-panel__sub">Who can be sent today\.<\/p>/);
   assert.doesNotMatch(render(panel("body")), /ac-panel__head/);
+  assert.match(render(panel("body", "Crews", undefined, undefined, "crews")), /<section class="ac-panel" id="crews" aria-labelledby="crews__title">.*<h2 class="ac-panel__title" id="crews__title">Crews/s);
+});
+
+test("nothing inside a panel draws a second card", () => {
+  assert.match(UI_CSS, /\.ac-panel \.ac-grid,\.ac-panel \.ac-stat\{box-shadow:none/);
+  assert.match(UI_CSS, /\.ac-panel \.ac-form\{padding:0;background:transparent;border:0/);
 });
 
 test("a stat figure is a numeral, so it is set in the instrument face", () => {
