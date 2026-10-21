@@ -115,7 +115,7 @@ export const S3_CSS = `
 .s3-act{appearance:none;border:0;background:none;padding:0;color:var(--color-action-text);font:inherit;font-size:var(--text-sm);padding-block:2px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
 .s3-act:disabled{color:var(--color-text-muted);cursor:not-allowed;text-decoration:none}
 .s3-act:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
-.s3-note{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;max-width:30ch}
+.s3-note{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;max-width:var(--measure-narrow)}
 .s3-note__body{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .s3-note-edit{display:flex;flex-direction:column;gap:var(--space-1);min-width:24ch}
 
