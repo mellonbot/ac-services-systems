@@ -6,8 +6,8 @@ import type { Region, Crew, Firm, Company, CustomerOrg, AccountNode, LoginEdit }
 import type { NewCompany } from "./companies.ts";
 
 export type Api = {
-  /** Which connections are configured — never the strings. `localIsDefault`: Local is LOCAL_DEFAULT. `error`: connections.json could not be read. */
-  connections(): Promise<{ production: boolean; local: boolean; localIsDefault: boolean; error: string | null }>;
+  /** Which connections are configured — never the strings. `localIsDefault`: Local is LOCAL_DEFAULT. `selected`: the database the main process opened. `error`: connections.json could not be read. */
+  connections(): Promise<{ production: boolean; local: boolean; localIsDefault: boolean; selected: DbName; error: string | null }>;
   setConnection(db: DbName, url: string): Promise<void>;
   select(db: DbName): Promise<void>;
   listUsers(db: DbName, includeInactive: boolean): Promise<readonly UserRecord[]>;
