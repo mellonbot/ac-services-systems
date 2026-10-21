@@ -39,10 +39,21 @@ const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+/**
+ * A surface's own third-party packages, beyond the three every surface takes.
+ * Declared here because the package.json is emitted; under node-linker=isolated
+ * a package not named here does not resolve. S1 draws the sign-in ring's truck
+ * with three.js.
+ */
+const OWN_PACKAGES: Readonly<Record<string, { dependencies: Record<string, string>; devDependencies: Record<string, string> }>> = {
+  "s1-marketing": { dependencies: { three: "0.184.0" }, devDependencies: { "@types/three": "0.184.0" } },
+};
+
 export const renderPackageJson = (s: Surface): string => JSON.stringify({
   name: `@ac/${s.app}`, version: "0.0.0", private: true, type: "module",
   main: "./src/main.ts",
-  dependencies: { "@ac/shell": "workspace:*", "@ac/ui": "workspace:*", "@ac/contracts": "workspace:*" },
+  dependencies: { "@ac/shell": "workspace:*", "@ac/ui": "workspace:*", "@ac/contracts": "workspace:*", ...OWN_PACKAGES[s.app]?.dependencies },
+  ...(OWN_PACKAGES[s.app] && { devDependencies: OWN_PACKAGES[s.app]!.devDependencies }),
 }, null, 2) + "\n";
 
 /**

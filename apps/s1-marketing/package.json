@@ -7,6 +7,10 @@
   "dependencies": {
     "@ac/shell": "workspace:*",
     "@ac/ui": "workspace:*",
-    "@ac/contracts": "workspace:*"
+    "@ac/contracts": "workspace:*",
+    "three": "0.184.0"
+  },
+  "devDependencies": {
+    "@types/three": "0.184.0"
   }
 }
