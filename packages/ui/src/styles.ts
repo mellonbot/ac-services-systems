@@ -37,7 +37,7 @@ body{margin:0;background:var(--color-page);color:var(--color-text);font-family:v
 :focus-visible{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}
 code,.ac-num{font-family:var(--font-instrument);font-variant-numeric:tabular-nums}
 code{font-size:0.95em;background:var(--color-surface-sunken);padding:1px var(--space-1);border:1px solid var(--color-border)}
-main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:1400px;margin:0 auto}
+main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--page-max);margin:0 auto}
 
 /* ---- Masthead: the badge, the wordmark, the descriptor ----
    The wordmark is the ONE place the script appears on a surface. It is a mark
@@ -66,7 +66,7 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:1400px
    pair, ink.black on the red ground, is 3.67:1 — the non-text floor, because
    the letter is a MARK and not a word anyone reads. (No hex in this file: the
    sheet names roles, and styles.test.ts fails a colour even in a comment.) */
-.ac-mast{padding:var(--space-4) var(--gutter) var(--space-2);background:var(--color-page);max-width:1400px;margin:0 auto}
+.ac-mast{padding:var(--space-4) var(--gutter) var(--space-2);background:var(--color-page);max-width:var(--page-max);margin:0 auto}
 .ac-mast__lockup{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;
   text-decoration:none;color:inherit}
 .ac-badge-mark{display:inline-flex;flex:none}
@@ -174,7 +174,7 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:1400px
 .ac-badge__detail{color:var(--color-text-muted);text-transform:none;letter-spacing:var(--track-tight)}
 
 /* ---- RefusalCard: the axis, the message verbatim, the routes ---- */
-.ac-refusal{border:1px solid color-mix(in srgb,var(--refusal-color) 45%,var(--color-border));border-top:3px solid var(--refusal-color);border-radius:var(--radius-card);padding:var(--space-3) var(--space-4);max-width:64ch;background:var(--color-surface);box-shadow:var(--elevation-card)}
+.ac-refusal{border:1px solid color-mix(in srgb,var(--refusal-color) 45%,var(--color-border));border-top:3px solid var(--refusal-color);border-radius:var(--radius-card);padding:var(--space-3) var(--space-4);max-width:var(--measure-text);background:var(--color-surface);box-shadow:var(--elevation-card)}
 .ac-refusal[data-axis="structural"]{--refusal-color:var(--color-status-blocked)}
 .ac-refusal[data-axis="commercial"]{--refusal-color:var(--color-status-at-risk)}
 .ac-refusal[data-kind="token"],.ac-refusal[data-kind="transport"]{--refusal-color:var(--color-status-breached)}
@@ -206,9 +206,9 @@ ac-degraded[hidden]{display:none}
    figures lead, content in panels, and navigation as a segmented control. */
 .ac-page-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:var(--space-3) var(--space-4);margin:var(--space-2) 0 var(--space-4)}
 .ac-page-head__title{margin:0;font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);line-height:1.15;text-wrap:balance}
-.ac-page-head__lede{margin:var(--space-1) 0 0;color:var(--color-text-muted);font-size:var(--text-sm);max-width:62ch}
+.ac-page-head__lede{margin:var(--space-1) 0 0;color:var(--color-text-muted);font-size:var(--text-sm);max-width:var(--measure-text)}
 .ac-page-head__side{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
-.ac-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,17ch),1fr));gap:var(--space-3);margin:0 0 var(--space-4)}
+.ac-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--tile-min)),1fr));gap:var(--space-3);margin:0 0 var(--space-4)}
 .ac-stat{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-3) var(--space-4);display:flex;flex-direction:column;gap:2px;min-width:0}
 .ac-stat__n{font-family:var(--font-instrument);font-size:var(--text-display);font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--stat-ink,var(--color-text))}
 .ac-stat__l{font-family:var(--font-label);font-size:var(--text-xs);font-weight:600;letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
@@ -251,7 +251,7 @@ ac-degraded[hidden]{display:none}
   .ac-grid[data-stack="narrow"] thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   .ac-grid[data-stack="narrow"] tbody,.ac-grid[data-stack="narrow"] .ac-grid__row{display:block}
   .ac-grid[data-stack="narrow"] .ac-grid__row{padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}
-  .ac-grid[data-stack="narrow"] .ac-grid__td{display:grid;grid-template-columns:minmax(7rem,1fr) minmax(0,2fr);gap:var(--space-3);align-items:baseline;justify-items:start;height:auto;min-height:0;padding:var(--space-1) var(--space-3);border-bottom:0;text-align:start;white-space:normal;overflow-wrap:anywhere}
+  .ac-grid[data-stack="narrow"] .ac-grid__td{display:grid;grid-template-columns:minmax(var(--label-min),1fr) minmax(0,2fr);gap:var(--space-3);align-items:baseline;justify-items:start;height:auto;min-height:0;padding:var(--space-1) var(--space-3);border-bottom:0;text-align:start;white-space:normal;overflow-wrap:anywhere}
   .ac-grid[data-stack="narrow"] .ac-grid__td::before{content:attr(data-label);color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
   .ac-grid[data-stack="narrow"] .ac-grid__empty td{display:block}
 }
@@ -262,7 +262,7 @@ ac-degraded[hidden]{display:none}
 .ac-link:hover{text-decoration:underline;text-decoration-color:color-mix(in srgb,currentColor calc(100% * var(--hover)),transparent)}
 .ac-link--button{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;font:inherit}
 .ac-link--button:disabled{color:var(--color-text-muted);cursor:default;text-decoration:none}
-.ac-form{display:flex;flex-direction:column;gap:var(--space-3);max-width:64ch;padding:var(--space-4);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.ac-form{display:flex;flex-direction:column;gap:var(--space-3);max-width:var(--measure-text);padding:var(--space-4);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 .ac-form--inline{display:flex;flex-direction:row;flex-wrap:wrap;gap:var(--space-4);align-items:end;max-width:none}
 .ac-form--inline .ac-field{flex:1 1 16ch;align-items:stretch}
 .ac-field{display:flex;flex-direction:column;gap:var(--space-1);flex:1;min-width:0}
@@ -274,7 +274,7 @@ ac-degraded[hidden]{display:none}
 /* A notice is a state with a sentence beside it: outlined in the state's own
    ink, with the 3px top rule a refusal card carries. It is state-bearing, so
    no accent role enters it (STATE_BEARING_SELECTORS). */
-.ac-notice{margin:0;padding:var(--space-3);max-width:64ch;background:var(--color-surface);border:1px solid var(--notice-color,var(--color-border-hard));border-top:3px solid var(--notice-color,var(--color-border-hard));border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.ac-notice{margin:0;padding:var(--space-3);max-width:var(--measure-text);background:var(--color-surface);border:1px solid var(--notice-color,var(--color-border-hard));border-top:3px solid var(--notice-color,var(--color-border-hard));border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 .ac-notice[data-tone="ok"]{--notice-color:var(--color-status-ok)}
 .ac-notice[data-tone="at_risk"]{--notice-color:var(--color-status-at-risk)}
 .ac-notice[data-tone="breached"]{--notice-color:var(--color-status-breached)}
@@ -282,7 +282,7 @@ ac-degraded[hidden]{display:none}
 .ac-notice__mark{color:var(--notice-color)}
 .ac-notice__message{margin:0 0 var(--space-2)}
 .ac-notice__routes{display:flex;flex-wrap:wrap;gap:var(--space-2)}
-.ac-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20ch),1fr));gap:var(--space-3);margin:0 0 var(--space-4)}
+.ac-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--tile-wide)),1fr));gap:var(--space-3);margin:0 0 var(--space-4)}
 .ac-facts>div{padding:var(--space-2) var(--space-3);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 .ac-facts dt{font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
 .ac-facts dd{margin:var(--space-1) 0 0;font-weight:600}

@@ -13,8 +13,8 @@ export const S8_CSS = `
 .s8-row__actions{display:inline-flex;gap:var(--space-3);white-space:nowrap}
 .s8-summary{margin:0;display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:baseline}
 .s8-summary strong{font-family:var(--font-instrument);font-variant-numeric:tabular-nums;font-size:var(--text-lg)}
-.s8-login{max-width:40ch;margin:var(--space-12) auto 0}
+.s8-login{max-width:var(--measure-narrow);margin:var(--space-12) auto 0}
 .s8-field--pair{display:flex;gap:var(--space-3)}
-.s8-position{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,28ch),1fr));gap:var(--space-4)}
+.s8-position{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--tile-wide)),1fr));gap:var(--space-4)}
 @media (max-width:760px){.s8-field--pair{flex-direction:column}}
 `;
