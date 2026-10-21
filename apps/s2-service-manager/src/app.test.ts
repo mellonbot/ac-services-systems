@@ -217,7 +217,7 @@ test("degraded: every submit renders disabled with the surface's declared reason
   app.degraded.value = true; // what tick() would read from the transport; a surface never writes the shell's flag, only this mirror of it
   const out = render(app.view());
   assert.match(out, /aria-disabled="true"/);
-  assert.match(out, /Gateway unreachable — Read-only from last server state/);
+  assert.match(out, /Offline — showing the records as last saved/);
   assert.match(out, /South \(SOUTH\)/, "the last server state is still on screen");
 });
 

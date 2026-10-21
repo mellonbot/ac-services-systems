@@ -64,6 +64,8 @@ export type Shell = {
   readonly density: Density;
   readonly principal: Principal;
   readonly degradedMode: string;
+  /** `SURFACES[id].degradedNotice` — the reader-facing line a paused control gives as its reason. */
+  readonly degradedNotice: string;
   /** Resolved at login. Null on a configuration-only shell. */
   readonly context: HierarchyContext | null;
   /** The generated client. Every read and every write a surface makes goes through this object. */
@@ -155,6 +157,7 @@ export const createShell = (config: ShellConfig): Shell => {
       density: surface.density,
       principal: config.principal,
       degradedMode: surface.degraded,
+      degradedNotice: surface.degradedNotice,
       context: config.context ?? null,
       gateway,
       isDegraded: () => state.degraded,

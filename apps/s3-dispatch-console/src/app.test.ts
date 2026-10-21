@@ -236,7 +236,7 @@ test("degraded: Assign and Release render disabled with the surface's declared r
   app.degraded.value = true;
   const out = render(app.view());
   assert.match(out, /aria-disabled="true"/);
-  assert.match(out, /Gateway unreachable — Board freezes/);
+  assert.match(out, /Offline — the board is frozen at its last update/);
   assert.match(out, /Crew A1/, "the last server state is still on screen");
 });
 

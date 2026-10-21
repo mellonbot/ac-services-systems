@@ -8,6 +8,7 @@ import { DataGrid } from "./components/data-grid.ts";
 import { UI_CSS } from "./styles.ts";
 import { ComplianceBadge } from "./components/compliance-badge.ts";
 import { RefusalCard, refusalHeading, AXIS_SENTENCE } from "./components/refusal-card.ts";
+import { plainHeading, plainMessage, retryable } from "./components/refusal-notice.ts";
 import { RefusalNotice } from "./components/refusal-notice.ts";
 import { DegradedBanner, applyDegraded, ageOf } from "./components/degraded-banner.ts";
 import { COMPONENT_SPECS, ComplianceBadgeSpec, DataGridSpec } from "./component.ts";
@@ -140,21 +141,22 @@ test("RefusalCard renders every refusal kind with a heading — none falls throu
 });
 
 test("DegradedBanner is nothing when the flag is down, and the declared text plus the age when up", () => {
-  const text = SURFACES.S2.degraded;
+  const text = SURFACES.S2.degradedNotice;
   assert.equal(render(html`<${DegradedBanner} density="console" degraded=${false} text=${text} lastOkAt=${0} now=${1000} />`), "");
   const up = render(html`<${DegradedBanner} density="console" degraded=${true} text=${text} lastOkAt=${1_000_000} now=${1_000_000 + 4 * 60_000} />`);
   assert.match(up, /role="alert"/);
-  assert.ok(up.includes(text), "the registry's declaration, not a paraphrase");
-  assert.match(up, /Last good response 4 min ago\./);
-  const never = render(html`<${DegradedBanner} density="field" degraded=${true} text=${SURFACES.S5.degraded} lastOkAt=${null} now=${1} />`);
-  assert.match(never, /No response from the gateway yet this session\./);
+  assert.ok(up.includes(text), "the registry's notice, not a paraphrase");
+  assert.match(up, /Last connected 4 min ago\./);
+  assert.doesNotMatch(up, /Gateway/, "the reader is not told about the gateway");
+  const never = render(html`<${DegradedBanner} density="field" degraded=${true} text=${SURFACES.S5.degradedNotice} lastOkAt=${null} now=${1} />`);
+  assert.match(never, /Not connected yet this session\./);
 });
 
 test("the frame's <ac-degraded> slot is driven by the same facts", () => {
   const slot = { hidden: true, textContent: "" as string | null };
   applyDegraded(slot, { degraded: true, text: "Read-only.", lastOkAt: 0, now: 90_000 });
   assert.equal(slot.hidden, false);
-  assert.equal(slot.textContent, `${MARK_GLYPHS.fault} Gateway unreachable. Read-only. Last good response 1 min ago.`, "the no-tree path carries the mark too");
+  assert.equal(slot.textContent, `${MARK_GLYPHS.fault} Read-only. Last connected 1 min ago.`, "the no-tree path carries the mark too");
   applyDegraded(slot, { degraded: false, text: "Read-only.", lastOkAt: 0, now: 90_000 });
   assert.equal(slot.hidden, true);
 });
@@ -229,7 +231,7 @@ test("every mark a component draws is a named mark, so the font subset can be ch
 // axis, tiers or code that are the office's to act on. The discipline was
 // right and copied six times; now it is one component with the card's floor.
 // ---------------------------------------------------------------------------
-test("RefusalNotice is the heading, the message verbatim, and the routes — admitted at every density", () => {
+test("RefusalNotice is the plain heading, the message, and the routes — admitted at every density", () => {
   const refusal: Refusal = { kind: "scope", error: "unknown_scope", message: "There is no site node in this scope." } as Refusal;
   let chosen = "";
   const out = render(RefusalNotice({
@@ -238,7 +240,7 @@ test("RefusalNotice is the heading, the message verbatim, and the routes — adm
   }) ?? html``);
   assert.match(out, /<section class="ac-notice" role="alert" data-tone="breached" data-kind="scope" data-density="comfort"/);
   assert.match(out, new RegExp(`${MARK_GLYPHS.fault}`), "the fault mark — colour never carries alone");
-  assert.match(out, new RegExp(`ac-notice__heading[^<]*<[^>]*>[^<]*</span> ${refusalHeading(refusal)}`));
+  assert.match(out, new RegExp(`ac-notice__heading[^<]*<[^>]*>[^<]*</span> ${plainHeading(refusal)}`));
   assert.match(out, /<p class="ac-notice__message">There is no site node in this scope\.<\/p>/);
   assert.match(out, /ac-notice__routes/);
   assert.match(out, /class="ac-action" data-kind="primary"[^>]*>Try again</);
@@ -274,4 +276,16 @@ test("every control the chrome draws is at least its tier's control height; a li
   for (const sel of [".ac-seg__item", ".ac-chip", ".ac-input"])
     assert.match(UI_CSS, new RegExp(`\\n\\${sel}\\{[^}]*min-height:var\\(--control-height\\)`), `${sel} lacks the tier's control height`);
   assert.match(UI_CSS, /\.ac-link--button\{[^}]*min-height:var\(--space-6\)/);
+});
+
+test("RefusalNotice speaks to someone outside the company: no transport text, no full record ids, and retry only where an answer can change", () => {
+  const transport: Refusal = { kind: "transport", status: null, message: "TypeError: Failed to fetch" };
+  const scope: Refusal = { kind: "scope", error: "unknown_scope", message: "no site node bd6665e8-1111-2222-3333-444455556666 in org bdfe64ce-1111-2222-3333-444455556666" };
+  const t = render(RefusalNotice({ density: "comfort", refusal: transport }) ?? html``);
+  assert.doesNotMatch(t, /Failed to fetch|Gateway/);
+  assert.match(t, /We can't reach our system right now/);
+  assert.equal(plainMessage(scope), "no site node ref. bd6665e8 in org ref. bdfe64ce");
+  assert.equal(retryable(transport), true);
+  assert.equal(retryable(scope), false, "a refusal is the gateway's answer; asking again does not change it");
+  assert.equal(plainHeading({ kind: "admission", code: "x", axis: "commercial", message: "" }), "This needs Rankine's agreement first");
 });

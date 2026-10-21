@@ -189,7 +189,7 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   effect(() => {
     if (!slot) return;
     applyDegraded(slot, {
-      degraded: app.degraded.value, text: SURFACE.degraded,
+      degraded: app.degraded.value, text: SURFACE.degradedNotice,
       lastOkAt: app.store.lastOkAt.value, now: Date.now(),
     });
   });

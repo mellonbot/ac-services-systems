@@ -68,7 +68,7 @@ const form = (ctx: ScreenContext, sites: readonly SiteWire[]): VNode => {
       <span class="s3-row-actions">
         ${PrimaryAction({
           density: ctx.density, label: s.busy ? "Opening…" : "Open job", type: "submit", id: "new-job-submit",
-          ...(ctx.degraded ? { disabledReason: `Gateway unreachable — ${ctx.shell.degradedMode}` } : s.busy ? { disabledReason: "Opening…" } : {}),
+          ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : s.busy ? { disabledReason: "Opening…" } : {}),
         })}
         <button type="button" class="s3-act" id="new-job-cancel" onClick=${() => { submittingFor(ctx.store).value = { busy: false, refusal: null }; ctx.router.navigate("board", {}); }}>Cancel</button>
       </span>

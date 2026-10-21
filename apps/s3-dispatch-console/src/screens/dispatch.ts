@@ -59,7 +59,7 @@ export const dispatch: Screen = (ctx, params) => {
               ${c.cleared
                 ? PrimaryAction({
                     density: ctx.density, label: "Assign", id: `assign-${c.crewId}`, onClick: () => void assign(c),
-                    ...(ctx.degraded ? { disabledReason: `Gateway unreachable — ${ctx.shell.degradedMode}` } : {}),
+                    ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : {}),
                   })
                 : null}
             </li>`)}

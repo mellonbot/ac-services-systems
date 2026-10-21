@@ -170,7 +170,7 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
     if (!slot) return;
     const p = app.phase.value;
     const lastOkAt = p.kind === "ready" ? p.store.lastOkAt.value : null;
-    applyDegraded(slot, { degraded: app.degraded.value, text: SURFACE.degraded, lastOkAt, now: Date.now() });
+    applyDegraded(slot, { degraded: app.degraded.value, text: SURFACE.degradedNotice, lastOkAt, now: Date.now() });
   });
   app.router.start();
   setInterval(() => { app.tick(); app.probe(); }, 1000);

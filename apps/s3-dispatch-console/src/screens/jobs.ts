@@ -184,7 +184,7 @@ export const jobs: Screen = (ctx) => {
     { key: "flags", header: "Flags", cell: (j) => html`<span class="s3-flags">
       ${j.returnTrip ? html`<span class="s3-flag">Return trip</span>` : null}
       <button type="button" class="s3-act" id=${`flag-${j.id}`} aria-pressed=${j.returnTrip ? "true" : "false"} disabled=${ctx.degraded}
-        title=${ctx.degraded ? `Gateway unreachable — ${ctx.shell.degradedMode}` : undefined}
+        title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
         onClick=${() => void flagReturnTrip(ctx, j, !j.returnTrip)}>${j.returnTrip ? "Clear" : "Flag return trip"}</button>
     </span>` },
     { key: "sla", header: "SLA", cell: (j) => j.slaDueAt && !j.slaSatisfiedAt
@@ -192,7 +192,7 @@ export const jobs: Screen = (ctx) => {
       : html`<span class="s3-muted">—</span>` },
     { key: "move", header: "Move", cell: (j) => html`<span class="s3-moves">${isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act") : null}${(OFFICE_JOB_TRANSITIONS[j.state] ?? []).map((to) =>
       html`<button type="button" class="s3-act" id=${`move-${j.id}-${to}`} disabled=${ctx.degraded}
-        title=${ctx.degraded ? `Gateway unreachable — ${ctx.shell.degradedMode}` : undefined}
+        title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
         onClick=${() => void moveJob(ctx, j, to)}>${MOVE_LABEL[to] ?? STATE_LABEL[to]}</button>`)}</span>` },
     { key: "note", header: "Note", cell: noteCell },
     { key: "age", header: "Days in status", numeric: true, align: "end", cell: (j) => html`<span title=${`In this status since ${new Date(j.stateChangedAt).toLocaleString()}`}>${daysInState(j, now)}d</span>` },

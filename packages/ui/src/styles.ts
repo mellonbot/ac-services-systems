@@ -199,7 +199,6 @@ ac-degraded[hidden]{display:none}
    the fill carries salience; this is the fill. Transparent on the light stock,
    where a fault is an outline, and oxide at 6.63:1 on the plate. */
 .ac-degraded__mark{color:var(--color-status-breached);background:var(--color-status-breached-fill);padding:0 var(--space-1);line-height:1.4}
-.ac-degraded__title{font-family:var(--font-display);letter-spacing:var(--track-normal);text-transform:uppercase}
 .ac-degraded__age{font-family:var(--font-instrument);color:var(--color-text-muted);font-size:var(--text-xs);letter-spacing:var(--track-normal)}
 /* ---- Rev A page structure — shared by every surface ----
    A page head (the screen's name and one plain sentence), a stat strip where
