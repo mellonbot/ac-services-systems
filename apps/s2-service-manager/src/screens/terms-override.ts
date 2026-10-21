@@ -112,7 +112,8 @@ export const termsOverride: Screen = (ctx, params) => {
 
   const existingGrid = (rows: readonly TermOverrideWire[], nodes: readonly AccountWire[]): VNode =>
     DataGrid({
-      density: ctx.density, caption: "Overrides on record",
+      density: ctx.density,
+      stack: true, caption: "Overrides on record",
       columns: [
         { key: "termKey", header: "Term" },
         { key: "scopeTier", header: "At", cell: (o: TermOverrideWire) => `${o.scopeTier} · ${nodes.find((n) => n.id === o.scopeId)?.name ?? "organization"}` },

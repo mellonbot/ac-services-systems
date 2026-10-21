@@ -56,3 +56,23 @@ test("no surface stylesheet redeclares the chrome the component sheet owns", asy
   }
   assert.deepEqual(forks, []);
 });
+
+/**
+ * The other direction: a surface reaching into the component sheet's classes
+ * (`.s2-app .ac-grid__td{…}`) restyles the chrome for one surface without
+ * forking its name, which the test above cannot see. A layout the chrome lacks
+ * belongs in packages/ui as a prop or modifier. S1's masthead width is the
+ * marketing column's measure, not a restyle, and is exempt by name.
+ */
+test("no surface stylesheet restyles a class the component sheet owns", async () => {
+  const reaches: string[] = [];
+  for (const id of SURFACE_IDS) {
+    const sheet = (await surfaceSheet(SURFACES[id].app)).replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const m of sheet.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
+      const selector = m[1]!.trim();
+      if (id === "S1" && selector === ".ac-mast") continue;
+      for (const hit of selector.matchAll(/\.ac-[a-z][\w-]*/g)) reaches.push(`${SURFACES[id].app}: ${selector} restyles ${hit[0]}`);
+    }
+  }
+  assert.deepEqual(reaches, []);
+});

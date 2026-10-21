@@ -98,7 +98,6 @@ export const S3_CSS = `
 .s3-map-job__location{color:var(--color-text-muted);font-size:var(--text-xs);text-align:end}
 .s3-map-job__footer{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
 .s3-map-job__footer .s3-row-actions{margin-inline-start:auto}
-.s3-map-job__footer .ac-action,.s3-map-job__footer .ac-action-wrap{min-height:var(--control-height)}
 .s3-map-empty{display:flex;flex:1;flex-direction:column;justify-content:center;gap:var(--space-2);padding:var(--space-6);color:var(--color-text-muted);text-align:center}
 .s3-map-empty strong{color:var(--color-text)}
 @media(max-width:980px){.s3-map-layout{grid-template-columns:minmax(0,1fr)}}

@@ -245,6 +245,16 @@ ac-degraded[hidden]{display:none}
 .ac-nav__who{margin-inline-start:auto;padding:0 var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm)}
 .ac-nav__signout{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);cursor:pointer;color:var(--color-action-text);font:inherit;min-height:var(--control-height)}
 @media (max-width:760px){.ac-nav{align-items:stretch}.ac-nav__who{order:2;width:100%;margin-inline-start:0}}
+/* A stacked grid on a phone: each row a block of label/value pairs, the header kept for screen readers. */
+@media (max-width:760px){
+  .ac-grid[data-stack="narrow"]{display:block;width:100%;max-width:100%;overflow-x:auto}
+  .ac-grid[data-stack="narrow"] thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .ac-grid[data-stack="narrow"] tbody,.ac-grid[data-stack="narrow"] .ac-grid__row{display:block}
+  .ac-grid[data-stack="narrow"] .ac-grid__row{padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}
+  .ac-grid[data-stack="narrow"] .ac-grid__td{display:grid;grid-template-columns:minmax(7rem,1fr) minmax(0,2fr);gap:var(--space-3);align-items:baseline;justify-items:start;height:auto;min-height:0;padding:var(--space-1) var(--space-3);border-bottom:0;text-align:start;white-space:normal;overflow-wrap:anywhere}
+  .ac-grid[data-stack="narrow"] .ac-grid__td::before{content:attr(data-label);color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
+  .ac-grid[data-stack="narrow"] .ac-grid__empty td{display:block}
+}
 /* A link is a WORD, so it takes the envelope, never the fill. Its underline is
    a hover affordance and is gated like every other one: where there is no
    cursor it is drawn in transparent. */
@@ -253,6 +263,8 @@ ac-degraded[hidden]{display:none}
 .ac-link--button{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:0;cursor:pointer;font:inherit}
 .ac-link--button:disabled{color:var(--color-text-muted);cursor:default;text-decoration:none}
 .ac-form{display:flex;flex-direction:column;gap:var(--space-3);max-width:64ch;padding:var(--space-4);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.ac-form--inline{display:flex;flex-direction:row;flex-wrap:wrap;gap:var(--space-4);align-items:end;max-width:none}
+.ac-form--inline .ac-field{flex:1 1 16ch;align-items:stretch}
 .ac-field{display:flex;flex-direction:column;gap:var(--space-1);flex:1;min-width:0}
 .ac-field>span{font-weight:600;font-size:var(--text-sm);color:var(--color-text-muted)}
 .ac-field small,.ac-field__hint{font-weight:400;color:var(--color-text-muted);font-size:var(--text-sm)}
