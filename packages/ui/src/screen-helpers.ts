@@ -15,3 +15,10 @@ export const formValues = (form: HTMLFormElement): Record<string, string> => {
   new FormData(form).forEach((value, key) => { if (typeof value === "string") values[key] = value.trim(); });
   return values;
 };
+
+/**
+ * The short reference a customer reads back to the office: the first block
+ * of the row's id, upper-cased. One function, so the portal and the console
+ * print the same eight characters for the same request.
+ */
+export const shortRef = (id: string): string => id.slice(0, 8).toUpperCase();

@@ -18,7 +18,7 @@ import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
 import { createJob, listJobs, listMyJobs, transitionJob, addJobNote, setReturnTrip } from "./handlers/jobs.ts";
 import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "./handlers/job-detail.ts";
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
-import { createServiceRequest, listServiceRequests } from "./handlers/service-requests.ts";
+import { createServiceRequest, listServiceRequests, openJobFromRequest } from "./handlers/service-requests.ts";
 import { attachPhoto, getMedia } from "./handlers/photos.ts";
 import { storeFromEnv } from "../../../packages/storage/src/index.ts";
 import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
@@ -502,6 +502,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "serviceRequests.list": (req, input) => withRead(req, "serviceRequests.list", (uow) => listServiceRequests(uow, input)),
   "serviceRequests.attachPhoto": (req, input) => withUow(req, "serviceRequests.attachPhoto", (uow, p) => attachPhoto(uow, p.subjectId, STORE, input, randomUUID)),
   "media.get": (req, input) => withRead(req, "media.get", (uow) => getMedia(uow, STORE, input)),
+  "serviceRequests.openJob": (req, input) => withUow(req, "serviceRequests.openJob", (uow) => openJobFromRequest(uow, input, randomUUID, new Date())),
 
   // S3 — the one gated door, its dry run, and its release.
   "dispatch.assign": (req, input) => withUow(req, "dispatch.assign", (uow, p) => assignCrew(uow, p.subjectId, input, new Date())),

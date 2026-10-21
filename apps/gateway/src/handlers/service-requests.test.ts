@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
-import { createServiceRequest, listServiceRequests, DESCRIPTION_MAX } from "./service-requests.ts";
+import { createServiceRequest, listServiceRequests, openJobFromRequest, DESCRIPTION_MAX } from "./service-requests.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 
@@ -100,4 +100,15 @@ test("listServiceRequests carries the site's name and the job's state, and filte
   assert.equal(all.queries[0]!.params[0], null);
   assert.equal(o2.requests[0]!.jobId, null, "not yet acted on");
   await assert.rejects(listServiceRequests(await uowFor(scripted([]).tx), { siteId: "nope" }), BadInput);
+});
+
+test("openJobFromRequest: locks the request first, and refuses one it cannot see or one already answered — before any job is opened", async () => {
+  const input = { requestId: U(60), serviceCode: "HVAC-REPAIR", serviceWindowStart: "2026-10-22T13:00:00Z", serviceWindowEnd: "2026-10-22T17:00:00Z" };
+  const none = scripted([]);
+  await assert.rejects(openJobFromRequest(await uowFor(none.tx), input, newId, new Date()), (e: InputRefused) => e.code === "unknown_request");
+  assert.match(none.queries[0]!.sql, /FOR UPDATE/, "two dispatchers pressing at once open one job");
+  const answered = scripted([["FROM service_requests WHERE id", [{ site_id: SITE, job_id: U(61), priority: "urgent" }]]]);
+  await assert.rejects(openJobFromRequest(await uowFor(answered.tx), input, newId, new Date()), (e: InputRefused) => e.code === "already_opened" && e.message.includes(U(61)));
+  assert.ok(!answered.queries.some((q) => q.sql.includes("INSERT INTO jobs")), "no job opened for a request already answered");
+  await assert.rejects(openJobFromRequest(await uowFor(scripted([]).tx), { ...input, requestId: "nope" }, newId, new Date()), BadInput);
 });

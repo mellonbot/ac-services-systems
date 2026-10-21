@@ -332,6 +332,11 @@ export const OPERATIONS = {
     surfaces: ["S6"], carrier: "body", sdkMethod: "attachServiceRequestPhoto",
     summary: "One photo onto the customer's own request, as base64 in the body. JPEG, PNG or HEIC by the file's own bytes; at most PHOTO_MAX_BYTES each and PHOTOS_PER_REQUEST per request; only while no job is open against it. The gateway writes the object — the browser never reaches the bucket.",
   },
+  "serviceRequests.openJob": {
+    id: "serviceRequests.openJob", method: "POST", path: "/s3/service-requests/open-job", kind: "mutation", auth: "bearer",
+    surfaces: ["S3"], carrier: "body", sdkMethod: "openServiceRequestJob",
+    summary: "The office answers a customer's request: opens a job at the request's site (jobs.create's own path — the SLA timer derived, never typed) and links the request to it, in one unit of work. A request is answered once; the link is final.",
+  },
   "media.get": {
     id: "media.get", method: "GET", path: "/media", kind: "query", auth: "bearer",
     surfaces: ["S2", "S3", "S6"], carrier: "query", sdkMethod: "getMedia",
@@ -1248,6 +1253,15 @@ export const sniffPhoto = (b: Uint8Array): PhotoContentType | null => {
 };
 export type AttachPhotoInput = { readonly requestId: string; readonly dataBase64: string };
 export type AttachPhotoOutput = { readonly id: string; readonly requestId: string; readonly contentType: PhotoContentType; readonly bytes: number; readonly eventId: string };
+/** The site comes from the request, never from the input; priority defaults to the one the customer declared. */
+export type OpenRequestJobInput = {
+  readonly requestId: string;
+  readonly serviceCode: string;
+  readonly priority?: JobPriority;
+  readonly serviceWindowStart: string;
+  readonly serviceWindowEnd: string;
+};
+export type OpenRequestJobOutput = CreateJobOutput & { readonly requestId: string };
 export type GetMediaInput = { readonly id: string };
 export type GetMediaOutput = { readonly id: string; readonly contentType: PhotoContentType; readonly image: string };
 export type ListServiceRequestsInput = { readonly siteId?: string };
@@ -1706,6 +1720,7 @@ export type OperationIO = {
   "serviceRequests.create": { input: CreateServiceRequestInput; output: CreateServiceRequestOutput };
   "serviceRequests.list": { input: ListServiceRequestsInput; output: ListServiceRequestsOutput };
   "serviceRequests.attachPhoto": { input: AttachPhotoInput; output: AttachPhotoOutput };
+  "serviceRequests.openJob": { input: OpenRequestJobInput; output: OpenRequestJobOutput };
   "media.get": { input: GetMediaInput; output: GetMediaOutput };
   "jobs.mine": { input: void; output: MyJobsOutput };
   "dispatch.assign": { input: AssignInput; output: AssignOutput };
