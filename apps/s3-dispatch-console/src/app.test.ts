@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { renderToString as render } from "../../../packages/ui/src/testing.ts";
 import { createApp, SCREEN_VIEWS, gatewayOrigin } from "./app.ts";
 import { SCREENS } from "./screens.ts";
-import { slaStatus, isReleasable, isDispatchable, boardTimeline } from "./screens/board.ts";
+import { slaStatus, isReleasable, isDispatchable, boardModel, boardTone } from "./screens/board.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { Principal, JobWire, HierarchyContext, CandidateCrewWire, ServiceRequestWire } from "../../../packages/contracts/src/index.ts";
 import { intakeRows, age, defaultWindow } from "./screens/intake.ts";
@@ -144,18 +144,18 @@ test("the board shows every job with its SLA glyph, its crew, and offers Dispatc
   assert.doesNotMatch(out, new RegExp(`href="/job/${JOB_ASSIGNED}"`), "an already-assigned job offers no dispatch link");
 });
 
-test("the timeline draws only real jobs on the chosen day: a lane per crew, an Unassigned lane, and each bar's SLA as glyph and word", () => {
+test("the board is read off jobs.list: a row per crew holding work, bars in each job's window, and figures from the same rows", () => {
   const now = Date.parse("2026-09-18T12:00:00.000Z");
-  const out = render(boardTimeline([jobCreated, jobAssigned], now, 0));
-  assert.match(out, /<strong>Crew A1<\/strong>/);
-  assert.match(out, /data-lane="unassigned"/);
-  assert.equal((out.match(/class="dispatch-board__segment"/g) ?? []).length, 2, "one bar per job, no invented rows");
-  assert.match(out, /data-tone="breached"[^>]*href="\/jobs\/[^"]+"/, "the created job's due date has passed");
-  assert.match(out, />Breached<\/span>/);
-  assert.match(out, /data-tone="ok"/, "the assigned job's timer is satisfied");
-  assert.doesNotMatch(out, /33390928|Blake Keating|Tue, Sep 8/, "no fixed sample rows");
-  const nextDay = render(boardTimeline([jobCreated, jobAssigned], now, 1));
-  assert.match(nextDay, /No open job has a service window on this day/);
+  const m = boardModel([jobCreated, jobAssigned], now, 0);
+  assert.deepEqual(m.rows.map((r) => r.name), ["Crew A1"], "only crews holding work have a row");
+  assert.equal(m.rows[0]!.service, "Austin — Roof — hvac repair");
+  assert.equal(boardTone(jobCreated, now), "warn", "a late SLA is drawn as needs attention");
+  assert.equal(boardTone(jobAssigned, now), "scheduled");
+  const stats = Object.fromEntries(m.stats.map((t) => [t.label, t.n]));
+  assert.deepEqual(stats, { "Jobs today": 2, "Crews out": 1, "Needs attention": 1, "Unscheduled": 1, "Tech available": 0 });
+  const tomorrow = boardModel([jobCreated, jobAssigned], now, 1);
+  assert.equal(tomorrow.rows[0]!.service, "No jobs today", "a crew with no window on the day is the idle row");
+  assert.equal(Object.fromEntries(tomorrow.stats.map((t) => [t.label, t.n]))["Tech available"], 1);
 });
 
 test("board filters persist across renders and show only the selected assignment state", async () => {
@@ -168,7 +168,9 @@ test("board filters persist across renders and show only the selected assignment
   const unassigned = findFilter("Unassigned");
   assert.equal(typeof unassigned?.props?.onClick, "function");
   (unassigned!.props!.onClick as () => void)();
-  const unassignedView = render(app.view());
+  // The filters drive the open-work list, which sits after the board itself.
+  const list = (out: string) => out.slice(out.indexOf("s3-map-filters"));
+  const unassignedView = list(render(app.view()));
   assert.match(unassignedView, /Austin — Roof/);
   assert.match(unassignedView, /data-state="created"/);
   assert.doesNotMatch(unassignedView, /data-state="assigned"/);
@@ -178,7 +180,7 @@ test("board filters persist across renders and show only the selected assignment
   const assigned = findFilter("Assigned");
   assert.equal(typeof assigned?.props?.onClick, "function");
   (assigned!.props!.onClick as () => void)();
-  const assignedView = render(app.view());
+  const assignedView = list(render(app.view()));
   assert.match(assignedView, /Crew A1/);
   assert.match(assignedView, /data-state="assigned"/);
   assert.doesNotMatch(assignedView, /data-state="created"/);
