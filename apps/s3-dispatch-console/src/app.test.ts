@@ -321,9 +321,39 @@ test("job detail: the next visit is scheduled only while nobody holds the job an
 });
 
 test("manager dashboard: the team narrows by title and by any part of a name, case-blind", async () => {
-  const { teamRows } = await import("./screens/manager.ts");
-  assert.equal(teamRows("", null).length, 11);
-  assert.deepEqual(teamRows("", "Owner / Admin").map((p) => p.name), ["Dylan Lemons", "Garrett Howard"]);
-  assert.deepEqual(teamRows("  vega ", null).map((p) => p.name), ["Herberto Vega"]);
-  assert.equal(teamRows("vega", "Technician").length, 0);
+  const { teamRows, titleOf } = await import("./screens/manager.ts");
+  const person = (name: string, roles: string[]) => ({ userId: name, name, roles, branch: "South", onJob: false, hoursThisWeek: null, credential: null });
+  const team = [person("Dylan Lemons", ["principal"]), person("Herberto Vega", ["technician"]), person("Rachel Ortiz", ["dispatcher", "technician"])];
+  assert.equal(titleOf(["technician", "dispatcher"]), "Dispatcher", "a title is the most senior role, in ROLES order");
+  assert.equal(teamRows(team, "", null).length, 3);
+  assert.deepEqual(teamRows(team, "", "Technician").map((p) => p.name), ["Herberto Vega"]);
+  assert.deepEqual(teamRows(team, "  VEGA ", null).map((p) => p.name), ["Herberto Vega"]);
+  assert.equal(teamRows(team, "vega", "Dispatcher").length, 0);
+});
+
+test("manager dashboard: attention lists only what is non-zero, and the goal tiles are states only against their goal", async () => {
+  const { attention, figures } = await import("./screens/manager.ts");
+  const { previewManagerOverview } = await import("./preview-manager.ts");
+  const o = previewManagerOverview();
+  assert.deepEqual(attention(o).map((a) => a.word), ["Costing money", "Urgent", "Soon", "Soon"]);
+  assert.match(attention(o)[0]!.sub, /^57 need pricing, 20 were kicked back, 5 are ready to send\.$/);
+  const quiet = { ...o, unbilled: { complete: 0, needsPricing: 0, awaitingPo: 0, awaitingPictures: 0, invoiceTrouble: 0 }, urgentUnassigned: [], credentials: { expired: 0, expiring: 0 }, nearOvertime: 0 };
+  assert.deepEqual(attention(quiet), []);
+  const tiles = Object.fromEntries(figures(o).map((t) => [t.label, t]));
+  assert.equal(tiles["Request to scheduled"]!.tone, "ok");
+  assert.equal(tiles["Finished to invoiced"]!.tone, "breached");
+  assert.equal(tiles["Jobs completed"]!.tone, undefined, "a plain count stays ink");
+  assert.equal(tiles["Billed this month"]!.n, "$184,200");
+  const none = figures({ ...o, waits: o.waits.map((w) => ({ ...w, avgDays: null, jobs: 0 })), completed: { now: 0, prior: 0 } });
+  assert.equal(none.find((t) => t.label === "Finished to invoiced")!.n, "—");
+  assert.equal(none.find((t) => t.label === "Fixed on first visit")!.n, "—");
+});
+
+test("a dispatcher's header carries no Manager tab — the gateway would refuse what it opens", async () => {
+  const { app } = await ready();
+  app.router.navigate("board", {});
+  render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, />Job Dashboard</);
+  assert.doesNotMatch(out, />Manager</);
 });

@@ -266,10 +266,11 @@ apps/s1-marketing/src/        item 8: screens.ts (three screens, no login, no re
 apps/gateway/src/handlers/leads.ts  item 8: S1's two writes and one read — inputs the handler's, tenancy a constant, visibility 0008's. There is no read of a lead in this file, and that is its most important line
 apps/s4-hq-dashboard/src/     item 10: screens.ts (company, area, region — two reads and a login), app.ts (no events: re-reads the rollup every minute), screens/ (overview, area, region) — the company figure is the sum of the region rows
 apps/gateway/src/handlers/hq.ts  item 10: S4's two reads — hq_metrics and the region names, no operational table; visibility 0010's
+apps/gateway/src/handlers/manager.ts  S3's Manager Dashboard: manager.overview, read live from the operational tables — leadership at parent scope only (seesManagerOverview); crews and users bound to the caller's org, the customers' work to RLS
 apps/gateway/src/handlers/procurement.ts  item 11: purchasing and the vendor's side — inputs the handler's; visibility, column rules and quantity limits 0011's; the three-way match the domain's
 apps/s7-vendor-portal/src/     item 11: screens.ts (orders, order, catalogue, invoices, returns), app.ts — disabled in the registry; the demo alone switches it on
 apps/s2-service-manager/src/screens/purchasing.ts  item 11: vendors, receiving points, a vendor's catalogue and price decisions, raising, issuing, receiving and returning an order
-test/integration/     backbone.test.ts — the contract against a live Postgres · s0-shell.test.ts — the shell against a spawned gateway · s2-c1 · s2-c2 · s2-c4 · s3-s5 (item 4) · s6 (item 6) · s6-site-card (item 9) · s8 (item 7) · s1 (item 8) · s4 (item 10: the rollup under RLS, on a scratch database) · worker (the sweeps under RLS and on the right calendar day, on a scratch database)
+test/integration/     backbone.test.ts — the contract against a live Postgres · s0-shell.test.ts — the shell against a spawned gateway · s2-c1 · s2-c2 · s2-c4 · s3-s5 (item 4) · s6 (item 6) · s6-site-card (item 9) · s8 (item 7) · s1 (item 8) · s4 (item 10: the rollup under RLS, on a scratch database) · manager (S3's Manager Dashboard: every figure the seeded rows, and the 403s, on a scratch database) · worker (the sweeps under RLS and on the right calendar day, on a scratch database)
 docs/BACKBONE_CONTRACT.md   B2
 ```
 
