@@ -112,7 +112,9 @@ export class Cdp {
       "--remote-debugging-port=0", `--user-data-dir=${c.profile}`, "about:blank",
     ], { stdio: ["ignore", "pipe", "pipe"] });
 
+    const t0 = Date.now();
     const endpoint = await awaitEndpoint(c.proc);
+    console.log(`cdp: chrome up in ${Date.now() - t0}ms`);
 
     c.ws = new WebSocket(endpoint);
     await new Promise<void>((res, rej) => { c.ws.onopen = () => res(); c.ws.onerror = () => rej(new Error("cdp socket failed")); });
@@ -139,11 +141,13 @@ export class Cdp {
   }
 
   async openTab(url: string): Promise<void> {
+    const t0 = Date.now();
     const { targetId } = await this.send("Target.createTarget", { url }, false) as { targetId: string };
     const { sessionId } = await this.send("Target.attachToTarget", { targetId, flatten: true }, false) as { sessionId: string };
     this.sessionId = sessionId;
     await this.send("Page.enable");
     await this.send("Runtime.enable");
+    console.log(`cdp: tab open in ${Date.now() - t0}ms`);
   }
 
   async navigate(url: string): Promise<void> { await this.send("Page.navigate", { url }); }
@@ -163,7 +167,9 @@ export class Cdp {
       if (await this.eval<boolean>(`!!(${expression})`)) return;
       if (Date.now() > deadline) {
         const seen = await this.eval<string>(`document.body ? document.body.innerText.slice(0, 600) : "(no body)"`).catch(() => "(unreadable)");
-        throw new Error(`timed out waiting for ${what}\n--- page text ---\n${seen}`);
+        // A blank page is two different failures: a navigation that never committed, and a document that loaded and never painted.
+        const at = await this.eval<string>(`location.href + " · readyState " + document.readyState + " · scripts " + document.scripts.length`).catch(() => "(unreadable)");
+        throw new Error(`timed out waiting for ${what} after ${ms}ms\n--- page ---\n${at}\n--- page text ---\n${seen}`);
       }
       await new Promise((r) => setTimeout(r, 100));
     }
