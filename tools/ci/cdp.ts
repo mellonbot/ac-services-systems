@@ -42,19 +42,22 @@ export const findChrome = (): string | null => {
 };
 
 /**
- * THE COLD START IS THE FIRST DRIVE'S BILL, and it is not small.
+ * THE COLD START IS EVERY DRIVE'S BILL, and it is not small.
  *
  * The first browser launch in a job pays for a page-cache miss on the binary
- * and a profile that does not exist yet; every later launch in the same job is
- * warm. Measured on ubuntu-latest, same commit, same `/usr/bin/chromium-browser`:
- * 9.9s and 15.5s cold on two green runs, over 20s on a red one — against 2.6s
- * warm for the three drives that follow.
+ * and a profile that does not exist yet. It used to be C4's alone, because C4
+ * ran first and the rest launched warm; each drive is now its own matrix job,
+ * so all four pay it. Measured on ubuntu-24.04 20261021.345, same commit, the
+ * runner's `/usr/bin/chromium-browser`, eight drives across two green runs:
+ * 10.3s to 25.3s to advertise the endpoint, then 1.3s to 4.7s to open the tab.
  *
- * C4 runs first, so C4 always pays it, which is why C4 is the step that flaked
- * and the other three never did. The old budget was 20s: inside that spread,
- * not above it.
+ * The renderer that paints the first page is just as cold. A drive that drew
+ * the slow end of that spread spent its 15s first-paint wait on a blank page
+ * and failed with zero checks — on main as well as on pull requests, one
+ * drive in a different seat each run. So the first wait after a launch gets
+ * the boot budget too (see `waitFor`); every later wait keeps its own.
  */
-export const COLD_START_OBSERVED_MS = 20_000;
+export const COLD_START_OBSERVED_MS = 25_000;
 
 /**
  * How long a cold Chrome may take to advertise its endpoint. Three times the
@@ -102,6 +105,8 @@ export class Cdp {
   private readonly pending = new Map<number, { resolve: (v: Record<string, unknown>) => void; reject: (e: Error) => void }>();
   private proc!: ChildProcess;
   private profile!: string;
+  /** False until the first wait after launch succeeds: that wait is still paying the cold start. */
+  private painted = false;
   sessionId = "";
 
   static async launch(chrome: string): Promise<Cdp> {
@@ -161,10 +166,11 @@ export class Cdp {
   }
 
   /** Poll an expression until it is truthy. The message names what was waited for, because a timeout with no subject is a mystery. */
-  async waitFor(expression: string, what: string, ms = 15_000): Promise<void> {
+  async waitFor(expression: string, what: string, wait = 15_000): Promise<void> {
+    const ms = this.painted ? wait : Math.max(wait, bootBudgetMs());
     const deadline = Date.now() + ms;
     for (;;) {
-      if (await this.eval<boolean>(`!!(${expression})`)) return;
+      if (await this.eval<boolean>(`!!(${expression})`)) { this.painted = true; return; }
       if (Date.now() > deadline) {
         const seen = await this.eval<string>(`document.body ? document.body.innerText.slice(0, 600) : "(no body)"`).catch(() => "(unreadable)");
         // A blank page is two different failures: a navigation that never committed, and a document that loaded and never painted.
