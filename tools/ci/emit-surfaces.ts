@@ -22,7 +22,7 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SURFACES, SURFACE_IDS, type Surface, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import {
-  DENSITY, tokenCss, BRAND, faviconDataUri, semanticFor, badgeSvg,
+  DENSITY, tokenCss, BRAND, FAVICON, semanticFor, badgeSvg,
   SEMANTIC, FACES, ACCENT_GATE, BULLETIN_ERRATA, WORDMARK_FLOOR, FONT_FILES,
 } from "../../packages/tokens/src/index.ts";
 // Not via index.ts: figures.ts is the table of every number the system states
@@ -253,7 +253,7 @@ export const renderFrame = (s: Surface): string => `<!doctype html>
 <meta name="ac-gateway" content="">
 <title>${escapeHtml(s.id === "S1" ? `${BRAND.works.firm} — Service System` : `${s.name} — ${BRAND.legalName}`)}</title>
 <meta name="theme-color" content="${semanticFor(s.density)["color.surface"]}">
-<link rel="icon" href="${faviconDataUri(16)}">
+<link rel="icon" type="image/png" sizes="${FAVICON.px}x${FAVICON.px}" href="${FAVICON.href}">
 <style>${tokenCss(s.density, { brandLayer: !s.stateRamp })}</style>
 ${FONT_FILES.filter((f) => f.preload).map((f) => `<link rel="preload" href="/fonts/${f.file}" as="font" type="font/woff2" crossorigin>`).join("\n")}
 <link rel="stylesheet" href="/ui.css">${s.whiteLabel ? `

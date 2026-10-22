@@ -138,7 +138,7 @@ export const thickenFor = (px: number): number =>
 
 /**
  * The badge: the monogram on the plate ground, letter in brand red, ring and
- * bar in arc core. One artwork — truck lettering, embroidery, a 16px favicon
+ * bar in arc core. One artwork — truck lettering, embroidery, the app icon
  * and an anodised faceplate all take it.
  *
  * KNOWN DEFECT, recorded rather than hidden (E-17): this renders the letter as
@@ -160,9 +160,35 @@ export const badgeSvg = (px: number = ICON_SIZES.masthead): string => {
     `</svg>`;
 };
 
-/** The badge as a data URI the frame carries inline — no second request, no second file to drift. */
-export const faviconDataUri = (px: number = ICON_SIZES.favicon): string =>
-  `data:image/svg+xml,${encodeURIComponent(badgeSvg(px)).replace(/'/g, "%27").replace(/"/g, "%22")}`;
+/**
+ * THE FAVICON — a yard model turning in a livery-red glow, not the badge.
+ *
+ * Every surface's tab shows the packaged rooftop unit from S1's yard turning
+ * once every 2.25s; S5, the technician's surface, shows the service truck
+ * instead. Both are S1's own models (apps/s1-marketing/public/*.glb) rendered
+ * by tools/icons/ into packages/tokens/icons/<art>/, so the tab and the yard
+ * cannot drift apart. The glow is the livery red, solid behind the model and
+ * faded to nothing inside the square, so no tab colour meets a hard edge; the
+ * badge keeps the masthead, the app icon and the patch.
+ *
+ * Two files per art: favicon.png, an animated PNG (Firefox plays it as-is),
+ * and favicon-strip.png, the same frames side by side, which
+ * packages/ui/src/favicon.ts cycles for every browser that shows only the first
+ * frame. Under prefers-reduced-motion it rests on frame 0.
+ */
+export const FAVICON = Object.freeze({
+  href: "/favicon.png",
+  strip: "favicon-strip.png",
+  px: 32,
+  frames: 36,
+  fps: 16,
+  glow: P.brand.fill,
+});
+
+export type FaviconArt = "rtu" | "truck";
+
+/** Which model a surface turns in its tab: the truck on the technician's surface, the rooftop unit everywhere else. */
+export const faviconArtFor = (surfaceId: string): FaviconArt => (surfaceId === "S5" ? "truck" : "rtu");
 
 /**
  * The bulletin's own errata, continued in code. Rev. B published six; two more
