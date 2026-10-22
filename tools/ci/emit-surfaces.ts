@@ -230,15 +230,36 @@ const GENERATED_STATUS_APPS: readonly SurfaceId[] = SURFACE_IDS.filter((id) => !
  * shows before its stylesheet has loaded, and a masthead that depends on a
  * second request is a masthead that flashes empty on the tablet.
  */
-export const renderMasthead = (s: Surface): string =>
-  `<header class="ac-mast" data-brand-layer="${s.stateRamp ? "false" : "true"}">
+export const renderMasthead = (s: Surface): string => {
+  const brandLayer = s.stateRamp ? "false" : "true";
+  const badge = `<span class="ac-badge-mark" aria-hidden="true">${badgeInline()}</span>`;
+  const wordmark = `<span class="ac-wordmark">${escapeHtml(BRAND.name)}</span>`;
+  const co = `<span class="ac-wordmark__co">${escapeHtml(BRAND.descriptor)}</span>`;
+  // A titled masthead (S1) sets the site's name on the wordmark's line, runs
+  // the rule the full width beneath both, and moves the company line under it.
+  if (s.id === "S1") return `<header class="ac-mast ac-mast--titled" data-brand-layer="${brandLayer}">
+<div class="ac-mast__row">
 <a class="ac-mast__lockup" href="/" aria-label="${escapeHtml(BRAND.legalName)}">
-<span class="ac-badge-mark" aria-hidden="true">${badgeInline()}</span>
-<span class="ac-wordmark">${escapeHtml(BRAND.name)}</span>
-<span class="ac-wordmark__co">${escapeHtml(BRAND.descriptor)}</span>
+${badge}
+${wordmark}
+</a>
+<p class="ac-mast__title">${escapeHtml(S1_SITE_TITLE)}</p>
+</div>
+<div class="ac-mast__rule"></div>
+${co}
+</header>`;
+  return `<header class="ac-mast" data-brand-layer="${brandLayer}">
+<a class="ac-mast__lockup" href="/" aria-label="${escapeHtml(BRAND.legalName)}">
+${badge}
+${wordmark}
+${co}
 </a>
 <div class="ac-mast__rule"></div>
 </header>`;
+};
+
+/** S1's name for itself — its tab title and its masthead title. */
+const S1_SITE_TITLE = `${BRAND.works.firm} — Service System`;
 
 /** The badge at masthead size — no optical correction, because nothing here is 16px. */
 const badgeInline = (): string => badgeSvg(64).replace(/^<svg /, '<svg class="ac-badge-mark__svg" width="40" height="40" ');
@@ -251,7 +272,7 @@ export const renderFrame = (s: Surface): string => `<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="same-origin">
 <meta name="ac-gateway" content="">
-<title>${escapeHtml(s.id === "S1" ? `${BRAND.works.firm} — Service System` : `${s.name} — ${BRAND.legalName}`)}</title>
+<title>${escapeHtml(s.id === "S1" ? S1_SITE_TITLE : `${s.name} — ${BRAND.legalName}`)}</title>
 <meta name="theme-color" content="${semanticFor(s.density)["color.surface"]}">
 <link rel="icon" href="${faviconDataUri(16)}">
 <style>${tokenCss(s.density, { brandLayer: !s.stateRamp })}</style>
