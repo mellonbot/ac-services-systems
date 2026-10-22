@@ -41,23 +41,25 @@ white-label tenant. Consume the semantic roles as CSS custom properties.
 stylesheet back to `semantic.ts` without a lookup table. Use these names — `--stock`,
 `--panel`, `--arc` and `--ink` are **not** variables in this repo.
 
-## The two accent layers — settle this before choosing any colour
+## The two accent layers — both red since Rev C (2026-10-22)
 
 |  | Brand layer | Instrument layer |
 |---|---|---|
-| Accent | `--color-brand` `#D91F11` | `--color-action` `#00A3D9` |
-| Where | Wordmark, livery, badge, app icon, S1 marketing, a poster with no state legend | Every console, dashboard, portal and tablet surface (S2–S8), and any chart or diagram carrying status |
+| Accent | `--color-brand` `#D91F11` | `--color-action` `#D91F11` |
+| Where | Wordmark, livery, badge, app icon, S1 marketing, a poster with no state legend | Every control and highlight on every surface (S1–S8), and any chart or diagram carrying status |
 | Renders a state ramp | No | Yes |
 | Declared by | `stateRamp: false` in the surface registry | the default |
 
-Brand red measures **0.55°** from the fault ink `#A32318`. No bright red clears the accent
-gate's 30°, and there is nowhere to move it: the band between the fault at 4.75° and the
-warning at 39.52° is 34.78° wide. So red is not rejected — **the slot is.** Red is admitted
-exactly where a colliding tenant accent is admitted, and barred everywhere a state ramp
-renders, where `tokenCss` resolves the brand roles to Ink Black.
+**The fault is garnet, not red.** Bulletin 2 as issued drew the fault in oxide `#A32318`,
+0.55° from the house red, so red was barred from every surface that showed state and the
+interface ran on a cyan arc. Rev C moved the **fault**: `--color-status-breached` is garnet
+`#9C1F6E`. Red now measures **42.12°** from it and **35.32°** from its nearest state hue, the
+warning amber — clear of the 30° gate — so it is the instrument accent everywhere.
 
-A surface that forgets to declare renders in the neutral: the unsafe direction requires an
-explicit opt-in. We do not hold a tenant to a rule the house exempts itself from.
+The brand roles keep their surface fence (`tokenCss` resolves them to Ink Black where a state
+ramp renders): it is the mechanism a tenant accent that fails the gate still falls behind,
+and the house goes through the same gate. A surface that forgets to declare renders in the
+neutral.
 
 ## Light stock
 
@@ -70,23 +72,22 @@ explicit opt-in. We do not hold a tenant to a rule the house exempts itself from
 | `--color-border-hard` | `#8695A2` | plate heads, the rule under a table head. Still decorative |
 | `--color-text` | `#0E1418` | body, rules, marks. A cold near-black, never pure |
 | `--color-text-muted` | `#3C4A55` | muted text. `ink.light` is 3.27:1 here and is a non-text rule only (E-07) |
-| `--color-action` | `#00A3D9` | the arc **fill**, 2.09:1. Never a word |
-| `--color-action-ink` | `#0E1418` | the label on an arc fill, 6.40:1 — fixed in both themes because the fill is fixed |
-| `--color-action-text` | `#0A4F66` | every arc word under 24px, every rule, 6.52:1 |
-| `--color-action-pressed` | `#7FE9FF` | a press brightens toward the core |
-| `--color-focus-ring` | `#0A4F66` | never themeable |
+| `--color-action` | `#D91F11` | the red **fill**, 3.65:1. Never a word under 24px |
+| `--color-action-ink` | `#FFFFFF` | the label on the red fill, 5.05:1 — fixed in both themes because the fill is fixed |
+| `--color-action-text` | `#A81208` | every red word under 24px, every rule, 5.50:1 |
+| `--color-action-pressed` | `#A81208` | a press deepens to the text-safe red; the white label reads 7.62:1 on it |
+| `--color-focus-ring` | `#0A4F66` | the arc envelope — never themeable, and in a hue no control is painted in |
 | `--color-brand` | `#D91F11` | brand layer only |
 | `--color-brand-ink` | `#FFFFFF` | |
 | `--color-brand-text` | `#A81208` | any red word under 24px, brand layer only |
 | `--color-status-ok` | `#0E6A46` | **state only** — never emphasis, never a chart series |
 | `--color-status-at-risk` | `#7E5300` | state only |
-| `--color-status-breached` | `#A32318` | state only |
+| `--color-status-breached` | `#9C1F6E` | state only — garnet, 5.35:1 on the sunken ground |
 | `--color-status-blocked` | `#3C4A55` | state only |
 | `--color-status-breached-fill` | `transparent` | in the light stock a fault is an outline chip |
 
-The arc is three steps at **one hue** — envelope, fill, core — because an arc has a cooler
-envelope and a hot core. That is the phenomenon, not decoration: three steps without breaking
-Rule One, which a second decorative hue would have broken.
+The arc — envelope `#0A4F66`, core `#7FE9FF` — survives as the focus ring alone. A focus ring
+in a hue no control is painted in is easier to find, not harder.
 
 ## Field ground — fixed, never themed
 
@@ -97,9 +98,10 @@ always the most urgent state.
 
 page `#080D11` · surface `#111A20` · sunken `#050A0D` · border `#253039` ·
 border-hard `#55636F` · text `#E4ECF2` · text-muted `#91A1AE` (labels and units only, never
-a value) · action `#00A3D9` · action-ink `#0E1418` · action-text and focus ring `#7FE9FF`
-(12.58:1 — the accent here) · brand-text `#F4796C` · ok `#5FD39B` · at-risk `#E8B23C` ·
-breached `#E4ECF2` (the **word**) · breached-fill `#7A2A2E`, the tier's only solid chip.
+a value) · action `#D91F11` (3.48:1, a fill) · action-ink `#FFFFFF` · action-text and
+brand-text `#F4796C` (6.54:1 — the red word here) · action-pressed `#A81208` · focus ring
+`#7FE9FF` · ok `#5FD39B` · at-risk `#E8B23C` · breached `#E4ECF2` (the **word**) ·
+breached-fill `#7A2A5E` garnet, the tier's only solid chip (frost on it 7.58:1).
 
 State is encoded in **form** first — outline-mute nominal, outline-bright warning, solid
 fault — and hue only confirms. Greyscale the tier and the order still reads. E-14: the
@@ -125,21 +127,22 @@ including our own, because the semantic tier spends three roles separating fill 
 (E-15). Gate a fill at the fill's threshold.
 
 When an artefact needs more than one category colour, derive the extra slots from the arc's
-hue family and check each against the gate before use. Do not reach for a rainbow.
+blue hue family — the far side of the wheel from red, garnet and amber — and check each against the gate before use. Do not reach for a rainbow.
 
 ## The four rules that make it safe
 
 1. **Colour is state or category, never both on one artefact's legend.** If a legend entry
    reads like a state — breached, overdue, healthy — it is one. Use the state ink.
-2. **A fill colour never sets a word.** An arc word takes `--color-action-text`; a red word
-   under 24px takes `--color-brand-text`; the label on an arc fill takes
+2. **A fill colour never sets a word.** A red word under 24px takes `--color-action-text`
+   (or `--color-brand-text` on the brand layer); the label on a red fill takes
    `--color-action-ink`. A variant that repaints its fill on `:active` without repainting its
    ink pressed its own label to 1.00:1 (E-11) — carry both or neither.
 3. **Colour never carries alone.** Every state carries a word; every category carries a
    second channel — a number, a label, or a line form. The marks are `● ▲ ■ ✕`, and they must
    be in the subset (E-13).
-4. **Brand red never enters a state-bearing artefact**, and `--color-action` is never body
-   text.
+4. **Red never decorates a state chip** — clearing the gate is not a licence to paint a
+   status column — the brand roles stay on the brand layer, and `--color-action` is never
+   body text.
 
 ## Type
 
@@ -308,7 +311,9 @@ repo the tokens govern; these are the known deltas, and a fix belongs in
 | A `rule-soft` `#CBD4DC` | present | no such primitive |
 | Label tracking | `+0.28em` | `--track-wide` `0.14em` and up |
 | Corners | 2 / 3 / 5 / 8px | **Rev B:** 4px control, 6px card, pill for chips only; 0px for rules and plates |
-| Red ↔ fault separation | 1.2° | 0.55° — `1.2` was a hand-carried figure, corrected by E-21 (commit 157b0bb). The skill predates it. |
+| Red ↔ fault separation | 1.2° | **Rev C:** 42.12° from the garnet fault. (0.55° from the oxide fault before Rev C; `1.2` was a hand-carried figure, corrected by E-21.) |
+| Fault ink | oxide `#A32318` | **Rev C:** garnet `#9C1F6E`; field fill `#7A2A5E` |
+| Instrument accent | arc `#00A3D9` | **Rev C:** red `#D91F11`; the arc is the focus ring only |
 | Field row height | 48px | 56px |
 | Console row / body | 28px / 13px | **Rev B:** 32px / 14px |
 | Variable names | `--stock`, `--panel`, `--arc`, `--ink` | `--color-*`, from `cssVar()` |

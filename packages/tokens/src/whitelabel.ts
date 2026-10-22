@@ -85,12 +85,10 @@ export const ACCENT_GATE = Object.freeze({
   /** The accent as a WORD. */
   textContrast: 4.5,
   /**
-   * The accent as a FILL, a rule or a mark — WCAG 1.4.11. Bulletin 1's copper
-   * cleared this at 3.31:1; the arc does NOT, at 2.67:1 on the light ground.
-   * That is the decomposition working as intended and not a regression: the
-   * arc's shape is carried by the envelope at 6.52:1 and its word by `onFill`
-   * at 6.40:1, so the fill is free to be a fill. A TENANT accent gets no such
-   * decomposition, which is why it is still held to 3:1 here.
+   * The accent as a FILL, a rule or a mark — WCAG 1.4.11. A house fill may sit
+   * lower because its shape and word are carried by separate roles (Form R-4);
+   * a TENANT accent gets no such decomposition, which is why it is held to 3:1
+   * here.
    */
   nonTextContrast: 3.0,
 });
@@ -100,7 +98,7 @@ export const STATE_HUES: readonly { readonly role: string; readonly hex: string 
   ...STATE_ROLES.map((role) => ({ role, hex: SEMANTIC[role] })),
   { role: "color.status-ok (field)", hex: P.plate.jade },
   { role: "color.status-at-risk (field)", hex: P.plate.amber },
-  { role: "color.status-breached (field)", hex: P.plate.oxide },
+  { role: "color.status-breached (field)", hex: P.plate.garnet },
 ]);
 
 /**
@@ -263,13 +261,12 @@ export const validateBrandTheme = (
  * solid. Hue only confirms what form already said.
  */
 /**
- * THE HOUSE RED SITS BEHIND THIS SAME GATE. It measures 0.55° from the fault ink
- * and fails outright, so it is admitted for the wordmark, the livery, the badge
- * and marketing, and barred from every surface that renders a state ramp — see
- * `neutralBrand` in ./css.ts, which is where the fallback actually happens.
- *
- * That is the point of running the gate on ourselves: Amped gives up #E01B24 on
- * the dispatch board, and the argument only holds because we gave up ours.
+ * THE HOUSE RED SITS BEHIND THIS SAME GATE. Under Bulletin 2 as issued it sat
+ * 0.55° from the oxide fault and failed outright, and the house gave it up on
+ * every surface that shows state. Rev C moved the fault to garnet: red now
+ * measures 42.12° from it and passes, by the same arithmetic a tenant is held
+ * to — and so does a tenant red that clears it. `neutralBrand` in ./css.ts is
+ * still where an accent that fails the gate falls back.
  */
 export const HOUSE_BRAND_IS_GATED = true;
 

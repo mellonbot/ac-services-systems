@@ -57,7 +57,7 @@ test("a control's edge carries shape, so it clears 3:1 on every ground in both s
 
 test("Form R-4: the word is measured against its own fill, and the fill is free", () => {
   const field = semanticFor("field");
-  // The oxide fault fill is 1.84:1 against the plate ground and that is correct:
+  // The garnet fault fill is 1.95:1 against the plate ground and that is correct:
   // it carries neither the word nor the shape.
   assert.ok(contrastRatio(field["color.status-breached-fill"], field["color.surface"]) < 3);
   // The word on it is what has to clear AA.
@@ -73,7 +73,7 @@ test("Form R-4: the word is measured against its own fill, and the fill is free"
 
 test("the light stock renders a fault as an outline; the plate ground is the only place a chip is solid", () => {
   assert.equal(SEMANTIC["color.status-breached-fill"], "transparent");
-  assert.equal(SEMANTIC_DARK["color.status-breached-fill"], "#7A2A2E");
+  assert.equal(SEMANTIC_DARK["color.status-breached-fill"], "#7A2A5E");
 });
 
 test("a role is a CSS variable by mechanical renaming, for every semantic token", () => {
@@ -134,7 +134,7 @@ test("a brand stylesheet is validated before it is a string, and scoped to the s
   // Re-pointing a FILL obliges the tenant to supply an ink that clears it.
   assert.equal(brandCss({ "color.action": "#1b56cc", "color.action-ink": "#FFFFFF" }),
     `${TENANT_SCOPE}{--color-action:#1b56cc;--color-action-ink:#FFFFFF}`);
-  assert.throws(() => brandCss({ "color.action": "#1b56cc" }), /the word on the action fill/);
+  assert.throws(() => brandCss({ "color.action": "#7FD4FF" }), /the word on the action fill/);
   // The hole an unscoped :root{} block is: every pair in validateBrandTheme is
   // measured against the LIGHT stock, and the field frame is <html
   // data-density="field"> with frost for --color-text. A tenant ground admitted

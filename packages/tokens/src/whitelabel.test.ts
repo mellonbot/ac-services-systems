@@ -21,17 +21,18 @@ test("a legitimate brand palette passes — but re-pointing a fill obliges an in
   assert.deepEqual(validateBrandTheme({
     "color.action": "#1b56cc", "color.action-ink": "#FFFFFF", "color.text": "#101010",
   }), []);
-  // The house ink is graphite, which does not clear a dark blue fill. Supplying
+  // The house ink is white (Rev C), which does not clear a pale fill. Supplying
   // half a control is the erosion this catches.
-  assert.match(validateBrandTheme({ "color.action": "#1b56cc" })[0]!.reason, /the word on the action fill/);
+  assert.match(validateBrandTheme({ "color.action": "#7FD4FF" })[0]!.reason, /the word on the action fill/);
 });
 
-test("the accent gate still bars Amped's red and still admits their navy to the light tiers", () => {
-  // Measured against Arc Foundry's ramp rather than Bulletin 1's. The verdicts
-  // are unchanged; the numbers moved because the ramp did.
+test("since Rev C the gate admits Amped's red to the board, and still admits their navy to the light tiers", () => {
+  // Under the oxide fault Amped's red sat 0.26° from the field fault fill and
+  // was barred. The fault is garnet now, and the verdict moved with the ramp:
+  // the same arithmetic that admits the house red admits theirs.
   const red = admitAccent("#E01B24");
-  assert.ok(red.minSeparation < 1, `0.26° from the field fault fill, not ${red.minSeparation.toFixed(2)}°`);
-  assert.equal(red.stateSurfaces, false, "inside the state ramp's hue range");
+  assert.ok(red.minSeparation >= ACCENT_GATE.minHueSeparation, `35.18° from the garnet fault, not ${red.minSeparation.toFixed(2)}°`);
+  assert.equal(red.stateSurfaces, true, "clear of the state ramp's hue range");
 
   const navy = admitAccent("#1A4FA0");
   assert.ok(navy.minSeparation >= ACCENT_GATE.minHueSeparation);
@@ -49,7 +50,7 @@ test("the accent gate still bars Amped's red and still admits their navy to the 
   // which is exactly the sentence Plate 5 writes about it, and the one the
   // single text threshold could not say.
   assert.deepEqual(red.tiers.field, { text: false, fill: true });
-  assert.ok(red.notes.some((n) => /logo, masthead and marketing only/.test(n)));
+  assert.ok(red.notes.every((n) => !/logo, masthead and marketing only/.test(n)));
 });
 
 test("the gate asks what the accent will be PAINTED as \u2014 which is why our own red is still a fill", () => {
@@ -98,23 +99,23 @@ test("the gate rejects the slot, never the tenant", () => {
   }
 });
 
-test("THE HOUSE INSTRUMENT ACCENT PASSES THE GATE IT ENFORCES — copper needed an exemption, arc does not", () => {
-  const arc = admitAccent(SEMANTIC["color.action"]);
-  assert.ok(arc.minSeparation >= ACCENT_GATE.minHueSeparation,
-    `arc is ${arc.minSeparation.toFixed(1)}° from ${arc.nearestState}, and must clear ${ACCENT_GATE.minHueSeparation}°`);
-  assert.equal(arc.stateSurfaces, true, "the arc is admitted to the surfaces that render state");
-  assert.ok(Math.abs(hueOf(P.arc.fill) - 195) < 1);
+test("THE HOUSE INSTRUMENT ACCENT PASSES THE GATE IT ENFORCES — copper needed an exemption, red does not", () => {
+  const red = admitAccent(SEMANTIC["color.action"]);
+  assert.ok(red.minSeparation >= ACCENT_GATE.minHueSeparation,
+    `red is ${red.minSeparation.toFixed(1)}° from ${red.nearestState}, and must clear ${ACCENT_GATE.minHueSeparation}°`);
+  assert.equal(red.stateSurfaces, true, "the red is admitted to the surfaces that render state");
+  assert.equal(SEMANTIC["color.action"], P.brand.fill, "Rev C: one red, on the board and on the livery");
   // Bulletin 1's copper sat 16.3° from its warning ink and was exempted by a
   // hand-written rule. A standard the house exempts itself from is a double
-  // standard, and Amped is being asked to give up their red on the same test.
-  assert.ok(hueSeparation(P.arc.fill, SEMANTIC["color.status-at-risk"]) > 30);
+  // standard; the red clears it on the same arithmetic a tenant faces.
+  assert.ok(hueSeparation(P.brand.fill, SEMANTIC["color.status-at-risk"]) > 30);
+  assert.ok(hueSeparation(P.brand.fill, SEMANTIC["color.status-breached"]) > 30);
 });
 
-test("THE HOUSE BRAND RED FAILS THAT GATE, and is fenced instead of exempted", () => {
+test("THE HOUSE BRAND RED PASSES THE SAME GATE since Rev C — measured, not exempted", () => {
   const red = admitAccent(SEMANTIC["color.brand"]);
-  assert.equal(red.stateSurfaces, false, "0.55° from the fault ink — it cannot go where state renders");
-  assert.ok(red.notes.some((n) => /marketing/.test(n)));
-  // What it is fenced BY is the surface flag, resolved in css.ts. No memo.
+  assert.equal(red.stateSurfaces, true, "42.12° from the garnet fault, 35.32° from the warning amber");
+  // It goes through the gate like a tenant's does. No memo.
   assert.equal(HOUSE_BRAND_IS_GATED, true);
 });
 

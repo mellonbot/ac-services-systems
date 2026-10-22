@@ -33,7 +33,7 @@ test("a figure is stated to the precision the prose quotes it at", () => {
 
 test("docs/BRAND.md quotes the corrected figures and none of the superseded ones", () => {
   const brand = repo("docs/BRAND.md");
-  for (const name of ["borderHard", "inkLight", "redFromFault", "faultToWarning"] as const) {
+  for (const name of ["borderHard", "inkLight", "redFromFault", "redFromNearestState"] as const) {
     const f = FIGURES[name];
     if (!f.cited.some((c) => c.startsWith("docs/BRAND.md"))) continue;
     assert.ok(brand.includes(format(f)), `docs/BRAND.md does not quote ${name} as ${format(f)}`);

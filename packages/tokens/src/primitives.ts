@@ -17,48 +17,44 @@ export const PRIMITIVES = Object.freeze({
   /** A cold near-black, never pure. `light` is a non-text rule only — it does not clear AA (E-07). */
   ink: { black: "#0E1418", mid: "#3C4A55", light: "#6A7885" },
   /**
-   * THE ARC — the instrument accent, in three steps at ONE hue. An arc has a
-   * cooler envelope and a hot core, so the ramp is the phenomenon rather than
-   * decoration: three steps without breaking Rule One (colour carries meaning
-   * or it is not used), which a second decorative HUE would have broken.
-   *
-   *   envelope  every arc word under 24px, every rule, the focus ring   6.52:1
-   *   fill      the fill, fully saturated. Never a word.                2.09:1
-   *   core      SLA timers, the monogram, rules — FIELD GROUND ONLY     1.01:1 on light stock
-   *
-   * The fill is licensed to sit at 2.09:1 by the decomposition that lets the
-   * oxide fault fill sit at 1.84:1: the rule carries shape at 6.52:1 and
-   * `onFill` carries the word at 6.40:1, so the fill is free to be an arc.
+   * THE ARC — the instrument accent of Bulletin 2 as issued. Rev C moved the
+   * accent to red, and the arc keeps one job: the focus ring (`envelope` on the
+   * light stock, `core` on the field ground). A focus ring in a hue no control
+   * is painted in is easier to find, not harder.
    */
   arc: { envelope: "#0A4F66", fill: "#00A3D9", core: "#7FE9FF", onFill: "#0E1418" },
   /**
-   * THE BRAND RED — the one ink in this file fenced by SURFACE rather than by size.
+   * THE RED — the house brand, and since Rev C the instrument accent too.
    *
-   * Red measures 0.55° from the fault ink. No bright red clears the accent
-   * gate's 30°, and there is nowhere to move it: the band between the fault at
-   * 4.75° and the warning at 39.52° is 34.78° wide. A red button on a dispatch
-   * board is an alarm, whatever the style guide calls it.
+   * Bulletin 2 as issued drew the fault in oxide, 0.55° from this red, so a red
+   * button on a dispatch board read as an alarm and red was barred from every
+   * surface that showed state. Rev C moved the FAULT, not the red: the fault is
+   * garnet, and red measures 42.12° from it and 35.32° from its nearest state
+   * hue, the warning amber — clear of the accent gate's 30°.
    *
-   * So red is admitted exactly where a colliding TENANT accent is admitted —
-   * the wordmark, the livery, the badge and the marketing surface — and barred
-   * from every surface that renders a state ramp, where it falls back to Ink
-   * Black. We do not hold a tenant to a rule the house exempts itself from.
-   *
-   * `bright` is for a red word on the field ground, where `fill` is a fill.
+   *   fill    the action fill and the livery. 3.65:1 on the header — a fill, never a small word
+   *   text    every red word under 24px, and the pressed fill              5.50:1
+   *   onFill  the label on the fill                                        5.05:1
+   *   bright  a red word on the field ground, where `fill` is a fill
    */
   brand: { fill: "#D91F11", text: "#A81208", onFill: "#FFFFFF", bright: "#F4796C" },
-  /** State, light stock. Reserved exclusively for system state — never emphasis, never a chart series. */
-  state: { jade: "#0E6A46", amber: "#7E5300", oxide: "#A32318" },
+  /**
+   * State, light stock. Reserved exclusively for system state — never emphasis, never a chart series.
+   * The fault is GARNET (Rev C), a deep red-violet on the far side of the wheel from the warning,
+   * so the house red can stand between them without reading as either.
+   */
+  state: { jade: "#0E6A46", amber: "#7E5300", garnet: "#9C1F6E" },
   /**
    * The field tier's ground and its own ink schedule. Not a dark theme — a
    * sunlight decision, and a second substrate. A light ramp measured here fails
    * outright, and the worst failure is always the most urgent state, which is
-   * why this schedule is computed rather than re-pointed.
+   * why this schedule is computed rather than re-pointed. `garnet` is the fault
+   * FILL here, 1.95:1 on the plate ground — a fill only; the frost word carries it.
    */
   plate: {
     page: "#080D11", ground: "#111A20", well: "#050A0D", rule: "#253039", ruleHard: "#55636F",
     frost: "#E4ECF2", frostMid: "#BFCDD8", frostMute: "#91A1AE",
-    jade: "#5FD39B", amber: "#E8B23C", oxide: "#7A2A2E",
+    jade: "#5FD39B", amber: "#E8B23C", garnet: "#7A2A5E",
   },
 
   space: { 0: "0px", 1: "4px", 2: "8px", 3: "12px", 4: "16px", 6: "24px", 8: "32px", 12: "48px" },

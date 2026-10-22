@@ -30,9 +30,9 @@ test("every component class family has a rule", () => {
 test("NO ACCENT INK ENTERS A STATE-BEARING COLUMN — neither the house red nor the arc", () => {
   // The bulletin solves hue proximity structurally rather than with a better
   // colour: every state carries a word, and the accent never decorates a chip.
-  // The house red is 0.55° from the fault ink — Rev. E's measurement, not Rev. D's
-  // 1.2° — so this is the rule that makes
-  // shipping it at all defensible. It is enforced here rather than remembered.
+  // The house red sat 0.55° from the oxide fault; Rev C moved the fault to garnet
+  // and the red clears the gate, but a cleared gate is not a licence to decorate
+  // a chip. It is enforced here rather than remembered.
   for (const rule of UI_CSS.split("}")) {
     const selector = rule.split("{")[0] ?? "";
     if (!STATE_BEARING_SELECTORS.some((sel) => selector.includes(sel))) continue;
@@ -122,7 +122,7 @@ test("a press that moves the fill moves the ink with it", () => {
 });
 
 test("the action role never paints a state-bearing column — the invariant, not the comment", () => {
-  // The arc clears the gate at 38.41° from jade, and the rule did not relax
+  // The red clears the gate at 35.32° from the warning amber, and the rule did not relax
   // when the accent changed: the system never solved a hue collision with a
   // better orange, it solves it by keeping the action roles out of the two
   // selectors that render state. STATE_BEARING_SELECTORS said a test held this

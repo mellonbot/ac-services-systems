@@ -8,25 +8,25 @@ import { PRIMITIVES as P } from "./primitives.ts";
  * error red, a component named after the colour renders a breach as branding —
  * the hole Plate 04 closes, in ./whitelabel.ts.
  *
- * TWO ACCENT LAYERS, and the split is the load-bearing decision of Bulletin 2:
+ * TWO ACCENT LAYERS, both red since Rev C:
  *
- *   color.brand*   RED. The wordmark, the livery, the badge, S1 marketing.
- *                  Barred from any surface that renders a state ramp, because
- *                  red measures 0.55° from the fault ink and a red control on a
- *                  dispatch board is an alarm whatever we name it.
- *   color.action*  ARC. Every interface that shows state. The board reads the
- *                  same in every tenant, including ours.
+ *   color.brand*   The wordmark, the livery, the badge, S1 marketing. Still
+ *                  fenced by surface — the same fence a tenant accent that fails
+ *                  the gate falls behind.
+ *   color.action*  Every control and highlight on every surface. Red clears the
+ *                  gate at 42.12° from the garnet fault, which the oxide fault of
+ *                  Bulletin 2 as issued (0.55°) never allowed.
  *
  * `css.ts` resolves `color.brand` to Ink Black on a state-rendering surface, so
- * painting red is an explicit opt-in and the safe direction is the default.
+ * painting brand red is an explicit opt-in and the safe direction is the default.
  *
  * THREE ROLES CARRY WHAT WAS ONE, on both accents. Form R-4 decomposes a state
  * chip into rule (shape), fill (salience) and word (meaning), because stacking
  * every requirement onto one colour forces a ramp that cannot exist:
  *
- *   color.action        the FILL. 2.09:1 — never a word.
- *   color.action-ink    the ink ON that fill, at 6.40:1.
- *   color.action-text   the text-safe step, for any arc word under 24px.
+ *   color.action        the FILL. 3.65:1 — never a word under 24px.
+ *   color.action-ink    the white ON that fill, at 5.05:1.
+ *   color.action-text   the text-safe step, for any red word under 24px.
  */
 export const SEMANTIC = Object.freeze({
   /** The page ground. Panels sit on it; it is not itself a panel. */
@@ -52,11 +52,11 @@ export const SEMANTIC = Object.freeze({
   /** ink.mid, not ink.light: the published ink.light is 3.27:1 on the header ground (E-07). */
   "color.text-muted": P.ink.mid,
 
-  "color.action": P.arc.fill,
-  "color.action-ink": P.arc.onFill,
-  "color.action-text": P.arc.envelope,
-  /** A press brightens toward the core. The ink on it is the same graphite, at a higher ratio. */
-  "color.action-pressed": P.arc.core,
+  "color.action": P.brand.fill,
+  "color.action-ink": P.brand.onFill,
+  "color.action-text": P.brand.text,
+  /** A press deepens to the text-safe red. The ink on it is the same white, at a higher ratio. */
+  "color.action-pressed": P.brand.text,
   "color.focus-ring": P.arc.envelope,
 
   /** The brand layer. Resolved to Ink Black by `tokenCss` on any state-rendering surface. */
@@ -95,7 +95,7 @@ export const SEMANTIC = Object.freeze({
 
   "color.status-ok": P.state.jade,
   "color.status-at-risk": P.state.amber,
-  "color.status-breached": P.state.oxide,
+  "color.status-breached": P.state.garnet,
   "color.status-blocked": P.ink.mid,
   /**
    * The only fill in the state ramp. Transparent here on purpose: in the light
