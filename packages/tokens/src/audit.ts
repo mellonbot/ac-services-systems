@@ -12,9 +12,10 @@ import { TYPE_FLOOR, type Density } from "./density.ts";
  * word" — as link and sign-out text. A role being right does not make its use
  * right, and these three checks are the uses the schedule forbids by name:
  *
- *   fill-as-word   a fill role sets `color`. The fill is licensed to sit at
- *                  2.09:1 because its ink and its envelope carry the word and
- *                  the shape; a word set IN the fill has neither.
+ *   fill-as-word   a fill role sets `color`. The fill is licensed to sit low
+ *                  (the red action fill is 3.65:1 on the header) because its
+ *                  ink and its rule carry the word and the shape; a word set
+ *                  IN the fill has neither.
  *   fill-as-rule   a fill role draws a border or outline. SHAPE_ROLES omits
  *                  the fills on purpose — a rule carries shape at 3:1, and the
  *                  fill does not clear it.

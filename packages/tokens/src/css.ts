@@ -33,12 +33,12 @@ export const cssVar = (token: string): string => `--${token.replace(/\./g, "-")}
  * So this tier does not encode state in hue at all. It encodes state in FORM
  * and lets hue confirm: the rule carries shape, the fill carries salience, the
  * word carries meaning. `color.status-breached` is frost here — the rule and
- * the word — and `color.status-breached-fill` is the oxide the fill is drawn
+ * the word — and `color.status-breached-fill` is the garnet the fill is drawn
  * in. Greyscale the screen and the order still reads outline-mute,
  * outline-bright, solid.
  *
- * The arc FILL is identical in both stocks, verified on both grounds: a button
- * is the same artwork in a console and on the tablet.
+ * The red action FILL is identical in both stocks, verified on both grounds: a
+ * button is the same artwork in a console and on the tablet.
  */
 export const SEMANTIC_DARK = Object.freeze({
   "color.page": P.plate.page,
@@ -50,10 +50,10 @@ export const SEMANTIC_DARK = Object.freeze({
   "color.border-control": P.plate.frostMute,
   "color.text": P.plate.frost,
   "color.text-muted": P.plate.frostMute,
-  "color.action": P.arc.fill,
-  "color.action-ink": P.arc.onFill,
-  "color.action-text": P.arc.core,
-  "color.action-pressed": P.arc.core,
+  "color.action": P.brand.fill,
+  "color.action-ink": P.brand.onFill,
+  "color.action-text": P.brand.bright,
+  "color.action-pressed": P.brand.text,
   "color.focus-ring": P.arc.core,
   "color.brand": P.brand.fill,
   "color.brand-ink": P.brand.onFill,
@@ -66,7 +66,7 @@ export const SEMANTIC_DARK = Object.freeze({
   "color.status-at-risk": P.plate.amber,
   "color.status-breached": P.plate.frost,
   "color.status-blocked": P.plate.frostMute,
-  "color.status-breached-fill": P.plate.oxide,
+  "color.status-breached-fill": P.plate.garnet,
 } as const satisfies Record<SemanticToken, string>);
 
 /** The semantic tier as a density sees it, before the brand layer is resolved. */
@@ -239,8 +239,8 @@ export const WORD_ROLES = Object.freeze([
  * The FILLS — `color.action`, `color.brand`, `color.action-pressed`,
  * `color.status-breached-fill` — are deliberately absent. A fill carries
  * salience, not shape; its rule carries the shape and its ink carries the word,
- * both checked below. That decomposition is what lets the arc be an arc at
- * 2.09:1 and the oxide fault fill be a saturated oxide at 1.84:1.
+ * both checked below. That decomposition is what lets the garnet fault fill sit
+ * at 1.95:1 on the plate ground.
  */
 export const SHAPE_ROLES = Object.freeze([
   "color.focus-ring", "color.action-text",

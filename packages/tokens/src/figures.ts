@@ -18,6 +18,9 @@ import { contrastRatio, hueSeparation } from "./whitelabel.ts";
  *   the oxide fault fill  published 2.13:1   measured 1.84:1
  *   red from the fault    published 1.2°     measured 0.55°
  *
+ * (Both of the last two describe Bulletin 2 as issued. Rev C moved the fault
+ * from oxide to garnet; the corrections are kept as the record.)
+ *
  * None of them moved a pixel — every one is a sentence explaining a decision,
  * which is exactly why nothing caught them. A wrong number in the reasoning is
  * how a correct decision gets reversed later by someone who checks the
@@ -93,69 +96,66 @@ export const FIGURES = Object.freeze({
   ),
 
   /**
-   * CORRECTED from 2.13:1. The fill is licensed to sit here BECAUSE it carries
-   * neither shape nor word, so a lower number is not a worse position — but the
-   * number has to be the real one, or the licence reads as having been granted
-   * to something else.
+   * The garnet fault fill on the plate ground. Licensed to sit low BECAUSE it
+   * carries neither shape nor word — the rule and the frost word do — so a low
+   * number is not a worse position. (Bulletin 2 as issued drew this fill in
+   * oxide at 1.84:1; Rev C moved the fault off red.)
    */
-  oxideFill: ratio(
+  garnetFill: ratio(
     ["packages/tokens/src/css.ts", "packages/tokens/src/primitives.ts", "packages/tokens/src/css.test.ts"],
-    "the oxide fault fill on the plate ground — a fill only, carrying neither shape nor word",
-    1.84,
-    P.plate.oxide,
+    "the garnet fault fill on the plate ground — a fill only, carrying neither shape nor word",
+    1.95,
+    P.plate.garnet,
     PLATE,
   ),
 
-  /** The arc fill, licensed at the same decomposition. Correct as published. */
-  arcFill: ratio(
+  /** The red action fill on the header ground: a fill and a rule, never a word under 24px. */
+  actionFill: ratio(
     ["packages/tokens/src/primitives.ts", "packages/tokens/src/semantic.ts"],
-    "the arc fill on the header ground — never a word",
-    2.09,
-    P.arc.fill,
+    "the red action fill on the header ground — a fill, never a small word",
+    3.65,
+    P.brand.fill,
     HEADER,
   ),
 
-  /** The arc's text-safe step. Correct as published. */
-  arcEnvelope: ratio(
+  /** The red's text-safe step. */
+  actionText: ratio(
     ["packages/tokens/src/primitives.ts"],
-    "the arc envelope on the header ground — every arc word under 24px, every rule, the focus ring",
-    6.52,
-    P.arc.envelope,
+    "the text-safe red on the header ground — every red word under 24px",
+    5.50,
+    P.brand.text,
     HEADER,
   ),
 
   /** Form R-4's word-on-fill, the half that makes the fill's licence legitimate. */
-  arcOnFill: ratio(
+  actionOnFill: ratio(
     ["packages/tokens/src/primitives.ts", "packages/tokens/src/semantic.ts", "packages/ui/src/styles.ts"],
-    "the ink on the arc fill — the word, measured against its own fill",
-    6.40,
-    P.arc.onFill,
-    P.arc.fill,
+    "the white label on the red action fill — the word, measured against its own fill",
+    5.05,
+    P.brand.onFill,
+    P.brand.fill,
   ),
 
   /**
-   * The arc fill on the field ground. The SAME ink as `arcFill`, three times
-   * the ratio, because the ground moved — which is the whole argument for the
-   * plate being a second substrate rather than a dark theme. PrimaryAction
-   * quotes it; it read 3.61:1 while the fill was copper.
+   * The red fill on the field ground. The SAME ink as `actionFill`, because a
+   * button is the same artwork in a console and on the tablet.
    */
-  arcFillOnPlate: ratio(
+  actionFillOnPlate: ratio(
     ["packages/ui/src/styles.ts"],
-    "the arc fill on the field ground — the fill the control's rule is drawn around",
-    6.07,
-    P.arc.fill,
+    "the red action fill on the field ground — the fill the control's rule is drawn around",
+    3.48,
+    P.brand.fill,
     PLATE,
   ),
 
   /**
    * The danger variant's press, which INVERTS rather than borrowing the
-   * primary's ink. Both numbers were carried over from copper — 7.33:1 and
-   * 15.02:1 — and neither is this palette.
+   * primary's ink.
    */
   dangerInvertLight: ratio(
     ["packages/ui/src/styles.ts", "packages/tokens/src/brand.ts"],
     "the danger press on the light stock — the page ground used as an ink on the fault",
-    6.23,
+    6.18,
     SEMANTIC["color.page"],
     SEMANTIC["color.status-breached"],
   ),
@@ -184,44 +184,34 @@ export const FIGURES = Object.freeze({
   ),
 
   /** The frost word on the one solid chip in the system. */
-  frostOnOxide: ratio(
+  frostOnGarnet: ratio(
     ["docs/BRAND.md"],
-    "frost on the oxide fill — the word on the field tier's only solid chip",
-    8.00,
+    "frost on the garnet fill — the word on the field tier's only solid chip",
+    7.58,
     P.plate.frost,
-    P.plate.oxide,
+    P.plate.garnet,
   ),
 
   /**
-   * CORRECTED from 1.2°. By this repository's own `hueOf`, brand red sits at
-   * 4.20° and the fault ink at 4.75°: 0.55° apart, not 1.2°. The correction
-   * makes the argument STRONGER, not weaker — the two are nearly the same hue,
-   * which is precisely why the slot is barred rather than the colour retuned.
+   * Rev C. Red sat 0.55° from the oxide fault (E-21), so it was barred from
+   * every surface that showed state. The fault moved to garnet instead, and red
+   * now clears the gate with room to spare.
    */
   redFromFault: degrees(
-    ["packages/tokens/src/primitives.ts", "packages/tokens/src/semantic.ts", "packages/tokens/src/whitelabel.ts", "packages/contracts/src/surfaces.ts", "apps/s1-marketing/src/styles.ts", "docs/BRAND.md"],
-    "brand red from the fault ink — why no bright red clears the 30° gate",
-    0.55,
+    ["packages/tokens/src/primitives.ts", "packages/tokens/src/semantic.ts", "packages/tokens/src/whitelabel.ts", "docs/BRAND.md"],
+    "brand red from the garnet fault ink",
+    42.12,
     P.brand.fill,
-    P.state.oxide,
+    P.state.garnet,
   ),
 
-  /** The band red would have to fit inside. Correct as published. */
-  faultToWarning: degrees(
-    ["packages/tokens/src/primitives.ts", "docs/BRAND.md"],
-    "the fault ink to the warning ink — the whole width red has to find 30° inside",
-    34.78,
-    P.state.oxide,
+  /** The red's NEAREST state hue — the warning amber — and the figure that admits it to the board. */
+  redFromNearestState: degrees(
+    ["packages/tokens/src/primitives.ts", "packages/ui/src/styles.ts", "docs/BRAND.md"],
+    "the red from the nearest state hue on the light stock, the warning amber",
+    35.32,
+    P.brand.fill,
     P.state.amber,
-  ),
-
-  /** The arc, clearing the same gate the house red fails. Correct as published. */
-  arcFromNearestState: degrees(
-    ["packages/ui/src/styles.ts", "docs/BRAND.md"],
-    "the arc from the nearest state hue on the light stock",
-    38.41,
-    P.arc.fill,
-    P.state.jade,
   ),
 } as const satisfies Record<string, Figure>);
 

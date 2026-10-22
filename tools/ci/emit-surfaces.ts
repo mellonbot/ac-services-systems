@@ -395,22 +395,21 @@ Theme: **Arc Foundry** — the electric arc furnace. Industrial-revolution in
 origin, electric in the present. The theme names the palette and the type
 schedule; the company is ${BRAND.legalName}.
 
-## Two accent layers
+## Red is the accent — Rev C
 
-The load-bearing decision. Red measures ${FIGURES.redFromFault.measured.toFixed(2)}° from the fault ink, and there is no
-bright red that clears the accent gate's ${ACCENT_GATE.minHueSeparation}°: the band between the fault
-and the warning is ${FIGURES.faultToWarning.measured.toFixed(2)}° wide. So red is admitted exactly where a colliding
-tenant accent is admitted, and barred everywhere a state ramp renders.
+The fault ink is garnet, not red. Bulletin 2 as issued drew the fault in oxide,
+0.55° from the house red, which barred red from every surface that shows state.
+Rev C moved the fault instead: red now measures ${FIGURES.redFromFault.measured.toFixed(2)}° from the fault and
+${FIGURES.redFromNearestState.measured.toFixed(2)}° from its nearest state hue, the warning amber, so it clears the accent
+gate's ${ACCENT_GATE.minHueSeparation}° and is the instrument accent on every surface.
 
 | Layer | Where | Resolved by |
 |---|---|---|
+| Instrument — red \`${SEMANTIC["color.action"]}\` | every control and highlight, S1–S8 | the default |
 | Brand — red \`${SEMANTIC["color.brand"]}\` | wordmark, livery, badge, S1 marketing | \`stateRamp: false\` in the surface registry |
-| Instrument — arc \`${SEMANTIC["color.action"]}\` | every surface that shows state | the default |
 
-A surface that forgets to declare renders in the neutral: the unsafe direction
-requires an explicit opt-in. The arc is held to the same gate and clears it at
-${FIGURES.arcFromNearestState.measured.toFixed(2)}° from the nearest state hue — the house instrument accent passes the
-test the house brand red fails, which is what lets us hold a tenant to it.
+The brand roles keep their surface fence: it is the mechanism a tenant accent
+that fails the gate still falls behind, and the house is held to it.
 
 ## Light stock
 
@@ -422,8 +421,8 @@ ${(Object.keys(light) as (keyof typeof light)[]).map((k) => `| \`${k}\` | \`${li
 
 Not a dark theme — a second substrate. The tablet is read on a roof at 2pm in
 July, so this ground does not follow the viewer's preference. State is carried
-by form first — outline, outline, solid — and the oxide fill is the system's
-only solid chip, with the frost word on it at ${FIGURES.frostOnOxide.measured.toFixed(2)}:1.
+by form first — outline, outline, solid — and the garnet fill is the system's
+only solid chip, with the frost word on it at ${FIGURES.frostOnGarnet.measured.toFixed(2)}:1.
 
 | Role | Value |
 |---|---|

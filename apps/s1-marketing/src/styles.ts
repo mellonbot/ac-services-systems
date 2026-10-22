@@ -2,11 +2,10 @@
  * S1's LAYOUT. Roles and density variables only — the guard fails a colour
  * literal here as it does in packages/ui.
  *
- * S1 is the one surface in the system that WEARS THE HOUSE RED. Everywhere
- * else the brand role resolves to Ink Black, because the red measures 0.55°
- * from the fault ink and a red control beside a status chip reads as an alarm
- * (packages/tokens/src/whitelabel.ts, and the registry's `stateRamp` flag,
- * which is `false` here and true everywhere else). Nothing on this page bears
+ * S1 is the one surface in the system that wears the BRAND roles. Everywhere
+ * else they resolve to Ink Black (the registry's `stateRamp` flag, which is
+ * `false` here and true everywhere else); since Rev C the red reaches every
+ * surface as the action accent instead. Nothing on this page bears
  * state: an anonymous visitor has nothing under SLA and no compliance to
  * read. So `--color-brand` is the real thing here: the sign-in yard
  * (scene.ts) reads it for the forklift and the cones.

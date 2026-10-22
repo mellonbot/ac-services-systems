@@ -9,22 +9,21 @@ Theme: **Arc Foundry** — the electric arc furnace. Industrial-revolution in
 origin, electric in the present. The theme names the palette and the type
 schedule; the company is Rankine Operating Company.
 
-## Two accent layers
+## Red is the accent — Rev C
 
-The load-bearing decision. Red measures 0.55° from the fault ink, and there is no
-bright red that clears the accent gate's 30°: the band between the fault
-and the warning is 34.78° wide. So red is admitted exactly where a colliding
-tenant accent is admitted, and barred everywhere a state ramp renders.
+The fault ink is garnet, not red. Bulletin 2 as issued drew the fault in oxide,
+0.55° from the house red, which barred red from every surface that shows state.
+Rev C moved the fault instead: red now measures 42.12° from the fault and
+35.32° from its nearest state hue, the warning amber, so it clears the accent
+gate's 30° and is the instrument accent on every surface.
 
 | Layer | Where | Resolved by |
 |---|---|---|
+| Instrument — red `#D91F11` | every control and highlight, S1–S8 | the default |
 | Brand — red `#D91F11` | wordmark, livery, badge, S1 marketing | `stateRamp: false` in the surface registry |
-| Instrument — arc `#00A3D9` | every surface that shows state | the default |
 
-A surface that forgets to declare renders in the neutral: the unsafe direction
-requires an explicit opt-in. The arc is held to the same gate and clears it at
-38.41° from the nearest state hue — the house instrument accent passes the
-test the house brand red fails, which is what lets us hold a tenant to it.
+The brand roles keep their surface fence: it is the mechanism a tenant accent
+that fails the gate still falls behind, and the house is held to it.
 
 ## Light stock
 
@@ -38,10 +37,10 @@ test the house brand red fails, which is what lets us hold a tenant to it.
 | `color.border-control` | `#3C4A55` | light |
 | `color.text` | `#0E1418` | light |
 | `color.text-muted` | `#3C4A55` | light |
-| `color.action` | `#00A3D9` | light |
-| `color.action-ink` | `#0E1418` | light |
-| `color.action-text` | `#0A4F66` | light |
-| `color.action-pressed` | `#7FE9FF` | light |
+| `color.action` | `#D91F11` | light |
+| `color.action-ink` | `#FFFFFF` | light |
+| `color.action-text` | `#A81208` | light |
+| `color.action-pressed` | `#A81208` | light |
 | `color.focus-ring` | `#0A4F66` | light |
 | `color.brand` | `#D91F11` | light |
 | `color.brand-ink` | `#FFFFFF` | light |
@@ -50,7 +49,7 @@ test the house brand red fails, which is what lets us hold a tenant to it.
 | `color.livery-ink` | `#0E1418` | light |
 | `color.status-ok` | `#0E6A46` | light |
 | `color.status-at-risk` | `#7E5300` | light |
-| `color.status-breached` | `#A32318` | light |
+| `color.status-breached` | `#9C1F6E` | light |
 | `color.status-blocked` | `#3C4A55` | light |
 | `color.status-breached-fill` | `transparent` | light |
 
@@ -58,8 +57,8 @@ test the house brand red fails, which is what lets us hold a tenant to it.
 
 Not a dark theme — a second substrate. The tablet is read on a roof at 2pm in
 July, so this ground does not follow the viewer's preference. State is carried
-by form first — outline, outline, solid — and the oxide fill is the system's
-only solid chip, with the frost word on it at 8.00:1.
+by form first — outline, outline, solid — and the garnet fill is the system's
+only solid chip, with the frost word on it at 7.58:1.
 
 | Role | Value |
 |---|---|
@@ -71,10 +70,10 @@ only solid chip, with the frost word on it at 8.00:1.
 | `color.border-control` | `#91A1AE` |
 | `color.text` | `#E4ECF2` |
 | `color.text-muted` | `#91A1AE` |
-| `color.action` | `#00A3D9` |
-| `color.action-ink` | `#0E1418` |
-| `color.action-text` | `#7FE9FF` |
-| `color.action-pressed` | `#7FE9FF` |
+| `color.action` | `#D91F11` |
+| `color.action-ink` | `#FFFFFF` |
+| `color.action-text` | `#F4796C` |
+| `color.action-pressed` | `#A81208` |
 | `color.focus-ring` | `#7FE9FF` |
 | `color.brand` | `#D91F11` |
 | `color.brand-ink` | `#FFFFFF` |
@@ -85,7 +84,7 @@ only solid chip, with the frost word on it at 8.00:1.
 | `color.status-at-risk` | `#E8B23C` |
 | `color.status-breached` | `#E4ECF2` |
 | `color.status-blocked` | `#91A1AE` |
-| `color.status-breached-fill` | `#7A2A2E` |
+| `color.status-breached-fill` | `#7A2A5E` |
 
 ## Type schedule
 

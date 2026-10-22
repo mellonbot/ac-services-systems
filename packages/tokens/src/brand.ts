@@ -229,7 +229,7 @@ export const BULLETIN_ERRATA = Object.freeze([
   {
     code: "E-11", subject: "color.action-pressed", status: "closed",
     finding: "It is color.action-text by value, and :active repainted the fill without the ink. A variant carrying its own resting colour kept it: a quiet button pressed its own label to 1.00:1 and danger to 1.24:1 — every secondary route on a RefusalCard.",
-    resolution: "The ink moves with the fill. Danger inverts onto color.page (6.23:1 light, 16.34:1 plate) rather than borrowing the primary's fill. ON_FILL measures both pairs; the test fails any :active that moves a background and not a colour.",
+    resolution: "The ink moves with the fill. Danger inverts onto color.page (6.18:1 light since Rev C, 16.34:1 plate) rather than borrowing the primary's fill. ON_FILL measures both pairs; the test fails any :active that moves a background and not a colour.",
   },
   {
     code: "E-12", subject: "the type scale", status: "closed",
@@ -244,7 +244,7 @@ export const BULLETIN_ERRATA = Object.freeze([
   {
     code: "E-14", subject: "the degraded banner on the plate ground", status: "closed",
     finding: "SEMANTIC_DARK maps color.status-breached to cream — the same ink as body copy, correctly, because Plate 4 moves state into FORM. The banner drew its mark and its rule in that role and carried no fill, so on the one surface read in sunlight the alarm rendered in body-copy cream. Form R-4 decomposed into three channels and the banner used two of them, both collapsed.",
-    resolution: "The mark carries the oxide fill, the way the breached chip does: transparent on the light stock where a fault is an outline, 6.63:1 on the plate.",
+    resolution: "The mark carries the fault fill (oxide then, garnet since Rev C), the way the breached chip does: transparent on the light stock where a fault is an outline, solid on the plate.",
   },
   {
     code: "E-15", subject: "admitAccent", status: "closed",
