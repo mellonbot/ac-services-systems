@@ -234,6 +234,25 @@ export const moveAccount = async (uow: UnitOfWork, input: MoveAccountInput): Pro
   const target = (await uow.tx.query<AccountRow>(`SELECT ${ACCOUNT_COLUMNS} FROM accounts WHERE id = $1`, [newParentId]))[0];
   if (!target) throw new InputRefused(`no node ${newParentId} visible in this scope`, "unknown_scope");
   if (target.path.includes(accountId)) throw new InputRefused(`"${target.name}" is a descendant of "${node.name}" — a node cannot be moved under itself`, "cycle");
+  if (target.region_id !== node.region_id) {
+    // The cascade re-homes the tree, not the work on it: an open job would stay
+    // on the old region's board with its site in the new one. Finish or cancel
+    // it first.
+    const open = (await uow.tx.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM jobs j JOIN accounts a ON a.id = j.site_id
+        WHERE (a.id = $1 OR $1 = ANY(a.path)) AND j.state NOT IN ('cancelled', 'invoiced', 'aborted')`, [accountId],
+    ))[0]!;
+    if (Number(open.n) > 0) {
+      throw new InputRefused(`"${node.name}" has ${open.n} open job${open.n === "1" ? "" : "s"} — moving it to another region would strand them on this region's board. Close or cancel them first.`, "open_jobs_in_region");
+    }
+    if (node.tier === "location") {
+      // D14, as at creation: a location does not arrive in a region that cannot staff it.
+      const region = await activeRegion(uow, target.region_id);
+      const crews = Number((await uow.tx.query<{ n: string }>("SELECT count(*) AS n FROM crews WHERE region_id = $1 AND active", [target.region_id]))[0]?.n ?? 0);
+      const decision = admitLocationSupply({ regionName: region.name, minCrewDensity: region.min_crew_density, activeCrews: crews });
+      if (decision.kind === "refused") throw new InputRefused(decision.message, decision.code);
+    }
+  }
 
   let regionId = node.region_id;
   let movedDescendants = 0;

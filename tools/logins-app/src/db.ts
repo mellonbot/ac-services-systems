@@ -264,6 +264,10 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       const name = normaliseName(n.name);
       if (name === "") throw new LoginInputError("The name cannot be empty.");
       return writeAsOffice(async (q) => {
+        // The duplicate checks below read, then insert. Two saves at once (a
+        // double-click, two operators) would both read nothing; company
+        // creation is serialised so the second reads the first's row.
+        await q("SELECT pg_advisory_xact_lock(hashtext('ac-logins:add-company'))");
         let crew;
         if (n.type === "ours") {
           await requireRegion(q, n.regionId);

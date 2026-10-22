@@ -130,3 +130,18 @@ test("ten wrong passwords and the email is shut for the window — even to the r
   for (let i = 0; i < 10; i++) assert.equal((await attempt("wrong")).status, 401);
   assert.equal((await attempt(PASSWORD)).status, 429);
 });
+
+test("the relay parks a row it cannot publish: it is not read again, so it cannot starve the rows behind it", { skip }, async () => {
+  const { beginTx } = await import("../../apps/gateway/src/pg-tx.ts");
+  const { relayOnce, PARKED } = await import("../../apps/worker/src/relay.ts");
+  const eventId = crypto.randomUUID();
+  await admin(`INSERT INTO outbox (event_id, topic, entity, entity_id, payload, actor_id, surface_id, region_id, org_id, attempts)
+    VALUES ($1,'job.created','job',gen_random_uuid(),'{}',$2,'test',$3,$4,$5)`, [eventId, USER_FINANCE, REGION_SOUTH, INTERNAL_ORG_ID, PARKED]);
+  const seen: string[] = [];
+  for (;;) {
+    const tx = await beginTx(pool);
+    if ((await relayOnce(tx, { async publish(events) { for (const e of events) seen.push(e.eventId); } })).published === 0) break;
+  }
+  assert.equal(seen.includes(eventId), false);
+  assert.equal((await admin(`SELECT published_at FROM outbox WHERE event_id = $1`, [eventId]))[0]!.published_at, null);
+});

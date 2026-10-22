@@ -134,8 +134,15 @@ test("moveAccount changes one column, carries the DESTINATION region as the row'
     if (sql.includes("FROM accounts WHERE id = $1")) { const r = byId[String(params[0])]; return r ? [r] : []; }
     if (sql.startsWith("UPDATE accounts SET parent_id")) return [{ region_id: U(7) }];
     if (sql.includes("= ANY(path) AND id <>")) return [{ n: "3" }];
+    if (sql.includes("FROM jobs j JOIN accounts")) return [{ n: openJobs }];
+    if (sql.includes("FROM regions WHERE id")) return [REGION_ROW];
+    if (sql.includes("FROM crews")) return [{ n: "5" }];
     return [];
   }) as Tx["query"];
+  // Across regions with open work under it, the move is refused: the jobs would stay on the old board.
+  let openJobs = "2";
+  await assert.rejects(moveAccount(await uowFor(db.tx), { accountId: NODE_LOCATION, newParentId: U(6) }), (e: unknown) => e instanceof InputRefused && e.code === "open_jobs_in_region");
+  openJobs = "0";
   const uow = await uowFor(db.tx);
   const out = await moveAccount(uow, { accountId: NODE_LOCATION, newParentId: U(6) });
   assert.equal(out.regionId, U(7), "region_id came back from the trigger, not from the input");

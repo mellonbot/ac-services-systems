@@ -272,7 +272,8 @@ const loadPo = async (uow: UnitOfWork, id: string): Promise<PoRow> => {
 
 export const listPurchaseOrders = async (uow: UnitOfWork, input: ListPurchaseOrdersInput): Promise<ListPurchaseOrdersOutput> => {
   const state = input.state === undefined ? null : requireOneOf(input.state, "state", PO_STATES);
-  return { orders: (await uow.tx.query<PoRow>(`${PO_SELECT} WHERE ($1::text IS NULL OR po.state = $1) ORDER BY po.created_at DESC`, [state])).map(poWire) };
+  // The newest 500, as leads.list: a history screen, not an export.
+  return { orders: (await uow.tx.query<PoRow>(`${PO_SELECT} WHERE ($1::text IS NULL OR po.state = $1) ORDER BY po.created_at DESC LIMIT 500`, [state])).map(poWire) };
 };
 
 type LineRow = { id: string; line_no: number; item_id: string; vendor_sku: string; description: string; uom: string; quantity_milli: string; unit_price_minor: string; shipped: string; received: string; invoiced: string; returned: string };
@@ -466,10 +467,11 @@ export const listVendorInvoices = async (uow: UnitOfWork, input: ListVendorInvoi
     `SELECT i.id, i.po_id, po.number AS po_number, i.vendor_id, i.invoice_number, to_char(i.invoice_date, 'YYYY-MM-DD') AS invoice_date, i.total_minor::text AS total_minor,
             i.currency, i.match_state, i.match_notes, ${ts("i.created_at")} AS created_at
        FROM vendor_invoices i LEFT JOIN purchase_orders po ON po.id = i.po_id
-      WHERE ($1::uuid IS NULL OR i.po_id = $1) ORDER BY i.created_at DESC`, [poId]);
+      WHERE ($1::uuid IS NULL OR i.po_id = $1) ORDER BY i.created_at DESC LIMIT 500`, [poId]);
+  // The lines of the invoices listed, not of every invoice there is.
   const lines = await uow.tx.query<{ invoice_id: string; po_line_id: string; quantity_milli: string; unit_price_minor: string; amount_minor: string }>(
     `SELECT l.invoice_id, l.po_line_id, l.quantity_milli::text AS quantity_milli, l.unit_price_minor::text AS unit_price_minor, l.amount_minor::text AS amount_minor
-       FROM vendor_invoice_lines l JOIN vendor_invoices i ON i.id = l.invoice_id WHERE ($1::uuid IS NULL OR i.po_id = $1)`, [poId]);
+       FROM vendor_invoice_lines l WHERE l.invoice_id = ANY($1::uuid[])`, [rows.map((r) => r.id)]);
   const linesByInvoice = new Map<string, typeof lines[number][]>();
   for (const line of lines) {
     const group = linesByInvoice.get(line.invoice_id);
@@ -546,7 +548,7 @@ const rmaWire = (r: RmaRow): RmaWire => ({
 
 export const listReturns = async (uow: UnitOfWork, input: ListReturnsInput): Promise<ListReturnsOutput> => {
   const poId = input.poId === undefined ? null : requireUuid(input.poId, "poId");
-  return { returns: (await uow.tx.query<RmaRow>(`${RMA_SELECT} WHERE ($1::uuid IS NULL OR m.po_id = $1) ORDER BY m.created_at DESC`, [poId])).map(rmaWire) };
+  return { returns: (await uow.tx.query<RmaRow>(`${RMA_SELECT} WHERE ($1::uuid IS NULL OR m.po_id = $1) ORDER BY m.created_at DESC LIMIT 500`, [poId])).map(rmaWire) };
 };
 
 export const requestReturn = async (uow: UnitOfWork, input: RequestReturnInput, actorId: string, newId: () => string): Promise<RequestReturnOutput> => {

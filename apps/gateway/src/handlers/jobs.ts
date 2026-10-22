@@ -95,6 +95,17 @@ export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: (
   ))[0];
   if (!site) throw new InputRefused(`no node ${siteId} visible in this scope`, "unknown_site");
   if (site.tier !== "site") throw new InputRefused(`"${siteId}" is a ${site.tier}, not a site — work happens at a site, the tier with no descendants`, "not_a_site");
+  // The agreement and project a job cites are the site's customer's — never another org's.
+  if (contractId) {
+    const c = (await uow.tx.query<{ org_id: string }>(`SELECT org_id FROM contracts WHERE id = $1`, [contractId]))[0];
+    if (!c) throw new InputRefused(`no agreement ${contractId} visible in this scope`, "unknown_contract");
+    if (c.org_id !== site.org_id) throw new InputRefused(`agreement ${contractId} is not this site's customer's`, "tenancy_mismatch");
+  }
+  if (projectId) {
+    const pr = (await uow.tx.query<{ org_id: string }>(`SELECT org_id FROM projects WHERE id = $1`, [projectId]))[0];
+    if (!pr) throw new InputRefused(`no project ${projectId} visible in this scope`, "unknown_project");
+    if (pr.org_id !== site.org_id) throw new InputRefused(`project ${projectId} is not this site's customer's`, "tenancy_mismatch");
+  }
 
   // Item 9: the units this job is about must be units at THIS site. The
   // trigger on job_equipment (0009) holds the same sentence for every other
