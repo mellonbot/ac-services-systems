@@ -39,6 +39,9 @@ export const TOPICS = [
   // 0020: the roster. S2 refetches; nothing else reads it.
   "technician.recorded", "technician.updated",
   "firm.created", "firm.updated", "firm.status_changed",
+  // a login added, edited, deactivated or reactivated (AC Logins writes these
+  // directly). OFC subscribes: the Manager Dashboard's team list refetches.
+  "user.created", "user.updated",
   "rate_card.changed",
   // item 4 — D-2a's primitive, recorded. No subscriber yet; added when a
   // screen needs to react rather than in anticipation of one.

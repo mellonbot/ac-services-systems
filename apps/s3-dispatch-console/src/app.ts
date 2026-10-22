@@ -263,6 +263,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       "job.update_published", "job.message_posted",
       "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",
       "crew.compliance_refused", "credential.verified", "credential.expiring", "credential.expired",
+      // a login or a company changed in AC Logins (the Manager Dashboard's team and crews)
+      "user.created", "user.updated", "crew.created", "crew.updated",
     ] });
   };
 
