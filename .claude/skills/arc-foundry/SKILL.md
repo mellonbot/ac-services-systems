@@ -148,7 +148,7 @@ One family, four cuts, plus a script with exactly one job.
 | Role | Face | Where |
 |---|---|---|
 | Wordmark | **Yellowtail** | The masthead lockup and nothing else. 28px floor. Never in an interface |
-| Display | **IBM Plex Sans Condensed** | Plate titles, buttons, headings |
+| Display | **IBM Plex Sans Condensed** | Plate titles, buttons, headings — page and panel titles in caps (Rev B) |
 | Label | **IBM Plex Sans** | Descriptors, eyebrows, the company line — caps at `--track-wide` `0.14em` and up |
 | Text | **IBM Plex Sans** | Body copy, prose, contracts |
 | Instrument | **IBM Plex Mono** | Every numeral in the company, without exception |
@@ -182,7 +182,7 @@ loads at all.
 
 | Tier | Where | Control | Row | Body | Focus | Hover | Ground |
 |---|---|---|---|---|---|---|---|
-| Console | S2, S3, S4 | 36px | 28px | 13px | 2px | yes | light |
+| Console | S2, S3, S4 | 36px | 32px | 14px | 2px | yes | light |
 | Comfort | S1, S6, S7, S8 | 44px | 40px | 15px | 2px | yes | light |
 | Field | S5, the tablet | 56px | 56px | 18px | 3px | **no** | dark |
 
@@ -197,22 +197,36 @@ floors at 15px — the smallest uppercase instrument label that survives a roof 
 field tier there is no cursor, so a hover-only affordance is an invisible control: press is
 `:active`.
 
-**Corners and elevation — Rev A (2026-09-27).** The partners adopted the field-ops
-reference layout (`Work/AC Services/artifacts/dispatch board visualuizer.html`) for its
-page structure and shape, with every colour unchanged. The system now draws rounded corners
-at exactly three steps and one soft elevation:
+**Type ramp — Rev B (2026-10-22).** Each step above body opens by roughly 1.2–1.25, so a
+caption, body and a panel title never read as one size. `TYPE_SCALE` in
+`packages/tokens/src/density.ts` is the schedule:
+
+| Tier | xs | sm | md (body) | lg | xl | display | mast |
+|---|---|---|---|---|---|---|---|
+| Console | 11 | 12 | 14 | 16 | 20 | 26 | 34 |
+| Comfort | 11 | 13 | 15 | 18 | 22 | 28 | 40 |
+| Field | 15 | 17 | 18 | 23 | 28 | 36 | 48 |
+
+Console xs and sm stay 1px apart because xs is set in caps at `--track-wide`: form separates
+them where size cannot.
+
+**Corners and elevation — Rev A (2026-09-27), tightened by Rev B (2026-10-22).** The
+partners adopted the field-ops reference layout (`Work/AC Services/artifacts/dispatch board
+visualuizer.html`) for its page structure and shape, with every colour unchanged. Rev B keeps
+that structure and machines the shape: the corners tighten and the soft spread becomes a 1px
+edge. The system draws rounded corners at exactly three steps and one tight elevation:
 
 | Token | Value | Where |
 |---|---|---|
-| `--radius-control` | 8px | inputs, buttons, a segmented tab, a stat tile's inner well |
-| `--radius-card` | 12px | a panel, a stat tile, a card, a table's container |
-| `--radius-pill` | 999px | a status chip, a filter chip, the segmented control's track |
+| `--radius-control` | 4px | inputs, buttons, a segmented tab, a stat tile's inner well |
+| `--radius-card` | 6px | a panel, a stat tile, a card, a table's container, the segmented control's track |
+| `--radius-pill` | 999px | a status chip, a filter chip — nothing else |
 | `--radius-none` | 0px | rules and plates that are straight on purpose: the masthead rule, a table head |
-| `--elevation-card` | shadow | a panel or tile on the page ground |
-| `--elevation-raised` | shadow | the selected segment of a segmented control |
+| `--elevation-card` | `0 1px 0` | a panel or tile on the page ground: a 1px edge, no spread |
+| `--elevation-raised` | `0 1px 2px` | the selected segment of a segmented control |
 
 A shadow is never a new ink: it is the tier's darkest role mixed to a few per cent
-(`color-mix(in srgb, var(--color-text) 7%, transparent)` on the light stock, the sunken well
+(`color-mix(in srgb, var(--color-text) 10%, transparent)` on the light stock, the sunken well
 on the field ground). `icon` 8px and `app` 16px stay artwork primitives and are not emitted
 to a surface. Do not invent a fourth radius or a second shadow.
 
@@ -238,7 +252,7 @@ minimum (a date, an amount) sizes to its content and stays where it is.
 The page structure that comes with Rev A: a **page head** (the screen's name and one plain
 sentence of what it is for), a **stat strip** of tiles where a screen has figures worth
 leading with, content in **panels**, tables inside a panel, and navigation as a
-**segmented control** (a pill track with the current screen raised).
+**segmented control** (a card-radius track with the current screen raised).
 
 Accent rules are 3px and sit on the **top** edge; a coloured left border is not part of this
 system. No backdrop blur, no gradient meshes, no blurred blobs, no emoji.
@@ -293,7 +307,8 @@ repo the tokens govern; these are the known deltas, and a fix belongs in
 | Field `border-hard` | `#5A6873` | `#55636F` |
 | A `rule-soft` `#CBD4DC` | present | no such primitive |
 | Label tracking | `+0.28em` | `--track-wide` `0.14em` and up |
-| Corners | 2 / 3 / 5 / 8px | **Rev A:** 8px control, 12px card, pill for chips and the segmented control; 0px for rules and plates |
+| Corners | 2 / 3 / 5 / 8px | **Rev B:** 4px control, 6px card, pill for chips only; 0px for rules and plates |
 | Red ↔ fault separation | 1.2° | 0.55° — `1.2` was a hand-carried figure, corrected by E-21 (commit 157b0bb). The skill predates it. |
 | Field row height | 48px | 56px |
+| Console row / body | 28px / 13px | **Rev B:** 32px / 14px |
 | Variable names | `--stock`, `--panel`, `--arc`, `--ink` | `--color-*`, from `cssVar()` |

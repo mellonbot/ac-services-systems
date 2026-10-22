@@ -95,7 +95,7 @@ test("the field surface is the plate ground and the other two are light; the rol
 
 test("density structure travels as variables the component stylesheet reads", () => {
   assert.match(tokenCss("field"), /--control-height:56px/);
-  assert.match(tokenCss("console"), /--control-height:36px;--row-height:28px;--body-text:13px/);
+  assert.match(tokenCss("console"), /--control-height:36px;--row-height:32px;--body-text:14px/);
 });
 
 test("all four faces reach every density, and none of them is fetched from a third party", () => {
@@ -180,11 +180,11 @@ test("the frame carries the width schedule at every density: four measures in ch
   assert.doesNotMatch(tokenCss("console"), /--breakpoint/, "a media query cannot read a variable");
 });
 
-test("the frame carries its own density's scale, Rev A's three radii and its elevation, and no artwork radius", () => {
+test("the frame carries its own density's scale, Rev B's three radii and its elevation, and no artwork radius", () => {
   for (const d of DENSITIES) {
     const css = tokenCss(d);
     for (const [step, v] of Object.entries(TYPE_SCALE[d])) assert.ok(css.includes(`--text-${step}:${v}`), `${d} lacks --text-${step}:${v}`);
-    for (const r of ["--radius-none:0px", "--radius-control:8px", "--radius-card:12px", "--radius-pill:999px"]) assert.ok(css.includes(r), `${d} lacks ${r}`);
+    for (const r of ["--radius-none:0px", "--radius-control:4px", "--radius-card:6px", "--radius-pill:999px"]) assert.ok(css.includes(r), `${d} lacks ${r}`);
     assert.doesNotMatch(css, /--radius-(icon|app)/, "an icon and a patch are artwork with their own substrate rules");
     assert.match(css, /--elevation-card:[^;]*color-mix\(in srgb,var\(--color-(text|surface-sunken)\)/, "a shadow is an existing role, mixed — never a new ink");
     assert.doesNotMatch(css.match(/--elevation-card:[^;]+/)![0], /#|\brgba?\(/i);

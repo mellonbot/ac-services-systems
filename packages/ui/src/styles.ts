@@ -210,7 +210,7 @@ ac-degraded[hidden]{display:none}
    A page head (the screen's name and one plain sentence), a stat strip where
    figures lead, content in panels, and navigation as a segmented control. */
 .ac-page-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:var(--space-3) var(--space-4);margin:var(--space-2) 0 var(--space-4)}
-.ac-page-head__title{margin:0;font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);line-height:1.15;text-wrap:balance}
+.ac-page-head__title{margin:0;font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);line-height:1.15;text-transform:uppercase;text-wrap:balance}
 .ac-page-head__lede{margin:var(--space-1) 0 0;color:var(--color-text-muted);font-size:var(--text-sm);max-width:var(--measure-text)}
 .ac-page-head__side{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
 .ac-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--tile-min)),1fr));gap:var(--space-3);margin:0 0 var(--space-4)}
@@ -233,7 +233,7 @@ ac-degraded[hidden]{display:none}
 .ac-panel>:first-child{margin-top:0}
 .ac-panel>:last-child{margin-bottom:0}
 .ac-panel__head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:var(--space-2);margin:0 0 var(--space-3)}
-.ac-panel__title{margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
+.ac-panel__title{margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:700;letter-spacing:var(--track-normal);text-transform:uppercase}
 .ac-panel__sub{margin:2px 0 0;color:var(--color-text-muted);font-size:var(--text-sm)}
 .ac-seg,.ac-nav{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface));border:1px solid var(--color-border);border-radius:var(--radius-card)}
 .ac-seg__item{display:inline-flex;align-items:center;gap:6px;padding:var(--space-2) var(--space-4);border-radius:var(--radius-control);color:var(--color-text-muted);font-weight:600;font-size:var(--text-sm);text-decoration:none;white-space:nowrap;transition:background-color var(--motion-base) var(--ease),color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease);min-height:var(--control-height)}

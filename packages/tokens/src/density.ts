@@ -10,9 +10,13 @@ import { PRIMITIVES as P } from "./primitives.ts";
  * gloves in direct sun are opposite requirements. Averaging them serves neither.
  */
 export const DENSITY = Object.freeze({
-  /** S2 / S3 / S4 — information density is the feature. */
+  /**
+   * S2 / S3 / S4 — information density is the feature. Rev B (2026-10-22):
+   * 14px body on a 32px row, for a dispatcher reading it across a full shift.
+   * The board shows about one row in eight fewer; the control stays 36px.
+   */
   console: {
-    controlHeight: "36px", rowHeight: "28px", bodyText: "13px", gutter: "8px",
+    controlHeight: "36px", rowHeight: "32px", bodyText: "14px", gutter: "8px",
     focusRing: "2px solid", hoverAffordances: true, surface: "light",
   },
   /** S1 / S6 / S7 / S8 — occasional users, their own hardware, once a month. */
@@ -50,13 +54,20 @@ export type TypeStep = keyof typeof P.text;
  * 15px because that is the smallest uppercase instrument label that survives a
  * roof at 2pm — the same argument that chose the ground it sits on.
  *
+ * Rev B (2026-10-22) spread the ramp. The console's caption and body sat 1px
+ * apart (12/13) and the field's xs/sm likewise (15/16) — a caption and body
+ * copy that read as one size are not a hierarchy. Floors and the field body
+ * hold; each step above body now opens by roughly 1.2–1.25. xs and sm stay
+ * 1px apart on the console because xs is set in caps at --track-wide, so form
+ * separates them where size cannot.
+ *
  * `comfort` IS `PRIMITIVES.text`, unchanged: it is the reference ramp the
  * bulletin's plates are drawn at, and the other two are struck from it.
  */
 export const TYPE_SCALE = Object.freeze({
-  console: Object.freeze({ xs: "11px", sm: "12px", md: "13px", lg: "15px", xl: "18px", display: "24px", mast: "34px" }),
+  console: Object.freeze({ xs: "11px", sm: "12px", md: "14px", lg: "16px", xl: "20px", display: "26px", mast: "34px" }),
   comfort: P.text,
-  field: Object.freeze({ xs: "15px", sm: "16px", md: "18px", lg: "22px", xl: "26px", display: "34px", mast: "48px" }),
+  field: Object.freeze({ xs: "15px", sm: "17px", md: "18px", lg: "23px", xl: "28px", display: "36px", mast: "48px" }),
 } as const satisfies Record<Density, Readonly<Record<TypeStep, string>>>);
 
 /**
