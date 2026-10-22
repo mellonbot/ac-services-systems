@@ -21,6 +21,9 @@ export const S1_CSS = `
 .s1-sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .s1-h1{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-xl);text-transform:uppercase;letter-spacing:var(--track-normal)}
 .s1-h2{margin:var(--space-6) 0 var(--space-2);font-size:var(--text-lg)}
+.s1-welcome{margin:0 0 var(--space-2);font-size:var(--text-xl)}
+.s1-callout{margin:var(--space-6) 0 0}
+.s1-callout__action{display:inline-flex;align-items:center;text-decoration:none}
 .s1-lede{margin:0 0 var(--space-4);font-size:var(--text-md);max-width:var(--measure-text)}
 .s1-loading,.s1-empty,.s1-muted{color:var(--color-text-muted)}
 .s1-metros{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--tile-min),1fr));gap:var(--space-2);margin:0 0 var(--space-4);padding:0;list-style:none}
