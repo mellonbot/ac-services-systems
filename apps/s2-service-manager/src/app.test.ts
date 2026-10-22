@@ -7,7 +7,7 @@ import { UI_CSS } from "../../../packages/ui/src/styles.ts";
 import { SCREENS } from "./screens.ts";
 import { confirmPanel } from "./screens/common.ts";
 import { orderTree, showSegment, showCustomerCard } from "./screens/accounts-tree.ts";
-import { serviceHistoryOf, panMap, recentreMap } from "./screens/home-card.ts";
+import { serviceHistoryOf, panMap, recentreMap, forgetLocating } from "./screens/home-card.ts";
 import { parentCandidates } from "./screens/accounts-move.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { Principal, AccountWire, HierarchyContext } from "../../../packages/contracts/src/index.ts";
@@ -468,4 +468,48 @@ test("ACCOUNTS: with a basemap provider, the home's map is the gateway's tiles a
   assert.match(out, /© Tiles Co/);
   assert.ok(tiles.length > 4 && tiles.every((t) => t.startsWith("17/")), `a screenful of zoom-17 tiles, got ${tiles.length}`);
   assert.ok((out.match(/<img src="data:image\/png;base64,AAAA"/g) ?? []).length >= 4);
+});
+
+test("ACCOUNTS: a home typed without coordinates is placed by the gateway on first view, and the pin follows the refetch", async () => {
+  const gw = fakeGateway();
+  let placed = false, located = 0;
+  const words = { line1: "4012 Ridgeview Dr", city: "Fort Worth", state: "TX", postal: "76109" };
+  const reply = (body: unknown) => ({ status: 200, ok: true, json: async () => body, text: async () => JSON.stringify(body), body: null });
+  const fetch: FetchLike = async (url, init) => {
+    const u = new URL(url);
+    if (u.pathname === OPERATIONS["sites.locate"].path) { located++; placed = true; return reply({ siteId: HOME, lat: 32.7101, lng: -97.3812, outcome: "located", eventId: U(97) }); }
+    if (u.pathname === OPERATIONS["accounts.list"].path && u.searchParams.get("orgId") === TURNER)
+      return reply({ nodes: HOME_NODES.map((n) => n.id === HOME ? { ...n, address: placed ? { ...words, lat: 32.7101, lng: -97.3812 } : words } : n) });
+    return gw.fetch(url, init);
+  };
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("accounts.tree", { orgId: TURNER });
+  for (let i = 0; i < 6; i++) { render(app.view()); await settle(); }
+  const out = render(app.view());
+  assert.equal(located, 1, "asked once, not per render");
+  assert.match(out, /class="s2-map__pin"/);
+  assert.match(out, /32\.71010, -97\.38120/);
+  forgetLocating(); recentreMap();
+});
+
+test("ACCOUNTS: an address the geocoder cannot find says so, and is not asked about again on every render", async () => {
+  const gw = fakeGateway();
+  let located = 0;
+  const words = { line1: "1 Nowhere Ln", city: "Fort Worth", state: "TX" };
+  const reply = (body: unknown) => ({ status: 200, ok: true, json: async () => body, text: async () => JSON.stringify(body), body: null });
+  const fetch: FetchLike = async (url, init) => {
+    const u = new URL(url);
+    if (u.pathname === OPERATIONS["sites.locate"].path) { located++; return reply({ siteId: HOME, lat: null, lng: null, outcome: "not_found", eventId: null }); }
+    if (u.pathname === OPERATIONS["accounts.list"].path && u.searchParams.get("orgId") === TURNER)
+      return reply({ nodes: HOME_NODES.map((n) => n.id === HOME ? { ...n, address: words } : n) });
+    return gw.fetch(url, init);
+  };
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("accounts.tree", { orgId: TURNER });
+  for (let i = 0; i < 6; i++) { render(app.view()); await settle(); }
+  assert.match(render(app.view()), /could not find this exact address/);
+  assert.equal(located, 1);
+  forgetLocating();
 });
