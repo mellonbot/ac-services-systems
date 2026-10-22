@@ -11,7 +11,6 @@ import { RefusalCard, refusalHeading, AXIS_SENTENCE } from "./components/refusal
 import { plainHeading, plainMessage, retryable } from "./components/refusal-notice.ts";
 import { RefusalNotice } from "./components/refusal-notice.ts";
 import { CustomerCard, addressLines } from "./components/customer-card.ts";
-import { ShiftCard } from "./components/shift-card.ts";
 import { DegradedBanner, applyDegraded, ageOf } from "./components/degraded-banner.ts";
 import { COMPONENT_SPECS, ComplianceBadgeSpec, DataGridSpec } from "./component.ts";
 import { STATUS_GLYPH, MARK_GLYPHS } from "../../tokens/src/index.ts";
@@ -55,7 +54,7 @@ test("densityOf is literal, so the registry's density reaches the component type
 });
 
 test("every spec has an implementation carrying it, and no density outside the three", () => {
-  const carried = [StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner, RefusalNotice, CustomerCard, ShiftCard].map((c) => c.spec.name).sort();
+  const carried = [StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner, RefusalNotice, CustomerCard].map((c) => c.spec.name).sort();
   assert.deepEqual(carried, [...COMPONENT_SPECS].map((s) => s.name).sort());
   for (const s of COMPONENT_SPECS) for (const d of s.densities) assert.ok(["console", "comfort", "field"].includes(d));
 });
@@ -310,16 +309,4 @@ test("CustomerCard: a commercial customer is sites across locations and its plan
   const loading = render(CustomerCard({ density: "console", name: "T", segment: "residential", sites: 1, locations: 1, plans: [], home: { address: [], units: null, membership: null } })!);
   assert.match(loading, /Loading equipment…/);
   assert.match(loading, /No membership/);
-});
-
-test("ShiftCard: the middle folds out and the reveals fold in, all in the markup; it takes focus, so the keyboard reaches what hover does", () => {
-  const out = render(ShiftCard({ density: "comfort", label: "RTU-3", top: html`<h3>RTU-3</h3>`, topReveal: "Trane Voyager", middle: "Roof, north bay", bottom: "Next PM Nov 4", bottomReveal: "Filters, belts, coil wash" })!);
-  assert.match(out, /tabindex="0" aria-label="RTU-3"/);
-  assert.match(out, /data-fold="out"><div>Roof, north bay/);
-  assert.match(out, /data-fold="in"><div>Trane Voyager/);
-  assert.match(out, /data-fold="in"><div>Filters, belts, coil wash/);
-  const bare = render(ShiftCard({ density: "console", label: "x", top: "a", bottom: "b" })!);
-  assert.doesNotMatch(bare, /data-fold/, "no empty fold is drawn");
-  // @ts-expect-error — no field variant
-  assert.throws(() => ShiftCard({ density: "field", label: "x", top: "a", bottom: "b" }));
 });

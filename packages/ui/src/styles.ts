@@ -320,22 +320,11 @@ ac-degraded[hidden]{display:none}
 .ac-facts>div{padding:var(--space-2) var(--space-3);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 .ac-facts dt{font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
 .ac-facts dd{margin:var(--space-1) 0 0;font-weight:600}
-/* ---- Shift card ----
-   Engaged is :hover or :focus-within. A fold is a grid row moving between 0fr
-   and 1fr, so it opens to its content's height with no measured pixel. A
-   folded row is also visibility:hidden, so nothing inside it takes focus. */
-.ac-shift-card{display:flex;flex-direction:column;gap:var(--space-3);width:var(--tile-wide);max-width:100%;padding:var(--space-3);background:var(--color-surface);border:1px solid var(--color-border-hard);border-radius:var(--radius-card);box-shadow:var(--elevation-card);color:var(--color-text)}
-.ac-shift-card__top{display:flex;flex-direction:column}
-.ac-shift-card__bottom{display:flex;flex-direction:column;margin-top:auto;padding:var(--space-3);background:var(--color-surface-sunken);border-radius:var(--radius-control)}
-.ac-shift-card__fold{display:grid;grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows var(--motion-slow) var(--ease),visibility var(--motion-slow) var(--ease)}
-.ac-shift-card__fold>div{min-height:0;overflow:hidden}
-.ac-shift-card__fold[data-fold="out"],.ac-shift-card:is(:hover,:focus-within) .ac-shift-card__fold[data-fold="in"]{grid-template-rows:1fr;visibility:visible}
-.ac-shift-card:is(:hover,:focus-within) .ac-shift-card__fold[data-fold="out"]{grid-template-rows:0fr;visibility:hidden}
 /* ---- Motion ----
    110/170/260ms on one curve, from the tokens: a control's state change
    moves, data does not. A reader who asked for reduced motion gets none —
    the same selectors, stilled, declared last so they win on source order. */
-@media (prefers-reduced-motion:reduce){.ac-action,.ac-seg__item,.ac-chip,.ac-link,.ac-shift-card__fold{transition:none}}
+@media (prefers-reduced-motion:reduce){.ac-action,.ac-seg__item,.ac-chip,.ac-link{transition:none}}
 `;
 
 /** Every `var(--name)` the stylesheet reads. The test checks each is defined by tokenCss for every density. */
