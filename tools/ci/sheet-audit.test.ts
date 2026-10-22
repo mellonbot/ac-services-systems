@@ -61,7 +61,6 @@ test("no surface stylesheet redeclares the chrome the component sheet owns", asy
     for (const m of sheet.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
       const selector = m[1]!.trim();
       for (const hit of selector.matchAll(SHARED_FAMILIES)) {
-        if (/^\.s1-nav/.test(hit[0])) continue;
         forks.push(`${SURFACES[id].app}: ${selector} redeclares ${hit[0]}`);
       }
     }

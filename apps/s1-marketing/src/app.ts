@@ -150,11 +150,6 @@ export const createApp = (opts: {
     const loc = router.current.value;
     const screen = loc ? SCREEN_VIEWS[loc.screen] : null;
     return html`<div class="s1-app">
-      <nav class="s1-nav" aria-label="Sections">
-        ${nav("coverage", "Where we work")}
-        <span class="s1-nav__spacer"></span>
-        ${nav("enquire", "Ask us to call")}
-      </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s1-empty">Nothing at this address. ${nav("home", "Start here")}</p>`}
     </div>`;
   };

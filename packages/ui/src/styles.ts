@@ -76,10 +76,9 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
 .ac-wordmark__co{font-family:var(--font-label);font-weight:600;font-size:var(--text-xs);
   letter-spacing:var(--track-widest);text-transform:uppercase;color:var(--color-text-muted)}
 .ac-mast__rule{height:4px;background:var(--color-livery);max-width:320px;margin-top:var(--space-2)}
-/* A titled masthead (S1): the site's name on the wordmark's line, the rule the full width
-   beneath both, and the company line under the rule. */
-.ac-mast__row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-6)}
-.ac-mast__title{margin:0;font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);line-height:1.15;color:var(--color-text)}
+/* A titled masthead (S1): the rule the full width under the wordmark, the company line
+   under the rule, and the site's name under the company line. */
+.ac-mast__title{margin:var(--space-2) 0 0;font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);line-height:1.15;color:var(--color-text)}
 .ac-mast--titled .ac-mast__rule{max-width:none}
 .ac-mast--titled .ac-wordmark__co{display:block;margin-top:var(--space-2)}
 

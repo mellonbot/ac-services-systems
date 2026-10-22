@@ -54,10 +54,11 @@ const sceneRef = (canvas: HTMLCanvasElement | null): void => {
  * A hard-coded coverage map is the exact failure D14 exists to prevent: a map
  * that says we serve a metro, and no crew density behind it.
  */
-export const home: Screen = (): VNode => {
+export const home: Screen = (ctx: ScreenContext): VNode => {
   const portals = SURFACE_IDS.filter((id) => id !== "S1" && SURFACES[id].enabled);
   return html`<section class="s1-home">
     <h1 class="s1-h1 s1-sr-only">${SITE_TITLE}</h1>
+    <h2 class="s1-h2 s1-welcome">Welcome to the shop</h2>
     <p class="s1-lede">Sign in to the workspace for your role.</p>
 
     <section class="s1-surface-access" id="surface-logins" aria-labelledby="surface-logins-title">
@@ -75,6 +76,7 @@ export const home: Screen = (): VNode => {
       </div>
     </section>
 
+    <p class="s1-callout">${linkTo(ctx, "enquire", {}, "Just blow into town, partner?", "ac-action s1-callout__action")}</p>
   </section>`;
 };
 

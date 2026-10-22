@@ -235,18 +235,16 @@ export const renderMasthead = (s: Surface): string => {
   const badge = `<span class="ac-badge-mark" aria-hidden="true">${badgeInline()}</span>`;
   const wordmark = `<span class="ac-wordmark">${escapeHtml(BRAND.name)}</span>`;
   const co = `<span class="ac-wordmark__co">${escapeHtml(BRAND.descriptor)}</span>`;
-  // A titled masthead (S1) sets the site's name on the wordmark's line, runs
-  // the rule the full width beneath both, and moves the company line under it.
+  // A titled masthead (S1) runs the rule the full width under the wordmark,
+  // sets the company line beneath it, and the site's name under that.
   if (s.id === "S1") return `<header class="ac-mast ac-mast--titled" data-brand-layer="${brandLayer}">
-<div class="ac-mast__row">
 <a class="ac-mast__lockup" href="/" aria-label="${escapeHtml(BRAND.legalName)}">
 ${badge}
 ${wordmark}
 </a>
-<p class="ac-mast__title">${escapeHtml(S1_SITE_TITLE)}</p>
-</div>
 <div class="ac-mast__rule"></div>
 ${co}
+<p class="ac-mast__title">${escapeHtml(S1_SITE_TITLE)}</p>
 </header>`;
   return `<header class="ac-mast" data-brand-layer="${brandLayer}">
 <a class="ac-mast__lockup" href="/" aria-label="${escapeHtml(BRAND.legalName)}">
