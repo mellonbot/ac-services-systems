@@ -181,6 +181,11 @@ export const OPERATIONS = {
     surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "siteImagery",
     summary: "Overhead imagery of a site, fetched by the GATEWAY from the configured provider (AC_IMAGERY_URL) and returned inline — the customer's browser never reaches a third party with the customer's address, and there is no key in a bundle. Unavailable is an answer, not an error: not configured, no coordinates, provider unreachable.",
   },
+  "sites.mapTile": {
+    id: "sites.mapTile", method: "GET", path: "/s2/sites/map-tile", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "query", sdkMethod: "siteMapTile",
+    summary: "One web-mercator basemap tile near a site, fetched by the GATEWAY from the configured tile provider (AC_MAP_TILE_URL) and returned inline — the same reasons as sites.imagery: no key in a bundle, no customer's coordinates sent to a third party from a browser. Only tiles within MAP_TILE_REACH of the site's own tile, at MAP_ZOOM_MIN–MAP_ZOOM_MAX, are served: a pan around a home, not a free tile proxy. Unavailable is an answer: not configured, no coordinates, provider unreachable.",
+  },
   // ---- C2: the agreements and term overrides S2 authors (09 §3.6) ----
   "contracts.list": {
     id: "contracts.list", method: "GET", path: "/s2/contracts", kind: "query", auth: "bearer",
@@ -943,6 +948,21 @@ export type SiteImageryOutput = {
   readonly siteId: string;
   readonly lat: number | null; readonly lng: number | null;
   /** A data: URL the card can draw, or null with `unavailable` saying why. */
+  readonly image: string | null;
+  readonly attribution: string | null;
+  readonly unavailable: "not_configured" | "no_coordinates" | "provider_unreachable" | null;
+};
+/** The zooms sites.mapTile serves, and how many tiles either side of the site's own tile it will reach at each. The surface clamps its pan to the same box. */
+export const MAP_ZOOM_MIN = 10, MAP_ZOOM_MAX = 19, MAP_TILE_REACH = 4;
+/** Web-mercator tile coordinates of a point at zoom z, fractional — floor them for the tile, keep the fraction for where in it. */
+export const tileOf = (lat: number, lng: number, z: number): { readonly x: number; readonly y: number } => {
+  const n = 2 ** z, r = (lat * Math.PI) / 180;
+  return { x: ((lng + 180) / 360) * n, y: ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n };
+};
+export type SiteMapTileInput = { readonly siteId: string; readonly z: number; readonly x: number; readonly y: number };
+export type SiteMapTileOutput = {
+  readonly z: number; readonly x: number; readonly y: number;
+  /** A data: URL of the tile, or null with `unavailable` saying why. */
   readonly image: string | null;
   readonly attribution: string | null;
   readonly unavailable: "not_configured" | "no_coordinates" | "provider_unreachable" | null;
@@ -1837,6 +1857,7 @@ export type OperationIO = {
   "contacts.set": { input: SetContactInput; output: SetContactOutput };
   "invoices.list": { input: ListInvoicesInput; output: ListInvoicesOutput };
   "sites.imagery": { input: SiteImageryInput; output: SiteImageryOutput };
+  "sites.mapTile": { input: SiteMapTileInput; output: SiteMapTileOutput };
   "contracts.list": { input: ListContractsInput; output: ListContractsOutput };
   "contracts.create": { input: CreateContractInput; output: CreateContractOutput };
   "contracts.transition": { input: TransitionContractInput; output: TransitionContractOutput };

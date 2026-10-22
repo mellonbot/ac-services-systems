@@ -88,6 +88,7 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   // a row that can never be right, not a commercial position to price.
   unknown_site: "structural",
   not_a_site: "structural",
+  tile_out_of_reach: "structural",
   bad_window: "structural",
   already_released: "structural",
   job_in_progress: "structural",
