@@ -57,7 +57,7 @@ const sceneRef = (canvas: HTMLCanvasElement | null): void => {
 export const home: Screen = (): VNode => {
   const portals = SURFACE_IDS.filter((id) => id !== "S1" && SURFACES[id].enabled);
   return html`<section class="s1-home">
-    <h1 class="s1-h1">${SITE_TITLE}</h1>
+    <h1 class="s1-h1 s1-sr-only">${SITE_TITLE}</h1>
     <p class="s1-lede">Sign in to the workspace for your role.</p>
 
     <section class="s1-surface-access" id="surface-logins" aria-labelledby="surface-logins-title">

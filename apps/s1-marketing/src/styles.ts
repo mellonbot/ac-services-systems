@@ -18,6 +18,8 @@
 export const S1_CSS = `
 .s1-app{display:flex;flex-direction:column;gap:var(--space-4)}
 .s1-enquire,.s1-coverage{max-width:var(--measure-text)}
+/* Read by a screen reader, not drawn: the home heading, which the titled masthead already shows. */
+.s1-sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .s1-nav{display:flex;align-items:center;gap:var(--space-4);padding-bottom:var(--space-2);border-bottom:1px solid var(--color-border)}
 .s1-nav__spacer{margin-inline-start:auto}
 .s1-h1{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-xl);text-transform:uppercase;letter-spacing:var(--track-normal)}
