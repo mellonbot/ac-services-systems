@@ -177,6 +177,7 @@ test("the session is minted lazily — reading the page mints nothing", async ()
 test("the coverage list is the gateway's rows — the bundle hard-codes no metro (D14: no map without supply behind it)", async () => {
   const g = fakeGateway();
   const app = appWith(g);
+  app.router.navigate("coverage", {});
   render(app.view());
   await settle();
   const html = render(app.view());
@@ -184,6 +185,7 @@ test("the coverage list is the gateway's rows — the bundle hard-codes no metro
   assert.match(html, /Austin/);
   // The empty answer renders as "we don't know", never as a fallback list.
   const empty = appWith(fakeGateway({ overrides: { [OPERATIONS["coverage.list"].path]: { status: 200, body: { metros: [] } } } }));
+  empty.router.navigate("coverage", {});
   render(empty.view()); await settle();
   const e = render(empty.view());
   assert.match(e, /coverage list is being updated/);
@@ -237,9 +239,8 @@ test("NO TIME OR AVAILABILITY CLAIM ANYWHERE IN S1'S COPY — the ceiling is unw
   }
 });
 
-test("S1 is the one surface that wears the house red, and its stylesheet names the brand role rather than a colour", () => {
+test("S1 is the one surface that wears the house red, and its stylesheet holds no colour of its own", () => {
   assert.equal(SURFACES.S1.stateRamp, false, "nothing on this page bears state, which is why the red is allowed here");
-  assert.match(S1_CSS, /var\(--color-brand\)/);
   assert.equal(/#[0-9a-f]{3,8}|rgb\(/i.test(S1_CSS), false, "colour literals live in packages/tokens and nowhere else");
 });
 

@@ -36,7 +36,7 @@ const FLAT_BELOW_PX = 640;
  * each frame by projecting their pad into the view; the canvas takes no input.
  *
  * Every colour but the equipment's is read from the page's Arc Foundry roles
- * at mount — stall lines from the surface, the
+ * at mount — the cones' collars from the surface, the
  * shop from the sunken well, posts, rails and doors from the hard border, fog
  * from the page ground, a lit pad from the action fill — so no colour literal
  * enters the surface. The truck, condensers and RTUs are assets
@@ -99,7 +99,7 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   scene.add(fill);
 
   // --- The yard: packed dirt (public/dirt.webp, tiled every 8 m; the hard border stands in until it
-  // arrives), stall lines in surface white, a kerb around the pads.
+  // arrives).
   const dirt = mat("border-hard", 1);
   const yard = new Mesh(new PlaneGeometry(260, 260), dirt);
   yard.rotation.x = -Math.PI / 2;
@@ -117,11 +117,9 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     if (still && loaded) draw();
   }, () => { /* no texture: the ground stays in the hard border */ });
   const stripe = mat("surface", 0.8);
-  for (let x = -36; x <= 36; x += 6) if (Math.abs(x) > 24) paint(0.16, 9, x, 4, stripe);
   const kerb = mat("border-hard");
+  // The bay's corners, where the cones stand.
   const bx = PAD_RX + 5, bz = PAD_RZ + 4;
-  paint(2 * bx, 0.18, 0, -bz, stripe); paint(2 * bx, 0.18, 0, bz, stripe);
-  paint(0.18, 2 * bz, -bx, 0, stripe); paint(0.18, 2 * bz, bx, 0, stripe);
 
   // --- The shop along the back: metal walls, roll-up doors, a low-pitch roof.
   const shopZ = -40;
