@@ -229,8 +229,7 @@ node tools/ci/build-surface.ts --all --minify
 #   unset             → development posture: cookies not Secure, origins from AC_DEV_ORIGINS (or none — bearer only).
 npm run gateway                     # :8080 — every route is a row in packages/contracts/src/operations.ts
 #   AC_IMAGERY_URL=https://…?c={lat},{lng}&z={zoom}&s={w}x{h}&key=…  AC_IMAGERY_ATTRIBUTION="© …"   → the site card's overhead imagery, fetched by the gateway (item 9). Unset → the card says so and draws the address alone.
-#   AC_MAP_TILE_URL=https://api.maptiler.com/maps/hybrid/256/{z}/{x}/{y}.jpg?key=…  AC_MAP_ATTRIBUTION="© MapTiler © OpenStreetMap contributors"   → S2's home map tiles, fetched by the gateway. Unset → the pin on a bare grid.
-#   AC_GEOCODE_URL=https://api.maptiler.com/geocoding/{q}.json?key=…&limit=1&country=us   → places a typed address on that map (sites.locate), once per site. Unset → the map says it cannot place the address.
+#   AC_MAPTILER_KEY=…   AC_MAP_ATTRIBUTION="© MapTiler © OpenStreetMap contributors"   → S2's home map: its tiles and the address lookup that places a typed address (sites.locate), both fetched by the gateway. AC_MAP_TILE_URL ({z}/{x}/{y}) / AC_GEOCODE_URL ({q}) override either. Unset → the map says so.
 npm run worker                      # outbox relay (1s), SLA cascade (60s), credential expiry (1h)
 docker build -t ac-gateway . && docker run --rm -p 8080:8080 -e DATABASE_URL=… -e AC_SIGNING_KEY_PEM="$(cat key.pem)" -e AC_SITE=ac.example ac-gateway
 #                                   # the two above as one container (infra/cloudflare/entrypoint.mjs) — what production runs, on Cloudflare Containers; see docs/CLOUDFLARE_PAGES.md
