@@ -72,6 +72,9 @@ test("each favicon art ships an animated PNG and a strip of the same frames, at 
     assert.ok(a.animated, `${art}: favicon.png is not animated`);
     assert.equal(a.frames, FAVICON.frames, `${art}: favicon.png frame count`);
     assert.deepEqual([s.w, s.h], [FAVICON.px * FAVICON.frames, FAVICON.px], `${art}: the strip is not ${FAVICON.frames} frames wide`);
+    const m = png(`${art}/${FAVICON.mark}`), t = png(`${art}${FAVICON.touch}`);
+    assert.deepEqual([m.w, m.h], [FAVICON.markPx * FAVICON.frames, FAVICON.markPx], `${art}: the mark strip is not ${FAVICON.frames} frames of ${FAVICON.markPx}px`);
+    assert.deepEqual([t.w, t.h], [FAVICON.touchPx, FAVICON.touchPx], `${art}: apple-touch-icon.png is not ${FAVICON.touchPx}px`);
   }
 });
 

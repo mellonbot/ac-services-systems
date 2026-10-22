@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import { build, type Plugin } from "esbuild";
 import { SURFACES, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { UI_CSS } from "../../packages/ui/src/styles.ts";
+import { badgeSvg } from "../../packages/tokens/src/brand.ts";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const HERE = fileURLToPath(new URL("./", import.meta.url));
@@ -142,7 +143,7 @@ const frames: Record<string, string> = {};
 for (const id of BUILT) frames[id] = await bundleSurface(id);
 const surfaces = (Object.keys(SURFACES) as SurfaceId[]).map((id) => ({ id, name: SURFACES[id].name, phase: SURFACES[id].phase, demoOnly: DEMO_ONLY_ENABLED.includes(id), block: SURFACES[id].block, built: BUILT.includes(id), density: SURFACES[id].density, authScope: SURFACES[id].authScope }));
 const tokens = /<style>(:root\{[^<]*\})<\/style>/.exec(readFileSync(join(ROOT, "apps/s2-service-manager/frame.html"), "utf8"))![1]!;
-const badge = /<svg class="ac-badge-mark__svg"[\s\S]*?<\/svg>/.exec(readFileSync(join(ROOT, "apps/s2-service-manager/frame.html"), "utf8"))![0].replace('width="40" height="40"', 'width="36" height="36" aria-hidden="true"');
+const badge = badgeSvg(64).replace(/^<svg /, '<svg class="ac-badge-mark__svg" width="36" height="36" aria-hidden="true" ');
 const json = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c");
 
 const gateway = await bundleGateway();

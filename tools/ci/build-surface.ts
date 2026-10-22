@@ -18,7 +18,7 @@
  *   chunks/      one per dynamic import() (S1's truck renderer), loaded when reached
  *   ui.css       the self-hosted @font-face block, then packages/ui UI_CSS — roles only, no colours
  *   fonts/       packages/tokens/fonts — the subset faces and their licences
- *   favicon.png, favicon-strip.png
+ *   favicon.png, favicon-strip.png, apple-touch-icon.png, mark-strip.png
  *                packages/tokens/icons/<art> — the turning truck on S5, the rooftop unit elsewhere
  *   (public/)    apps/<app>/public, copied as-is when the surface has one (S1's truck turntable)
  *
@@ -97,6 +97,7 @@ export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean; gate
     .replace('<meta name="ac-gateway" content="">', `<meta name="ac-gateway" content="${gateway.replace(/"/g, "")}">`)
     .replace('href="/ui.css"', `href="${assetPrefix}/ui.css"`)
     .replace('href="/favicon.png"', `href="${assetPrefix}/favicon.png"`)
+    .replace('href="/apple-touch-icon.png"', `href="${assetPrefix}/apple-touch-icon.png"`)
     .replaceAll('href="/fonts/', `href="${assetPrefix}/fonts/`)
     .replace('src="/bundle.js"', `src="${assetPrefix}/bundle.js"`);
   writeFileSync(join(outDir, "index.html"), index);

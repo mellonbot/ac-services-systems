@@ -71,6 +71,9 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
   text-decoration:none;color:inherit}
 .ac-badge-mark{display:inline-flex;flex:none}
 .ac-badge-mark__svg{display:block}
+/* The masthead mark: the tab's yard model turning on the livery square. The strip is
+   cycled by packages/ui/src/favicon.ts; it rests on frame 0 without it. */
+.ac-mast__mark{width:40px;height:40px;background:var(--color-livery) url("mark-strip.png") 0 0/auto 100% no-repeat}
 .ac-wordmark{font-family:var(--font-wordmark);font-size:var(--text-mast);line-height:1;
   color:var(--color-livery);padding-right:0.08em}
 .ac-wordmark__co{font-family:var(--font-label);font-weight:600;font-size:var(--text-xs);

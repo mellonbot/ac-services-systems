@@ -161,24 +161,31 @@ export const badgeSvg = (px: number = ICON_SIZES.masthead): string => {
 };
 
 /**
- * THE FAVICON — a yard model turning in a livery-red glow, not the badge.
+ * THE FAVICON AND THE MASTHEAD MARK — a yard model turning on a livery-red
+ * square, not the badge.
  *
  * Every surface's tab shows the packaged rooftop unit from S1's yard turning
  * once every 2.25s; S5, the technician's surface, shows the service truck
  * instead. Both are S1's own models (apps/s1-marketing/public/*.glb) rendered
  * by tools/icons/ into packages/tokens/icons/<art>/, so the tab and the yard
- * cannot drift apart. The glow is the livery red, solid behind the model and
- * faded to nothing inside the square, so no tab colour meets a hard edge; the
- * badge keeps the masthead, the app icon and the patch.
+ * cannot drift apart. The ground is the livery red, a solid square — the
+ * badge's own ground and shape — and the masthead turns the same frames beside
+ * the wordmark. The °R badge keeps the app icon and the patch.
  *
- * Two files per art: favicon.png, an animated PNG (Firefox plays it as-is),
- * and favicon-strip.png, the same frames side by side, which
+ * Four files per art: favicon.png, an animated PNG (Firefox plays it as-is);
+ * favicon-strip.png, the same frames side by side, which
  * packages/ui/src/favicon.ts cycles for every browser that shows only the first
- * frame. Under prefers-reduced-motion it rests on frame 0.
+ * frame; mark-strip.png, the masthead's frames at 2x its 40px; and
+ * apple-touch-icon.png, frame 0 at 180px, without which iOS draws a letter
+ * tile. Under prefers-reduced-motion both rest on frame 0.
  */
 export const FAVICON = Object.freeze({
   href: "/favicon.png",
   strip: "favicon-strip.png",
+  mark: "mark-strip.png",
+  markPx: 80,
+  touch: "/apple-touch-icon.png",
+  touchPx: ICON_SIZES.appIcon,
   px: 32,
   frames: 36,
   fps: 16,

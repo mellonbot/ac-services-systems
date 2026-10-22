@@ -160,11 +160,13 @@ The one rule that does most of the work: **every number in the company** — SLA
 staleness clocks, job numbers, gauge readings, invoice totals, tonnage, CFM — is set in the
 instrument face with tabular figures. Digits that hold their column are the entire effect.
 
-The script is a **mark, not a typeface**; the `°R` monogram is the badge, app icon and patch,
-and carries every size the script cannot. The **favicon is not the badge**: it is a yard model
-turning in a livery-red glow — the truck on S5, the rooftop unit on every other surface
-(`FAVICON` and `faviconArtFor` in `brand.ts`, art in `packages/tokens/icons/`, rendered from
-S1's own models by `tools/icons/`). `°R` is a real unit of measurement —
+The script is a **mark, not a typeface**; the `°R` monogram is the app icon and patch, and
+carries every size the script cannot. The **favicon and the masthead mark are not the badge**:
+both are a yard model turning on a solid livery-red square — the truck on S5, the rooftop unit
+on every other surface — turned on one timer by `packages/ui/src/favicon.ts` (`FAVICON` and
+`faviconArtFor` in `brand.ts`, art in `packages/tokens/icons/`, rendered from S1's own models
+by `tools/icons/`). Each art also ships a 180px `apple-touch-icon.png`, without which iOS
+draws a letter tile. `°R` is a real unit of measurement —
 degrees Rankine — so it is a credential, not an ornament, and the ring precedes the letter
 because `°R` is one indivisible symbol. `badgeSvg()` names **no** font family: an icon is
 fetched before any stylesheet, so on a machine without the face the mark silently becomes a
@@ -264,8 +266,8 @@ system. No backdrop blur, no gradient meshes, no blurred blobs, no emoji.
 on `--ease` `cubic-bezier(.2,.6,.3,1)`, emitted by `tokenCss` to every density. A transition
 names those variables and never a number; a control's state change moves and data does not
 (no entrance animation, no keyframes); and `prefers-reduced-motion: reduce` stills every
-control that moves. The turning favicon is brand-layer artwork, not interface, and is the one
-loop the system runs; it obeys the same rule and rests on its first frame under reduced motion. `styles.test.ts` checks all three.
+control that moves. The turning favicon and masthead mark are brand-layer artwork, not interface, and are the
+one loop the system runs; they obey the same rule and rest on their first frame under reduced motion. `styles.test.ts` checks all three.
 
 Never use `all: unset` on a control. It ties `:focus-visible` on specificity `(0,1,0)`, is
 declared later, and the cascade resolves per property rather than per state — which computed
