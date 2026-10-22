@@ -8,16 +8,16 @@
  * (packages/tokens/src/whitelabel.ts, and the registry's `stateRamp` flag,
  * which is `false` here and true everywhere else). Nothing on this page bears
  * state: an anonymous visitor has nothing under SLA and no compliance to
- * read. So `var(--color-brand)` is the real thing here, and this is the one
- * file in the repository where it is.
+ * read. So `--color-brand` is the real thing here: the sign-in yard
+ * (scene.ts) reads it for the forklift and the cones.
  *
  * `comfort` density: 44px controls, 15px body, hover affordances allowed.
  * This is also the only surface most people who ever touch the platform will
  * see, and the only one they will read on a phone in a car park.
  */
 export const S1_CSS = `
-.s1-app{display:flex;flex-direction:column;gap:var(--space-4);max-width:var(--measure-text);margin:0 auto}
-.ac-mast{max-width:calc(var(--measure-text) + 2 * var(--gutter))}
+.s1-app{display:flex;flex-direction:column;gap:var(--space-4)}
+.s1-enquire,.s1-coverage{max-width:var(--measure-text)}
 .s1-nav{display:flex;align-items:center;gap:var(--space-4);padding-bottom:var(--space-2);border-bottom:1px solid var(--color-border)}
 .s1-nav__spacer{margin-inline-start:auto}
 .s1-h1{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-xl);text-transform:uppercase;letter-spacing:var(--track-normal)}
@@ -37,11 +37,11 @@ export const S1_CSS = `
 /* ---- The sign-in yard: the outdoor service yard in 3D (src/scene.ts), after the ERS recovery
    line — the truck turning on a turntable, condensers and RTUs waiting behind it, a pad on the
    asphalt for each portal, and that portal's plate
-   pinned above its pad. The panel runs wider than the text column, to the page width less its
-   gutters. Live, each plate takes --x/--y from the scene's projection; until then, and where
+   pinned above its pad. The front page sits on the page grid, so the logo, the heading and the
+   panel share one left edge and the panel runs the page width. Live, each plate takes --x/--y from the scene's projection; until then, and where
    WebGL is unavailable, the plates sit on a CSS ellipse over the still (public/scene-still.webp).
    Under 40rem the plates leave the floor and stack under it. ---- */
-.s1-scene{position:relative;container-type:inline-size;width:min(100vw - 2 * var(--gutter), var(--page-max));margin:var(--space-4) calc(50% - min(50vw - var(--gutter), var(--page-max) / 2)) 0;border-radius:var(--radius-card);overflow:hidden;box-shadow:var(--elevation-card)}
+.s1-scene{position:relative;container-type:inline-size;margin-top:var(--space-4);border-radius:var(--radius-card);overflow:hidden;box-shadow:var(--elevation-card)}
 .s1-scene__stage{aspect-ratio:16/9;background:url(/scene-still.webp) center/cover no-repeat}
 .s1-scene[data-live] .s1-scene__stage{background:none}
 .s1-scene__stage canvas{display:block;width:100%;height:100%}
