@@ -76,7 +76,7 @@ const homeMap = (ctx: ScreenContext, site: AccountWire): VNode => {
     : probe.value.unavailable === "not_configured" ? "No basemap provider is configured — the pin is drawn on the bare tile grid."
     : probe.value.unavailable === "provider_unreachable" ? "The basemap provider did not answer — the pin is drawn on the bare tile grid."
     : null;
-  const attribution = probe.state === "ready" ? probe.value.attribution : null;
+  const attribution = basemap && probe.state === "ready" ? probe.value.attribution : null;
 
   const down = (e: PointerEvent) => {
     if (e.button !== 0) return;
