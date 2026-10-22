@@ -22,7 +22,7 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SURFACES, SURFACE_IDS, type Surface, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import {
-  DENSITY, tokenCss, BRAND, FAVICON, semanticFor, badgeSvg,
+  DENSITY, tokenCss, BRAND, FAVICON, semanticFor,
   SEMANTIC, FACES, ACCENT_GATE, BULLETIN_ERRATA, WORDMARK_FLOOR, FONT_FILES,
 } from "../../packages/tokens/src/index.ts";
 // Not via index.ts: figures.ts is the table of every number the system states
@@ -226,13 +226,14 @@ const GENERATED_STATUS_APPS: readonly SurfaceId[] = SURFACE_IDS.filter((id) => !
  * the same flag `tokenCss` used to resolve the brand roles, carried into the
  * markup so a reviewer can see which layer a frame is on without reading CSS.
  *
- * The badge is inline SVG rather than a linked file: it is the mark a surface
- * shows before its stylesheet has loaded, and a masthead that depends on a
- * second request is a masthead that flashes empty on the tablet.
+ * The mark is the yard model turning in the livery-red glow — the same art as
+ * the tab (FAVICON in packages/tokens/src/brand.ts). The strip is the one
+ * request the masthead waits for; until it lands the slot holds its space
+ * empty. The °R badge keeps the app icon and the patch.
  */
 export const renderMasthead = (s: Surface): string => {
   const brandLayer = s.stateRamp ? "false" : "true";
-  const badge = `<span class="ac-badge-mark" aria-hidden="true">${badgeInline()}</span>`;
+  const badge = `<span class="ac-mast__mark" aria-hidden="true"></span>`;
   const wordmark = `<span class="ac-wordmark">${escapeHtml(BRAND.name)}</span>`;
   const co = `<span class="ac-wordmark__co">${escapeHtml(BRAND.descriptor)}</span>`;
   // A titled masthead (S1) runs the rule the full width under the wordmark,
@@ -259,9 +260,6 @@ ${co}
 /** S1's name for itself — its tab title and its masthead title. */
 const S1_SITE_TITLE = `${BRAND.works.firm} — Service System`;
 
-/** The badge at masthead size — no optical correction, because nothing here is 16px. */
-const badgeInline = (): string => badgeSvg(64).replace(/^<svg /, '<svg class="ac-badge-mark__svg" width="40" height="40" ');
-
 export const renderFrame = (s: Surface): string => `<!doctype html>
 <!-- GENERATED from packages/contracts/src/surfaces.ts by tools/ci/emit-surfaces.ts. Do not edit. -->
 <html lang="en" data-surface="${s.id}" data-density="${s.density}"${s.enabled ? "" : ` data-enabled="false"`}>
@@ -273,6 +271,7 @@ export const renderFrame = (s: Surface): string => `<!doctype html>
 <title>${escapeHtml(s.id === "S1" ? S1_SITE_TITLE : `${s.name} — ${BRAND.legalName}`)}</title>
 <meta name="theme-color" content="${semanticFor(s.density)["color.surface"]}">
 <link rel="icon" type="image/png" sizes="${FAVICON.px}x${FAVICON.px}" href="${FAVICON.href}">
+<link rel="apple-touch-icon" sizes="${FAVICON.touchPx}x${FAVICON.touchPx}" href="${FAVICON.touch}">
 <style>${tokenCss(s.density, { brandLayer: !s.stateRamp })}</style>
 ${FONT_FILES.filter((f) => f.preload).map((f) => `<link rel="preload" href="/fonts/${f.file}" as="font" type="font/woff2" crossorigin>`).join("\n")}
 <link rel="stylesheet" href="/ui.css">${s.whiteLabel ? `
