@@ -7,6 +7,7 @@ import { UI_CSS } from "../../../packages/ui/src/styles.ts";
 import { SCREENS } from "./screens.ts";
 import { confirmPanel } from "./screens/common.ts";
 import { orderTree, showSegment, showCustomerCard } from "./screens/accounts-tree.ts";
+import { serviceHistoryOf, panMap, recentreMap } from "./screens/home-card.ts";
 import { parentCandidates } from "./screens/accounts-move.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { Principal, AccountWire, HierarchyContext } from "../../../packages/contracts/src/index.ts";
@@ -38,6 +39,26 @@ const NODES: AccountWire[] = [
   { id: AUSTIN, tier: "location", name: "Amped Austin", parentId: N_SOUTH, regionId: SOUTH, customerGroup: "Texas", externalRef: null, timezone: null, active: true, address: null, path: [N_SOUTH, AUSTIN] },
 ];
 
+const TURNER = "0e000000-0000-4000-8000-000000000099", HOME = U(40);
+const HOME_NODES: AccountWire[] = [
+  { id: U(41), tier: "region", name: "Turner / South", parentId: null, regionId: SOUTH, customerGroup: null, externalRef: null, timezone: null, active: true, address: null, path: [U(41)] },
+  { id: U(42), tier: "location", name: "Turner household", parentId: U(41), regionId: SOUTH, customerGroup: null, externalRef: null, timezone: null, active: true, address: null, path: [U(41), U(42)] },
+  { id: HOME, tier: "site", name: "4012 Ridgeview Dr", parentId: U(42), regionId: SOUTH, customerGroup: null, externalRef: null, timezone: null, active: true,
+    address: { line1: "4012 Ridgeview Dr", city: "Fort Worth", state: "TX", postal: "76109", lat: 32.7101, lng: -97.3812 }, path: [U(41), U(42), HOME] },
+];
+const job = (n: number, state: string, end: string, siteId = HOME) => ({
+  id: U(n), siteId, siteName: "4012 Ridgeview Dr", siteAddress: null, contractId: null, projectId: null, serviceCode: "spring_tune_up", priority: "routine", state,
+  serviceWindowStart: end, serviceWindowEnd: end, version: 1, openedAt: end, stateChangedAt: end, regionId: SOUTH, orgId: TURNER, customerSegment: "residential",
+  currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null, slaDueAt: null, slaEscalationStage: null, slaSatisfiedAt: null, returnTrip: false, latestNote: null,
+});
+const HOME_JOBS = [
+  { ...job(31, "invoiced", "2026-05-02T18:00:00.000Z"), serviceCode: "compressor_replacement", latestNote: { body: "Replaced the compressor under warranty", at: "2026-05-02T18:00:00.000Z" } },
+  job(32, "invoiced", "2025-04-11T18:00:00.000Z"),
+  job(33, "in_progress", "2026-10-22T18:00:00.000Z"),
+  job(34, "complete", "2025-10-03T18:00:00.000Z"),
+  job(35, "invoiced", "2025-01-01T18:00:00.000Z", ROOF),
+];
+
 /** A gateway that speaks the catalogue's paths. `session` flips when login succeeds — the cookie the browser would hold. */
 const fakeGateway = () => {
   let session = false;
@@ -57,7 +78,12 @@ const fakeGateway = () => {
     if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true }, { id: WEST, code: "WEST", name: "West", timezone: "America/Los_Angeles", minCrewDensity: 0, active: true }] });
     if (path === OPERATIONS["organizations.list"].path) return reply(200, { organizations: [{ id: ORG, name: "Amped Fitness Inc.", kind: "customer", segment: "commercial", externalRef: null, active: true, regionNodeCount: 2 },
       { id: "0e000000-0000-4000-8000-000000000099", name: "Turner residence", kind: "customer", segment: "residential", externalRef: null, active: true, regionNodeCount: 1 }] });
-    if (path === OPERATIONS["accounts.list"].path) return reply(200, { nodes: NODES });
+    if (path === OPERATIONS["accounts.list"].path) return reply(200, { nodes: new URL(url).searchParams.get("orgId") === TURNER ? HOME_NODES : NODES });
+    if (path === OPERATIONS["jobs.list"].path) return reply(200, { jobs: HOME_JOBS });
+    if (path === OPERATIONS["sites.mapTile"].path) {
+      const q = new URL(url).searchParams;
+      return reply(200, { z: Number(q.get("z")), x: Number(q.get("x")), y: Number(q.get("y")), image: null, attribution: null, unavailable: "not_configured" });
+    }
     if (path === OPERATIONS["contracts.list"].path) {
       const residential = new URL(url).searchParams.get("orgId") !== ORG;
       return reply(200, { contracts: [{ id: U(70), scopeTier: "parent", scopeId: ORG, kind: "msa", parentContractId: null, billingPath: residential ? "residential_membership" : "enterprise_sla", regionId: SOUTH, signedAt: "2025-07-09", effectiveFrom: "2025-07-09", effectiveTo: null, diagnosticDataRightsReserved: true, documentKey: null, state: "active" }] });
@@ -378,4 +404,68 @@ test("ACCOUNTS: each customer says residential or commercial, and the type chips
   assert.match(out, /Turner residence/);
   assert.doesNotMatch(out, /Amped Fitness Inc\./, "commercial customers are filtered out, not fetched again");
   showSegment("all");
+});
+
+test("ACCOUNTS: a residential customer, selected, gets its card with the home pinned on a map and every finished visit there, oldest first", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("accounts.tree", { orgId: TURNER });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const out = render(app.view());
+  assert.match(out, /id="home-card"/);
+  assert.match(out, /id="home-customer-card"/);
+  assert.match(out, /4012 Ridgeview Dr/);
+  assert.match(out, /id="home-map"[^>]*data-basemap="grid"/, "no provider configured → the pin on the bare grid");
+  assert.match(out, /class="s2-map__pin"/);
+  assert.match(out, /32\.71010, -97\.38120/);
+  assert.match(out, /No basemap provider is configured/);
+  // One probe tile, not a screenful, when the gateway says there is no provider.
+  assert.equal(gw.calls.filter((c) => c.path === OPERATIONS["sites.mapTile"].path).length, 1);
+  // History: finished jobs at this home only, in the order they happened.
+  const rows = [...out.matchAll(/spring tune up|compressor replacement/g)].map((m) => m[0]);
+  assert.deepEqual(rows, ["spring tune up", "spring tune up", "compressor replacement"]);
+  assert.match(out, /Replaced the compressor under warranty/);
+  assert.match(out, />Complete</);
+  assert.deepEqual(serviceHistoryOf(HOME_JOBS as never, HOME).map((j) => j.id), [U(32), U(34), U(31)]);
+  // A drag past the edge of what the gateway will serve stops at the edge.
+  const before = render(app.view()).match(/s2-map__pin[^>]*left:calc\(50% \+ (-?\d+)px\)/)![1];
+  panMap(HOME_NODES[2]!, 32.7101, -97.3812, 1e6, 0);
+  const after = Number(render(app.view()).match(/s2-map__pin[^>]*left:calc\(50% \+ (-?\d+)px\)/)![1]);
+  assert.equal(before, "0");
+  assert.ok(after < 0 && after >= -(4 + 1) * 256, `clamped to the reach box, got ${after}`);
+  recentreMap();
+});
+
+test("ACCOUNTS: a commercial customer, selected, gets its tree and no home card", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("accounts.tree", { orgId: ORG });
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  const out = render(app.view());
+  assert.match(out, /Amped \/ South/);
+  assert.doesNotMatch(out, /id="home-card"/);
+  assert.equal(gw.calls.filter((c) => c.path === OPERATIONS["jobs.list"].path).length, 0);
+});
+
+test("ACCOUNTS: with a basemap provider, the home's map is the gateway's tiles around the pin, with the provider's credit", async () => {
+  const gw = fakeGateway();
+  const tiles: string[] = [];
+  const fetch: FetchLike = async (url, init) => {
+    const u = new URL(url);
+    if (u.pathname !== OPERATIONS["sites.mapTile"].path) return gw.fetch(url, init);
+    tiles.push(`${u.searchParams.get("z")}/${u.searchParams.get("x")}/${u.searchParams.get("y")}`);
+    const body = { z: 17, x: 0, y: 0, image: "data:image/png;base64,AAAA", attribution: "© Tiles Co", unavailable: null };
+    return { status: 200, ok: true, json: async () => body, text: async () => JSON.stringify(body), body: null };
+  };
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("accounts.tree", { orgId: TURNER });
+  for (let i = 0; i < 5; i++) { render(app.view()); await settle(); }
+  const out = render(app.view());
+  assert.match(out, /data-basemap="tiles"/);
+  assert.match(out, /© Tiles Co/);
+  assert.ok(tiles.length > 4 && tiles.every((t) => t.startsWith("17/")), `a screenful of zoom-17 tiles, got ${tiles.length}`);
+  assert.ok((out.match(/<img src="data:image\/png;base64,AAAA"/g) ?? []).length >= 4);
 });

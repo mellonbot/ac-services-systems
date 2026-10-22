@@ -26,7 +26,7 @@ import { createResidential, listLeads, convertLead } from "./handlers/residentia
 import { storeFromEnv } from "../../../packages/storage/src/index.ts";
 import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
 import { listEquipment, registerEquipment, listContacts, setContact, listInvoices } from "./handlers/site-record.ts";
-import { siteImagery, imageryConfigFromEnv } from "./handlers/imagery.ts";
+import { siteImagery, imageryConfigFromEnv, siteMapTile, mapTileConfigFromEnv } from "./handlers/imagery.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
 import { SURFACES, admits, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
@@ -92,6 +92,9 @@ const SESSION = sessionConfigFromEnv(process.env);
 // Item 9: the overhead-imagery provider, if one is configured. Unset → the
 // site card gets "not_configured" and draws the address alone (OPEN-S6-IMAGERY).
 const IMAGERY = imageryConfigFromEnv(process.env);
+// S2's home map: the basemap tile provider, if one is configured. Unset → the
+// map draws the pin on a plain grid and says why.
+const MAP_TILES = mapTileConfigFromEnv(process.env);
 // Object storage for photos (0017): an R2 bucket, a directory, or not
 // configured — in which case an upload is refused in words, not a 500.
 const STORE = storeFromEnv(process.env, (url, init) => fetch(url, init as RequestInit));
@@ -546,6 +549,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "contacts.set": (req, input) => withUow(req, "contacts.set", (uow) => setContact(uow, input, randomUUID)),
   "invoices.list": (req, input) => withRead(req, "invoices.list", (uow) => listInvoices(uow, input)),
   "sites.imagery": (req, input) => withRead(req, "sites.imagery", (uow) => siteImagery(uow, input, IMAGERY, fetch)),
+  "sites.mapTile": (req, input) => withRead(req, "sites.mapTile", (uow) => siteMapTile(uow, input, MAP_TILES, fetch)),
 
   // item 6 — S6's first write, and the office's read of it.
   "serviceRequests.create": (req, input) => withUow(req, "serviceRequests.create", (uow, p) => createServiceRequest(uow, p.subjectId, input, randomUUID)),

@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 105 today. There is no
+ * One method per operation in the catalogue — 106 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -654,6 +654,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["sites.list"], undefined) as Promise<OperationIO["sites.list"]["output"]>;
   },
 
+  /** `GET /s2/sites/map-tile` · query · bearer · surfaces: S2
+   *
+   * One web-mercator basemap tile near a site, fetched by the GATEWAY from the configured tile provider (AC_MAP_TILE_URL) and returned inline — the same reasons as sites.imagery: no key in a bundle, no customer's coordinates sent to a third party from a browser. Only tiles within MAP_TILE_REACH of the site's own tile, at MAP_ZOOM_MIN–MAP_ZOOM_MAX, are served: a pan around a home, not a free tile proxy. Unavailable is an answer: not configured, no coordinates, provider unreachable. */
+  siteMapTile(input: OperationIO["sites.mapTile"]["input"]): Promise<OperationIO["sites.mapTile"]["output"]> {
+    return transport.request(OPERATIONS["sites.mapTile"], input) as Promise<OperationIO["sites.mapTile"]["output"]>;
+  },
+
   /** `POST /s5/sync` · mutation · bearer · surfaces: S5
    *
    * Replay a device's offline log in device order. The device is the source of intent; the server is the source of truth. */
@@ -749,4 +756,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "addJobNote", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "createOrganization", "listOrganizations", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "addJobNote", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "createOrganization", "listOrganizations", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "siteMapTile", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);

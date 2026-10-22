@@ -1,6 +1,6 @@
 import type { UnitOfWork } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
-import type { SiteImageryInput, SiteImageryOutput, AddressWire } from "../../../../packages/contracts/src/operations.ts";
+import { MAP_TILE_REACH, MAP_ZOOM_MAX, MAP_ZOOM_MIN, tileOf, type SiteImageryInput, type SiteImageryOutput, type SiteMapTileInput, type SiteMapTileOutput, type AddressWire } from "../../../../packages/contracts/src/operations.ts";
 
 /**
  * ITEM 9 — OVERHEAD IMAGERY OF A SITE, served by the gateway.
@@ -92,6 +92,80 @@ export const siteImagery = async (
     if (bytes.byteLength === 0 || bytes.byteLength > MAX_BYTES) return { ...base, image: null, unavailable: "provider_unreachable" };
     const image = `data:${type};base64,${bytes.toString("base64")}`;
     cache.set(key, { at: now(), image });
+    return { ...base, image, unavailable: null };
+  } catch {
+    return { ...base, image: null, unavailable: "provider_unreachable" };
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+/**
+ * S2's HOME MAP — one basemap tile at a time, by the same route and for the
+ * same reasons as the picture above: the office's browser asks the gateway,
+ * the gateway asks the provider. The provider is a {z}/{x}/{y} template:
+ *
+ *   AC_MAP_TILE_URL          e.g. https://tiles.example/{z}/{x}/{y}.png?key=…
+ *   AC_MAP_ATTRIBUTION       the credit line the provider's terms require
+ *
+ * A tile is served only near a site this principal can see — within
+ * MAP_TILE_REACH tiles of the site's own, at MAP_ZOOM_MIN–MAP_ZOOM_MAX — so a
+ * signed-in session is a pan around a home, not a free proxy onto a provider
+ * that bills per fetch. Cached by tile, not by site: two homes on a street
+ * share their tiles.
+ */
+export type MapTileConfig = { readonly urlTemplate: string | null; readonly attribution: string | null };
+export const mapTileConfigFromEnv = (env: NodeJS.ProcessEnv = process.env): MapTileConfig => ({
+  urlTemplate: env.AC_MAP_TILE_URL?.trim() || null,
+  attribution: env.AC_MAP_ATTRIBUTION?.trim() || null,
+});
+
+const MAX_TILE_BYTES = 400_000;
+const tileCache = new Map<string, Cached>();
+export const clearMapTileCache = () => tileCache.clear();
+
+const intIn = (v: unknown, name: string, lo: number, hi: number): number => {
+  const n = typeof v === "string" && v.trim() !== "" ? Number(v) : v;
+  if (typeof n !== "number" || !Number.isInteger(n) || n < lo || n > hi) throw new BadInput(`${name} must be an integer in ${lo}..${hi}`);
+  return n;
+};
+
+export const siteMapTile = async (
+  uow: UnitOfWork, input: SiteMapTileInput, config: MapTileConfig, fetcher: Fetcher, now: () => number = Date.now,
+): Promise<SiteMapTileOutput> => {
+  if (typeof input.siteId !== "string" || !UUID.test(input.siteId)) throw new BadInput("siteId must be a uuid");
+  const z = intIn(input.z, "z", MAP_ZOOM_MIN, MAP_ZOOM_MAX);
+  const x = intIn(input.x, "x", 0, 2 ** z - 1), y = intIn(input.y, "y", 0, 2 ** z - 1);
+  const site = (await uow.tx.query<{ id: string; tier: string; address: AddressWire | null }>(
+    `SELECT id, tier, address FROM accounts WHERE id = $1`, [input.siteId],
+  ))[0];
+  if (!site) throw new InputRefused(`no node ${input.siteId} visible in this scope`, "unknown_site");
+  if (site.tier !== "site") throw new InputRefused(`"${input.siteId}" is a ${site.tier}, not a site`, "not_a_site");
+
+  const base = { z, x, y, attribution: config.attribution };
+  const at = coordinatesOf(site.address);
+  if (!config.urlTemplate) return { ...base, image: null, unavailable: "not_configured" };
+  if (!at) return { ...base, image: null, unavailable: "no_coordinates" };
+  const home = tileOf(at.lat, at.lng, z);
+  if (Math.abs(x - Math.floor(home.x)) > MAP_TILE_REACH || Math.abs(y - Math.floor(home.y)) > MAP_TILE_REACH)
+    throw new InputRefused(`tile ${z}/${x}/${y} is more than ${MAP_TILE_REACH} tiles from the site`, "tile_out_of_reach");
+
+  const key = `${z}/${x}/${y}`;
+  const hit = tileCache.get(key);
+  if (hit && now() - hit.at < TTL_MS) return { ...base, image: hit.image, unavailable: null };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const url = config.urlTemplate.replaceAll("{z}", String(z)).replaceAll("{x}", String(x)).replaceAll("{y}", String(y));
+    const res = await fetcher(url, { signal: controller.signal });
+    if (!res.ok) return { ...base, image: null, unavailable: "provider_unreachable" };
+    const type = (res.headers.get("content-type") ?? "").split(";")[0]!.trim();
+    if (!/^image\/(png|jpeg|webp)$/.test(type)) return { ...base, image: null, unavailable: "provider_unreachable" };
+    const bytes = Buffer.from(await res.arrayBuffer());
+    if (bytes.byteLength === 0 || bytes.byteLength > MAX_TILE_BYTES) return { ...base, image: null, unavailable: "provider_unreachable" };
+    const image = `data:${type};base64,${bytes.toString("base64")}`;
+    tileCache.set(key, { at: now(), image });
     return { ...base, image, unavailable: null };
   } catch {
     return { ...base, image: null, unavailable: "provider_unreachable" };

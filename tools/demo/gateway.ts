@@ -773,6 +773,10 @@ const H: Partial<Record<OperationId, Handler>> = {
     const a = accounts.find((x) => x.id === i.siteId);
     return { siteId: i.siteId, lat: a?.address?.lat ?? null, lng: a?.address?.lng ?? null, image: null, attribution: null, unavailable: a?.address?.lat !== undefined ? "not_configured" : "no_coordinates" };
   },
+  "sites.mapTile": (i: W.SiteMapTileInput) => {
+    const a = accounts.find((x) => x.id === i.siteId);
+    return { z: Number(i.z), x: Number(i.x), y: Number(i.y), image: null, attribution: null, unavailable: a?.address?.lat !== undefined ? "not_configured" : "no_coordinates" };
+  },
 
   // ---- agreements & terms ----
   "contracts.list": (i: W.ListContractsInput, { p }) => {
