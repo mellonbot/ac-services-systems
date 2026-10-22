@@ -32,6 +32,8 @@ test("the address is asked for as one line of words; the geocoder template is re
   assert.equal(addressQuery(ADDRESS), "4012 Ridgeview Dr, Fort Worth, TX 76109");
   assert.equal(addressQuery({ city: "Fort Worth" }), null, "no street line is not an address to pin");
   assert.deepEqual(geocodeConfigFromEnv({}), { urlTemplate: null });
+  assert.deepEqual(geocodeConfigFromEnv({ AC_MAPTILER_KEY: "k/1" }), { urlTemplate: "https://api.maptiler.com/geocoding/{q}.json?limit=1&country=us&key=k%2F1" }, "one key fills the geocoder");
+  assert.deepEqual(geocodeConfigFromEnv({ AC_MAPTILER_KEY: "k", AC_GEOCODE_URL: "https://other/{q}" }), { urlTemplate: "https://other/{q}" }, "an explicit template wins");
 });
 
 test("an address-level match is written onto the address through accounts.update — audited, account.updated", async () => {

@@ -116,8 +116,17 @@ export const siteImagery = async (
  * share their tiles.
  */
 export type MapTileConfig = { readonly urlTemplate: string | null; readonly attribution: string | null };
+/**
+ * One MapTiler key is enough: AC_MAPTILER_KEY fills both templates below —
+ * satellite-with-labels tiles and US address geocoding. AC_MAP_TILE_URL or
+ * AC_GEOCODE_URL, when set, win, for another style or another provider.
+ */
+const maptiler = (env: NodeJS.ProcessEnv, path: string): string | null => {
+  const key = env.AC_MAPTILER_KEY?.trim();
+  return key ? `https://api.maptiler.com/${path}${path.includes("?") ? "&" : "?"}key=${encodeURIComponent(key)}` : null;
+};
 export const mapTileConfigFromEnv = (env: NodeJS.ProcessEnv = process.env): MapTileConfig => ({
-  urlTemplate: env.AC_MAP_TILE_URL?.trim() || null,
+  urlTemplate: env.AC_MAP_TILE_URL?.trim() || maptiler(env, "maps/hybrid/256/{z}/{x}/{y}.jpg"),
   attribution: env.AC_MAP_ATTRIBUTION?.trim() || null,
 });
 
@@ -190,7 +199,9 @@ export const siteMapTile = async (
  * or postcode centroid would put the pin in somebody else's yard.
  */
 export type GeocodeConfig = { readonly urlTemplate: string | null };
-export const geocodeConfigFromEnv = (env: NodeJS.ProcessEnv = process.env): GeocodeConfig => ({ urlTemplate: env.AC_GEOCODE_URL?.trim() || null });
+export const geocodeConfigFromEnv = (env: NodeJS.ProcessEnv = process.env): GeocodeConfig => ({
+  urlTemplate: env.AC_GEOCODE_URL?.trim() || maptiler(env, "geocoding/{q}.json?limit=1&country=us"),
+});
 export type JsonFetcher = (url: string, init: { signal: AbortSignal }) => Promise<{ ok: boolean; json(): Promise<unknown> }>;
 
 const PRECISE = new Set(["address", "poi"]);

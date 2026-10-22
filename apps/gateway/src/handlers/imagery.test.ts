@@ -82,6 +82,8 @@ const homeTile = (z: number) => { const t = tileOf(30.2672, -97.7431, z); return
 
 test("map tile: the home's own tile is fetched by the gateway from the {z}/{x}/{y} template, once, and served inline with its credit", async () => {
   assert.deepEqual(mapTileConfigFromEnv({}), { urlTemplate: null, attribution: null });
+  assert.equal(mapTileConfigFromEnv({ AC_MAPTILER_KEY: "k" }).urlTemplate, "https://api.maptiler.com/maps/hybrid/256/{z}/{x}/{y}.jpg?key=k", "one key fills the tiles");
+  assert.equal(mapTileConfigFromEnv({ AC_MAPTILER_KEY: "k", AC_MAP_TILE_URL: "https://other/{z}/{x}/{y}" }).urlTemplate, "https://other/{z}/{x}/{y}");
   const calls: string[] = [];
   const { x, y } = homeTile(16);
   const a = await siteMapTile(await uowFor(scripted(withCoords)), { siteId: SITE, z: 16, x, y }, tiles, okFetch(calls));

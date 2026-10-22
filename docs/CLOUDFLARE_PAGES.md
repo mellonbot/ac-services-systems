@@ -67,29 +67,23 @@ npx wrangler@4 secret put DATABASE_URL       -c infra/cloudflare/wrangler.jsonc 
 rm /tmp/ac-signing.pem
 ```
 
-Optional — S2's home map (Accounts → a residential customer). The tiles are
-MapTiler's, fetched by the gateway, so the key lives here and never in a
-bundle. Use a key with **no allowed-origin restriction** (the gateway sends no
-browser Origin), and the 256px raster endpoint — the gateway draws 256px tiles:
+Optional — S2's home map (Accounts → a residential customer). One MapTiler
+key gives it both its tiles and the address lookup that places a typed
+address on them (the first time a home's map opens, the gateway geocodes it
+once and writes the point onto the site's address — an audited
+`accounts.update`). The key lives here and never in a bundle. Use a key with
+**no allowed-origin restriction** — the gateway sends no browser Origin:
 
 ```bash
-npx wrangler@4 secret put AC_MAP_TILE_URL -c infra/cloudflare/wrangler.jsonc
-# paste: https://api.maptiler.com/maps/hybrid/256/{z}/{x}/{y}.jpg?key=<KEY>
+npx wrangler@4 secret put AC_MAPTILER_KEY -c infra/cloudflare/wrangler.jsonc   # paste the key alone
 ```
 
-An address is typed as words, so the map also needs the geocoder that turns
-it into a point — the same MapTiler key, its Geocoding API. The first time a
-home's map is opened the gateway asks it once and writes the point onto the
-site's address (an audited `accounts.update`):
-
-```bash
-npx wrangler@4 secret put AC_GEOCODE_URL -c infra/cloudflare/wrangler.jsonc
-# paste: https://api.maptiler.com/geocoding/{q}.json?key=<KEY>&limit=1&country=us
-```
-
-`AC_MAP_ATTRIBUTION` is already a plain var in `wrangler.jsonc`. Unset, the map
-draws the pin on a bare grid and says no provider is configured. A secret
-reaches the container when it next starts — the next deploy.
+That fills satellite-with-labels 256px tiles and US address geocoding. For
+another style or provider, set `AC_MAP_TILE_URL` (`{z}/{x}/{y}`) or
+`AC_GEOCODE_URL` (`{q}`) as full URL templates; either wins over the key.
+`AC_MAP_ATTRIBUTION` is already a plain var in `wrangler.jsonc`. Unset, the
+map says no provider is configured. A secret reaches the container when it
+next starts — the next deploy.
 
 Paste the connection string exactly as the provider shows it for psql.
 PlanetScale's ends in `sslmode=verify-full&sslrootcert=system`; the gateway

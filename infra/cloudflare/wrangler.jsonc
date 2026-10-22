@@ -7,9 +7,9 @@
 //   npx wrangler@4 tail -c infra/cloudflare/wrangler.jsonc
 //
 // Secrets (never in this file): DATABASE_URL, AC_SIGNING_KEY_PEM; optional
-// AC_IMAGERY_URL, AC_IMAGERY_ATTRIBUTION (OPEN-S6-IMAGERY); AC_MAP_TILE_URL, S2's home
-// map tiles, and AC_GEOCODE_URL, which places a typed address on that map — both
-// MapTiler, the key in the URL, so secrets (docs/CLOUDFLARE_PAGES.md).
+// AC_IMAGERY_URL, AC_IMAGERY_ATTRIBUTION (OPEN-S6-IMAGERY); AC_MAPTILER_KEY, which
+// gives S2's home map both its tiles and its address lookup (AC_MAP_TILE_URL and
+// AC_GEOCODE_URL override either, for another style or provider) — docs/CLOUDFLARE_PAGES.md.
 // Requires the Workers Paid plan (Containers).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
