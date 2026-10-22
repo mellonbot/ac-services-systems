@@ -72,13 +72,7 @@ export const CustomerCardSpec = declare({
   notes: "What the customer sees of themselves — S6's account card for a commercial customer, its home card for a homeowner — drawn once, so the office's hover in S2 shows the same card. Read-only. No field variant: a crew reads the job, not the account.",
 });
 
-export const ShiftCardSpec = declare({
-  name: "ShiftCard",
-  densities: ["console", "comfort"] as const,
-  notes: "A card that shifts when engaged — the middle folds away, the well at the foot rises with the detail. Engaged is hover or focus, so no field variant: a tablet has no cursor, and detail a crew must tap to find is detail a crew does not see.",
-});
-
 /** Every spec, for the guard and the docs. */
 export const COMPONENT_SPECS = Object.freeze([
-  DataGridSpec, ComplianceBadgeSpec, StatusPillSpec, PrimaryActionSpec, RefusalCardSpec, DegradedBannerSpec, RefusalNoticeSpec, CustomerCardSpec, ShiftCardSpec,
+  DataGridSpec, ComplianceBadgeSpec, StatusPillSpec, PrimaryActionSpec, RefusalCardSpec, DegradedBannerSpec, RefusalNoticeSpec, CustomerCardSpec,
 ] as const);
