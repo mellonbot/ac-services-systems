@@ -40,13 +40,13 @@ const now = new Date("2026-09-17T12:00:00Z");
 
 const job = { id: JOB, ws: "2026-09-18T09:00:00.000Z", we: "2026-09-18T17:00:00.000Z", state: "created", region_id: REGION, org_id: ORG };
 const clearedCrew = { id: CREW, label: "Crew A1", active: true, employment_type: "employed" };
-const clearedCreds = [{ id: U(10), kind: "license", valid_from: "2026-01-01", valid_to: "2026-12-31", verified_at: "2026-01-02T00:00:00Z" },
-  { id: U(11), kind: "background_check", valid_from: "2026-01-01", valid_to: "2026-12-31", verified_at: "2026-01-02T00:00:00Z" }];
+const clearedCreds = [{ crew_id: CREW, id: U(10), kind: "license", valid_from: "2026-01-01", valid_to: "2026-12-31", verified_at: "2026-01-02T00:00:00Z" },
+  { crew_id: CREW, id: U(11), kind: "background_check", valid_from: "2026-01-01", valid_to: "2026-12-31", verified_at: "2026-01-02T00:00:00Z" }];
 
 test("assignCrew satisfies the job's open SLA timer on success — the response the cascade is timing", async () => {
   const s = scripted([
     ["FROM jobs WHERE id", [job]],
-    ["FROM crews WHERE id", [clearedCrew]],
+    ["WHERE c.id = $1", [clearedCrew]],
     ["FROM crew_credentials", clearedCreds],
     ["INSERT INTO compliance_clearances", [{ id: U(20) }]],
     ["INSERT INTO assignments", [{ id: U(21) }]],
@@ -69,8 +69,9 @@ test("candidateCrews is a DRY RUN over every active crew in the job's region —
     async query(sql, params: readonly unknown[] = []) {
       queries.push({ sql, params });
       if (sql.includes("FROM jobs WHERE id")) return [job] as never;
-      if (sql.includes("FROM crews WHERE home_region_id")) return [clearedCrew, uncleared] as never;
-      if (sql.includes("FROM crew_credentials")) return (params[0] === CREW ? clearedCreds : []) as never;
+      if (sql.includes("WHERE c.home_region_id")) return [clearedCrew, uncleared] as never;
+      // One query for every crew: each crew's file is keyed by crew_id, and must reach only that crew.
+      if (sql.includes("FROM crew_credentials")) return ((params[0] as string[]).includes(CREW) ? clearedCreds : []) as never;
       return [] as never;
     },
     async insert() {},

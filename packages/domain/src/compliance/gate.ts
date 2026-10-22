@@ -17,6 +17,12 @@ export type Crew = {
    * `employment_type` is barred from the field layer by lint rule and CI guard.
    */
   readonly employmentType: "employed" | "subcontracted";
+  /**
+   * The employing firm's status, for a subcontracted crew. A firm that is
+   * onboarding (no MSA), suspended or terminated sends no crew, however good
+   * the crew's own documents are. Null or absent for our own crews.
+   */
+  readonly firmStatus?: string | null;
 };
 
 export type ServiceWindow = { readonly start: number; readonly end: number };
@@ -47,6 +53,9 @@ export const evaluate = (
 ): ComplianceClearance | Refusal => {
   if (!crew.active) {
     return { ok: false, reason: "crew_inactive", credentialKind: "-", detail: `Crew ${crew.id} is not active.` };
+  }
+  if (crew.employmentType === "subcontracted" && crew.firmStatus !== "active") {
+    return { ok: false, reason: "crew_inactive", credentialKind: "-", detail: `Crew ${crew.id}'s firm is ${crew.firmStatus ?? "unknown"}, not active — it may not be sent work.` };
   }
 
   const used: string[] = [];

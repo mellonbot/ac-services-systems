@@ -275,3 +275,26 @@ test("under node there is no page: subscribe returns the stream's own stop and l
   stop();
   assert.equal(closed, 1);
 });
+
+test("a stream that ends is reopened with backoff, keeps its dedupe set, and a handler that throws does not end it", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const opens: { onEvent: (e: EventEnvelope) => void; onState: (s: "connecting" | "open" | "closed" | "failed") => void }[] = [];
+  const inner: Transport = { request: async () => ({}), stream: (_op, onEvent, onState) => { opens.push({ onEvent, onState }); return () => {}; } };
+  const shell = createShell({ surfaceId: "S3", principal: dispatcher, transport: inner });
+  const got: string[] = [];
+  const stop = shell.subscribe((e) => { got.push(e.eventId); if (e.eventId === "boom") throw new Error("handler bug"); }, { topics: "all" });
+  const ev = (eventId: string): EventEnvelope => ({ topic: "job.transitioned", eventId, regionId: "r", occurredAt: "t" });
+  opens[0]!.onState("open");
+  opens[0]!.onEvent(ev("boom"));
+  opens[0]!.onEvent(ev("e1"));
+  opens[0]!.onState("closed"); // a gateway deploy
+  assert.equal(opens.length, 1);
+  t.mock.timers.tick(1000);
+  assert.equal(opens.length, 2, "reopened within the first backoff step");
+  opens[1]!.onEvent(ev("e1"));
+  assert.deepEqual(got, ["boom", "e1"], "delivered once across the reconnect; the throwing handler did not stop delivery");
+  stop();
+  opens[1]!.onState("closed");
+  t.mock.timers.tick(60_000);
+  assert.equal(opens.length, 2, "a stream the surface stopped is not reopened");
+});

@@ -10,11 +10,10 @@ import type { SubmitLeadInput } from "../../../packages/contracts/src/index.ts";
  * makes one honest. Three things, and each is a line of code that could
  * plausibly have been left out:
  *
- *   1. IT SURVIVES THE TAB. S5's queue lives in memory, because a technician's
- *      device is awake and holding the app open for a shift. A stranger on a
- *      phone in a mechanical room with one bar closes the tab, or the tab is
- *      discarded under memory pressure, and comes back later. So this one is
- *      written to storage on every change, and read back at boot.
+ *   1. IT SURVIVES THE TAB. A stranger on a phone in a mechanical room with
+ *      one bar closes the tab, or the tab is discarded under memory pressure,
+ *      and comes back later. So this one is written to storage on every
+ *      change, and read back at boot (as S5's queue now is too).
  *
  *   2. IT REPLAYS THE SAME ID. `submissionId` is minted once, at enqueue, and
  *      never again. A replay that already landed loses to the unique index in

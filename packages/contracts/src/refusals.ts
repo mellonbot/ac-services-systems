@@ -91,6 +91,8 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   bad_window: "structural",
   already_released: "structural",
   job_in_progress: "structural",
+  job_not_dispatchable: "structural",
+  crew_reinstated_by_office: "structural",
   unknown_device: "structural",
   unknown_assignment: "structural",
   device_inactive: "structural",
