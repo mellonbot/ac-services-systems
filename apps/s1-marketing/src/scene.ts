@@ -4,6 +4,7 @@ import {
   Vector3, WebGLRenderer, type Object3D,
 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 
 /** One turn of the truck, in milliseconds. */
 const REVOLUTION_MS = 36_000;
@@ -41,6 +42,9 @@ const FLAT_BELOW_PX = 640;
  * from the page ground, a lit pad from the action fill — so no colour literal
  * enters the surface. The truck, condensers and RTUs are assets
  * (public/truck.glb, condenser.glb, rtu.glb) and wear their own paint; the
+ * models ship meshopt-compressed (`gltf-transform optimize --compress meshopt
+ * --texture-compress false --simplify false`, textures lossless WebP first) — a
+ * raw exporter GLB is ~8x the bytes and ~10x the draw calls; the
  * ground is one too (public/dirt.webp), so its earth is the texture's, not an ink.
  *
  * `[data-live]` goes on the scene root at the truck's first frame; until then,
@@ -90,7 +94,7 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   const key = new DirectionalLight(undefined, 2.0);
   key.position.set(24, 44, 30);
   key.castShadow = true;
-  key.shadow.mapSize.set(4096, 4096);
+  key.shadow.mapSize.set(2048, 2048);
   key.shadow.bias = -0.0004;
   Object.assign(key.shadow.camera, { left: -50, right: 50, top: 40, bottom: -40, far: 140 });
   scene.add(key);
@@ -212,6 +216,10 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   fit();
   const ro = new ResizeObserver(fit);
   ro.observe(canvas);
+  // Scrolled past, the bay stops drawing; the turn is time-based, so it picks up where it would be.
+  let onScreen = true;
+  const io = new IntersectionObserver((entries) => { onScreen = entries.at(-1)?.isIntersecting ?? onScreen; });
+  io.observe(canvas);
 
   // A plate under the pointer or the keyboard lights its pad.
   const light = (e: Event): void => {
@@ -222,7 +230,7 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   };
   for (const { plate } of pads) for (const t of ["pointerenter", "pointerleave", "focusin", "focusout"]) plate.addEventListener(t, light);
 
-  const loader = new GLTFLoader();
+  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   // Each model loads once and is cloned for every unit that wears it.
   const models = new Map<string, Promise<Object3D>>();
   const load = (url: string): Promise<Object3D> => {
@@ -360,6 +368,7 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     if (still) { draw(); return; }
     const start = performance.now();
     renderer.setAnimationLoop((now) => {
+      if (!onScreen) return;
       table.rotation.y = -((now - start) / REVOLUTION_MS) * Math.PI * 2;
       shuttle(now - start);
       draw();
@@ -370,6 +379,7 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     stopped = true;
     renderer.setAnimationLoop(null);
     ro.disconnect();
+    io.disconnect();
     for (const { plate } of pads) for (const t of ["pointerenter", "pointerleave", "focusin", "focusout"]) plate.removeEventListener(t, light);
     renderer.dispose();
   };
