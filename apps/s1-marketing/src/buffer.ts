@@ -128,13 +128,23 @@ export const createLeadBuffer = (opts: { store?: BufferStore | null; now: () => 
   const flushing = signal(false);
   const attention = signal<readonly { submissionId: string; message: string }[]>([]);
 
-  const persist = (next: readonly QueuedLead[]) => {
-    pending.value = next;
+  /**
+   * Written as a merge, not an overwrite: another tab of this page may have
+   * queued a lead since this one loaded, and writing this tab's copy over it
+   * would lose it. What another tab holds is kept (a lead already landed comes
+   * back as the unique index's duplicate, which is success); what this tab
+   * removes is removed.
+   */
+  const persist = (next: readonly QueuedLead[], removed?: string) => {
+    const ids = new Set(next.map((q) => q.input.submissionId));
+    const others = load().filter((q) => !ids.has(q.input.submissionId) && q.input.submissionId !== removed);
+    const merged = [...next, ...others];
+    pending.value = merged;
     if (!store) return;
-    try { store.setItem(BUFFER_KEY, JSON.stringify(next)); } catch { /* blocked site data: the queue is this session's */ }
+    try { store.setItem(BUFFER_KEY, JSON.stringify(merged)); } catch { /* blocked site data: the queue is this session's */ }
   };
 
-  const drop = (submissionId: string) => persist(pending.value.filter((q) => q.input.submissionId !== submissionId));
+  const drop = (submissionId: string) => persist(pending.value.filter((q) => q.input.submissionId !== submissionId), submissionId);
 
   const enqueue = (input: SubmitLeadInput) => {
     if (pending.value.some((q) => q.input.submissionId === input.submissionId)) return;

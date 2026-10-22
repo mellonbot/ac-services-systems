@@ -242,7 +242,7 @@ const renderTabs = () => {
     const b = document.createElement("button");
     b.className = "tab"; b.type = "button"; b.role = "tab"; b.dataset.id = s.id;
     b.setAttribute("aria-selected", String(s.id === current));
-    b.innerHTML = `<span class="id">${s.id} · ${s.block}${s.built ? (s.demoOnly ? " · demo only" : "") : ` · Phase ${s.phase}`}</span><span class="nm">${s.name}</span>`;
+    b.innerHTML = `<span class="id">${esc(s.id)} · ${esc(s.block)}${s.built ? (s.demoOnly ? " · demo only" : "") : ` · Phase ${esc(s.phase)}`}</span><span class="nm">${esc(s.name)}</span>`;
     if (!s.built) { b.disabled = true; b.title = `Not built yet: Phase ${s.phase}`; }
     b.addEventListener("click", () => select(s.id));
     $("tabs").appendChild(b);
@@ -309,7 +309,7 @@ G.onActivity((a) => {
   log.querySelector(".empty")?.remove();
   const li = document.createElement("li");
   const label = { read: "read", write: "write", refused: a.status ? `${a.status}` : "refused", event: "event", offline: "down" }[a.kind];
-  li.innerHTML = `<span class="t">${fmt.format(new Date(a.at))}</span><span class="s">${a.surface}</span><span class="op"><span class="k ${a.kind}">${label}</span>${esc(a.op)}</span>${a.note ? `<span class="note">${esc(a.note)}</span>` : ""}`;
+  li.innerHTML = `<span class="t">${fmt.format(new Date(a.at))}</span><span class="s">${esc(a.surface)}</span><span class="op"><span class="k ${esc(a.kind)}">${esc(label)}</span>${esc(a.op)}</span>${a.note ? `<span class="note">${esc(a.note)}</span>` : ""}`;
   log.prepend(li);
   while (log.children.length > 250) log.lastChild.remove();
   if ((a.op === "auth.login" || a.op === "auth.logout") && a.surface === current) renderPersona();

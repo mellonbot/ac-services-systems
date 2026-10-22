@@ -7,7 +7,7 @@ export { resolveTerm, resolveAll, ResolutionError } from "./inheritance/resolve.
 export type { Override, ScopePath, Resolution, TraceStep } from "./inheritance/resolve.ts";
 export { admitOverride, AdmissionRefused } from "./inheritance/admit.ts";
 export type { Candidate } from "./inheritance/admit.ts";
-export { allocate, sumsExactly } from "./money/allocate.ts";
+export { allocate, sumsExactly, lineAmount } from "./money/allocate.ts";
 export { BILLING_PATHS } from "./billing/index.ts";
 export type { BillingPath, DraftInvoice, InvoiceLine, BillableEvent, PathContext } from "./billing/path.ts";
 export { CONFLICT_POLICIES, JOB_TRANSITIONS, DEVICE_TRANSITIONS, mayDeviceWrite, resolveMutation, replay } from "./sync/index.ts";

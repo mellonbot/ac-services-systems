@@ -1,5 +1,5 @@
 import { html, ComplianceBadge, PrimaryAction, pageHead, panel, type VNode } from "../../../../packages/ui/src/index.ts";
-import { SURFACE_PATHS, type JobWire, type CandidateCrewWire } from "../../../../packages/contracts/src/index.ts";
+import type { JobWire, CandidateCrewWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, type Screen } from "./common.ts";
 
@@ -43,7 +43,7 @@ export const dispatch: Screen = (ctx, params) => {
     return html`<section class="s3-dispatch">
       ${pageHead(`Dispatch — ${job.serviceCode}`, "Every active crew in this job's region, checked against the same gate Assign enforces.")}
       ${panel(html`<dl class="s3-job-facts">
-        <dt>Site</dt><dd><a class="ac-link" href=${`${SURFACE_PATHS.S6}/site/${encodeURIComponent(job.siteId)}`}>${job.siteName ?? job.siteId}</a></dd>
+        <dt>Site</dt><dd>${job.siteName ?? job.siteId}</dd>
         <dt>Priority</dt><dd>${job.priority}</dd>
         <dt>Window</dt><dd class="s3-num">${new Date(job.serviceWindowStart).toLocaleString()} → ${new Date(job.serviceWindowEnd).toLocaleString()}</dd>
       </dl>`)}

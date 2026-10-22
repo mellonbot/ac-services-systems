@@ -135,7 +135,11 @@ const readJson = (req: IncomingMessage): Promise<Json> =>
       chunks.push(c);
     });
     req.on("end", () => {
-      try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {}); } catch (e) { reject(e); }
+      let body: unknown;
+      try { body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {}; } catch { reject(new HttpError(400, "the request body is not JSON")); return; }
+      // Every operation's input is an object; `null`, a number or a list is a malformed request, not a 500.
+      if (body === null || typeof body !== "object" || Array.isArray(body)) { reject(new HttpError(400, "the request body must be a JSON object")); return; }
+      resolve(body as Json);
     });
     req.on("error", reject);
   });
@@ -631,11 +635,12 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
    * unscoped transaction the way login does, reads one indexed row by host, and
    * rolls back.
    *
-   * It is safe to leave open because it answers the same shape for every host:
-   * a known one gets its stylesheet, an unknown one gets Rankine's plate and
-   * `tenant: false`. Nothing here distinguishes "not a customer" from "no theme
-   * set", so the route cannot be walked to enumerate tenants. A theme is public
-   * by construction anyway — it is the colours on a page anyone can load.
+   * It is safe to leave open because a theme is public by construction — it
+   * is the colours on a page anyone can load. It does say one thing: `tenant`
+   * is true for a host that has a theme, so walking hosts finds the portals
+   * that are white-labelled. That is the same fact loading each portal's
+   * sign-in page tells anyone; it does not distinguish "not a customer" from
+   * "a customer with no theme".
    */
   "brand.theme": async (req) => {
     const url = new URL(req.url ?? "/", "http://localhost");
