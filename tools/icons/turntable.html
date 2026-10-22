@@ -1,0 +1,22 @@
+<!doctype html><html><body style="margin:0;background:transparent">
+<canvas id="c" width="256" height="256"></canvas>
+<script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
+<script type="module">
+// One turn of a yard model on a transparent ground, a frame at a time. render.mjs drives it.
+import * as T from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+const r = new T.WebGLRenderer({ canvas: c, antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setClearColor(0, 0); r.outputColorSpace = T.SRGBColorSpace;
+const scene = new T.Scene();
+scene.add(new T.HemisphereLight(0xffffff, 0x444444, 1.6));
+const sun = new T.DirectionalLight(0xffffff, 2.2); sun.position.set(4, 8, 6); scene.add(sun);
+const g = await new GLTFLoader().loadAsync(`/model/${new URLSearchParams(location.search).get("m")}.glb`);
+const pivot = new T.Group(), m = g.scene;
+const box = new T.Box3().setFromObject(m), size = box.getSize(new T.Vector3());
+m.position.sub(box.getCenter(new T.Vector3())); pivot.add(m); scene.add(pivot);
+const R = Math.max(size.x, size.y, size.z);
+const cam = new T.PerspectiveCamera(28, 1, 0.01, 100 * R);
+const d = R * 2.35; cam.position.set(0, d * 0.42, d); cam.lookAt(0, -R * 0.02, 0);
+window.frame = (a) => { pivot.rotation.y = a; r.render(scene, cam); return c.toDataURL("image/png"); };
+window.ready = true;
+</script></body></html>

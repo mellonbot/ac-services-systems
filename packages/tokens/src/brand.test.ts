@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BADGE, BADGE_LETTER, ICON_SIZES, badgeSvg, faviconDataUri, thickenFor, BRAND, BULLETIN_ERRATA } from "./brand.ts";
+import { readFileSync } from "node:fs";
+import { BADGE, BADGE_LETTER, ICON_SIZES, badgeSvg, FAVICON, faviconArtFor, thickenFor, BRAND, BULLETIN_ERRATA } from "./brand.ts";
 import { PRIMITIVES as P } from "./primitives.ts";
 
 /**
@@ -52,10 +53,26 @@ test("every icon size draws the SAME mark — one geometry, one treatment", () =
   }
 });
 
-test("the favicon is the badge, not a second drawing of it", () => {
-  assert.ok(faviconDataUri().startsWith("data:image/svg+xml,"));
-  assert.equal(decodeURIComponent(faviconDataUri().slice("data:image/svg+xml,".length)),
-    badgeSvg(ICON_SIZES.favicon), "the favicon must be badgeSvg and nothing else");
+test("the favicon turns the truck on S5 and the rooftop unit on every other surface", () => {
+  assert.equal(faviconArtFor("S5"), "truck");
+  for (const id of ["S1", "S2", "S3", "S4", "S6", "S7", "S8"]) assert.equal(faviconArtFor(id), "rtu", id);
+  assert.equal(FAVICON.glow, P.brand.fill, "the glow is the livery red, not a new ink");
+});
+
+/** Width and height from a PNG's IHDR, and whether it carries an animation control chunk. */
+const png = (file: string) => {
+  const b = readFileSync(new URL(`../icons/${file}`, import.meta.url));
+  return { w: b.readUInt32BE(16), h: b.readUInt32BE(20), animated: b.includes("acTL"), frames: b.includes("acTL") ? b.readUInt32BE(b.indexOf("acTL") + 4) : 1 };
+};
+
+test("each favicon art ships an animated PNG and a strip of the same frames, at the declared size", () => {
+  for (const art of ["rtu", "truck"]) {
+    const a = png(`${art}/favicon.png`), s = png(`${art}/favicon-strip.png`);
+    assert.deepEqual([a.w, a.h], [FAVICON.px, FAVICON.px], `${art}: favicon.png is not ${FAVICON.px}px`);
+    assert.ok(a.animated, `${art}: favicon.png is not animated`);
+    assert.equal(a.frames, FAVICON.frames, `${art}: favicon.png frame count`);
+    assert.deepEqual([s.w, s.h], [FAVICON.px * FAVICON.frames, FAVICON.px], `${art}: the strip is not ${FAVICON.frames} frames wide`);
+  }
 });
 
 test("the monogram is a unit, and the ring precedes the letter", () => {
@@ -76,7 +93,6 @@ test("the badge names no font, at any size — it is an outline", () => {
     assert.doesNotMatch(svg, /font-family|font-size|<text/, `${px}px still depends on a font`);
     assert.match(svg, /<path d="M/, `${px}px has no outline`);
   }
-  assert.doesNotMatch(decodeURIComponent(faviconDataUri()), /font-family/);
 });
 
 test("the outline is the Yellowtail R, and says so", () => {
