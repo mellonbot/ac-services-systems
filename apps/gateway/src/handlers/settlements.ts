@@ -68,7 +68,8 @@ export const listSettlements = async (uow: UnitOfWork, input: ListSettlementsInp
   const rows = await uow.tx.query<Row>(
     `SELECT ${COLUMNS} FROM settlements s
       WHERE ($1::uuid IS NULL OR s.firm_id = $1) AND ($2::text IS NULL OR s.state = $2)
-      ORDER BY lower(s.period) DESC, s.created_at DESC`,
+      ORDER BY lower(s.period) DESC, s.created_at DESC
+      LIMIT 500`, // the newest 500, as leads.list: a history screen, not an export
     [firmId, state],
   );
   return { settlements: rows.map(toWire) };

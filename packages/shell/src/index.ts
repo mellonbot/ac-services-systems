@@ -113,22 +113,52 @@ export const createShell = (config: ShellConfig): Shell => {
   const transport = guardedTransport(config.transport ?? unconnectedTransport(), state);
   const gateway = createGatewayClient(transport);
 
+  const RECONNECT_MIN_MS = 1000;
+  const RECONNECT_MAX_MS = 30_000;
   const subscribe: Shell["subscribe"] = (handler, opts = {}) => {
     const wanted: ReadonlySet<string> | null =
       opts.topics === "all" ? null : new Set(opts.topics ?? SUBSCRIBERS[surface.block]);
     const seen = new Set<string>();
-    const onState = opts.onState ?? (() => {});
+    const report = opts.onState ?? (() => {});
     const deliver = (e: EventEnvelope) => {
       if (wanted && !wanted.has(e.topic)) return;
       // At-least-once delivery; the outbox relay may republish after a crash.
       if (seen.has(e.eventId)) return;
       seen.add(e.eventId);
       if (seen.size > SEEN_LIMIT) { const first = seen.values().next().value; if (first !== undefined) seen.delete(first); }
-      handler(e);
+      // A surface's handler that throws must not end the stream for every later event.
+      try { handler(e); } catch (err) { console.error("shell: an event handler threw", err); }
     };
-    let stop = gateway.events(deliver, onState);
+
+    // A STREAM THAT ENDS IS REOPENED. A gateway deploy, a restart or a proxy's
+    // idle timeout closes it, and nothing else would ever open it again: the
+    // surface would hear no event for the rest of the page's life while every
+    // request still succeeded. Reopened with jittered backoff (1s doubling to
+    // 30s), with the same dedupe set; `open` resets the backoff.
+    let live = true;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    let delay = RECONNECT_MIN_MS;
+    let stop: () => void = () => {};
+    const open = () => { stop = gateway.events(deliver, onState); };
+    function onState(st: Parameters<NonNullable<typeof opts.onState>>[0]) {
+      report(st);
+      if (st === "open") { delay = RECONNECT_MIN_MS; return; }
+      if ((st === "closed" || st === "failed") && live && retry === null) {
+        const wait = delay / 2 + Math.random() * (delay / 2);
+        delay = Math.min(delay * 2, RECONNECT_MAX_MS);
+        retry = setTimeout(() => { retry = null; if (live) open(); }, wait);
+        // Never the reason a process (or a test run) stays alive.
+        (retry as { unref?: () => void }).unref?.();
+      }
+    }
+    const halt = () => {
+      live = false;
+      if (retry !== null) { clearTimeout(retry); retry = null; }
+      stop();
+    };
+    open();
     const page = pageOf(config.page ?? globalThis);
-    if (!page) return stop;
+    if (!page) return halt;
 
     // A STREAM BELONGS TO A PAGE THAT IS SHOWING. A browser keeps the last few
     // pages alive in its back/forward cache, and a page kept alive keeps its
@@ -139,15 +169,14 @@ export const createShell = (config: ShellConfig): Shell => {
     // So the stream closes on `pagehide` and, if the page comes back from the
     // cache, reopens on `pageshow` — with the same dedupe set, so an event
     // republished across the gap is still delivered once.
-    let live = true;
-    const onHide = () => { if (!live) return; live = false; stop(); onState("closed"); };
-    const onShow = (ev: { persisted?: boolean }) => { if (live || !ev.persisted) return; live = true; stop = gateway.events(deliver, onState); };
+    const onHide = () => { if (!live) return; halt(); report("closed"); };
+    const onShow = (ev: { persisted?: boolean }) => { if (live || !ev.persisted) return; live = true; delay = RECONNECT_MIN_MS; open(); };
     page.addEventListener("pagehide", onHide);
     page.addEventListener("pageshow", onShow);
     return () => {
       page.removeEventListener("pagehide", onHide);
       page.removeEventListener("pageshow", onShow);
-      if (live) { live = false; stop(); }
+      if (live) halt();
     };
   };
 

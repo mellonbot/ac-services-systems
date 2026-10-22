@@ -7,7 +7,9 @@
 #
 #   docker build -t ac-gateway .
 #   docker run --rm -p 8080:8080 -e DATABASE_URL=… -e AC_SIGNING_KEY_PEM="$(cat key.pem)" -e AC_SITE=ac.example ac-gateway
-FROM node:22-slim
+# Pinned by digest (node:22-slim, resolved 2026-10-22): a re-published tag
+# must not change what production runs without a commit saying so.
+FROM node:22-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d
 
 ENV NODE_ENV=production \
     PORT=8080 \
@@ -24,5 +26,7 @@ RUN corepack enable
 COPY . .
 RUN pnpm install --frozen-lockfile --prod
 
+# The process holds DATABASE_URL and the signing key; it does not also need root.
+USER node
 EXPOSE 8080
 CMD ["node", "infra/cloudflare/entrypoint.mjs"]

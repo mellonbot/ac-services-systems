@@ -15,7 +15,12 @@ const pool = createPool(DATABASE_URL, "ac-worker");
 const REGION = process.env.AC_REGION_ID;
 const SCOPE = workerScope(REGION);
 /** One transaction as the worker, bound as the worker — RLS has its inputs before the first statement, or it answers zero rows. */
-const bound = async () => { const tx = await beginTx(pool, "ac_worker"); await tx.setLocal(SCOPE); return tx; };
+const bound = async () => {
+  const tx = await beginTx(pool, "ac_worker");
+  // A failed binding still holds a connection; ten of them and every loop waits forever.
+  try { await tx.setLocal(SCOPE); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
+  return tx;
+};
 
 const every = (ms: number, name: string, fn: () => Promise<unknown>) => {
   let running = false;

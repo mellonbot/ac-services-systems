@@ -1,7 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
-import { createPool, beginTx, hierarchyReader, listenEvents } from "./pg-tx.ts";
-import { generateKeypair, keypairFromPem, mintToken, verifyToken, principalFromClaims, verifyPassword, AuthError } from "./auth.ts";
+import { createPool, beginTx, bindSystem, hierarchyReader, listenEvents } from "./pg-tx.ts";
+import { generateKeypair, keypairFromPem, mintToken, verifyToken, principalFromClaims, verifyPasswordAsync, AuthError } from "./auth.ts";
+import { createThrottle } from "./throttle.ts";
 import { buildContext, scopeBinding, ScopeResolutionError } from "./context.ts";
 import { createUnitOfWork, SurfaceWriteDenied, TenancyMismatch, SurfaceDisabled, RoleDenied } from "./unit-of-work.ts";
 import { InputRefused, BadInput, dbRefusal } from "./refusals.ts";
@@ -98,6 +99,24 @@ if (!STORE) console.warn("gateway: no object storage configured (AC_STORAGE_*) �
 const ORIGINS = allowedOrigins(SESSION);
 if (!SESSION.site) console.warn(`gateway: AC_SITE not set — development posture: cookies are not Secure and browser origins are ${ORIGINS.size ? [...ORIGINS].join(", ") : "NONE (bearer only)"}`);
 
+/**
+ * The doors anyone can knock on, throttled. Per address so one client cannot
+ * saturate the event loop or the sessions table; failed attempts per email so
+ * a password is not guessed from many addresses (a right password does not
+ * count against it). Behind Cloudflare the client's address is
+ * CF-Connecting-IP; on a laptop it is the socket's.
+ */
+const LOGIN_BY_ADDRESS = createThrottle({ limit: 120, windowMs: 60_000 });
+const LOGIN_FAILURES_BY_EMAIL = createThrottle({ limit: 10, windowMs: 15 * 60_000 });
+const ANONYMOUS_BY_ADDRESS = createThrottle({ limit: 20, windowMs: 60_000 });
+const addressOf = (req: IncomingMessage): string => {
+  const cf = req.headers["cf-connecting-ip"];
+  return (typeof cf === "string" && cf) || req.socket.remoteAddress || "unknown";
+};
+const throttled = (ok: boolean, what: string): void => {
+  if (!ok) throw new HttpError(429, `too many ${what} — wait a minute and try again`);
+};
+
 type Json = Record<string, unknown>;
 /**
  * The most any request body may be. A photo is the largest thing an operation
@@ -116,7 +135,11 @@ const readJson = (req: IncomingMessage): Promise<Json> =>
       chunks.push(c);
     });
     req.on("end", () => {
-      try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {}); } catch (e) { reject(e); }
+      let body: unknown;
+      try { body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {}; } catch { reject(new HttpError(400, "the request body is not JSON")); return; }
+      // Every operation's input is an object; `null`, a number or a list is a malformed request, not a 500.
+      if (body === null || typeof body !== "object" || Array.isArray(body)) { reject(new HttpError(400, "the request body must be a JSON object")); return; }
+      resolve(body as Json);
     });
     req.on("error", reject);
   });
@@ -170,9 +193,11 @@ const callerOf = (req: IncomingMessage): Caller => {
  * request, inside the request's own transaction.
  */
 const assertSessionLive = async (tx: Tx, p: Principal): Promise<void> => {
+  await bindSystem(tx);
   const row = (await tx.query<{ revoked_at: string | null; expires_at: string }>("SELECT revoked_at, expires_at FROM sessions WHERE id = $1", [p.sessionId]))[0];
   if (!row) throw new AuthError(`session ${p.sessionId} is unknown to this gateway`, "revoked");
   if (row.revoked_at) throw new AuthError(`session was ended at ${new Date(row.revoked_at).toISOString()} — sign in again`, "revoked");
+  if (new Date(row.expires_at).getTime() <= Date.now()) throw new AuthError("session has expired — sign in again", "revoked");
 };
 
 /**
@@ -211,14 +236,18 @@ const withUow = async <T>(req: IncomingMessage, opId: OperationId, fn: (uow: Awa
   const { principal } = caller;
   const surfaceId = surfaceOf(req, opId, caller);
   const tx = await beginTx(pool, "ac_gateway");
-  try { await assertSessionLive(tx, principal); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
-  const uow = await createUnitOfWork({ surfaceId, principal, requestId: String(req.headers["x-request-id"] ?? randomUUID()), now: () => new Date(), newId: randomUUID }, tx);
+  // One try from the moment a connection is held: a refusal from the session
+  // check or from opening the unit of work (role, tenancy, disabled surface)
+  // must release it as surely as a refusal from the handler. tx.rollback is a
+  // no-op once commit has ended the transaction.
   try {
+    await assertSessionLive(tx, principal);
+    const uow = await createUnitOfWork({ surfaceId, principal, requestId: String(req.headers["x-request-id"] ?? randomUUID()), now: () => new Date(), newId: randomUUID }, tx);
     const out = await fn(uow, principal, surfaceId);
     await uow.commit();
     return out;
   } catch (e) {
-    await uow.rollback().catch(() => {});
+    await tx.rollback().catch(() => {});
     throw e;
   }
 };
@@ -229,24 +258,32 @@ const withRead = async <T>(req: IncomingMessage, opId: OperationId, fn: (uow: Aw
   const { principal } = caller;
   const surfaceId = surfaceOf(req, opId, caller);
   const tx = await beginTx(pool, "ac_gateway");
-  try { await assertSessionLive(tx, principal); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
-  const uow = await createUnitOfWork({ surfaceId, principal, requestId: String(req.headers["x-request-id"] ?? randomUUID()), now: () => new Date(), newId: randomUUID }, tx);
-  try { return await fn(uow, principal, surfaceId); } finally { await uow.rollback().catch(() => {}); }
+  try {
+    await assertSessionLive(tx, principal);
+    const uow = await createUnitOfWork({ surfaceId, principal, requestId: String(req.headers["x-request-id"] ?? randomUUID()), now: () => new Date(), newId: randomUUID }, tx);
+    return await fn(uow, principal, surfaceId);
+  } finally { await tx.rollback().catch(() => {}); }
 };
 
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
-const login = async (body: Partial<OperationIO["auth.login"]["input"]>, res: ServerResponse): Promise<OperationIO["auth.login"]["output"]> => {
+const login = async (req: IncomingMessage, body: Partial<OperationIO["auth.login"]["input"]>, res: ServerResponse): Promise<OperationIO["auth.login"]["output"]> => {
   const { email, password, surface } = body;
   if (!email || !password || !surface || !SURFACES[surface]) throw new HttpError(400, "email, password and surface are required");
-  // Login runs unscoped (no principal yet) as the gateway role; users is not RLS-bound.
+  const who = String(email).toLowerCase();
+  throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)) && !LOGIN_FAILURES_BY_EMAIL.spent(who), "sign-in attempts");
+  // Login runs as the gateway itself (no principal yet), then binds the principal's own scope.
   const tx = await beginTx(pool, "ac_gateway");
   try {
+    await bindSystem(tx);
     const u = (await tx.query<{ id: string; namespace: Namespace; org_id: string; region_id: string; scope_tier: Tier; scope_id: string; roles: string[]; firm_id: string | null; password_hash: string | null; active: boolean }>(
       "SELECT id, namespace, org_id, region_id, scope_tier, scope_id, roles, firm_id, password_hash, active FROM users WHERE email = $1", [email],
     ))[0];
-    if (!u || !u.active || !u.password_hash || !verifyPassword(password, u.password_hash)) throw new AuthError("invalid credentials", "bad_claims");
+    if (!(await verifyPasswordAsync(password, u?.password_hash)) || !u?.active) {
+      LOGIN_FAILURES_BY_EMAIL.hit(who);
+      throw new AuthError("invalid credentials", "bad_claims");
+    }
     if (!SURFACES[surface].enabled) throw new SurfaceDisabled(surface);
     if (SURFACES[surface].namespace !== u.namespace) throw new HttpError(403, `${surface} serves the ${SURFACES[surface].namespace} namespace`);
     // The role check the unit of work makes on every request, made at the door:
@@ -290,15 +327,19 @@ const login = async (body: Partial<OperationIO["auth.login"]["input"]>, res: Ser
  * one place that reads `devices` and `device_grants` before authentication,
  * exactly as `login` reads `users` before it.
  */
-const deviceLogin = async (body: Partial<OperationIO["auth.deviceLogin"]["input"]>, res: ServerResponse): Promise<OperationIO["auth.deviceLogin"]["output"]> => {
+const deviceLogin = async (req: IncomingMessage, body: Partial<OperationIO["auth.deviceLogin"]["input"]>, res: ServerResponse): Promise<OperationIO["auth.deviceLogin"]["output"]> => {
   const { hardwareId, email, password } = body;
   if (!hardwareId || !email || !password) throw new HttpError(400, "hardwareId, email and password are required");
+  const who = String(email).toLowerCase();
+  throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)) && !LOGIN_FAILURES_BY_EMAIL.spent(who), "sign-in attempts");
   const tx = await beginTx(pool, "ac_gateway");
   try {
+    await bindSystem(tx);
     const u = (await tx.query<{ id: string; password_hash: string | null; active: boolean; crew_id: string | null }>(
       "SELECT id, password_hash, active, crew_id FROM users WHERE email = $1", [email],
     ))[0];
-    if (!u || !u.active || !u.password_hash || !verifyPassword(password, u.password_hash) || !u.crew_id) {
+    if (!(await verifyPasswordAsync(password, u?.password_hash)) || !u?.active || !u.crew_id) {
+      LOGIN_FAILURES_BY_EMAIL.hit(who);
       throw new AuthError("invalid credentials", "bad_claims");
     }
     const resolved = await resolveDeviceLogin(tx, hardwareId, u.id, new Date());
@@ -350,7 +391,8 @@ const deviceLogin = async (body: Partial<OperationIO["auth.deviceLogin"]["input"
  * `principal_kind = 'anonymous'` has been a legal value in `sessions` since
  * the bootstrap migration. This is the row that finally writes it.
  */
-const anonymousSession = async (res: ServerResponse): Promise<OperationIO["auth.anonymousSession"]["output"]> => {
+const anonymousSession = async (req: IncomingMessage, res: ServerResponse): Promise<OperationIO["auth.anonymousSession"]["output"]> => {
+  throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "visits from this address");
   const claims: Omit<Claims, "iat" | "exp" | "sid"> = {
     sub: ANONYMOUS_ACTOR, ns: "anonymous", org: PROSPECT_ORG_ID, region: UNASSIGNED_REGION_ID,
     scope_tier: "parent", scope_id: PROSPECT_ORG_ID, roles: [],
@@ -358,6 +400,7 @@ const anonymousSession = async (res: ServerResponse): Promise<OperationIO["auth.
   const minted = mintToken(keypair, claims, Date.now(), ANONYMOUS_TTL);
   const tx = await beginTx(pool, "ac_gateway");
   try {
+    await bindSystem(tx);
     await tx.query(
       "INSERT INTO sessions (id, org_id, region_id, principal_kind, principal_id, expires_at, surface_id) VALUES ($1,$2,$3,'anonymous',$4,to_timestamp($5),'S1')",
       [minted.claims.sid, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID, ANONYMOUS_ACTOR, minted.claims.exp],
@@ -375,8 +418,8 @@ const anonymousSession = async (res: ServerResponse): Promise<OperationIO["auth.
 type Handler<K extends OperationId> = (req: IncomingMessage, input: OperationIO[K]["input"], res: ServerResponse) => Promise<unknown>;
 
 const handlers: { readonly [K in OperationId]: Handler<K> } = {
-  "auth.login": (_req, input, res) => login(input, res),
-  "auth.deviceLogin": (_req, input, res) => deviceLogin(input, res),
+  "auth.login": (req, input, res) => login(req, input, res),
+  "auth.deviceLogin": (req, input, res) => deviceLogin(req, input, res),
 
   // Ending a session is the one mutation outside the unit of work: it writes the
   // sessions row, which belongs to the gateway, not to any surface's allowlist.
@@ -543,23 +586,41 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
     return listMyJobs(uow, p.shiftId);
   }),
   "sync.replay": (req, input) => withUow(req, "sync.replay", async (uow, p) => {
-    if (!p.deviceId) throw new HttpError(403, "sync is a device principal's operation");
-    return { outcomes: await ingestSync(uow, p.subjectId, { deviceId: p.deviceId, orgId: input.orgId, regionId: input.regionId, mutations: input.mutations }, new Date()) };
+    if (!p.deviceId || !p.shiftId) throw new HttpError(403, "sync is a device principal's operation");
+    // input.orgId / input.regionId are not read: tenancy is the grant's and the job's, never the body's.
+    return { outcomes: await ingestSync(uow, p.subjectId, { deviceId: p.deviceId, grantId: p.shiftId, orgId: p.orgId, regionId: p.regionId, mutations: input.mutations }, new Date()) };
   }),
 
   // The SSE feed: one LISTEN client on the pool, fan-out per connected principal's region.
   "events.stream": async (req, _input, res) => {
     const caller = callerOf(req);
     const p = caller.principal;
-    surfaceOf(req, "events.stream", caller);
-    { const tx = await beginTx(pool, "ac_gateway"); try { await assertSessionLive(tx, p); } finally { await tx.rollback().catch(() => {}); } }
+    const surfaceId = surfaceOf(req, "events.stream", caller);
+    // The same admission every other operation gets: session live, surface
+    // enabled, role admitted, tenancy consistent. Opened and rolled back.
+    await withRead(req, "events.stream", async () => {});
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
     // Headers are not on the wire until the first byte. A subscriber's fetch()
     // does not resolve — and the shell cannot report "open" — until then.
     res.write(`: connected ${p.regionId}\n\n`);
-    const client = { res, regionId: p.regionId, orgScoped: p.namespace === "internal" && p.scopeTier === "parent" };
+    const client: SseClient = {
+      res, regionId: p.regionId,
+      orgScoped: p.namespace === "internal" && p.scopeTier === "parent",
+      internal: p.namespace === "internal",
+      // A customer hears its own org's events and nobody else's.
+      orgId: p.namespace === "customer" ? p.orgId : null,
+      surfaceId,
+    };
     sseClients.add(client);
-    req.on("close", () => sseClients.delete(client));
+    // The session is checked at connect and again every minute: a stream must
+    // not outlive the logout or the expiry that ended its session.
+    const recheck = setInterval(() => {
+      void (async () => {
+        const tx = await beginTx(pool, "ac_gateway");
+        try { await assertSessionLive(tx, p); } finally { await tx.rollback().catch(() => {}); }
+      })().catch(() => { res.end(); });
+    }, SSE_SESSION_RECHECK_MS);
+    req.on("close", () => { clearInterval(recheck); sseClients.delete(client); });
     return STREAMING;
   },
 
@@ -574,11 +635,12 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
    * unscoped transaction the way login does, reads one indexed row by host, and
    * rolls back.
    *
-   * It is safe to leave open because it answers the same shape for every host:
-   * a known one gets its stylesheet, an unknown one gets Rankine's plate and
-   * `tenant: false`. Nothing here distinguishes "not a customer" from "no theme
-   * set", so the route cannot be walked to enumerate tenants. A theme is public
-   * by construction anyway — it is the colours on a page anyone can load.
+   * It is safe to leave open because a theme is public by construction — it
+   * is the colours on a page anyone can load. It does say one thing: `tenant`
+   * is true for a host that has a theme, so walking hosts finds the portals
+   * that are white-labelled. That is the same fact loading each portal's
+   * sign-in page tells anyone; it does not distinguish "not a customer" from
+   * "a customer with no theme".
    */
   "brand.theme": async (req) => {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -586,13 +648,13 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
     // from; the Host header is the fallback for a portal on its own domain.
     const host = url.searchParams.get("host") ?? req.headers.host;
     const tx = await beginTx(pool, "ac_gateway");
-    try { return await brandStylesheetFor(tx, host ?? undefined); } finally { await tx.rollback().catch(() => {}); }
+    try { await bindSystem(tx); return await brandStylesheetFor(tx, host ?? undefined); } finally { await tx.rollback().catch(() => {}); }
   },
 
   // ---- item 8: S1's anonymous door ----
-  "auth.anonymousSession": (_req, _input, res) => anonymousSession(res),
-  "leads.submit": (req, input) => withUow(req, "leads.submit", (uow) => submitLead(uow, input, randomUUID)),
-  "callRecords.record": (req, input) => withUow(req, "callRecords.record", (uow) => recordCall(uow, input, randomUUID, () => new Date())),
+  "auth.anonymousSession": (req, _input, res) => anonymousSession(req, res),
+  "leads.submit": (req, input) => { throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"); return withUow(req, "leads.submit", (uow) => submitLead(uow, input, randomUUID)); },
+  "callRecords.record": (req, input) => { throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"); return withUow(req, "callRecords.record", (uow) => recordCall(uow, input, randomUUID, () => new Date())); },
 
   /**
    * The coverage map, with no session behind it — the same shape as
@@ -642,11 +704,22 @@ const inputOf = async (req: IncomingMessage, url: URL, opId: OperationId): Promi
   }
 };
 
-const sseClients = new Set<{ res: ServerResponse; regionId: string; orgScoped: boolean }>();
+type SseClient = { res: ServerResponse; regionId: string; orgScoped: boolean; internal: boolean; orgId: string | null; surfaceId: SurfaceId };
+const SSE_SESSION_RECHECK_MS = 60_000;
+const sseClients = new Set<SseClient>();
 await listenEvents(DATABASE_URL, (payload) => {
-  const env = JSON.parse(payload) as { regionId: string };
+  let env: { eventId: string; topic: string; regionId: string; orgId: string; occurredAt: string };
+  // A malformed NOTIFY payload is dropped, not thrown: this runs inside the
+  // listener's callback, where a throw takes the gateway down.
+  try { env = JSON.parse(payload); } catch { console.error("gateway: dropped a malformed event envelope"); return; }
+  // Outside the internal namespace an envelope names nothing: entity, entity
+  // id and org are other tenants' facts. The topic is enough to refetch on,
+  // and the refetch goes through row security like every other read.
+  const blind = `event: domain\ndata: ${JSON.stringify({ eventId: env.eventId, topic: env.topic, regionId: env.regionId, occurredAt: env.occurredAt })}\n\n`;
   for (const c of sseClients) {
-    if (c.orgScoped || c.regionId === env.regionId) c.res.write(`event: domain\ndata: ${payload}\n\n`);
+    if (!(c.orgScoped || c.regionId === env.regionId)) continue;
+    if (c.orgId && c.orgId !== env.orgId) continue;
+    c.res.write(c.internal ? `event: domain\ndata: ${payload}\n\n` : blind);
   }
 });
 

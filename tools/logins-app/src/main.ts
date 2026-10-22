@@ -55,11 +55,12 @@ type Handlers = { [K in keyof Api]: (...args: Parameters<Api[K]>) => ReturnType<
 const handlers: Handlers = {
   connections: async () => ({ production: Boolean(conns.production), local: Boolean(conns.local), localIsDefault: conns.local === LOCAL_DEFAULT, selected, error: connectionsError }),
   setConnection: async (name, url) => {
+    // Proven before it is kept: a mistyped string must not overwrite the one that works.
+    const probe = await openDb(url.trim());
+    await probe.close();
     conns = { ...conns, [name]: url.trim() };
     saveConnections(CONFIG_DIR, conns);
     connectionsError = null;
-    const probe = await openFor(name);
-    await probe.close();
   },
   select,
   listUsers: async (db, includeInactive) => (await use(db)).listUsers({ includeInactive }),

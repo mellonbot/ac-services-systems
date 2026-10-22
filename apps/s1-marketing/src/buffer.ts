@@ -10,11 +10,10 @@ import type { SubmitLeadInput } from "../../../packages/contracts/src/index.ts";
  * makes one honest. Three things, and each is a line of code that could
  * plausibly have been left out:
  *
- *   1. IT SURVIVES THE TAB. S5's queue lives in memory, because a technician's
- *      device is awake and holding the app open for a shift. A stranger on a
- *      phone in a mechanical room with one bar closes the tab, or the tab is
- *      discarded under memory pressure, and comes back later. So this one is
- *      written to storage on every change, and read back at boot.
+ *   1. IT SURVIVES THE TAB. A stranger on a phone in a mechanical room with
+ *      one bar closes the tab, or the tab is discarded under memory pressure,
+ *      and comes back later. So this one is written to storage on every
+ *      change, and read back at boot (as S5's queue now is too).
  *
  *   2. IT REPLAYS THE SAME ID. `submissionId` is minted once, at enqueue, and
  *      never again. A replay that already landed loses to the unique index in
@@ -129,13 +128,23 @@ export const createLeadBuffer = (opts: { store?: BufferStore | null; now: () => 
   const flushing = signal(false);
   const attention = signal<readonly { submissionId: string; message: string }[]>([]);
 
-  const persist = (next: readonly QueuedLead[]) => {
-    pending.value = next;
+  /**
+   * Written as a merge, not an overwrite: another tab of this page may have
+   * queued a lead since this one loaded, and writing this tab's copy over it
+   * would lose it. What another tab holds is kept (a lead already landed comes
+   * back as the unique index's duplicate, which is success); what this tab
+   * removes is removed.
+   */
+  const persist = (next: readonly QueuedLead[], removed?: string) => {
+    const ids = new Set(next.map((q) => q.input.submissionId));
+    const others = load().filter((q) => !ids.has(q.input.submissionId) && q.input.submissionId !== removed);
+    const merged = [...next, ...others];
+    pending.value = merged;
     if (!store) return;
-    try { store.setItem(BUFFER_KEY, JSON.stringify(next)); } catch { /* blocked site data: the queue is this session's */ }
+    try { store.setItem(BUFFER_KEY, JSON.stringify(merged)); } catch { /* blocked site data: the queue is this session's */ }
   };
 
-  const drop = (submissionId: string) => persist(pending.value.filter((q) => q.input.submissionId !== submissionId));
+  const drop = (submissionId: string) => persist(pending.value.filter((q) => q.input.submissionId !== submissionId), submissionId);
 
   const enqueue = (input: SubmitLeadInput) => {
     if (pending.value.some((q) => q.input.submissionId === input.submissionId)) return;

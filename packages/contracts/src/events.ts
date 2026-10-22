@@ -99,7 +99,12 @@ export type DomainEvent = {
  * shell's subscribe() delivers this, not a DomainEvent, so a surface cannot
  * be written against a field that is never there.
  */
-export type EventEnvelope = Pick<DomainEvent, "eventId" | "topic" | "entity" | "entityId" | "regionId" | "orgId" | "occurredAt">;
+/**
+ * What a subscriber receives. Entity, entity id and org are present for an
+ * internal subscriber only: outside it they are other tenants' facts, and a
+ * subscriber outside it refetches by topic, through row security.
+ */
+export type EventEnvelope = Pick<DomainEvent, "eventId" | "topic" | "regionId" | "occurredAt"> & Partial<Pick<DomainEvent, "entity" | "entityId" | "orgId">>;
 
 /** Block subscriptions declared, not discovered. */
 export const SUBSCRIBERS: Readonly<Record<"OFC" | "FLD" | "INV" | "WORKER", readonly Topic[]>> = {

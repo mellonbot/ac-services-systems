@@ -405,9 +405,10 @@ test("a contractor technician signs in on S5", { skip }, async () => {
 test("a dropped idle connection is swallowed, and the next query still works", { skip }, async () => {
   const p = createPool(URL_!, "ac-logins-app-idle-test");
   try {
-    assert.equal(p.listenerCount("error"), 0);
-    attachIdleErrorHandler(p);
+    // createPool already listens (pg-tx.ts); the app's own handler is a second, harmless one.
     assert.equal(p.listenerCount("error"), 1);
+    attachIdleErrorHandler(p);
+    assert.equal(p.listenerCount("error"), 2);
     assert.doesNotThrow(() => p.emit("error", new Error("idle drop")));
   } finally { await p.end(); }
   await db.ping();

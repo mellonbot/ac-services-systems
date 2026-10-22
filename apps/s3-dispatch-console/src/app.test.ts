@@ -198,7 +198,9 @@ test("dispatch: the dry run renders as ComplianceBadge with the gate's own reaso
   assert.match(out, /Not cleared — expired in window/);
   assert.match(out, /<h1 class="ac-page-head__title">Dispatch — hvac_repair<\/h1>/);
   assert.match(out, /<h2 class="ac-panel__title">Candidate crews<\/h2>/);
-  assert.match(out, new RegExp(`href="/customer/site/${SITE}"[^>]*>Austin — Roof</a>`));
+  // The site is named, not linked: the site card is S6's, and S6 admits customers only — a dispatcher who followed it was refused at sign-in.
+  assert.match(out, /<dt>Site<\/dt><dd>Austin — Roof<\/dd>/);
+  assert.doesNotMatch(out, /href="\/customer\//);
   assert.match(out, new RegExp(`id="assign-${CREW_A}"`));
   assert.doesNotMatch(out, new RegExp(`id="assign-${CREW_B}"`), "an uncleared crew has no Assign button — there is no override path here or at the gateway");
 });

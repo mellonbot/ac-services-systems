@@ -25,14 +25,21 @@ const toOverride = (r: Row): Override => ({
   termValue: r.term_value, effectiveFrom: r.eff_from, effectiveTo: r.eff_to,
 });
 
+/**
+ * An override speaks for its agreement only while the agreement could be in
+ * force: a terminated or expired MSA's terms do not drive a due date. A
+ * draft's do — terms are authored before the signature they lead up to.
+ */
+const IN_FORCE = ["draft", "active"];
+
 export const loadOrgOverrides = async (uow: UnitOfWork, orgId: string, termKey?: string): Promise<readonly Override[]> => {
   const rows = await uow.tx.query<Row>(
-    `SELECT id, contract_id, scope_tier, scope_id, term_key, term_value,
-            to_char(lower(effective), 'YYYY-MM-DD') AS eff_from,
-            CASE WHEN upper_inf(effective) THEN NULL ELSE to_char(upper(effective), 'YYYY-MM-DD') END AS eff_to
-       FROM contract_term_overrides
-      WHERE org_id = $1 AND ($2::text IS NULL OR term_key = $2)`,
-    [orgId, termKey ?? null],
+    `SELECT o.id, o.contract_id, o.scope_tier, o.scope_id, o.term_key, o.term_value,
+            to_char(lower(o.effective), 'YYYY-MM-DD') AS eff_from,
+            CASE WHEN upper_inf(o.effective) THEN NULL ELSE to_char(upper(o.effective), 'YYYY-MM-DD') END AS eff_to
+       FROM contract_term_overrides o JOIN contracts c ON c.id = o.contract_id
+      WHERE o.org_id = $1 AND ($2::text IS NULL OR o.term_key = $2) AND c.state = ANY($3::text[])`,
+    [orgId, termKey ?? null, IN_FORCE],
   );
   return rows.map(toOverride);
 };
@@ -60,6 +67,14 @@ export const pathLoader = async (uow: UnitOfWork, orgId: string) => {
 export type AuthorOverrideInput = Candidate & { readonly orgId: string; readonly regionId: string };
 
 export const authorTermOverride = async (uow: UnitOfWork, ctx: HierarchyContext, input: AuthorOverrideInput): Promise<{ id: string; eventId: string }> => {
+  // Admission reads every row for this (org, term) and decides against them;
+  // two authors at once would each decide against a set missing the other's
+  // row. One at a time per (org, term).
+  await uow.tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`term-override:${input.orgId}:${input.termKey}`]);
+  const contract = (await uow.tx.query<{ org_id: string; state: string }>("SELECT org_id, state FROM contracts WHERE id = $1", [input.contractId]))[0];
+  if (!contract) throw new InputRefused(`no contract ${input.contractId} visible in this scope — an override is authored against an existing agreement`, "unknown_contract");
+  if (contract.org_id !== input.orgId) throw new InputRefused(`agreement ${input.contractId} is not this organization's`, "tenancy_mismatch");
+  if (!IN_FORCE.includes(contract.state)) throw new InputRefused(`agreement ${input.contractId} is ${contract.state} — a term is authored against an agreement that can be in force`, "contract_not_in_force");
   const existing = await loadOrgOverrides(uow, input.orgId, input.termKey);
   const pathOf = await pathLoader(uow, input.orgId);
   admitOverride(input, existing, pathOf); // throws AdmissionRefused with the reason for a human

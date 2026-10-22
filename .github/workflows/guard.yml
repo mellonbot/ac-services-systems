@@ -36,7 +36,7 @@ jobs:
       # No version here: pnpm/action-setup reads `packageManager` from
       # package.json. A version pinned in both places is two sources of truth,
       # and the one in the workflow is the one nobody updates.
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
       - uses: actions/setup-node@v7
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
@@ -101,7 +101,7 @@ jobs:
             *) echo "::error::A second run applied something. A migration is not recording itself." && exit 1 ;;
           esac
       # The backbone contract, every claim, against the live database. Needs pg.
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
       - run: pnpm install --frozen-lockfile
       - run: npm run test:integration
 
@@ -151,7 +151,7 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/ac_ci
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
       - uses: actions/setup-node@v7
         with: { node-version: 22, cache: pnpm }
       # The drives used to follow `migrate` in one job, on a server whose roles
@@ -229,7 +229,7 @@ jobs:
       - if: steps.configured.outputs.ready == 'true'
         uses: actions/checkout@v7
       - if: steps.configured.outputs.ready == 'true'
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
       - if: steps.configured.outputs.ready == 'true'
         uses: actions/setup-node@v7
         with: { node-version: 22 }
@@ -243,7 +243,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if ! held=$(pnpm dlx wrangler@4 secret list -c infra/cloudflare/wrangler.jsonc 2>&1); then
+          if ! held=$(pnpm dlx wrangler@4.148.0 secret list -c infra/cloudflare/wrangler.jsonc 2>&1); then
             echo "$held"
             echo "::error::The Worker 'ac-gateway' has no secrets yet. Run the one-time setup in docs/CLOUDFLARE_PAGES.md, 'The gateway'."
             exit 1
@@ -251,7 +251,7 @@ jobs:
           missing=0
           for name in AC_SIGNING_KEY_PEM DATABASE_URL; do
             if ! grep -q "\"$name\"" <<< "$held"; then
-              echo "::error::$name is not set on the Worker: npx wrangler@4 secret put $name -c infra/cloudflare/wrangler.jsonc"
+              echo "::error::$name is not set on the Worker: npx wrangler@4.148.0 secret put $name -c infra/cloudflare/wrangler.jsonc"
               missing=1
             fi
           done
@@ -275,7 +275,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm dlx wrangler@4 deploy -c infra/cloudflare/wrangler.jsonc
+        run: pnpm dlx wrangler@4.148.0 deploy -c infra/cloudflare/wrangler.jsonc
       - name: The gateway answers on its domain
         if: steps.configured.outputs.ready == 'true'
         run: |
@@ -283,7 +283,7 @@ jobs:
             if curl -fsS --max-time 10 https://api.acservice.systems/healthz; then echo; exit 0; fi
             sleep 10
           done
-          echo "::error::api.acservice.systems/healthz did not answer within five minutes. \`npx wrangler@4 tail -c infra/cloudflare/wrangler.jsonc\` shows why the Worker would not start it."
+          echo "::error::api.acservice.systems/healthz did not answer within five minutes. \`npx wrangler@4.148.0 tail -c infra/cloudflare/wrangler.jsonc\` shows why the Worker would not start it."
           exit 1
 
   deploy:
@@ -321,7 +321,7 @@ jobs:
           done
           exit $missing
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
       - uses: actions/setup-node@v7
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
@@ -331,9 +331,11 @@ jobs:
           AC_GATEWAY: ${{ vars.AC_GATEWAY || 'https://api.acservice.systems' }}
       # wrangler is run directly rather than through cloudflare/wrangler-action: the
       # action sees pnpm-lock.yaml and tries `pnpm add wrangler`, which pnpm refuses
-      # at a workspace root. `pnpm dlx` fetches the pinned major and adds nothing.
+      # at a workspace root. `pnpm dlx` fetches the pinned version and adds nothing —
+      # an exact version, because this step holds the Cloudflare token.
       - name: Deploy to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm dlx wrangler@4 pages deploy dist/pages --project-name="${{ vars.CLOUDFLARE_PAGES_PROJECT }}" --branch=main
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+        run: pnpm dlx wrangler@4.148.0 pages deploy dist/pages --project-name="$CLOUDFLARE_PAGES_PROJECT" --branch=main

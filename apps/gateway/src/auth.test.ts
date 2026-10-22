@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { generateKeypair, mintToken, verifyToken, principalFromClaims, validateClaims, AuthError, hashPassword, verifyPassword } from "./auth.ts";
+import { generateKeypair, mintToken, verifyToken, principalFromClaims, validateClaims, AuthError, hashPassword, verifyPassword, verifyPasswordAsync } from "./auth.ts";
 import { buildContext, scopeBinding, ScopeResolutionError, type HierarchyReader } from "./context.ts";
 import { PROSPECT_ORG_ID, UNASSIGNED_REGION_ID, INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
 import { ANONYMOUS_PRINCIPAL, ANONYMOUS_PRINCIPAL_IDS, type Claims } from "../../../packages/contracts/src/scope.ts";
@@ -127,4 +127,11 @@ test("claims validation is what actually holds the anonymous principal in PROSPE
   assert.doesNotThrow(() => validateClaims(base));
   assert.throws(() => validateClaims({ ...base, org: INTERNAL_ORG_ID }), /PROSPECT\/UNASSIGNED/);
   assert.throws(() => validateClaims({ ...base, ns: "customer", region: UNASSIGNED_REGION_ID }), /only anonymous/);
+});
+
+test("verifyPasswordAsync: the right password, the wrong one, and no stored hash at all — which is false after the same work", async () => {
+  const h = hashPassword("correct horse");
+  assert.equal(await verifyPasswordAsync("correct horse", h), true);
+  assert.equal(await verifyPasswordAsync("wrong", h), false);
+  assert.equal(await verifyPasswordAsync("anything", null), false);
 });

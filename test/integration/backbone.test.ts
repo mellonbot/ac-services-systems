@@ -406,39 +406,93 @@ test("a surface cannot write outside its allowlist: S6 (customer portal) cannot 
 // ---------------------------------------------------------------------------
 // Non-negotiable #6 — sync
 // ---------------------------------------------------------------------------
+/** The tablet and its shift grant for crew A — the grant a device's sync is held to. */
+const deviceOnShift = async () => {
+  await admin(`INSERT INTO devices (id, org_id, region_id, hardware_id, kind, public_key) VALUES ($1,$2,$3,'backbone-tablet','web_fallback','\\x00') ON CONFLICT (id) DO NOTHING`, [DEVICE, INTERNAL_ORG_ID, REGION_SOUTH]);
+  await admin(`INSERT INTO device_grants (id, org_id, region_id, device_id, crew_id, technician_id, service_window, granted_by)
+    VALUES ($1,$2,$3,$4,$5,$6,tstzrange('2026-09-16T00:00:00Z','2026-09-17T00:00:00Z','[)'),$7) ON CONFLICT (id) DO NOTHING`,
+    [GRANT, INTERNAL_ORG_ID, REGION_SOUTH, DEVICE, CREW_A, USER_TECH, USER_OPS]);
+};
+/** A job on the 16th, crew A sent to it by the South dispatcher — as the office would have. */
+const crewAJob = async () => withUow("S3", DISP_SOUTH, async (uow) => {
+  const job = await newJob(uow.tx, await siteUnder(uow.tx, N.elPaso), REGION_SOUTH, "2026-09-16T09:00:00Z", "2026-09-16T13:00:00Z");
+  const r = await assignCrew(uow, USER_DISP_SOUTH, { jobId: job, crewId: CREW_A, orgId: ORG, regionId: REGION_SOUTH }, NOW);
+  assert.equal(r.ok, true);
+  await uow.commit();
+  return job;
+});
+
+test("dispatch refuses a job that is not waiting for a crew, and a job holds one live crew", skip, async () => {
+  const job = await crewAJob();
+  await withUow("S3", DISP_SOUTH, async (uow) => {
+    // Already assigned: a second dispatch is refused by name, before any write.
+    await assert.rejects(assignCrew(uow, USER_DISP_SOUTH, { jobId: job, crewId: CREW_A, orgId: ORG, regionId: REGION_SOUTH }, NOW), (e: Error & { code?: string }) => e.code === "job_not_dispatchable");
+  });
+  await admin(`UPDATE jobs SET state = 'cancelled' WHERE id = $1`, [job]);
+  await withUow("S3", DISP_SOUTH, async (uow) => {
+    await assert.rejects(assignCrew(uow, USER_DISP_SOUTH, { jobId: job, crewId: CREW_A, orgId: ORG, regionId: REGION_SOUTH }, NOW), (e: Error & { code?: string }) => e.code === "job_not_dispatchable");
+  });
+  // And where no handler stands: a second live assignment is unrepresentable (0022).
+  const live = (await admin(`SELECT clearance_id FROM assignments WHERE job_id = $1 AND released_at IS NULL`, [job]))[0] as { clearance_id: string };
+  await assert.rejects(admin(`INSERT INTO assignments (org_id, region_id, job_id, crew_id, clearance_id, assigned_by) VALUES ($1,$2,$3,$4,$5,$6)`, [ORG, REGION_SOUTH, job, CREW_A, live.clearance_id, USER_OPS]), /assignments_one_live_per_job/);
+});
+
 test("sync: a device log replays in device order; a duplicate replay is a no-op; an assignment intent is rejected and recorded", skip, async () => {
+  await deviceOnShift();
+  const job = await crewAJob();
   await withUow("S5", TECH_DEVICE, async (uow) => {
-    // Set up an assigned job, as the office would have.
     const tx = uow.tx;
-    const job = await newJob(tx, await siteUnder(tx, N.elPaso), REGION_SOUTH, "2026-09-16T09:00:00Z", "2026-09-16T13:00:00Z");
-    await tx.query(`UPDATE jobs SET state = 'assigned' WHERE id = $1`, [job]);
     const log = [
       { mutationId: "m1", deviceId: DEVICE, deviceSeq: 1, entityTable: "jobs", entityId: job, op: "transition" as const, payload: { state: "en_route" }, clientObservedVersion: 1, deviceAt: "2026-09-16T08:30:00Z" },
       { mutationId: "m2", deviceId: DEVICE, deviceSeq: 2, entityTable: "jobs", entityId: job, op: "transition" as const, payload: { state: "on_site" }, clientObservedVersion: 2, deviceAt: "2026-09-16T09:05:00Z" },
       { mutationId: "m3", deviceId: DEVICE, deviceSeq: 3, entityTable: "job_media", entityId: job, op: "insert" as const, payload: { storage_key: `${REGION_SOUTH}/${ORG}/photo/p1`, kind: "photo" }, clientObservedVersion: null, deviceAt: "2026-09-16T09:10:00Z" },
       { mutationId: "m4", deviceId: DEVICE, deviceSeq: 4, entityTable: "assignments", entityId: job, op: "insert" as const, payload: { crew_id: CREW_B }, clientObservedVersion: null, deviceAt: "2026-09-16T09:11:00Z" },
     ];
-    const out = await ingestSync(uow, USER_TECH, { deviceId: DEVICE, mutations: log, orgId: ORG, regionId: REGION_SOUTH }, NOW);
+    const out = await ingestSync(uow, USER_TECH, { deviceId: DEVICE, grantId: GRANT, mutations: log, orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH }, NOW);
     assert.deepEqual(out.map((o) => o.outcome), ["applied", "applied", "applied", "rejected"]);
     assert.equal((await tx.query<{ state: string }>(`SELECT state FROM jobs WHERE id = $1`, [job]))[0]!.state, "on_site");
-    assert.equal((await tx.query(`SELECT 1 FROM job_state_events WHERE job_id = $1`, [job])).length, 2);
+    assert.equal((await tx.query(`SELECT 1 FROM job_state_events WHERE job_id = $1 AND surface_id = 'S5'`, [job])).length, 2);
     assert.equal((await tx.query(`SELECT 1 FROM sync_mutations WHERE device_id = $1 AND outcome = 'rejected'`, [DEVICE])).length, 1);
     // Twelve hours later the device replays the same log.
-    const again = await ingestSync(uow, USER_TECH, { deviceId: DEVICE, mutations: log, orgId: ORG, regionId: REGION_SOUTH }, NOW);
+    const again = await ingestSync(uow, USER_TECH, { deviceId: DEVICE, grantId: GRANT, mutations: log, orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH }, NOW);
     assert.deepEqual(again.map((o) => o.outcome), ["duplicate", "duplicate", "duplicate", "duplicate"]);
     assert.equal((await tx.query(`SELECT 1 FROM job_media WHERE job_id = $1`, [job])).length, 1);
+    // The row the device wrote carries the JOB's tenancy, not the batch's.
+    assert.equal((await tx.query<{ org_id: string }>(`SELECT org_id FROM job_state_events WHERE job_id = $1 LIMIT 1`, [job]))[0]!.org_id, ORG);
+  });
+});
+
+test("sync: a device cannot touch a job its crew was never sent to, in its own region or not", skip, async () => {
+  await deviceOnShift();
+  const notOurs = await withUow("S3", DISP_SOUTH, async (uow) => {
+    const job = await newJob(uow.tx, await siteUnder(uow.tx, N.elPaso), REGION_SOUTH, "2026-09-16T09:00:00Z", "2026-09-16T13:00:00Z");
+    await uow.commit();
+    return job;
+  });
+  await withUow("S5", TECH_DEVICE, async (uow) => {
+    const out = await ingestSync(uow, USER_TECH, { deviceId: DEVICE, grantId: GRANT, orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH, mutations: [
+      { mutationId: `x-${notOurs}`, deviceId: DEVICE, deviceSeq: 1, entityTable: "jobs", entityId: notOurs, op: "transition", payload: { state: "en_route" }, clientObservedVersion: 1, deviceAt: "2026-09-16T08:30:00Z" },
+    ] }, NOW);
+    assert.equal(out[0]!.outcome, "rejected");
+    assert.equal((await uow.tx.query<{ state: string }>(`SELECT state FROM jobs WHERE id = $1`, [notOurs]))[0]!.state, "created");
   });
 });
 
 test("sync: the office cancelled it, the crew completed it — a conflict row for a human and an event, not a silent winner", skip, async () => {
+  await deviceOnShift();
+  const job = await crewAJob();
+  await admin(`UPDATE jobs SET state = 'cancelled' WHERE id = $1`, [job]);
   await withUow("S5", TECH_DEVICE, async (uow) => {
-    const job = await newJob(uow.tx, await siteUnder(uow.tx, N.elPaso), REGION_SOUTH, "2026-09-16T09:00:00Z", "2026-09-16T13:00:00Z");
-    await uow.tx.query(`UPDATE jobs SET state = 'cancelled' WHERE id = $1`, [job]);
-    const out = await ingestSync(uow, USER_TECH, { deviceId: DEVICE, orgId: ORG, regionId: REGION_SOUTH, mutations: [
+    const out = await ingestSync(uow, USER_TECH, { deviceId: DEVICE, grantId: GRANT, orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH, mutations: [
       { mutationId: "c1", deviceId: DEVICE, deviceSeq: 1, entityTable: "jobs", entityId: job, op: "transition", payload: { state: "complete" }, clientObservedVersion: 1, deviceAt: "2026-09-16T12:00:00Z" },
     ] }, NOW);
     assert.equal(out[0]!.outcome, "queued_for_human");
+    // A device adds to the conflict queue and cannot read it back (0021): the
+    // office's binding is the one that sees the queue.
+    assert.equal((await uow.tx.query(`SELECT 1 FROM sync_conflicts WHERE entity_id = $1`, [job])).length, 0);
+    await uow.tx.query(`SELECT set_config('ac.namespace', 'internal', true)`);
     assert.equal((await uow.tx.query(`SELECT 1 FROM sync_conflicts WHERE entity_id = $1 AND resolved_at IS NULL`, [job])).length, 1);
+    await uow.tx.query(`SELECT set_config('ac.namespace', 'device', true)`);
     assert.equal(uow.pending().events.at(-1)!.topic, "sync.conflict_queued");
     assert.equal((await uow.tx.query<{ state: string }>(`SELECT state FROM jobs WHERE id = $1`, [job]))[0]!.state, "cancelled");
   });

@@ -260,6 +260,9 @@ const openForm = (title: string, body: HTMLElement[], submit: (f: FormData) => P
       showError("The two passwords differ.");
       return;
     }
+    // One save at a time: a second click while the first is in flight would write twice.
+    if (save.disabled) return;
+    save.disabled = true;
     try {
       const revoked = await submit(data);
       closeForm();
@@ -268,6 +271,8 @@ const openForm = (title: string, body: HTMLElement[], submit: (f: FormData) => P
       await reload();
     } catch (e) {
       showError(message(e));
+    } finally {
+      save.disabled = false;
     }
   };
   dialog().showModal();
