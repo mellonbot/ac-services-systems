@@ -29,13 +29,18 @@ const redirectsForEnabledSurfaces = (): string => {
 
 // bundle.js and ui.css keep their names across deploys, so Pages' default
 // four-hour cache would leave a browser on the old bundle after a deploy.
-// no-cache keeps the copy but revalidates its ETag on every load.
+// no-cache keeps the copy but revalidates its ETag on every load. chunks/ is
+// named by content hash, so a copy is never stale: cache it for a year and skip
+// the revalidation round trip.
 export const headersForEnabledSurfaces = (): string =>
   SURFACE_IDS
     .filter((id) => SURFACES[id].enabled)
     .flatMap((id) => {
       const prefix = SURFACE_PATHS[id] === "/" ? "" : SURFACE_PATHS[id];
-      return ["bundle.js", "ui.css"].map((file) => `${prefix}/${file}\n  Cache-Control: no-cache\n`);
+      return [
+        ...["bundle.js", "ui.css"].map((file) => `${prefix}/${file}\n  Cache-Control: no-cache\n`),
+        `${prefix}/chunks/*\n  Cache-Control: public, max-age=31536000, immutable\n`,
+      ];
     })
     .join("");
 
