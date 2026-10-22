@@ -77,6 +77,16 @@ npx wrangler@4 secret put AC_MAP_TILE_URL -c infra/cloudflare/wrangler.jsonc
 # paste: https://api.maptiler.com/maps/hybrid/256/{z}/{x}/{y}.jpg?key=<KEY>
 ```
 
+An address is typed as words, so the map also needs the geocoder that turns
+it into a point — the same MapTiler key, its Geocoding API. The first time a
+home's map is opened the gateway asks it once and writes the point onto the
+site's address (an audited `accounts.update`):
+
+```bash
+npx wrangler@4 secret put AC_GEOCODE_URL -c infra/cloudflare/wrangler.jsonc
+# paste: https://api.maptiler.com/geocoding/{q}.json?key=<KEY>&limit=1&country=us
+```
+
 `AC_MAP_ATTRIBUTION` is already a plain var in `wrangler.jsonc`. Unset, the map
 draws the pin on a bare grid and says no provider is configured. A secret
 reaches the container when it next starts — the next deploy.

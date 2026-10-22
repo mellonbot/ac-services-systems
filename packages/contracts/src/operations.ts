@@ -186,6 +186,11 @@ export const OPERATIONS = {
     surfaces: ["S2"], carrier: "query", sdkMethod: "siteMapTile",
     summary: "One web-mercator basemap tile near a site, fetched by the GATEWAY from the configured tile provider (AC_MAP_TILE_URL) and returned inline — the same reasons as sites.imagery: no key in a bundle, no customer's coordinates sent to a third party from a browser. Only tiles within MAP_TILE_REACH of the site's own tile, at MAP_ZOOM_MIN–MAP_ZOOM_MAX, are served: a pan around a home, not a free tile proxy. Unavailable is an answer: not configured, no coordinates, provider unreachable.",
   },
+  "sites.locate": {
+    id: "sites.locate", method: "POST", path: "/s2/sites/locate", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "locateSite",
+    summary: "Place a site on the map: when its address carries no lat/lng, the GATEWAY asks the configured geocoder (AC_GEOCODE_URL) for that address and writes the coordinates onto the address through accounts.update — audited, account.updated. A site that already has coordinates is answered as recorded and not touched. Only a match at the address itself (a house number or a named place) is written; a street, town or postcode centroid is 'not_found', because a pin in the wrong yard is worse than none.",
+  },
   // ---- C2: the agreements and term overrides S2 authors (09 §3.6) ----
   "contracts.list": {
     id: "contracts.list", method: "GET", path: "/s2/contracts", kind: "query", auth: "bearer",
@@ -958,6 +963,14 @@ export const MAP_ZOOM_MIN = 10, MAP_ZOOM_MAX = 19, MAP_TILE_REACH = 4;
 export const tileOf = (lat: number, lng: number, z: number): { readonly x: number; readonly y: number } => {
   const n = 2 ** z, r = (lat * Math.PI) / 180;
   return { x: ((lng + 180) / 360) * n, y: ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n };
+};
+export type LocateSiteInput = { readonly siteId: string };
+export type LocateSiteOutput = {
+  readonly siteId: string;
+  readonly lat: number | null; readonly lng: number | null;
+  /** recorded: it already had coordinates; located: the geocoder found it and they were written. Otherwise why there is no pin. */
+  readonly outcome: "recorded" | "located" | "not_configured" | "no_address" | "not_found" | "provider_unreachable";
+  readonly eventId: string | null;
 };
 export type SiteMapTileInput = { readonly siteId: string; readonly z: number; readonly x: number; readonly y: number };
 export type SiteMapTileOutput = {
@@ -1858,6 +1871,7 @@ export type OperationIO = {
   "invoices.list": { input: ListInvoicesInput; output: ListInvoicesOutput };
   "sites.imagery": { input: SiteImageryInput; output: SiteImageryOutput };
   "sites.mapTile": { input: SiteMapTileInput; output: SiteMapTileOutput };
+  "sites.locate": { input: LocateSiteInput; output: LocateSiteOutput };
   "contracts.list": { input: ListContractsInput; output: ListContractsOutput };
   "contracts.create": { input: CreateContractInput; output: CreateContractOutput };
   "contracts.transition": { input: TransitionContractInput; output: TransitionContractOutput };

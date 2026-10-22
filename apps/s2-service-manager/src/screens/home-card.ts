@@ -1,5 +1,5 @@
 import { html, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
-import { MAP_TILE_REACH, MAP_ZOOM_MAX, MAP_ZOOM_MIN, WORK_DONE_STATES, tileOf, type AccountWire, type JobStateWire, type JobWire } from "../../../../packages/contracts/src/index.ts";
+import { MAP_TILE_REACH, MAP_ZOOM_MAX, MAP_ZOOM_MIN, WORK_DONE_STATES, tileOf, type AccountWire, type JobStateWire, type JobWire, type LocateSiteOutput } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, type ScreenContext } from "./common.ts";
 
@@ -46,13 +46,49 @@ export const zoomMap = (site: AccountWire, lat: number, lng: number, dz: number)
   view.value = clamp(lat, lng, { ...v, z, cx: v.cx * k, cy: v.cy * k });
 };
 export const recentreMap = () => { view.value = null; };
+export const forgetLocating = () => { locating.value = {}; };
 
 const PAN_KEYS: Readonly<Record<string, readonly [number, number]>> = { ArrowLeft: [-64, 0], ArrowRight: [64, 0], ArrowUp: [0, -64], ArrowDown: [0, 64] };
 
+/**
+ * A typed address has no point until the gateway geocodes it (sites.locate),
+ * which writes the point onto the address. Asked once per site per page —
+ * a failure that may pass offers Try again; the answer arrives as an
+ * account.updated and the tree refetch brings the coordinates.
+ */
+type Locating = "asking" | LocateSiteOutput["outcome"] | "refused";
+const locating = signal<Readonly<Record<string, Locating>>>({});
+const settle = (siteId: string, to: Locating) => { locating.value = { ...locating.value, [siteId]: to }; };
+export const locate = (ctx: ScreenContext, siteId: string) => {
+  settle(siteId, "asking");
+  ctx.shell.gateway.locateSite({ siteId }).then(
+    (out) => { settle(siteId, out.outcome); if (out.lat !== null) ctx.store.invalidate("accounts.list"); },
+    () => settle(siteId, "refused"),
+  );
+};
+const LOCATE_WHY: Readonly<Record<Locating, string>> = {
+  asking: "Finding this address on the map…",
+  located: "Placing the pin…", recorded: "Placing the pin…",
+  not_configured: "No geocoder is configured, so this address cannot be placed on the map yet.",
+  no_address: "This address has no street line to place on the map.",
+  not_found: "The map provider could not find this exact address — check the street, house number, city and ZIP.",
+  provider_unreachable: "The map provider did not answer.",
+  refused: "Placing this address was refused.",
+};
+const RETRYABLE: ReadonlySet<Locating> = new Set(["provider_unreachable", "refused"]);
+
 const homeMap = (ctx: ScreenContext, site: AccountWire): VNode => {
   const lat = site.address?.lat, lng = site.address?.lng;
-  if (typeof lat !== "number" || typeof lng !== "number")
-    return html`<div class="s2-map s2-map--empty" id="home-map"><p class="s2-muted">No coordinates on record for this address, so there is nothing to pin. Add a latitude and longitude to the site's address to place it.</p></div>`;
+  if (typeof lat !== "number" || typeof lng !== "number") {
+    const state = locating.value[site.id];
+    // Asked from render, after it: the request is the store's kind of side effect, the signal write must not land mid-render.
+    if (state === undefined && !ctx.degraded) queueMicrotask(() => { if (locating.value[site.id] === undefined) locate(ctx, site.id); });
+    const why = state === undefined ? (ctx.degraded ? "Offline — the address is placed on the map when the connection returns." : LOCATE_WHY.asking) : LOCATE_WHY[state];
+    return html`<div class="s2-map s2-map--empty" id="home-map">
+      <p class="s2-muted" role="status">${why}</p>
+      ${state && RETRYABLE.has(state) ? html`<button type="button" class="s2-mutation s2-mutation--quiet" onClick=${() => locate(ctx, site.id)}>Try again</button>` : null}
+    </div>`;
+  }
   const v = viewFor(site, lat, lng);
   const home = homeAt(lat, lng, v.z);
   const tileRead = (x: number, y: number) =>

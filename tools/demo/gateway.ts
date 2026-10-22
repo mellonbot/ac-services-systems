@@ -773,6 +773,13 @@ const H: Partial<Record<OperationId, Handler>> = {
     const a = accounts.find((x) => x.id === i.siteId);
     return { siteId: i.siteId, lat: a?.address?.lat ?? null, lng: a?.address?.lng ?? null, image: null, attribution: null, unavailable: a?.address?.lat !== undefined ? "not_configured" : "no_coordinates" };
   },
+  "sites.locate": (i: W.LocateSiteInput) => {
+    const a = accounts.find((x) => x.id === i.siteId);
+    const lat = a?.address?.lat, lng = a?.address?.lng;
+    return lat !== undefined && lng !== undefined
+      ? { siteId: i.siteId, lat, lng, outcome: "recorded" as const, eventId: null }
+      : { siteId: i.siteId, lat: null, lng: null, outcome: "not_configured" as const, eventId: null };
+  },
   "sites.mapTile": (i: W.SiteMapTileInput) => {
     const a = accounts.find((x) => x.id === i.siteId);
     return { z: Number(i.z), x: Number(i.x), y: Number(i.y), image: null, attribution: null, unavailable: a?.address?.lat !== undefined ? "not_configured" : "no_coordinates" };

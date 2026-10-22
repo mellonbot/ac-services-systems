@@ -1,6 +1,7 @@
 import type { UnitOfWork } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
-import { MAP_TILE_REACH, MAP_ZOOM_MAX, MAP_ZOOM_MIN, tileOf, type SiteImageryInput, type SiteImageryOutput, type SiteMapTileInput, type SiteMapTileOutput, type AddressWire } from "../../../../packages/contracts/src/operations.ts";
+import { updateAccount } from "./hierarchy.ts";
+import { MAP_TILE_REACH, MAP_ZOOM_MAX, MAP_ZOOM_MIN, tileOf, type SiteImageryInput, type SiteImageryOutput, type SiteMapTileInput, type SiteMapTileOutput, type LocateSiteInput, type LocateSiteOutput, type AddressWire } from "../../../../packages/contracts/src/operations.ts";
 
 /**
  * ITEM 9 — OVERHEAD IMAGERY OF A SITE, served by the gateway.
@@ -172,4 +173,63 @@ export const siteMapTile = async (
   } finally {
     clearTimeout(timer);
   }
+};
+
+/**
+ * PLACING A SITE. An address is typed as words — nothing in the forms asks
+ * for a latitude — so the map has nothing to pin until something turns the
+ * words into a point. The gateway does, the first time the office opens the
+ * home's map: it asks the geocoder (same provider and reasons as the tiles),
+ * and writes the point onto the address through accounts.update, so it is
+ * audited like any other edit and asked for once per site, not per view.
+ *
+ *   AC_GEOCODE_URL   e.g. https://api.maptiler.com/geocoding/{q}.json?key=…&limit=1
+ *
+ * {q} is the address, URL-encoded. The answer is GeoJSON; only a feature
+ * whose place_type is an address or a named place is taken — a street, town
+ * or postcode centroid would put the pin in somebody else's yard.
+ */
+export type GeocodeConfig = { readonly urlTemplate: string | null };
+export const geocodeConfigFromEnv = (env: NodeJS.ProcessEnv = process.env): GeocodeConfig => ({ urlTemplate: env.AC_GEOCODE_URL?.trim() || null });
+export type JsonFetcher = (url: string, init: { signal: AbortSignal }) => Promise<{ ok: boolean; json(): Promise<unknown> }>;
+
+const PRECISE = new Set(["address", "poi"]);
+export const addressQuery = (a: AddressWire | null | undefined): string | null => {
+  if (!a?.line1?.trim()) return null;
+  return [a.line1, a.line2, a.city, [a.state, a.postal].filter(Boolean).join(" "), a.country].filter((s) => s && s.trim()).join(", ");
+};
+
+export const locateSite = async (uow: UnitOfWork, input: LocateSiteInput, config: GeocodeConfig, fetcher: JsonFetcher): Promise<LocateSiteOutput> => {
+  if (typeof input.siteId !== "string" || !UUID.test(input.siteId)) throw new BadInput("siteId must be a uuid");
+  const site = (await uow.tx.query<{ id: string; tier: string; address: AddressWire | null }>(
+    `SELECT id, tier, address FROM accounts WHERE id = $1`, [input.siteId],
+  ))[0];
+  if (!site) throw new InputRefused(`no node ${input.siteId} visible in this scope`, "unknown_site");
+  if (site.tier !== "site") throw new InputRefused(`"${input.siteId}" is a ${site.tier}, not a site`, "not_a_site");
+
+  const none = (outcome: LocateSiteOutput["outcome"]): LocateSiteOutput => ({ siteId: site.id, lat: null, lng: null, outcome, eventId: null });
+  const had = coordinatesOf(site.address);
+  if (had) return { siteId: site.id, ...had, outcome: "recorded", eventId: null };
+  const q = addressQuery(site.address);
+  if (!q) return none("no_address");
+  if (!config.urlTemplate) return none("not_configured");
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  let at: { lat: number; lng: number } | null;
+  try {
+    const res = await fetcher(config.urlTemplate.replaceAll("{q}", encodeURIComponent(q)), { signal: controller.signal });
+    if (!res.ok) return none("provider_unreachable");
+    const body = (await res.json()) as { features?: { place_type?: string[]; geometry?: { type?: string; coordinates?: number[] } }[] };
+    const hit = body.features?.find((f) => f.place_type?.some((t) => PRECISE.has(t)) && f.geometry?.type === "Point");
+    const [lng, lat] = hit?.geometry?.coordinates ?? [];
+    at = lat === undefined || lng === undefined ? null : coordinatesOf({ lat, lng });
+  } catch {
+    return none("provider_unreachable");
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!at) return none("not_found");
+  const { eventId } = await updateAccount(uow, { accountId: site.id, address: { ...site.address, lat: at.lat, lng: at.lng } });
+  return { siteId: site.id, ...at, outcome: "located", eventId };
 };

@@ -8,7 +8,8 @@
 //
 // Secrets (never in this file): DATABASE_URL, AC_SIGNING_KEY_PEM; optional
 // AC_IMAGERY_URL, AC_IMAGERY_ATTRIBUTION (OPEN-S6-IMAGERY); AC_MAP_TILE_URL, S2's home
-// map tiles — MapTiler, the key in the URL, so a secret (docs/CLOUDFLARE_PAGES.md).
+// map tiles, and AC_GEOCODE_URL, which places a typed address on that map — both
+// MapTiler, the key in the URL, so secrets (docs/CLOUDFLARE_PAGES.md).
 // Requires the Workers Paid plan (Containers).
 {
   "$schema": "node_modules/wrangler/config-schema.json",

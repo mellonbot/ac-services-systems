@@ -19,7 +19,7 @@ export const SCREENS = {
   "leads":             { path: "/leads",                                 uses: ["leads.list", "leads.convert", "regions.list"], title: "Leads" },
   "accounts.new":      { path: "/accounts/:orgId/new/:tier/:parentId?",  uses: ["accounts.create", "regions.list", "accounts.list"] },
   "accounts.move":     { path: "/accounts/:orgId/move/:id",              uses: ["accounts.move", "accounts.list"] },
-  "accounts.tree":     { path: "/accounts/:orgId?",                      uses: ["organizations.list", "accounts.list", "regions.list", "contracts.list", "equipment.list", "jobs.list", "sites.mapTile"], title: "Accounts" },
+  "accounts.tree":     { path: "/accounts/:orgId?",                      uses: ["organizations.list", "accounts.list", "regions.list", "contracts.list", "equipment.list", "jobs.list", "sites.mapTile", "sites.locate"], title: "Accounts" },
   "contracts.new":     { path: "/contracts/:orgId/new",                  uses: ["contracts.create", "contracts.list", "accounts.list", "regions.list"] },
   "terms.override":    { path: "/terms/:orgId/override",                 uses: ["terms.authorOverride", "terms.register", "terms.overrides.list", "contracts.list", "accounts.list"] },
   "terms.resolved":    { path: "/terms/:orgId/resolved/:nodeId?",        uses: ["terms.resolved", "terms.register", "accounts.list"] },
