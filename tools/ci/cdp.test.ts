@@ -91,7 +91,7 @@ test("a malformed AC_CHROME_BOOT_MS is an error, not a silent default", () => {
   try {
     for (const bad of ["nonsense", "0", "-5", ""]) {
       process.env.AC_CHROME_BOOT_MS = bad;
-      if (bad === "") { assert.equal(bootBudgetMs(), 60_000); continue; }
+      if (bad === "") { assert.equal(bootBudgetMs(), 123_000); continue; }
       assert.throws(() => bootBudgetMs(), /AC_CHROME_BOOT_MS/, `${JSON.stringify(bad)} was accepted`);
     }
   } finally {
