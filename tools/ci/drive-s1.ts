@@ -185,7 +185,7 @@ async function main(): Promise<void> {
     check(2, "the degraded slot's text is in the frame, so it does not depend on the bundle having loaded");
 
     // ── 3. the form takes a lead while the gateway is down, and says QUEUED
-    await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Ask us to call").click(); return true; })()`);
+    await cdp.navigate(`${SITE}/enquire`);
     await cdp.waitFor(`document.getElementById("lead-form")`, "the lead form");
     await cdp.eval(fillAndSubmit("lead-form", { name: `Queued Visitor ${RUN}`, phone: "555 0101", metro: "South", note: "Roof unit short-cycling." }));
     await cdp.waitFor(has("waiting to send"), "the queued notice");
