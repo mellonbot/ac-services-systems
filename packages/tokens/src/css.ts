@@ -156,10 +156,12 @@ export const tokenCss = (density: Density, opts: FrameOptions = {}): string => {
 
 const elevation = (dark: boolean): string[] => {
   const shade = dark ? "var(--color-surface-sunken)" : "var(--color-text)";
-  const [soft, spread] = dark ? [40, 32] : [7, 6];
+  // Rev B: one tight layer, not a soft spread — a panel sits on the page like
+  // a plate on a bench, with a 1px edge under it.
+  const [card, raised] = dark ? [60, 70] : [10, 14];
   return [
-    `--elevation-card:0 1px 2px color-mix(in srgb,${shade} ${soft}%,transparent),0 4px 14px color-mix(in srgb,${shade} ${spread}%,transparent)`,
-    `--elevation-raised:0 1px 3px color-mix(in srgb,${shade} ${soft + 4}%,transparent),0 2px 6px color-mix(in srgb,${shade} ${spread}%,transparent)`,
+    `--elevation-card:0 1px 0 color-mix(in srgb,${shade} ${card}%,transparent)`,
+    `--elevation-raised:0 1px 2px color-mix(in srgb,${shade} ${raised}%,transparent)`,
   ];
 };
 
