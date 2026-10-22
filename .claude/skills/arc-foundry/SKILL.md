@@ -148,7 +148,7 @@ One family, four cuts, plus a script with exactly one job.
 | Role | Face | Where |
 |---|---|---|
 | Wordmark | **Yellowtail** | The masthead lockup and nothing else. 28px floor. Never in an interface |
-| Display | **IBM Plex Sans Condensed** | Plate titles, buttons, headings — page and panel titles in caps (Rev B) |
+| Display | **IBM Plex Sans Condensed** | Plate titles, buttons, headings. Caps only on a fixed label (a plate title) — never on a title that carries a name, because `text-transform` changes what is copied and read back |
 | Label | **IBM Plex Sans** | Descriptors, eyebrows, the company line — caps at `--track-wide` `0.14em` and up |
 | Text | **IBM Plex Sans** | Body copy, prose, contracts |
 | Instrument | **IBM Plex Mono** | Every numeral in the company, without exception |
