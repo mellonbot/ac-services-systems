@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
-import { createPool, beginTx, hierarchyReader, listenEvents } from "./pg-tx.ts";
+import { createPool, beginTx, bindSystem, hierarchyReader, listenEvents } from "./pg-tx.ts";
 import { generateKeypair, keypairFromPem, mintToken, verifyToken, principalFromClaims, verifyPassword, AuthError } from "./auth.ts";
 import { buildContext, scopeBinding, ScopeResolutionError } from "./context.ts";
 import { createUnitOfWork, SurfaceWriteDenied, TenancyMismatch, SurfaceDisabled, RoleDenied } from "./unit-of-work.ts";
@@ -170,9 +170,11 @@ const callerOf = (req: IncomingMessage): Caller => {
  * request, inside the request's own transaction.
  */
 const assertSessionLive = async (tx: Tx, p: Principal): Promise<void> => {
+  await bindSystem(tx);
   const row = (await tx.query<{ revoked_at: string | null; expires_at: string }>("SELECT revoked_at, expires_at FROM sessions WHERE id = $1", [p.sessionId]))[0];
   if (!row) throw new AuthError(`session ${p.sessionId} is unknown to this gateway`, "revoked");
   if (row.revoked_at) throw new AuthError(`session was ended at ${new Date(row.revoked_at).toISOString()} — sign in again`, "revoked");
+  if (new Date(row.expires_at).getTime() <= Date.now()) throw new AuthError("session has expired — sign in again", "revoked");
 };
 
 /**
@@ -211,14 +213,18 @@ const withUow = async <T>(req: IncomingMessage, opId: OperationId, fn: (uow: Awa
   const { principal } = caller;
   const surfaceId = surfaceOf(req, opId, caller);
   const tx = await beginTx(pool, "ac_gateway");
-  try { await assertSessionLive(tx, principal); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
-  const uow = await createUnitOfWork({ surfaceId, principal, requestId: String(req.headers["x-request-id"] ?? randomUUID()), now: () => new Date(), newId: randomUUID }, tx);
+  // One try from the moment a connection is held: a refusal from the session
+  // check or from opening the unit of work (role, tenancy, disabled surface)
+  // must release it as surely as a refusal from the handler. tx.rollback is a
+  // no-op once commit has ended the transaction.
   try {
+    await assertSessionLive(tx, principal);
+    const uow = await createUnitOfWork({ surfaceId, principal, requestId: String(req.headers["x-request-id"] ?? randomUUID()), now: () => new Date(), newId: randomUUID }, tx);
     const out = await fn(uow, principal, surfaceId);
     await uow.commit();
     return out;
   } catch (e) {
-    await uow.rollback().catch(() => {});
+    await tx.rollback().catch(() => {});
     throw e;
   }
 };
@@ -229,9 +235,11 @@ const withRead = async <T>(req: IncomingMessage, opId: OperationId, fn: (uow: Aw
   const { principal } = caller;
   const surfaceId = surfaceOf(req, opId, caller);
   const tx = await beginTx(pool, "ac_gateway");
-  try { await assertSessionLive(tx, principal); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
-  const uow = await createUnitOfWork({ surfaceId, principal, requestId: String(req.headers["x-request-id"] ?? randomUUID()), now: () => new Date(), newId: randomUUID }, tx);
-  try { return await fn(uow, principal, surfaceId); } finally { await uow.rollback().catch(() => {}); }
+  try {
+    await assertSessionLive(tx, principal);
+    const uow = await createUnitOfWork({ surfaceId, principal, requestId: String(req.headers["x-request-id"] ?? randomUUID()), now: () => new Date(), newId: randomUUID }, tx);
+    return await fn(uow, principal, surfaceId);
+  } finally { await tx.rollback().catch(() => {}); }
 };
 
 // ---------------------------------------------------------------------------
@@ -240,9 +248,10 @@ const withRead = async <T>(req: IncomingMessage, opId: OperationId, fn: (uow: Aw
 const login = async (body: Partial<OperationIO["auth.login"]["input"]>, res: ServerResponse): Promise<OperationIO["auth.login"]["output"]> => {
   const { email, password, surface } = body;
   if (!email || !password || !surface || !SURFACES[surface]) throw new HttpError(400, "email, password and surface are required");
-  // Login runs unscoped (no principal yet) as the gateway role; users is not RLS-bound.
+  // Login runs as the gateway itself (no principal yet), then binds the principal's own scope.
   const tx = await beginTx(pool, "ac_gateway");
   try {
+    await bindSystem(tx);
     const u = (await tx.query<{ id: string; namespace: Namespace; org_id: string; region_id: string; scope_tier: Tier; scope_id: string; roles: string[]; firm_id: string | null; password_hash: string | null; active: boolean }>(
       "SELECT id, namespace, org_id, region_id, scope_tier, scope_id, roles, firm_id, password_hash, active FROM users WHERE email = $1", [email],
     ))[0];
@@ -295,6 +304,7 @@ const deviceLogin = async (body: Partial<OperationIO["auth.deviceLogin"]["input"
   if (!hardwareId || !email || !password) throw new HttpError(400, "hardwareId, email and password are required");
   const tx = await beginTx(pool, "ac_gateway");
   try {
+    await bindSystem(tx);
     const u = (await tx.query<{ id: string; password_hash: string | null; active: boolean; crew_id: string | null }>(
       "SELECT id, password_hash, active, crew_id FROM users WHERE email = $1", [email],
     ))[0];
@@ -358,6 +368,7 @@ const anonymousSession = async (res: ServerResponse): Promise<OperationIO["auth.
   const minted = mintToken(keypair, claims, Date.now(), ANONYMOUS_TTL);
   const tx = await beginTx(pool, "ac_gateway");
   try {
+    await bindSystem(tx);
     await tx.query(
       "INSERT INTO sessions (id, org_id, region_id, principal_kind, principal_id, expires_at, surface_id) VALUES ($1,$2,$3,'anonymous',$4,to_timestamp($5),'S1')",
       [minted.claims.sid, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID, ANONYMOUS_ACTOR, minted.claims.exp],
@@ -551,15 +562,32 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "events.stream": async (req, _input, res) => {
     const caller = callerOf(req);
     const p = caller.principal;
-    surfaceOf(req, "events.stream", caller);
-    { const tx = await beginTx(pool, "ac_gateway"); try { await assertSessionLive(tx, p); } finally { await tx.rollback().catch(() => {}); } }
+    const surfaceId = surfaceOf(req, "events.stream", caller);
+    // The same admission every other operation gets: session live, surface
+    // enabled, role admitted, tenancy consistent. Opened and rolled back.
+    await withRead(req, "events.stream", async () => {});
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
     // Headers are not on the wire until the first byte. A subscriber's fetch()
     // does not resolve — and the shell cannot report "open" — until then.
     res.write(`: connected ${p.regionId}\n\n`);
-    const client = { res, regionId: p.regionId, orgScoped: p.namespace === "internal" && p.scopeTier === "parent" };
+    const client: SseClient = {
+      res, regionId: p.regionId,
+      orgScoped: p.namespace === "internal" && p.scopeTier === "parent",
+      internal: p.namespace === "internal",
+      // A customer hears its own org's events and nobody else's.
+      orgId: p.namespace === "customer" ? p.orgId : null,
+      surfaceId,
+    };
     sseClients.add(client);
-    req.on("close", () => sseClients.delete(client));
+    // The session is checked at connect and again every minute: a stream must
+    // not outlive the logout or the expiry that ended its session.
+    const recheck = setInterval(() => {
+      void (async () => {
+        const tx = await beginTx(pool, "ac_gateway");
+        try { await assertSessionLive(tx, p); } finally { await tx.rollback().catch(() => {}); }
+      })().catch(() => { res.end(); });
+    }, SSE_SESSION_RECHECK_MS);
+    req.on("close", () => { clearInterval(recheck); sseClients.delete(client); });
     return STREAMING;
   },
 
@@ -586,7 +614,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
     // from; the Host header is the fallback for a portal on its own domain.
     const host = url.searchParams.get("host") ?? req.headers.host;
     const tx = await beginTx(pool, "ac_gateway");
-    try { return await brandStylesheetFor(tx, host ?? undefined); } finally { await tx.rollback().catch(() => {}); }
+    try { await bindSystem(tx); return await brandStylesheetFor(tx, host ?? undefined); } finally { await tx.rollback().catch(() => {}); }
   },
 
   // ---- item 8: S1's anonymous door ----
@@ -642,11 +670,22 @@ const inputOf = async (req: IncomingMessage, url: URL, opId: OperationId): Promi
   }
 };
 
-const sseClients = new Set<{ res: ServerResponse; regionId: string; orgScoped: boolean }>();
+type SseClient = { res: ServerResponse; regionId: string; orgScoped: boolean; internal: boolean; orgId: string | null; surfaceId: SurfaceId };
+const SSE_SESSION_RECHECK_MS = 60_000;
+const sseClients = new Set<SseClient>();
 await listenEvents(DATABASE_URL, (payload) => {
-  const env = JSON.parse(payload) as { regionId: string };
+  let env: { eventId: string; topic: string; regionId: string; orgId: string; occurredAt: string };
+  // A malformed NOTIFY payload is dropped, not thrown: this runs inside the
+  // listener's callback, where a throw takes the gateway down.
+  try { env = JSON.parse(payload); } catch { console.error("gateway: dropped a malformed event envelope"); return; }
+  // Outside the internal namespace an envelope names nothing: entity, entity
+  // id and org are other tenants' facts. The topic is enough to refetch on,
+  // and the refetch goes through row security like every other read.
+  const blind = `event: domain\ndata: ${JSON.stringify({ eventId: env.eventId, topic: env.topic, regionId: env.regionId, occurredAt: env.occurredAt })}\n\n`;
   for (const c of sseClients) {
-    if (c.orgScoped || c.regionId === env.regionId) c.res.write(`event: domain\ndata: ${payload}\n\n`);
+    if (!(c.orgScoped || c.regionId === env.regionId)) continue;
+    if (c.orgId && c.orgId !== env.orgId) continue;
+    c.res.write(c.internal ? `event: domain\ndata: ${payload}\n\n` : blind);
   }
 });
 

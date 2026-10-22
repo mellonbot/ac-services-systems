@@ -1,4 +1,4 @@
-import { createPool, beginTx, type Pool } from "../../../apps/gateway/src/pg-tx.ts";
+import { createPool, beginTx, bindSystem, type Pool } from "../../../apps/gateway/src/pg-tx.ts";
 import type { ScopeBinding, Role } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import type { CustomerSegment } from "../../../packages/contracts/src/operations.ts";
@@ -111,7 +111,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
   };
 
   const read = <T>(sql: string, params: readonly unknown[] = []): Promise<readonly T[]> => attempt(async () => {
-    const tx = await beginTx(pool, "ac_gateway");
+    const tx = await beginTx(pool, "ac_logins");
     try {
       await tx.setLocal(INTERNAL_READ_BINDING as ScopeBinding);
       return await tx.query<T>(sql, params);
@@ -121,8 +121,9 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
   });
 
   const write = <T>(f: (q: <R>(sql: string, params?: readonly unknown[]) => Promise<readonly R[]>) => Promise<T>): Promise<T> => attempt(async () => {
-    const tx = await beginTx(pool, "ac_gateway");
+    const tx = await beginTx(pool, "ac_logins");
     try {
+      await bindSystem(tx);
       const out = await f((sql, params) => tx.query(sql, params));
       await tx.commit();
       return out;
@@ -159,7 +160,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
 
   /** Company writes — and technician writes, which must share a transaction with the company-row lock — run as the office: internal, bound, one commit. */
   const writeAsOffice = <T>(f: (q: Q) => Promise<T>): Promise<T> => attempt(async () => {
-    const tx = await beginTx(pool, "ac_gateway");
+    const tx = await beginTx(pool, "ac_logins");
     try {
       await tx.setLocal(INTERNAL_READ_BINDING as ScopeBinding);
       const out = await f((sql, params) => tx.query(sql, params));

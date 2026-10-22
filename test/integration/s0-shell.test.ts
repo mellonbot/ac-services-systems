@@ -176,7 +176,6 @@ test("the loop: S2 authors a legal override → outbox → relay → NOTIFY → 
   for (let i = 0; i < 2; i++) {
     const tx = await beginTx(pool, "ac_worker");
     await relayOnce(tx, notifyPublisher(tx));
-    await tx.commit();
   }
   // Re-publish the same envelope by hand to prove the dedupe rather than hope for it.
   const o = (await admin(`SELECT event_id, topic, entity, entity_id, region_id, org_id, occurred_at FROM outbox WHERE event_id = $1`, [eventId]))[0]!;

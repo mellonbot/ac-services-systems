@@ -438,7 +438,12 @@ test("sync: the office cancelled it, the crew completed it — a conflict row fo
       { mutationId: "c1", deviceId: DEVICE, deviceSeq: 1, entityTable: "jobs", entityId: job, op: "transition", payload: { state: "complete" }, clientObservedVersion: 1, deviceAt: "2026-09-16T12:00:00Z" },
     ] }, NOW);
     assert.equal(out[0]!.outcome, "queued_for_human");
+    // A device adds to the conflict queue and cannot read it back (0021): the
+    // office's binding is the one that sees the queue.
+    assert.equal((await uow.tx.query(`SELECT 1 FROM sync_conflicts WHERE entity_id = $1`, [job])).length, 0);
+    await uow.tx.query(`SELECT set_config('ac.namespace', 'internal', true)`);
     assert.equal((await uow.tx.query(`SELECT 1 FROM sync_conflicts WHERE entity_id = $1 AND resolved_at IS NULL`, [job])).length, 1);
+    await uow.tx.query(`SELECT set_config('ac.namespace', 'device', true)`);
     assert.equal(uow.pending().events.at(-1)!.topic, "sync.conflict_queued");
     assert.equal((await uow.tx.query<{ state: string }>(`SELECT state FROM jobs WHERE id = $1`, [job]))[0]!.state, "cancelled");
   });

@@ -20,8 +20,15 @@ import { forNodePg } from "./pg-url.ts";
  */
 export type Pool = pg.Pool;
 
-export const createPool = (connectionString: string, applicationName = "ac-gateway"): Pool =>
-  new pg.Pool({ connectionString: forNodePg(connectionString), application_name: applicationName, max: 10 });
+export const createPool = (connectionString: string, applicationName = "ac-gateway"): Pool => {
+  // A bounded wait for a connection: an exhausted pool is a refusal, not a hang.
+  const pool = new pg.Pool({ connectionString: forNodePg(connectionString), application_name: applicationName, max: 10, connectionTimeoutMillis: 10_000 });
+  // An idle client dropped by the server (restart, failover) emits 'error' on
+  // the pool. Unlistened, that event kills the process; the pool already
+  // discards the client, so logging it is the whole of the handling.
+  pool.on("error", (e) => console.error(`${applicationName}: idle connection lost: ${e.message}`));
+  return pool;
+};
 
 const ident = (s: string): string => {
   if (!/^[a-z_][a-z0-9_]*$/.test(s)) throw new Error(`unsafe identifier "${s}"`);
@@ -35,13 +42,15 @@ const ident = (s: string): string => {
  *              RLS apply at all (a superuser bypasses row security). Runs as
  *              SET LOCAL ROLE, so it dies with the transaction.
  */
-export const beginTx = async (pool: Pool, role?: "ac_gateway" | "ac_worker" | "ac_readonly"): Promise<Tx> => {
+export const beginTx = async (pool: Pool, role?: "ac_gateway" | "ac_worker" | "ac_readonly" | "ac_logins"): Promise<Tx> => {
   const client = await pool.connect();
   let done = false;
-  const release = () => {
+  // A connection whose COMMIT or ROLLBACK failed is destroyed rather than
+  // returned: its state is unknown, and the next request must not inherit it.
+  const release = (err?: Error) => {
     if (!done) {
       done = true;
-      client.release();
+      client.release(err);
     }
   };
   try {
@@ -80,20 +89,38 @@ export const beginTx = async (pool: Pool, role?: "ac_gateway" | "ac_worker" | "a
       );
     },
     async commit() {
+      if (done) throw new Error("transaction already ended");
       try {
         await client.query("COMMIT");
-      } finally {
-        release();
+      } catch (e) {
+        release(e as Error);
+        throw e;
       }
+      release();
     },
+    // Once ended, a rollback is a no-op: the client may already belong to
+    // another request, and a ROLLBACK sent on it would end THEIR transaction.
     async rollback() {
+      if (done) return;
       try {
         await client.query("ROLLBACK");
-      } finally {
-        release();
+      } catch (e) {
+        release(e as Error);
+        throw e;
       }
+      release();
     },
   };
+};
+
+/**
+ * The gateway acting as itself, before there is a principal: login,
+ * the session check, the sign-in screen's theme. Named, because since 0021 a
+ * transaction that names nobody reads nothing — a forgotten binding is a
+ * refusal, not every tenant's rows.
+ */
+export const bindSystem = async (tx: Tx): Promise<void> => {
+  await tx.query("SELECT set_config('ac.namespace', 'system', true)");
 };
 
 /** HierarchyReader over a Tx (so context resolution runs under the same scope binding). */
@@ -126,9 +153,32 @@ export const hierarchyReader = (tx: Tx): HierarchyReader => ({
  * used to fan the relay's NOTIFY out to SSE subscribers. Also behind the door.
  */
 export const listenEvents = async (connectionString: string, onEnvelope: (payload: string) => void): Promise<() => Promise<void>> => {
-  const client = new pg.Client({ connectionString: forNodePg(connectionString), application_name: "ac-gateway-listen" });
-  await client.connect();
-  await client.query("LISTEN ac_events");
-  client.on("notification", (n) => { if (n.payload) onEnvelope(n.payload); });
-  return () => client.end();
+  let client: pg.Client | null = null;
+  let stopped = false;
+  let delay = 1000;
+  const open = async (): Promise<void> => {
+    const c = new pg.Client({ connectionString: forNodePg(connectionString), application_name: "ac-gateway-listen" });
+    // A dropped LISTEN connection is reopened with backoff. Without this the
+    // 'error' event kills the gateway, and without the reconnect every SSE
+    // subscriber goes quiet until a restart.
+    c.on("error", (e) => console.error(`gateway: event listener lost: ${e.message}`));
+    c.on("end", () => {
+      if (stopped || client !== c) return;
+      client = null;
+      setTimeout(() => { void open().catch(() => {}); }, delay);
+      delay = Math.min(delay * 2, 30_000);
+    });
+    c.on("notification", (n) => { if (n.payload) onEnvelope(n.payload); });
+    client = c;
+    try {
+      await c.connect();
+      await c.query("LISTEN ac_events");
+      delay = 1000;
+    } catch (e) {
+      await c.end().catch(() => {});
+      throw e;
+    }
+  };
+  await open();
+  return async () => { stopped = true; await client?.end(); };
 };
