@@ -162,7 +162,7 @@ instrument face with tabular figures. Digits that hold their column are the enti
 
 The script is a **mark, not a typeface**; the `°R` monogram is the app icon and patch, and
 carries every size the script cannot. The **favicon and the masthead mark are not the badge**:
-both are a yard model turning on a solid livery-red square — the truck on S5, the rooftop unit
+both are a yard model turning in a livery-red glow that fades to nothing — no hard edge — the truck on S5, the rooftop unit
 on every other surface — turned on one timer by `packages/ui/src/favicon.ts` (`FAVICON` and
 `faviconArtFor` in `brand.ts`, art in `packages/tokens/icons/`, rendered from S1's own models
 by `tools/icons/`). Each art also ships a 180px `apple-touch-icon.png`, without which iOS

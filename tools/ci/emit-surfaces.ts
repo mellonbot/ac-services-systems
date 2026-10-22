@@ -226,11 +226,10 @@ const GENERATED_STATUS_APPS: readonly SurfaceId[] = SURFACE_IDS.filter((id) => !
  * the same flag `tokenCss` used to resolve the brand roles, carried into the
  * markup so a reviewer can see which layer a frame is on without reading CSS.
  *
- * The mark is the yard model turning on the livery-red square — the same art
- * as the tab (FAVICON in packages/tokens/src/brand.ts). The square is drawn by
- * ui.css, which the head loads before first paint; the strip that turns on it
- * is the one request the masthead waits for, and until it lands the square
- * stands on its own. The °R badge keeps the app icon and the patch.
+ * The mark is the yard model turning in the livery-red glow — the same art as
+ * the tab (FAVICON in packages/tokens/src/brand.ts). The strip is the one
+ * request the masthead waits for; until it lands the slot holds its space
+ * empty. The °R badge keeps the app icon and the patch.
  */
 export const renderMasthead = (s: Surface): string => {
   const brandLayer = s.stateRamp ? "false" : "true";
