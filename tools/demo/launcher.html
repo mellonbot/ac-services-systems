@@ -135,8 +135,8 @@ const GUIDE = {
   S1: {
     about: "The public site. Visitors never sign in and the page never waits for the server. It renders with the gateway down, and the metros it lists come from the regions table.",
     steps: [
-      "Open <b>Where we work</b>. West, Mountain and South come from our <code>regions</code> rows, not from the page.",
-      "Open <b>Ask us to call</b> and submit the form. The log shows one write, <code>leads.submit</code>, and nothing reads it back.",
+      "Press <b>Just blow into town, partner?</b> at the foot of the front page and submit the form. The log shows one write, <code>leads.submit</code>, and nothing reads it back.",
+      "Follow <b>Where we work</b> under the form. West, Mountain and South come from our <code>regions</code> rows, not from the page.",
       "Switch <b>Gateway up</b> to down, then submit again. The form queues in the browser and the degraded banner appears.",
       "Switch the gateway back up. The queued lead sends once. Its submission ID means a retry can't create a duplicate.",
     ],
