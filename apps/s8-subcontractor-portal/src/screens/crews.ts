@@ -1,5 +1,6 @@
 import { html, pageHead, panel, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { CrewWire, Refusal } from "../../../../packages/contracts/src/index.ts";
+import type { CrewKind, CrewWire, Refusal } from "../../../../packages/contracts/src/index.ts";
+import { CREW_KINDS, CREW_KIND_LABEL } from "../../../../packages/contracts/src/index.ts";
 import { whenReady, readCrews, readFirm, firmOf, readiness, submitAction, refusalView, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
 /**
@@ -9,7 +10,8 @@ import { whenReady, readCrews, readFirm, firmOf, readiness, submitAction, refusa
  * Rankine", "Ready to dispatch" — so a firm reads today what the dispatcher
  * will read tomorrow.
  *
- * Two writes. ENROLL takes a label and nothing else: the firm, the type and
+ * Two writes. ENROLL takes a label and a kind (0024: a technician's unit, or
+ * an install crew of installers only) and nothing else: the firm, the type and
  * the region are the principal's, derived by the handler and held by 0007's
  * trigger against any row that says otherwise. RETIRE takes a crew off the
  * roster; a crew holding a live assignment is refused by name (the office
@@ -30,10 +32,12 @@ export const crews: Screen = (ctx) => {
     e.preventDefault();
     if (ctx.degraded) return;
     const form = e.currentTarget as HTMLFormElement;
-    const label = String(new FormData(form).get("label") ?? "");
+    const data = new FormData(form);
+    const label = String(data.get("label") ?? "");
+    const kind = String(data.get("kind") ?? "service") as CrewKind;
     outcome.value = { kind: "busy" };
     try {
-      await ctx.shell.gateway.enrollCrew({ label });
+      await ctx.shell.gateway.enrollCrew({ label, kind });
       outcome.value = { kind: "enrolled", label };
       ctx.store.invalidate("crews.list");
       ctx.store.invalidate("firms.list");
@@ -67,6 +71,7 @@ export const crews: Screen = (ctx) => {
       rowKey: (c) => c.id,
       columns: [
         { key: "label", header: "Crew" },
+        { key: "kind", header: "Kind", cell: (c) => CREW_KIND_LABEL[c.kind] },
         { key: "readiness", header: "Today", cell: (c) => { const r = readiness(c); return StatusPill({ density: ctx.density, status: r.status, label: r.word }) ?? html``; } },
         { key: "detail", header: "Documents", cell: (c) => readiness(c).detail },
         { key: "actions", header: "", cell: (c) => html`<span class="s8-row__actions">
@@ -83,6 +88,12 @@ export const crews: Screen = (ctx) => {
       : html`<form class="ac-form" id="enroll-form" onSubmit=${enroll}>
         <label class="ac-field"><span>Crew name</span>
           <input class="ac-input" name="label" required maxlength="120" id="enroll-label" placeholder="As it should read on a job — e.g. Crew 2 (Reyes / Okafor)" />
+        </label>
+        <label class="ac-field"><span>Kind</span>
+          <select class="ac-input" name="kind" id="enroll-kind">
+            ${CREW_KINDS.map((k) => html`<option value=${k}>${CREW_KIND_LABEL[k]}</option>`)}
+          </select>
+          <small>A technician's unit is one technician, sent to service and commissioning. An install crew is installers only, sent to install work.</small>
         </label>
         <p class="s8-muted">Subcontracted, under ${f?.legalName ?? "your firm"}, dispatched from your region — none of that is typed here.</p>
         ${submitAction(ctx, o.kind === "busy" ? "Sending…" : "Enroll", "enroll-send", o.kind === "busy")}

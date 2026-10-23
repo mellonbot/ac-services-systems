@@ -1292,7 +1292,11 @@ export type SubmitCredentialInput = {
 };
 export type SubmitCredentialOutput = { readonly id: string; readonly crewId: string; readonly eventId: string };
 /** No employmentType, no firmId, no homeRegionId: each is the principal's, derived. */
-export type EnrollCrewInput = { readonly label: string };
+export type EnrollCrewInput = {
+  readonly label: string;
+  /** 0024. Omitted: `service` — one technician's unit. */
+  readonly kind?: CrewKind;
+};
 export type EnrollCrewOutput = { readonly id: string; readonly firmId: string; readonly regionId: string; readonly eventId: string };
 export type RetireCrewInput = { readonly crewId: string; readonly label?: string; readonly active?: boolean };
 export type RetireCrewOutput = { readonly id: string; readonly eventId: string };

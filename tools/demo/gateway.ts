@@ -977,7 +977,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     const firm = firms.find((f) => f.id === p.firmId)!;
     if (firm.status === "suspended" || firm.status === "terminated") throw input422(`firm ${firm.legalName} is ${firm.status} — a crew rostered under it is a crew nobody can dispatch.`, "firm_ended");
     const id = uid("e");
-    crews.push({ id, label: i.label.trim(), employmentType: "subcontracted", kind: "service", firmId: firm.id, homeRegionId: firm.regionId, active: true });
+    crews.push({ id, label: i.label.trim(), employmentType: "subcontracted", kind: i.kind ?? "service", firmId: firm.id, homeRegionId: firm.regionId, active: true });
     return { id, firmId: firm.id, regionId: firm.regionId, eventId: publish(surface, "crew.created", "crew", id, firm.id, firm.regionId) };
   },
   "crews.retire": (i: W.RetireCrewInput, { surface, p }) => {

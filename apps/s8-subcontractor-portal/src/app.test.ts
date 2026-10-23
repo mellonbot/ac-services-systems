@@ -140,7 +140,7 @@ test("YOUR FIRM: the one row the gateway returned, the ladder in words, and the 
   assert.doesNotMatch(out, /Firm B/, "the portal adds no rows the gateway withheld");
 });
 
-test("CREWS: readiness in the firm's words from the gateway's summary; Retire only on active crews; the enroll form takes a label and nothing else", async () => {
+test("CREWS: readiness in the firm's words from the gateway's summary; Retire only on active crews; the enroll form takes a label and a kind, nothing else", async () => {
   const { app, gateway } = await ready();
   resetRosterForm();
   app.router.navigate("crews", {});
@@ -153,14 +153,17 @@ test("CREWS: readiness in the firm's words from the gateway's summary; Retire on
   assert.equal((out.match(/data-retire=/g) ?? []).length, 2, "two active crews, two Retire controls");
   assert.match(out, /id="enroll-form"/);
   assert.match(out, /name="label"/);
+  // 0024: a firm rosters a technician's unit or an install crew, and the roster says which.
+  assert.match(out, /<select class="ac-input" name="kind" id="enroll-kind"><option value="service">Technician's unit<\/option><option value="install">Install crew<\/option><\/select>/);
+  assert.match(out, /<td[^>]*>Technician's unit<\/td>/);
   assert.doesNotMatch(out, /name="firmId"|name="employmentType"|name="homeRegionId"/, "firm, type and region are the principal's — not typed here");
   assert.equal(readiness(crewRetired).word, "Retired");
   assert.equal(readiness(crew(U(50), "x", { missing: ["insurance"] })).detail, "No insurance on file");
   assert.equal(readiness(crew(U(51), "x", { expired: ["license"] })).status, "blocked");
   // The write, through the real client: x-ac-surface: S8, a body of one field.
-  await shellOf(app).gateway.enrollCrew({ label: "Crew A3" });
+  await shellOf(app).gateway.enrollCrew({ label: "Crew A3", kind: "install" });
   const call = gateway.calls.find((c) => c.path === OPERATIONS["crews.enroll"].path)!;
-  assert.deepEqual(JSON.parse(String(call.init?.body)), { label: "Crew A3" });
+  assert.deepEqual(JSON.parse(String(call.init?.body)), { label: "Crew A3", kind: "install" });
   assert.equal((call.init?.headers as Record<string, string>)["x-ac-surface"], "S8");
 });
 

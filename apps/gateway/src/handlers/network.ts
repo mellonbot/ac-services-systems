@@ -356,6 +356,7 @@ export const updateCrew = async (uow: UnitOfWork, input: UpdateCrewInput): Promi
 // ---------------------------------------------------------------------------
 export const enrollCrew = async (uow: UnitOfWork, input: EnrollCrewInput, firmId: string | null, newId: () => string): Promise<EnrollCrewOutput> => {
   const label = requireText(input.label, "label");
+  const kind = input.kind === undefined ? "service" : requireOneOf(input.kind, "kind", CREW_KINDS);
   if (!firmId) throw new InputRefused("this principal carries no firm — a roster belongs to a firm", "no_firm");
   // RLS: a firm principal sees one firm. If the row is not there, the token and the registry disagree, and nothing is rostered.
   const firm = await loadFirm(uow, firmId);
@@ -366,14 +367,14 @@ export const enrollCrew = async (uow: UnitOfWork, input: EnrollCrewInput, firmId
   const eventId = await uow.apply(
     {
       entity: "crew_roster", entityId: id, action: "crew.enroll", topic: "crew.created",
-      before: null, after: { id, label, employmentType: "subcontracted", firmId: firm.id, homeRegionId: firm.region_id, active: true },
+      before: null, after: { id, label, employmentType: "subcontracted", kind, firmId: firm.id, homeRegionId: firm.region_id, active: true },
       orgId: firm.org_id, regionId: firm.region_id,
       payload: { label, firmId: firm.id, enrolledBy: "firm" },
     },
     async (tx) => {
       await tx.query(
-        "INSERT INTO crews (id, org_id, region_id, label, employment_type, firm_id, home_region_id, active) VALUES ($1, $2, $3, $4, 'subcontracted', $5, $3, true)",
-        [id, firm.org_id, firm.region_id, label, firm.id],
+        "INSERT INTO crews (id, org_id, region_id, label, employment_type, firm_id, home_region_id, active, kind) VALUES ($1, $2, $3, $4, 'subcontracted', $5, $3, true, $6)",
+        [id, firm.org_id, firm.region_id, label, firm.id, kind],
       );
     },
   );
