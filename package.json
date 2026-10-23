@@ -28,7 +28,8 @@
     "surfaces:check": "node tools/ci/emit-surfaces.ts --check",
     "drive:s1": "node tools/ci/drive-s1.ts",
     "drive:s6": "node tools/ci/drive-s6.ts",
-    "drive:s8": "node tools/ci/drive-s8.ts"
+    "drive:s8": "node tools/ci/drive-s8.ts",
+    "audit:msa-terms": "node tools/ci/audit-msa-terms.ts"
   },
   "dependencies": {
     "pg": "^8.13.0"

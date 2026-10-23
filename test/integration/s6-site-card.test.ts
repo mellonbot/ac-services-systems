@@ -28,6 +28,7 @@ import { hashPassword } from "../../apps/gateway/src/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
+import { stateMsaTerms } from "../../packages/domain/src/inheritance/fixtures/msa-terms.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — item 9 (the S6 site card) was not verified over the wire";
@@ -133,16 +134,16 @@ test("the office records a site's record — units, contacts, the jobs that name
   reno = (await s2.gateway.createAccount({ orgId: amped, tier: "location", parentId: westNode, name: "Reno" })).id;
   renoRoof = (await s2.gateway.createAccount({ orgId: amped, tier: "site", parentId: reno, name: "Reno — Roof", address: { line1: "1 Casino Way", city: "Reno", state: "NV", lat: 39.5296, lng: -119.8138 } })).id;
   msa = (await s2.gateway.createContract({ orgId: amped, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: amped, kind: "msa", billingPath: "enterprise_sla", signedAt: "2026-01-05", effectiveFrom: "2026-01-01", diagnosticDataRightsReserved: true })).id;
+  await stateMsaTerms(s2.gateway, { contractId: msa, orgId: amped, regionId: REGION_SOUTH, effectiveFrom: "2026-01-01" });
   await s2.gateway.transitionContract({ contractId: msa, to: "active" });
-  await s2.gateway.authorTermOverride({ contractId: msa, scopeTier: "parent", scopeId: amped, termKey: "sla_response", termValue: "4_hour", effectiveFrom: "2026-01-01", orgId: amped, regionId: REGION_SOUTH });
 
   const o = await s2.gateway.createOrganization({ name: `Other Co ${RUN}`, externalRef: `${RUN}-other`, firstRegionNode: { regionId: REGION_SOUTH, name: "Other / South" } });
   other = o.orgId; otherNode = o.regionNodeId;
   otherLoc = (await s2.gateway.createAccount({ orgId: other, tier: "location", parentId: otherNode, name: "Other — Dallas" })).id;
   otherSite = (await s2.gateway.createAccount({ orgId: other, tier: "site", parentId: otherLoc, name: "Other — Dallas Roof" })).id;
   const otherMsa = (await s2.gateway.createContract({ orgId: other, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: other, kind: "msa", billingPath: "enterprise_sla", signedAt: "2026-02-01", effectiveFrom: "2026-02-01", diagnosticDataRightsReserved: false })).id;
+  await stateMsaTerms(s2.gateway, { contractId: otherMsa, orgId: other, regionId: REGION_SOUTH, effectiveFrom: "2026-02-01" }, { sla_response: "48_hour", diagnostic_data_rights_reserved: false });
   await s2.gateway.transitionContract({ contractId: otherMsa, to: "active" });
-  await s2.gateway.authorTermOverride({ contractId: otherMsa, scopeTier: "parent", scopeId: other, termKey: "sla_response", termValue: "48_hour", effectiveFrom: "2026-02-01", orgId: other, regionId: REGION_SOUTH });
 
   // Units. Two Carriers share a manufacturer row; the exhaust fan names none.
   rtu1 = (await s2.gateway.registerEquipment({ siteId: austinRoof, kind: "rtu", label: "RTU-1", manufacturer: "Carrier", model: "48TC-D08", serial: `4819U-${RUN}-1`, installedOn: "2019-05-14", tonnageMilli: "7500" })).id;

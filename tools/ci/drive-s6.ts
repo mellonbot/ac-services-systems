@@ -29,6 +29,7 @@ import { SURFACE_PATHS } from "../../packages/contracts/src/surfaces.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 import { Cdp, findChrome } from "./cdp.ts";
+import { stateMsaTerms } from "../../packages/domain/src/inheritance/fixtures/msa-terms.ts";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const GIVEN_DB = process.env.DATABASE_URL;
@@ -191,8 +192,8 @@ async function main(): Promise<void> {
     const reno = (await s2.gateway.createAccount({ orgId: org.orgId, tier: "location", parentId: westNode, name: "Reno" })).id;
     const renoRoof = (await s2.gateway.createAccount({ orgId: org.orgId, tier: "site", parentId: reno, name: "Reno — Roof", address: { line1: "1 Casino Way", city: "Reno", state: "NV" } })).id;
     const msa = (await s2.gateway.createContract({ orgId: org.orgId, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: org.orgId, kind: "msa", billingPath: "enterprise_sla", signedAt: "2026-01-05", effectiveFrom: "2026-01-01", diagnosticDataRightsReserved: true })).id;
+    await stateMsaTerms(s2.gateway, { contractId: msa, orgId: org.orgId, regionId: REGION_SOUTH, effectiveFrom: "2026-01-01" });
     await s2.gateway.transitionContract({ contractId: msa, to: "active" });
-    await s2.gateway.authorTermOverride({ contractId: msa, scopeTier: "parent", scopeId: org.orgId, termKey: "sla_response", termValue: "4_hour", effectiveFrom: "2026-01-01", orgId: org.orgId, regionId: REGION_SOUTH });
     await s2.gateway.authorTermOverride({ contractId: msa, scopeTier: "region", scopeId: westNode, termKey: "sla_response", termValue: "2_hour", effectiveFrom: "2026-01-01", orgId: org.orgId, regionId: REGION_WEST });
     const t = new Date(Date.now() + 24 * 3600_000);
     const ws = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), 9)).toISOString();

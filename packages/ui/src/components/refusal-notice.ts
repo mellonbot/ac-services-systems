@@ -32,7 +32,7 @@ export const plainHeading = (r: Refusal): string => {
     case "phase_disabled": return "This isn't available yet";
     case "no_route": return "This page isn't available";
     case "bad_request": return "Something in this request wasn't accepted";
-    case "admission": return r.axis === "commercial" ? "This needs Rankine's agreement first" : "This can't be done here";
+    case "admission": return r.axis === "commercial" ? "This needs Rankine's agreement first" : r.axis === "incomplete" ? "This account isn't fully set up yet" : "This can't be done here";
   }
 };
 

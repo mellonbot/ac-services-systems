@@ -27,6 +27,8 @@ import { hashPassword } from "../../apps/gateway/src/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
+import { stateMsaTerms } from "../../packages/domain/src/inheritance/fixtures/msa-terms.ts";
+import { REQUIRED_AT_ACTIVATION } from "../../packages/contracts/src/terms.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — C2 was not verified over the wire";
@@ -193,6 +195,23 @@ test("the agreement's own shape: an amendment names its MSA, a window that ends 
 });
 
 test("the state ladder over the wire: draft → active → ended, and a step off it is refused by name", { skip }, async () => {
+  // An MSA that states none of its no-default terms does not go live: the first job under it would be refused.
+  await assert.rejects(
+    s2.gateway.transitionContract({ contractId: msa, to: "active" }),
+    (e: unknown) => {
+      const r = refusal(s2, e);
+      assert.equal(r.kind, "admission", JSON.stringify(r));
+      if (r.kind !== "admission") return false;
+      assert.equal(r.code, "missing_terms");
+      assert.equal(r.axis, "incomplete");
+      for (const k of REQUIRED_AT_ACTIVATION) assert.match(r.message, new RegExp(k), `names ${k}`);
+      return true;
+    },
+  );
+  assert.equal((await admin(`SELECT state FROM contracts WHERE id = $1`, [msa]))[0]!.state, "draft");
+  // The parent carries 4-hour: the exposure the MSA priced, which FINDING 2 tightens under and refuses relaxing.
+  await stateMsaTerms(s2.gateway, { contractId: msa, orgId, regionId: REGION_SOUTH, effectiveFrom: "2026-01-01" });
+
   const activated = await s2.gateway.transitionContract({ contractId: msa, to: "active" });
   assert.equal(activated.state, "active");
   const audit = (await admin(`SELECT action, before, after FROM audit_log WHERE event_id = $1`, [activated.eventId]))[0]!;
@@ -242,15 +261,11 @@ test("FINDING 1 — a location setting a parent-only term is 422 STRUCTURAL: not
       return true;
     },
   );
-  assert.equal(String((await admin(`SELECT count(*) FROM contract_term_overrides WHERE org_id = $1 AND term_key = 'payment_terms_days'`, [orgId]))[0]!.count), "0");
+  assert.equal(String((await admin(`SELECT count(*) FROM contract_term_overrides WHERE org_id = $1 AND term_key = 'payment_terms_days' AND scope_tier = 'location'`, [orgId]))[0]!.count), "0");
 });
 
 test("FINDING 2 — Reno relaxing an SLA the parent carries is 422 COMMERCIAL, and the resolver agrees from the other end", { skip }, async () => {
-  // The parent carries 4-hour. That is the exposure the MSA priced.
-  await s2.gateway.authorTermOverride({
-    contractId: msa, scopeTier: "parent", scopeId: orgId, termKey: "sla_response", termValue: "4_hour",
-    effectiveFrom: "2026-01-01", orgId, regionId: REGION_SOUTH,
-  });
+  // The parent carries 4-hour, stated before the MSA went live. That is the exposure the MSA priced.
 
   // Tightening is correct and is admitted.
   const tightened = await s2.gateway.authorTermOverride({
@@ -285,15 +300,13 @@ test("FINDING 2 — Reno relaxing an SLA the parent carries is 422 COMMERCIAL, a
   if (sla.wonAt !== "fallback") assert.equal(sla.wonAt.tier, "location");
   assert.ok(sla.trace.some((t) => t.tier === "parent" && t.value === "4_hour"), "the parent rung is in the trace, with what it carried");
 
-  const payment = resolved.resolved.payment_terms_days;
-  const refusedPayment = resolved.refused.payment_terms_days;
-  assert.ok(payment || refusedPayment, "the term was asked for and answered one way or the other");
-  if (payment) {
-    assert.ok(
-      payment.trace.some((t) => t.tier === "location" && t.outcome === "not_walked"),
-      "the rung the register does not let this term be authored at is marked not_walked — which is the sentence finding 1 is the other face of",
-    );
-  }
+  // Stated before the MSA went live, so it resolves — from the parent, the only tier finding 1 lets it be authored at.
+  const payment = resolved.resolved.payment_terms_days!;
+  assert.deepEqual(payment.wonAt, { tier: "parent", id: orgId });
+  assert.ok(
+    payment.trace.some((t) => t.tier === "location" && t.outcome === "no_override"),
+    "the location rung holds nothing — the row finding 1 refused is not there to be found",
+  );
 });
 
 test("the overlap-then-orphan chain: a second row in effect at once is refused, and so is an override with no agreement", { skip }, async () => {

@@ -87,6 +87,7 @@ test("the ratchet is commercial in both directions; authoring tier and overlap a
   assert.equal(admissionAxis("illegal_tier"), "structural");
   assert.equal(admissionAxis("overlap"), "structural");
   assert.equal(admissionAxis("bad_value"), "structural");
+  assert.equal(admissionAxis("no_value"), "incomplete", "a missing term is fixed by authoring it, not by changing the request");
   assert.equal(admissionAxis(undefined), "structural");
   assert.equal(admissionAxis("something_new"), "structural", "an unknown code is not a commercial conversation by default");
 });

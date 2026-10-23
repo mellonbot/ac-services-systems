@@ -122,6 +122,12 @@ test("RefusalCard: axis heading, the gateway's message verbatim, the register's 
   assert.match(c, /Refused — commercial/);
   assert.match(c, /Someone has to agree to this and price it\./);
   assert.match(c, /data-axis="commercial"/);
+
+  const incomplete: Refusal = { kind: "admission", code: "no_value", axis: "incomplete", message: 'cannot open a job at this site: [inheritance] no value for "sla_response" anywhere on the path as of 2026-10-21, and the register declares no default.' };
+  const i = render(html`<${RefusalCard} density="console" refusal=${incomplete} />`);
+  assert.match(i, /Refused — incomplete/);
+  assert.match(i, /A contract term is missing\. Contracts has to set it before this can go ahead\./);
+  assert.doesNotMatch(i, /can never be valid/, "a missing term is not a wrong row");
 });
 
 test("RefusalCard renders every refusal kind with a heading — none falls through to a generic error", () => {

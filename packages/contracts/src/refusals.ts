@@ -18,11 +18,14 @@
  *   commercial  — someone has to agree to it and price it. The ratchet, in
  *                 both directions: a relaxation of a term we carry, or a parent
  *                 tightening over an existing looser child row.
+ *   incomplete  — nothing is wrong with the request; the account is missing
+ *                 a term it needs (no value anywhere on the path, no register
+ *                 default). It goes through once contracts authors the term.
  *
  * The classification IS the register's combine axis, so it is a lookup on the
  * domain's admission code and not a second table anyone maintains.
  */
-export type AdmissionAxis = "structural" | "commercial";
+export type AdmissionAxis = "structural" | "commercial" | "incomplete";
 
 /** Codes the domain raises — `AdmissionCode` in domain/inheritance/admit.ts and `ResolutionCode` in resolve.ts, mirrored here as wire values. */
 export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.freeze({
@@ -32,7 +35,10 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   bad_value: "structural",
   overlap: "structural",
   ambiguous: "structural",
-  no_value: "structural",
+  // nothing to resolve and no default — the request is fine, the account is not finished
+  no_value: "incomplete",
+  // an MSA activated before it states every no-default term — author them, then activate
+  missing_terms: "incomplete",
   // the ratchet, both directions — somebody has to agree and price it
   ratchet_loosened: "commercial",
   would_orphan_descendants: "commercial",
