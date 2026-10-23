@@ -1,5 +1,5 @@
 import { html, signal, DataGrid, StatusPill, PrimaryAction, pageHead, statStrip, panel, shortRef, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { ServiceRequestWire, ServiceRequestPriority, JobPriority, Refusal } from "../../../../packages/contracts/src/index.ts";
+import { TERMS, type ServiceRequestWire, type ServiceRequestPriority, type JobPriority, type Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, linkTo, refusalView, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL } from "./jobs.ts";
@@ -22,12 +22,18 @@ import { STATE_LABEL } from "./jobs.ts";
  * the dispatch screen for the new job. Priority starts at what the customer
  * declared and the window at the date they asked for, when they asked for one;
  * the dispatcher may change either.
+ *
+ * A request at a site whose agreement is missing a term a job needs is
+ * "Waiting on Contracts" (`waitingOnTerm`, derived by the gateway on every
+ * read): it cannot be opened, so it offers no Open job, and it clears itself
+ * the moment Contracts sets the term. Calls held from New job land here too.
  */
 type Show = "waiting" | "all";
 type Viewing = { readonly requestId: string; readonly photoId: string } | null;
 
 const RANK: Readonly<Record<ServiceRequestPriority, number>> = { emergency: 0, urgent: 1, routine: 2 };
 const isWaiting = (r: Pick<ServiceRequestWire, "jobId">) => r.jobId === null;
+const termWord = (key: string): string => (TERMS[key]?.label ?? key).toLowerCase();
 
 export const intakeRows = (requests: readonly ServiceRequestWire[], show: Show): ServiceRequestWire[] =>
   requests
@@ -96,7 +102,7 @@ const openJob = async (ctx: ScreenContext, r: ServiceRequestWire, form: HTMLForm
 const openPanel = (ctx: ScreenContext, requests: readonly ServiceRequestWire[], opening: Signal<Opening>): VNode | null => {
   const o = opening.value;
   const r = o ? requests.find((x) => x.id === o.requestId && isWaiting(x)) : undefined;
-  if (!o || !r) return null;
+  if (!o || !r || r.waitingOnTerm) return null;
   const w = defaultWindow(r.description, new Date());
   return panel(html`<form class="ac-form" id="intake-open-form" onSubmit=${(e: Event) => { e.preventDefault(); if (!ctx.degraded && !o.busy) void openJob(ctx, r, e.currentTarget as HTMLFormElement, opening); }}>
       <p class="s3-customer-text">${r.description}</p>
@@ -186,6 +192,8 @@ export const intake: Screen = (ctx) => {
     { key: "photos", header: "Photos", cell: (r) => thumbs(ctx, r, viewing, opening) },
     { key: "status", header: "Status", cell: (r) => r.jobId
       ? linkTo(ctx, "detail", { jobId: r.jobId }, `Job opened · ${r.jobState ? STATE_LABEL[r.jobState] : "—"}`)
+      : r.waitingOnTerm
+      ? html`<span class="s3-moves">${StatusPill({ density: ctx.density, status: "blocked", label: "Waiting on Contracts" })}<span class="s3-muted">No ${termWord(r.waitingOnTerm)} on the agreement</span></span>`
       : html`<span class="s3-moves"><span class="s3-muted">Waiting — no job yet</span>
           <button type="button" class="s3-act" id=${`open-${r.id}`} disabled=${ctx.degraded}
             title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
@@ -193,7 +201,7 @@ export const intake: Screen = (ctx) => {
   ];
 
   return html`<section class="s3-intake">
-    ${pageHead("Intake", "What customers asked for in their portal, waiting first — with the photos they sent, under the reference they were given.")}
+    ${pageHead("Intake", "What customers asked for in their portal, and calls held for Contracts — waiting first, with the photos they sent, under the reference they were given.")}
     ${whenReady(ctx, list.value, (out) => {
       const waiting = out.requests.filter(isWaiting);
       const emergency = waiting.filter((r) => r.priority === "emergency").length;
@@ -204,6 +212,7 @@ export const intake: Screen = (ctx) => {
       return html`
         ${statStrip([
           { n: waiting.length, label: "Waiting", sub: "No job opened yet" },
+          { n: waiting.filter((r) => r.waitingOnTerm).length, label: "Waiting on Contracts", sub: "A term is missing from the agreement" },
           { n: emergency, label: "Emergency", sub: "Declared by the customer", ...(emergency ? { tone: "breached" as const } : {}) },
           { n: urgent, label: "Urgent", sub: "Declared by the customer", ...(urgent ? { tone: "at_risk" as const } : {}) },
           { n: oldest ? age(oldest, now) : "—", label: "Oldest waiting", sub: oldest ? new Date(oldest).toLocaleString() : "Nothing waiting" },

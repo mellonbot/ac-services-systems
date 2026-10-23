@@ -137,7 +137,19 @@ export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: (
   const asOf = localDate(now, tz);
   const r = await resolvedTermsAt(uow, site.org_id, "site", site.id, asOf, ["sla_response"]);
   const refusedSla = r.refused.sla_response;
-  if (refusedSla) throw new InputRefused(`cannot open a job at this site: ${refusedSla.message}`, refusedSla.code);
+  if (refusedSla) {
+    // A missing term is the dispatcher's to report, not to fix: say which
+    // site and customer, so the surface can name them without parsing this.
+    const named = refusedSla.code === "no_value"
+      ? (await uow.tx.query<{ site_name: string; customer: string }>(
+          `SELECT a.name AS site_name, o.name AS customer FROM accounts a JOIN organizations o ON o.id = a.org_id WHERE a.id = $1`, [site.id],
+        ))[0]
+      : undefined;
+    throw new InputRefused(
+      `cannot open a job at this site: ${refusedSla.message}`, refusedSla.code,
+      named ? { termKey: "sla_response", siteId: site.id, siteName: named.site_name, customer: named.customer, asOf } : undefined,
+    );
+  }
   const resolution = r.resolved.sla_response!;
   const responseTerm = String(resolution.value);
   const dueAt = deriveDueAt(now, { response: responseTerm });

@@ -1,6 +1,7 @@
 import type { UnitOfWork } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
-import { createJob } from "./jobs.ts";
+import { createJob, localDate } from "./jobs.ts";
+import { resolvedTermsAt } from "./terms.ts";
 import type {
   CreateServiceRequestInput, CreateServiceRequestOutput, ListServiceRequestsInput, ListServiceRequestsOutput,
   ServiceRequestPriority, ServiceRequestWire, JobStateWire, RequestPhotoWire, OpenRequestJobInput, OpenRequestJobOutput, CustomerSegment,
@@ -79,8 +80,29 @@ type Row = {
   photos: RequestPhotoWire[];
 };
 
+/**
+ * The term a waiting request's job would be refused for today, if any — the
+ * one term createJob resolves, read on the same day where the site is. Asked
+ * once per site, and only for the office: a customer's portal reads no
+ * contract terms.
+ */
+const waitingOnTerms = async (uow: UnitOfWork, rows: readonly Row[], now: Date): Promise<Map<string, string>> => {
+  const blocked = new Map<string, string>();
+  const sites = new Map(rows.filter((r) => r.job_id === null).map((r) => [r.site_id, r]));
+  if (sites.size === 0) return blocked;
+  const zones = await uow.tx.query<{ id: string; timezone: string | null }>(
+    `SELECT id, timezone FROM regions WHERE id = ANY($1::uuid[])`, [[...new Set([...sites.values()].map((r) => r.region_id))]],
+  );
+  for (const r of sites.values()) {
+    const asOf = localDate(now, zones.find((z) => z.id === r.region_id)?.timezone ?? "UTC");
+    const res = await resolvedTermsAt(uow, r.org_id, "site", r.site_id, asOf, ["sla_response"]);
+    if (res.refused.sla_response?.code === "no_value") blocked.set(r.site_id, "sla_response");
+  }
+  return blocked;
+};
+
 /** S6 (its own, by RLS), S2 (org-wide), S3 (by region) — one query, one shape. */
-export const listServiceRequests = async (uow: UnitOfWork, input: ListServiceRequestsInput): Promise<ListServiceRequestsOutput> => {
+export const listServiceRequests = async (uow: UnitOfWork, input: ListServiceRequestsInput, now: Date, office: boolean): Promise<ListServiceRequestsOutput> => {
   const siteId = input.siteId === undefined ? null : requireUuid(input.siteId, "siteId");
   const rows = await uow.tx.query<Row>(
     `SELECT r.id, r.site_id, a.name AS site_name, r.priority, r.description, r.requested_by,
@@ -97,10 +119,12 @@ export const listServiceRequests = async (uow: UnitOfWork, input: ListServiceReq
       ORDER BY r.created_at DESC`,
     [siteId],
   );
+  const blocked = office ? await waitingOnTerms(uow, rows, now) : new Map<string, string>();
   const requests: ServiceRequestWire[] = rows.map((r) => ({
     id: r.id, siteId: r.site_id, siteName: r.site_name, priority: r.priority, description: r.description,
     requestedBy: r.requested_by, createdAt: r.created_at, jobId: r.job_id, jobState: r.job_state, orgId: r.org_id, regionId: r.region_id, customerSegment: r.customer_segment ?? null,
     photos: r.photos.map((p) => ({ id: p.id, contentType: p.contentType, bytes: Number(p.bytes) })),
+    waitingOnTerm: r.job_id === null ? blocked.get(r.site_id) ?? null : null,
   }));
   return { requests };
 };

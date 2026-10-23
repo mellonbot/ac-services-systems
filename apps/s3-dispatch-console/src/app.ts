@@ -62,6 +62,7 @@ type PreviewShell = ConnectedShell & {
     listServiceRequests: (input: Record<string, unknown>) => Promise<{ requests: unknown[] }>;
     getMedia: (input: { id: string }) => Promise<{ id: string; contentType: string; image: string }>;
     openServiceRequestJob: (input: { requestId: string; serviceCode: string; priority?: string; serviceWindowStart: string; serviceWindowEnd: string }) => Promise<unknown>;
+    holdServiceRequest: (input: { siteId: string; priority?: string; description: string }) => Promise<{ id: string; orgId: string; regionId: string; eventId: string }>;
     listSites: () => Promise<{ sites: unknown[] }>;
     createJob: (input: { siteId: string; serviceCode: string; priority?: string; serviceWindowStart: string; serviceWindowEnd: string }) => Promise<unknown>;
     transitionJob: (input: { jobId: string; to: string }) => Promise<unknown>;
@@ -145,17 +146,19 @@ for (const job of PREVIEW_JOBS) {
 
 /** Local preview only — what customers asked for, in the same sites the preview jobs use; one request is already a job. */
 const PREVIEW_PHOTO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAeUlEQVR4nAXBIRYAERQAQKdzgI2CJAkTPflnTxQkR92ZlIuvqEUvRhHFLm6RcvM1tenNaKLZzW1S5qPSGQSbS8rTN9WpT2OKaU93Sjl8oYYeRoiwww0pL99Sl76MJZa93CXl4zvq0Y9xxLGPe6T8fE99+jOeePZznx9uyFbBTUcGaQAAAABJRU5ErkJggg==";
-const previewRequest = (n: number, siteName: string, priority: "emergency" | "urgent" | "routine", description: string, hoursAgo: number, photos: number, jobId: string | null = null) => ({
+const previewRequest = (n: number, siteName: string, priority: "emergency" | "urgent" | "routine", description: string, hoursAgo: number, photos: number, jobId: string | null = null, waitingOnTerm: string | null = null) => ({
   id: `5e${String(n).padStart(6, "0")}-0000-4000-8000-000000000000`, siteId: `site-${n}`, siteName, priority, description, requestedBy: "preview-customer",
   createdAt: new Date(Date.now() - hoursAgo * 3_600_000).toISOString(), jobId, jobState: jobId ? PREVIEW_JOBS.find((j) => j.id === jobId)?.state ?? null : null,
   orgId: "org-preview", regionId: "region-preview",
   photos: Array.from({ length: photos }, (_, i) => ({ id: `p${n}-${i}`, contentType: "image/png", bytes: 68 })),
+  waitingOnTerm,
 });
 const PREVIEW_REQUESTS = [
   previewRequest(1, "Shipman Co", "urgent", "No cooling — server closet unit isn't keeping up; temp alarm went off twice overnight.", 2, 2),
   previewRequest(2, "Meridian Plaza", "emergency", "Water coming through the ceiling tiles under the rooftop unit on the 3rd floor.", 0.5, 3),
   previewRequest(3, "Turner Res.", "routine", "Routine maintenance — filter change due on both units.\nPreferred date: next Tuesday.", 26, 0),
   previewRequest(4, "FirstKey Homes DFW", "urgent", "Noise / smell — burning plastic smell from the return vent.", 50, 1, "33187839"),
+  previewRequest(5, "Halcyon Labs", "urgent", "Phoned in for repairs.\nPreferred date: next Tuesday.", 1, 0, null, "sla_response"),
 ];
 
 const createPreviewShell = (): PreviewShell => {
@@ -173,6 +176,11 @@ const createPreviewShell = (): PreviewShell => {
         PREVIEW_JOBS.push(job);
         Object.assign(r, { jobId: job.id, jobState: "created" });
         return { id: job.id, orgId: job.orgId, regionId: job.regionId, slaTimerId: `t-${job.id}`, dueAt: job.slaDueAt, responseTerm: "4_hour", requestId: r.id };
+      },
+      holdServiceRequest: async (input: { siteId: string; priority?: string; description: string }) => {
+        const r = previewRequest(PREVIEW_REQUESTS.length + 1, input.siteId.replace(/^site-/, ""), (input.priority ?? "routine") as "routine", input.description, 0, 0, null, "sla_response");
+        PREVIEW_REQUESTS.unshift(r);
+        return { id: r.id, orgId: r.orgId, regionId: r.regionId, eventId: `e-${r.id}` };
       },
       listSites: async () => ({ sites: Object.entries(PREVIEW_PLACES).map(([name, a]) => ({ id: `site-${name}`, name, orgId: "org-preview", orgName: "AC Services", regionId: "region-preview", address: a })) }),
       createJob: async (input: { siteId: string; serviceCode: string; priority?: string; serviceWindowStart: string; serviceWindowEnd: string }) => {

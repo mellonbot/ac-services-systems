@@ -47,6 +47,8 @@ export type ValueKind = "int" | "money" | "text" | "enum" | "bool";
 
 export type TermPolicy = {
   readonly key: string;
+  /** The term in the words of someone who never reads the register — a dispatcher, a customer. */
+  readonly label: string;
   readonly authoring: readonly Tier[];
   readonly combine: Combine;
   readonly valueKind: ValueKind;
@@ -63,57 +65,57 @@ const ALL: readonly Tier[] = ["parent", "region", "location", "site"];
 export const TERMS: Readonly<Record<string, TermPolicy>> = Object.freeze({
   // ---- money and billing: parent-only, because the consolidated invoice is one document
   payment_terms_days: {
-    key: "payment_terms_days", authoring: ["parent"], combine: { kind: "nearest" }, valueKind: "int",
+    key: "payment_terms_days", label: "Payment terms", authoring: ["parent"], combine: { kind: "nearest" }, valueKind: "int",
     rationale: "Amped centralises AP at the parent. Per-location payment terms make one consolidated invoice unpayable (non-negotiable #7).",
   },
   billing_rollup_tier: {
-    key: "billing_rollup_tier", authoring: ["parent"], combine: { kind: "nearest" }, valueKind: "enum",
+    key: "billing_rollup_tier", label: "Invoice billing level", authoring: ["parent"], combine: { kind: "nearest" }, valueKind: "enum",
     values: ["site", "location", "region", "parent"],
     rationale: "Where the invoice header bills to. One answer per parent, or the detail sheets do not sum to anything.",
     fallback: "parent",
   },
   invoice_delivery: {
-    key: "invoice_delivery", authoring: ["parent", "region"], combine: { kind: "nearest" }, valueKind: "enum",
+    key: "invoice_delivery", label: "Invoice delivery", authoring: ["parent", "region"], combine: { kind: "nearest" }, valueKind: "enum",
     values: ["portal", "email", "edi"],
     rationale: "A region may have its own AP contact; a location may not.", fallback: "portal",
   },
   // ---- SLA: ratchet, because under Model A we carry the whole exposure
   sla_response: {
-    key: "sla_response", authoring: ALL, combine: { kind: "ratchet", stricter: "lower" }, valueKind: "enum",
+    key: "sla_response", label: "Response time", authoring: ALL, combine: { kind: "ratchet", stricter: "lower" }, valueKind: "enum",
     // Ordinal, tightest first. Index is the rank; "stricter: lower" means an override may only move DOWN this list.
     values: ["1_hour", "2_hour", "4_hour", "same_day", "next_day", "48_hour"],
     rationale: "San Jose tightening same-day to 4-hour is correct. Reno relaxing to 48-hour is an obligation the parent MSA priced and we absorb with nothing to push outward.",
   },
   sla_credit_pct: {
-    key: "sla_credit_pct", authoring: ["parent", "region", "location"], combine: { kind: "ratchet", stricter: "lower" }, valueKind: "int",
+    key: "sla_credit_pct", label: "SLA credit", authoring: ["parent", "region", "location"], combine: { kind: "ratchet", stricter: "lower" }, valueKind: "int",
     rationale: "A location may negotiate a smaller credit, never a larger one than the MSA carries.",
   },
   pm_visits_per_year: {
-    key: "pm_visits_per_year", authoring: ALL, combine: { kind: "ratchet", stricter: "higher" }, valueKind: "int",
+    key: "pm_visits_per_year", label: "Maintenance visits per year", authoring: ALL, combine: { kind: "ratchet", stricter: "higher" }, valueKind: "int",
     rationale: "More preventive visits is stricter. A site may buy more; it may not quietly buy fewer.",
   },
   // ---- pricing: nearest, any tier
   after_hours_multiplier_milli: {
-    key: "after_hours_multiplier_milli", authoring: ALL, combine: { kind: "nearest" }, valueKind: "int",
+    key: "after_hours_multiplier_milli", label: "After-hours rate", authoring: ALL, combine: { kind: "nearest" }, valueKind: "int",
     rationale: "Integer thousandths (1500 = 1.5x). Time-bounded rows so a February job reprices against the February contract.",
     fallback: 1500,
   },
   labor_rate_minor: {
-    key: "labor_rate_minor", authoring: ALL, combine: { kind: "nearest" }, valueKind: "money",
+    key: "labor_rate_minor", label: "Labour rate", authoring: ALL, combine: { kind: "nearest" }, valueKind: "money",
     rationale: "Minor units as a STRING in jsonb — a JSON number is a double.",
   },
   // ---- vendor axis: attach, never walks
   vendor_warranty: {
-    key: "vendor_warranty", authoring: ["site"], combine: { kind: "attach" }, valueKind: "text",
+    key: "vendor_warranty", label: "Vendor warranty", authoring: ["site"], combine: { kind: "attach" }, valueKind: "text",
     rationale: "Boulder's roof units carry a Carrier 58-month parts warranty; the basement AHU twenty feet away does not. Authority comes from a vendor tree, not from the customer tree above the node.",
   },
   equipment_service_window: {
-    key: "equipment_service_window", authoring: ["site"], combine: { kind: "attach" }, valueKind: "text",
+    key: "equipment_service_window", label: "Equipment access window", authoring: ["site"], combine: { kind: "attach" }, valueKind: "text",
     rationale: "Access constraints are physical facts about one site.",
   },
   // ---- data rights: parent-only, no fallback — a contract must state its position (OQ5)
   diagnostic_data_rights_reserved: {
-    key: "diagnostic_data_rights_reserved", authoring: ["parent"], combine: { kind: "nearest" }, valueKind: "bool",
+    key: "diagnostic_data_rights_reserved", label: "Diagnostic data rights", authoring: ["parent"], combine: { kind: "nearest" }, valueKind: "bool",
     rationale: "OQ5. Every agreement signed without the reservation is one that has to be renegotiated before Phase 4 licensing. No default, on purpose.",
   },
 });

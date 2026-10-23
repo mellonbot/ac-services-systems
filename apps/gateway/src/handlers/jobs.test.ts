@@ -92,6 +92,17 @@ test("createJob refuses a site that does not resolve to a site tier, an empty wi
     (e: unknown) => e instanceof InputRefused && e.code === "no_value",
   );
 
+  // …and the refusal names what is missing and where, so S3 can say it without parsing the message.
+  const named = scripted([...baseAnswers([]), ["JOIN organizations o ON o.id = a.org_id", [{ site_name: "Site A", customer: "Amped" }]]]);
+  await assert.rejects(
+    createJob(await uowFor(named.tx), { siteId: SITE, serviceCode: "x", serviceWindowStart: "2026-09-18T09:00:00Z", serviceWindowEnd: "2026-09-18T17:00:00Z" }, newId, now),
+    (e: unknown) => {
+      assert.ok(e instanceof InputRefused);
+      assert.deepEqual(e.missingTerm, { termKey: "sla_response", siteId: SITE, siteName: "Site A", customer: "Amped", asOf: "2026-09-17" });
+      return true;
+    },
+  );
+
   const s2 = scripted([["FROM accounts WHERE id = $1", [{ ...siteRow, tier: "location" }]]]);
   const notASite = await uowFor(s2.tx);
   await assert.rejects(

@@ -117,6 +117,21 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
 export const admissionAxis = (code: string | undefined): AdmissionAxis =>
   (code && ADMISSION_AXIS[code]) || "structural";
 
+/**
+ * What an `incomplete` refusal was missing, as facts rather than a sentence:
+ * the term, where it was looked for, and on what day. The gateway's message
+ * says it in the resolver's words; a surface whose reader cannot author a term
+ * builds its sentence from these and the register's `label`, so the reason
+ * still lives in one place.
+ */
+export type MissingTerm = {
+  readonly termKey: string;
+  readonly siteId: string;
+  readonly siteName: string;
+  readonly customer: string;
+  readonly asOf: string;
+};
+
 export type TokenFault = "malformed" | "bad_signature" | "expired" | "unknown_key" | "bad_claims" | "revoked";
 
 export type Refusal =
@@ -129,13 +144,13 @@ export type Refusal =
   /** 404 — no such route. Only possible if the client and the gateway disagree about the catalogue, which the guard prevents. */
   | { readonly kind: "no_route"; readonly message: string }
   /** 422 — the register refused the row. Carries the axis so S2 can route it. */
-  | { readonly kind: "admission"; readonly code: string; readonly axis: AdmissionAxis; readonly message: string }
+  | { readonly kind: "admission"; readonly code: string; readonly axis: AdmissionAxis; readonly message: string; readonly missingTerm?: MissingTerm }
   /** 400 — the input did not parse or lacked a required field. */
   | { readonly kind: "bad_request"; readonly message: string }
   /** 5xx or no response — the gateway is unreachable or broken. The ONLY kind that flips degraded mode. */
   | { readonly kind: "transport"; readonly status: number | null; readonly message: string };
 
-export type WireError = { readonly error?: string; readonly code?: string; readonly message?: string };
+export type WireError = { readonly error?: string; readonly code?: string; readonly message?: string; readonly missingTerm?: MissingTerm };
 
 /** Status + body → Refusal. Pure, so it is tested without a socket. */
 export const classifyRefusal = (status: number, body: WireError | null): Refusal => {
@@ -143,7 +158,7 @@ export const classifyRefusal = (status: number, body: WireError | null): Refusal
   if (status === 401) return { kind: "token", code: (body?.code as TokenFault | undefined) ?? "malformed", message };
   if (status === 403) return { kind: "scope", error: body?.error ?? "Forbidden", message };
   if (status === 404) return body?.error === "SurfaceDisabled" ? { kind: "phase_disabled", message } : { kind: "no_route", message };
-  if (status === 422) return { kind: "admission", code: body?.code ?? "unknown", axis: admissionAxis(body?.code), message };
+  if (status === 422) return { kind: "admission", code: body?.code ?? "unknown", axis: admissionAxis(body?.code), message, ...(body?.missingTerm ? { missingTerm: body.missingTerm } : {}) };
   if (status === 400) return { kind: "bad_request", message };
   return { kind: "transport", status, message };
 };

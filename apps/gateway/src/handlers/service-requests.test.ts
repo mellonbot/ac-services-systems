@@ -39,6 +39,7 @@ const executive: Principal = { ...facility, subjectId: U(7), regionId: REGION_WE
 let seq = 0;
 const uowFor = async (tx: Tx, principal: Principal = facility) => createUnitOfWork({ surfaceId: "S6", principal, requestId: "r", now: () => new Date("2026-09-17T12:00:00Z"), newId: () => U(600 + ++seq) }, tx);
 const newId = () => U(700 + ++seq);
+const NOW = new Date("2026-09-17T12:00:00Z");
 const siteRow = { id: SITE, tier: "site", org_id: ORG, region_id: REGION_SOUTH, active: true };
 
 test("createServiceRequest: tenancy is the SITE's — the request lands in the region the site is served from, not the one the token was bound to", async () => {
@@ -89,17 +90,41 @@ test("createServiceRequest: a request says what is wrong — empty is refused by
 test("listServiceRequests carries the site's name and the job's state, and filters by site when asked", async () => {
   const row = { id: U(50), site_id: SITE, site_name: "Austin — Roof", priority: "urgent", description: "d", requested_by: CONTACT, created_at: "2026-09-17T12:00:00.000Z", job_id: U(51), job_state: "assigned", org_id: ORG, region_id: REGION_SOUTH, photos: [{ id: U(52), contentType: "image/jpeg", bytes: 2048 }] };
   const s = scripted([["FROM service_requests r", [row]]]);
-  const out = await listServiceRequests(await uowFor(s.tx), { siteId: SITE });
+  const out = await listServiceRequests(await uowFor(s.tx), { siteId: SITE }, NOW, false);
   assert.equal(out.requests.length, 1);
   assert.equal(out.requests[0]!.siteName, "Austin — Roof");
   assert.equal(out.requests[0]!.jobState, "assigned");
   assert.deepEqual(out.requests[0]!.photos, [{ id: U(52), contentType: "image/jpeg", bytes: 2048 }], "the photos sent with it — what they are, never where they are stored");
   assert.equal(s.queries[0]!.params[0], SITE);
   const all = scripted([["FROM service_requests r", [{ ...row, job_id: null, job_state: null }]]]);
-  const o2 = await listServiceRequests(await uowFor(all.tx), {});
+  const o2 = await listServiceRequests(await uowFor(all.tx), {}, NOW, false);
   assert.equal(all.queries[0]!.params[0], null);
   assert.equal(o2.requests[0]!.jobId, null, "not yet acted on");
-  await assert.rejects(listServiceRequests(await uowFor(scripted([]).tx), { siteId: "nope" }), BadInput);
+  assert.equal(o2.requests[0]!.waitingOnTerm, null, "a customer's portal reads no contract terms");
+  assert.ok(!all.queries.some((q) => q.sql.includes("contract_term_overrides")), "…so S6 never asks");
+  await assert.rejects(listServiceRequests(await uowFor(scripted([]).tx), { siteId: "nope" }, NOW, false), BadInput);
+});
+
+test("listServiceRequests (office): a waiting request at a site whose agreement has no response time says so; an answered one does not", async () => {
+  const office: Principal = {
+    namespace: "internal", subjectId: U(9), orgId: U(90), regionId: REGION_SOUTH, scopeTier: "region", scopeId: REGION_SOUTH,
+    roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "sess-3",
+  };
+  const row = { id: U(50), site_id: SITE, site_name: "Austin — Roof", priority: "urgent", description: "d", requested_by: office.subjectId, created_at: "2026-09-17T12:00:00.000Z", job_id: null, job_state: null, org_id: ORG, region_id: REGION_SOUTH, photos: [] };
+  const answers = (overrides: unknown[]): [string, unknown[]][] => [
+    ["FROM service_requests r", [row, { ...row, id: U(53), job_id: U(54), job_state: "created" }]],
+    ["FROM organizations WHERE id = $1", [{ id: ORG, name: "Amped" }]],
+    ["FROM accounts WHERE org_id = $1", [{ id: SITE, tier: "site", name: "Austin — Roof", parent_id: null }]],
+    ["FROM contract_term_overrides", overrides],
+  ];
+  const uowS3 = async (tx: Tx) => createUnitOfWork({ surfaceId: "S3", principal: office, requestId: "r", now: () => NOW, newId: () => U(600 + ++seq) }, tx);
+
+  const missing = await listServiceRequests(await uowS3(scripted(answers([])).tx), {}, NOW, true);
+  assert.deepEqual(missing.requests.map((r) => r.waitingOnTerm), ["sla_response", null]);
+
+  const set = { id: U(20), contract_id: U(21), scope_tier: "site", scope_id: SITE, term_key: "sla_response", term_value: "4_hour", eff_from: "2026-01-01", eff_to: null };
+  const ok = await listServiceRequests(await uowS3(scripted(answers([set])).tx), {}, NOW, true);
+  assert.deepEqual(ok.requests.map((r) => r.waitingOnTerm), [null, null], "derived on every read — it clears the moment the term exists");
 });
 
 test("openJobFromRequest: locks the request first, and refuses one it cannot see or one already answered — before any job is opened", async () => {
