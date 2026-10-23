@@ -1,0 +1,38 @@
+name: backfill-home-agreements
+
+# Manual only, one-off. Puts every home made before the standard home agreement
+# existed onto it (tools/ci/backfill-home-agreements.ts), through the same
+# handlers S2 uses, acting as the named staff login so the audit log says who.
+# Without `apply` it lists the homes and writes nothing. Re-running is a no-op:
+# a home that has an agreement is not listed. Commercial customers are never
+# touched. Check the result with the msa-terms-audit workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      as:
+        description: "Email of the internal staff login doing this (named in the audit log)."
+        required: true
+      apply:
+        description: "Write the agreements. Unchecked = dry run."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile --prod
+      - name: backfill
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AS: ${{ inputs.as }}
+          APPLY: ${{ inputs.apply && '--apply' || '' }}
+        run: node tools/ci/backfill-home-agreements.ts --as "$AS" $APPLY

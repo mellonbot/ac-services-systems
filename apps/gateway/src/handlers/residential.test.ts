@@ -4,6 +4,7 @@ import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
 import { createResidential, convertLead, listLeads } from "./residential.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
+import type { HierarchyContext } from "../context.ts";
 
 /**
  * Residential customers at the handler: what it refuses before anything is
@@ -33,22 +34,25 @@ const owner: Principal = {
 let seq = 0;
 const uowFor = async (tx: Tx) => createUnitOfWork({ surfaceId: "S2", principal: owner, requestId: "r", now: () => new Date("2026-10-21T12:00:00Z"), newId: () => U(600 + ++seq) }, tx);
 const newId = () => U(700 + ++seq);
+/** Every case below is refused before the agreement is started, so nothing reads the context. */
+const noCtx = {} as HierarchyContext;
+const NOW = new Date("2026-10-23T17:00:00Z");
 const address = { line1: "905 Hidden Creek Pkwy", city: "Burleson", state: "TX", postal: "76028" };
 
 test("createResidential: a home is somewhere — no address, no write", async () => {
   const s = scripted([]);
-  await assert.rejects(createResidential(await uowFor(s.tx), { name: "Turner residence", regionId: U(3), address: { line1: "  " } }, newId), BadInput);
-  await assert.rejects(createResidential(await uowFor(s.tx), { name: "", regionId: U(3), address }, newId), BadInput);
+  await assert.rejects(createResidential(await uowFor(s.tx), noCtx, { name: "Turner residence", regionId: U(3), address: { line1: "  " } }, newId, NOW), BadInput);
+  await assert.rejects(createResidential(await uowFor(s.tx), noCtx, { name: "", regionId: U(3), address }, newId, NOW), BadInput);
   assert.equal(s.queries.length, 0);
 });
 
 test("convertLead: locks the lead, and refuses one it cannot see or one already converted — naming the home — before any customer is made", async () => {
   const input = { leadId: U(10), regionId: U(3), address };
   const none = scripted([]);
-  await assert.rejects(convertLead(await uowFor(none.tx), input, newId), (e: InputRefused) => e.code === "unknown_lead");
+  await assert.rejects(convertLead(await uowFor(none.tx), noCtx, input, newId, NOW), (e: InputRefused) => e.code === "unknown_lead");
   assert.match(none.queries[0]!.sql, /FOR UPDATE/, "two people converting one lead make one customer");
   const done = scripted([["FROM leads WHERE id", [{ contact: { name: "Pat Turner" }, converted_account_id: U(11), org_id: U(4), region_id: U(5) }]]]);
-  await assert.rejects(convertLead(await uowFor(done.tx), input, newId), (e: InputRefused) => e.code === "already_converted" && e.message.includes(U(11)));
+  await assert.rejects(convertLead(await uowFor(done.tx), noCtx, input, newId, NOW), (e: InputRefused) => e.code === "already_converted" && e.message.includes(U(11)));
   assert.ok(!done.queries.some((q) => q.sql.includes("INSERT INTO organizations")));
 });
 
