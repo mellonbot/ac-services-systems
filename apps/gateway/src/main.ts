@@ -18,6 +18,7 @@ import { listSettlements, listSettlementLines, acknowledgeSettlement, disputeSet
 import { ingestSync } from "./handlers/sync.ts";
 import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
 import { createJob, listJobs, listMyJobs, transitionJob, addJobNote, setReturnTrip } from "./handlers/jobs.ts";
+import { createProject, listProjects } from "./handlers/projects.ts";
 import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "./handlers/job-detail.ts";
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
 import { createServiceRequest, listServiceRequests, openJobFromRequest } from "./handlers/service-requests.ts";
@@ -541,6 +542,8 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "rmas.list": (req, input) => withRead(req, "rmas.list", (uow) => listReturns(uow, input)),
 
   // item 4 — the job itself, created in Office & Dispatch.
+  "projects.list": (req, input) => withRead(req, "projects.list", (uow) => listProjects(uow, input)),
+  "projects.create": (req, input) => withUow(req, "projects.create", (uow) => createProject(uow, input, randomUUID)),
   "jobs.create": (req, input) => withUow(req, "jobs.create", (uow) => createJob(uow, input, randomUUID, new Date())),
   "jobs.list": (req, input) => withRead(req, "jobs.list", (uow) => listJobs(uow, input.state)),
 

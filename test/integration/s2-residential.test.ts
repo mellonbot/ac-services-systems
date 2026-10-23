@@ -105,7 +105,7 @@ test("a home is on the standard home agreement from the day it is made — activ
   assert.deepEqual([msa.kind, msa.state, msa.billingPath, msa.scopeId, msa.diagnosticDataRightsReserved], ["msa", "active", "one_time", home.orgId, true]);
   const terms = await s2.gateway.resolvedTerms({ orgId: home.orgId, nodeId: home.siteId });
   for (const [k, v] of Object.entries(RESIDENTIAL_STANDARD_TERMS)) assert.deepEqual(terms.resolved[k]?.value, v, k);
-  const job = await s2.gateway.createJob({ siteId: home.siteId, serviceCode: "repairs",
+  const job = await s2.gateway.createJob({ siteId: home.siteId, serviceCode: "HVAC-REPAIR",
     serviceWindowStart: new Date(Date.now() + 86_400_000).toISOString(), serviceWindowEnd: new Date(Date.now() + 100_800_000).toISOString() });
   assert.equal(job.responseTerm, "same_day", "the home's response time, not a refusal");
 });

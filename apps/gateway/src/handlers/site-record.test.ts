@@ -67,7 +67,7 @@ test("listEquipment: last serviced is READ off the completed jobs that named the
     ["FROM accounts WHERE id", [site]],
     ["FROM equipment e", [{
       id: U(20), site_id: SITE, kind: "rtu", label: "RTU-1", manufacturer: "Carrier", model: "48TC", serial: "A", installed_on: "2021-04-01", tonnage_milli: "7500", active: true,
-      last_serviced_at: "2026-08-30T17:00:00.000Z", last_serviced_job_id: JOB, last_serviced_service_code: "PM-Q3", job_count: "4",
+      last_serviced_at: "2026-08-30T17:00:00.000Z", last_serviced_job_id: JOB, last_serviced_service_code: "PM-VISIT", job_count: "4",
     }]],
   ]);
   const out = await listEquipment(await uowFor(s.tx, "S6", executive), { siteId: SITE });

@@ -60,7 +60,7 @@ const contextFor = (p: Principal): HierarchyContext => ({
 
 /** A customer's job row as RLS hands it back: the assignment join found nothing, so the crew fields are null. */
 const job: JobWire = {
-  id: JOB, siteId: AUSTIN_ROOF, siteName: "Austin — Roof", siteAddress: null, contractId: null, projectId: null, serviceCode: "HVAC-REPAIR", priority: "urgent", state: "en_route",
+  id: JOB, siteId: AUSTIN_ROOF, siteName: "Austin — Roof", siteAddress: null, contractId: null, projectId: null, serviceCode: "HVAC-REPAIR", priority: "urgent", state: "en_route", workClass: "service",
   serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T13:00:00.000Z", version: 3, openedAt: "2026-09-17T12:00:00.000Z", stateChangedAt: "2026-09-18T09:00:00.000Z",
   regionId: SOUTH, orgId: ORG, customerSegment: "commercial", currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 0, slaSatisfiedAt: "2026-09-17T13:00:00.000Z",
@@ -232,7 +232,7 @@ test("SITE CARD: where, who, what runs there, and one ledger — every row the g
   const order = [...ledger.matchAll(/data-kind="(request|job|invoice)"/g)].map((m) => m[1]);
   assert.deepEqual(order, ["job", "request", "invoice"], "the 09-18 visit, the 09-17 request, the 07-03 invoice — newest first, a job on the day of its visit");
   assert.match(ledger, /Service requested — urgent/); assert.match(ledger, /Waiting for the office/);
-  assert.match(ledger, /HVAC-REPAIR — Crew en route/); assert.match(ledger, /Responded/);
+  assert.match(ledger, /Repair — Crew en route/); assert.match(ledger, /Responded/);
   assert.match(ledger, /Invoice issued — 2026-06-01 to 2026-06-30/); assert.match(ledger, /Quarterly PM — RTU-1/); assert.match(ledger, /\$425\.00/);
   assert.doesNotMatch(out, /1284500|12,845/, "the consolidated header total is not what this site was billed");
   // right now
@@ -483,7 +483,7 @@ const residentialMe = (p: Principal): HierarchyContext => ({
 });
 const membership: ContractWire = { ...msa, id: U(54), scopeId: HOUSE, kind: "residential_membership" as ContractWire["kind"], billingPath: "residential_membership", effectiveFrom: "2026-03-01" };
 const pmJob = (id: string, state: JobWire["state"], start: string): JobWire =>
-  ({ ...job, id, siteId: HOME, siteName: "Home", priority: "pm", serviceCode: "PM-SPRING", state, serviceWindowStart: start, serviceWindowEnd: start.replace("T09", "T13"), stateChangedAt: start, orgId: HOUSE });
+  ({ ...job, id, siteId: HOME, siteName: "Home", priority: "pm", serviceCode: "PM-VISIT", state, serviceWindowStart: start, serviceWindowEnd: start.replace("T09", "T13"), stateChangedAt: start, orgId: HOUSE });
 const homeReady = (p: Principal, contracts: readonly ContractWire[] = [membership]) => ready(p, homeNodes, {
   [OPERATIONS["session.me"].path]: { status: 200, body: residentialMe(p) },
   [OPERATIONS["contracts.list"].path]: { status: 200, body: { contracts } },

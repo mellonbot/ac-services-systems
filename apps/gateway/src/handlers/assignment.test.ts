@@ -38,8 +38,8 @@ let seq = 0;
 const uowFor = async (tx: Tx) => createUnitOfWork({ surfaceId: "S3", principal: dispatcher, requestId: "r", now: () => new Date("2026-09-17T12:00:00Z"), newId: () => U(500 + ++seq) }, tx);
 const now = new Date("2026-09-17T12:00:00Z");
 
-const job = { id: JOB, ws: "2026-09-18T09:00:00.000Z", we: "2026-09-18T17:00:00.000Z", state: "created", region_id: REGION, org_id: ORG };
-const clearedCrew = { id: CREW, label: "Crew A1", active: true, employment_type: "employed" };
+const job = { id: JOB, ws: "2026-09-18T09:00:00.000Z", we: "2026-09-18T17:00:00.000Z", state: "created", region_id: REGION, org_id: ORG, work_class: "service" };
+const clearedCrew = { id: CREW, label: "Crew A1", active: true, employment_type: "employed", kind: "service" };
 const clearedCreds = [{ crew_id: CREW, id: U(10), kind: "license", valid_from: "2026-01-01", valid_to: "2026-12-31", verified_at: "2026-01-02T00:00:00Z" },
   { crew_id: CREW, id: U(11), kind: "background_check", valid_from: "2026-01-01", valid_to: "2026-12-31", verified_at: "2026-01-02T00:00:00Z" }];
 
@@ -60,7 +60,7 @@ test("assignCrew satisfies the job's open SLA timer on success — the response 
 });
 
 test("candidateCrews is a DRY RUN over every active crew in the job's region — the same gate, nothing written", async () => {
-  const uncleared = { id: U(30), label: "Crew B1", active: true, employment_type: "employed" };
+  const uncleared = { id: U(30), label: "Crew B1", active: true, employment_type: "employed", kind: "service" };
   // A crew-keyed credentials answer, not a single fixed one: candidateCrews
   // evaluates several crews in one call, and each must see only its own file.
   const queries: { sql: string; params: readonly unknown[] }[] = [];
@@ -88,6 +88,39 @@ test("candidateCrews is a DRY RUN over every active crew in the job's region —
   assert.equal(b.cleared, false);
   assert.equal(b.refusal!.reason, "missing");
   assert.equal(queries.filter((q) => q.sql.startsWith("INSERT") || q.sql.startsWith("UPDATE")).length, 0, "a dry run writes nothing");
+});
+
+test("0024: the work decides the kind of crew — install work refuses a technician by name, before any credential is read or anything written", async () => {
+  const s = scripted([
+    ["FROM jobs WHERE id", [{ ...job, work_class: "install" }]],
+    ["WHERE c.id = $1", [clearedCrew]],
+    ["FROM crew_credentials", clearedCreds],
+  ]);
+  await assert.rejects(
+    assignCrew(await uowFor(s.tx), U(9), { jobId: JOB, crewId: CREW, orgId: ORG, regionId: REGION }, now),
+    (e: unknown) => e instanceof InputRefused && e.code === "crew_kind_mismatch" && /install work goes to an install crew/.test(e.message),
+  );
+  assert.equal(s.queries.filter((q) => q.sql.includes("crew_credentials") || q.sql.startsWith("INSERT")).length, 0);
+
+  // Commissioning is a technician's, never an install crew's.
+  const c = scripted([
+    ["FROM jobs WHERE id", [{ ...job, work_class: "commissioning" }]],
+    ["WHERE c.id = $1", [{ ...clearedCrew, kind: "install" }]],
+  ]);
+  await assert.rejects(
+    assignCrew(await uowFor(c.tx), U(9), { jobId: JOB, crewId: CREW, orgId: ORG, regionId: REGION }, now),
+    (e: unknown) => e instanceof InputRefused && e.code === "crew_kind_mismatch",
+  );
+});
+
+test("0024: candidateCrews asks only for the kind the work needs", async () => {
+  for (const [work, kind] of [["install", "install"], ["service", "service"], ["commissioning", "service"]] as const) {
+    const s = scripted([["FROM jobs WHERE id", [{ ...job, work_class: work }]]]);
+    await candidateCrews(await uowFor(s.tx), { jobId: JOB, orgId: ORG, regionId: REGION }, now);
+    const q = s.queries.find((x) => x.sql.includes("WHERE c.home_region_id"))!;
+    assert.match(q.sql, /c\.kind = \$2/);
+    assert.equal(q.params[1], kind, `${work} work is a ${kind} crew's`);
+  }
 });
 
 const openAssignment = { id: U(40), job_id: JOB, crew_id: CREW, org_id: ORG, region_id: REGION, released_at: null };

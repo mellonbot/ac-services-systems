@@ -1,5 +1,6 @@
 import { html, pageHead, panel, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { FirmWire, FirmStatus, CrewWire, CrewDocumentSummary, RegionWire, Refusal } from "../../../../packages/contracts/src/index.ts";
+import { CREW_KIND_LABEL } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { technicianPanel } from "./network-technicians.ts";
 import { whenReady, refusalView, linkTo, confirmPanel, type Screen, type ScreenContext } from "./common.ts";
@@ -111,6 +112,7 @@ export const network: Screen = (ctx, params) => {
       stack: true, caption,
       columns: [
         { key: "label", header: "Crew", cell: (c: CrewWire) => html`<span>${c.label}${c.active ? "" : html` <small class="s2-muted">inactive</small>`}</span>` },
+        { key: "kind", header: "Kind", cell: (c: CrewWire) => CREW_KIND_LABEL[c.kind] },
         { key: "homeRegionId", header: "Home region", cell: (c: CrewWire) => regionName(c.homeRegionId) },
         {
           key: "documents", header: "Documents (today)",

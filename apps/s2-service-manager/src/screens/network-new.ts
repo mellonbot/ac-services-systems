@@ -1,5 +1,6 @@
 import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { CreateFirmInput, CreateCrewInput, EmploymentType, FirmWire, RegionWire, Refusal } from "../../../../packages/contracts/src/index.ts";
+import type { CreateFirmInput, CreateCrewInput, CrewKind, EmploymentType, FirmWire, RegionWire, Refusal } from "../../../../packages/contracts/src/index.ts";
+import { CREW_KINDS, CREW_KIND_LABEL } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
@@ -115,6 +116,7 @@ export const networkCrewNew: Screen = (ctx, params) => {
     const input: CreateCrewInput = {
       label: v.label ?? "",
       employmentType: f.employmentType,
+      kind: (v.kind ?? "service") as CrewKind,
       homeRegionId: v.homeRegionId ?? "",
       // Named only where the handler admits it. An employed crew that declared
       // a firm would be `firm_not_an_input`, which is a refusal the form can
@@ -146,6 +148,13 @@ export const networkCrewNew: Screen = (ctx, params) => {
     ${pageHead("New crew", "Roster a crew, employed or under a subcontractor firm, with the region it is dispatched from.")}
     <form class="ac-form" onSubmit=${submit} id="crew-form">
       <label class="ac-field"><span>Label</span><input class="ac-input" name="label" required /></label>
+      <label class="ac-field">
+        <span>Kind</span>
+        <select name="kind" class="ac-input">
+          ${CREW_KINDS.map((k) => html`<option value=${k}>${CREW_KIND_LABEL[k]}</option>`)}
+        </select>
+        <small>A technician's unit is one technician, sent to service and commissioning work. An install crew is installers only, sent to install work. A technician is never on an install crew.</small>
+      </label>
       <label class="ac-field">
         <span>Employment</span>
         <select name="employmentType" class="ac-input" onChange=${(e: Event) => { crewForm.value = { ...crewForm.value, employmentType: (e.currentTarget as HTMLSelectElement).value as EmploymentType }; }}>

@@ -344,6 +344,18 @@ export const OPERATIONS = {
   },
 
   // ---- item 4: the job itself, created in Office & Dispatch ----
+  // 0024: an install is sold. The project is what it was sold under, and its
+  // foreman is the person who sold it — every install job sits under one.
+  "projects.list": {
+    id: "projects.list", method: "GET", path: "/projects", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S3"], carrier: "query", sdkMethod: "listProjects",
+    summary: "The projects install work is opened under — who sold each, and how much install work sits under it — and the foremen a new one may be sold by. Optionally one customer's.",
+  },
+  "projects.create": {
+    id: "projects.create", method: "POST", path: "/s2/projects", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createProject",
+    summary: "Record what was sold: under an agreement in force, by a foreman (the person who sold it), for a window. The customer and region are the agreement's, never typed in.",
+  },
   "jobs.create": {
     id: "jobs.create", method: "POST", path: "/s2/jobs", kind: "mutation", auth: "bearer",
     // S3 since 2026-10-21: a dispatcher opens a job for a call that came in by
@@ -1098,6 +1110,44 @@ export type UpdateFirmInput = {
 export type UpdateFirmOutput = { readonly id: string; readonly status: FirmStatus; readonly eventId: string };
 
 export type EmploymentType = "employed" | "subcontracted";
+/**
+ * 0024. A technician is never on a crew: their dispatch unit is a `service`
+ * crew of one technician. An `install` crew is installers only. Mirrors
+ * CREW_KINDS in packages/schema (the column's CHECK); a test holds them equal.
+ */
+export const CREW_KINDS = ["service", "install"] as const;
+export type CrewKind = (typeof CREW_KINDS)[number];
+/** 0024. Install work goes to an install crew; service and commissioning go to a technician. Mirrors JOB_WORK_CLASSES in packages/schema. */
+export const JOB_WORK_CLASSES = ["service", "install", "commissioning"] as const;
+export type JobWorkClass = (typeof JOB_WORK_CLASSES)[number];
+/** The one place the work decides the crew. Read by jobs.create, dispatch.candidates and dispatch.assign; 0024's trigger says the same in SQL. */
+export const crewKindFor = (work: JobWorkClass): CrewKind => (work === "install" ? "install" : "service");
+/**
+ * 0025 — THE SERVICE CATALOGUE. What a job may be opened for, and which kind
+ * of work each one is: the work class of a job is its code's, never typed
+ * beside it. Mirrored into `service_codes` (tools/ci/emit-schema.ts), which
+ * jobs.service_code references. Adding a code is a reviewed diff here.
+ */
+export const SERVICE_CATALOG = [
+  { code: "DIAGNOSTIC", label: "Diagnostic", workClass: "service" },
+  { code: "HVAC-REPAIR", label: "Repair", workClass: "service" },
+  { code: "PM-VISIT", label: "Preventive maintenance", workClass: "service" },
+  { code: "WARRANTY-CALLBACK", label: "Warranty callback", workClass: "service" },
+  { code: "EQUIPMENT-CHANGEOUT", label: "Equipment changeout", workClass: "install" },
+  { code: "NEW-INSTALL", label: "New installation", workClass: "install" },
+  { code: "DUCTWORK", label: "Ductwork", workClass: "install" },
+  { code: "STARTUP-COMMISSIONING", label: "Startup & commissioning", workClass: "commissioning" },
+] as const satisfies readonly { readonly code: string; readonly label: string; readonly workClass: JobWorkClass }[];
+export type ServiceCode = (typeof SERVICE_CATALOG)[number]["code"];
+export type ServiceEntry = (typeof SERVICE_CATALOG)[number];
+/** The catalogue entry for a code, or undefined for one that is not in it (a job opened before 0025). */
+export const serviceOf = (code: string): ServiceEntry | undefined => SERVICE_CATALOG.find((s) => s.code === code);
+/** A code's words, falling back to the code itself for a job opened before the catalogue. */
+export const serviceLabel = (code: string): string => serviceOf(code)?.label ?? code.replace(/_/g, " ");
+
+/** One set of words for the three, read by every surface that shows them. */
+export const CREW_KIND_LABEL: Readonly<Record<CrewKind, string>> = { service: "Technician's unit", install: "Install crew" };
+export const JOB_WORK_CLASS_LABEL: Readonly<Record<JobWorkClass, string>> = { service: "Service", install: "Install", commissioning: "Commissioning" };
 /** What the gate would say about this crew's documents today — not a clearance, a summary S2 reads. */
 export type CrewDocumentSummary = {
   /** The kinds the gate requires for this employment shape (domain/compliance/gate.ts REQUIRED). */
@@ -1117,6 +1167,7 @@ export type CrewWire = {
   readonly id: string;
   readonly label: string;
   readonly employmentType: EmploymentType;
+  readonly kind: CrewKind;
   readonly firmId: string | null;
   readonly homeRegionId: string;
   readonly active: boolean;
@@ -1128,6 +1179,8 @@ export type ListCrewsOutput = { readonly crews: readonly CrewWire[] };
 export type CreateCrewInput = {
   readonly label: string;
   readonly employmentType: EmploymentType;
+  /** Omitted: `service` — one technician's unit. */
+  readonly kind?: CrewKind;
   /** Required for a subcontracted crew; refused for an employed one. */
   readonly firmId?: string;
   /** OUR region the crew is normally dispatched from. Its tenancy region on insert. */
@@ -1141,9 +1194,19 @@ export type UpdateCrewOutput = { readonly id: string; readonly eventId: string }
 export const TECHNICIAN_ADDRESS_ROLES = ["account_owner", "principal"] as const;
 export const mayReadTechnicianAddress = (roles: readonly string[]): boolean => roles.some((r) => (TECHNICIAN_ADDRESS_ROLES as readonly string[]).includes(r));
 
-/** 0020. Mirrors TECHNICIAN_SPECIALTIES in packages/schema (the column's CHECK); a test holds them equal. */
-export const TECHNICIAN_SPECIALTIES = ["residential_hvac", "light_commercial", "commercial_rtu", "refrigeration", "chillers_boilers", "controls_bas", "install", "ductwork"] as const;
+/**
+ * 0020. Mirrors TECHNICIAN_SPECIALTIES in packages/schema (the column's CHECK); a test holds them equal.
+ * The kinds of equipment a person is qualified on. Since 0025, never the kind of work they do — that is
+ * their role (TECHNICIAN_ROLES): "install" and "ductwork" left this list for it.
+ */
+export const TECHNICIAN_SPECIALTIES = ["residential_hvac", "light_commercial", "commercial_rtu", "refrigeration", "chillers_boilers", "controls_bas"] as const;
 export type TechnicianSpecialty = (typeof TECHNICIAN_SPECIALTIES)[number];
+/** 0024. `technician` goes on a service unit (alone); the others on an install crew. Mirrors TECHNICIAN_ROLES in packages/schema. */
+export const TECHNICIAN_ROLES = ["technician", "lead_installer", "installer", "helper"] as const;
+export type TechnicianRole = (typeof TECHNICIAN_ROLES)[number];
+/** The crew kind a role belongs on. */
+export const crewKindForRole = (role: TechnicianRole): CrewKind => (role === "technician" ? "service" : "install");
+export const TECHNICIAN_ROLE_LABEL: Readonly<Record<TechnicianRole, string>> = { technician: "Technician", lead_installer: "Lead installer", installer: "Installer", helper: "Helper" };
 export type TechnicianWire = {
   readonly id: string;
   /** Null: one of ours. */
@@ -1155,6 +1218,7 @@ export type TechnicianWire = {
   readonly homeAddress: AddressWire | null;
   /** True for every role outside TECHNICIAN_ADDRESS_ROLES: the address exists or not, and this reader is not told. */
   readonly addressRestricted: boolean;
+  readonly role: TechnicianRole;
   readonly specialties: readonly TechnicianSpecialty[];
   readonly homeRegionId: string;
   readonly active: boolean;
@@ -1169,6 +1233,8 @@ export type RecordTechnicianInput = {
   readonly phone?: string;
   /** Account owners and principals only. */
   readonly homeAddress?: AddressWire;
+  /** Omitted: `technician`. */
+  readonly role?: TechnicianRole;
   readonly specialties: readonly TechnicianSpecialty[];
   /** OUR region they work from; the row's tenancy region. */
   readonly homeRegionId: string;
@@ -1181,6 +1247,7 @@ export type UpdateTechnicianInput = {
   readonly phone?: string;
   /** Account owners and principals only. Null clears it. */
   readonly homeAddress?: AddressWire | null;
+  readonly role?: TechnicianRole;
   readonly specialties?: readonly TechnicianSpecialty[];
   /** Null takes them off their crew. */
   readonly crewId?: string | null;
@@ -1252,7 +1319,11 @@ export type SubmitCredentialInput = {
 };
 export type SubmitCredentialOutput = { readonly id: string; readonly crewId: string; readonly eventId: string };
 /** No employmentType, no firmId, no homeRegionId: each is the principal's, derived. */
-export type EnrollCrewInput = { readonly label: string };
+export type EnrollCrewInput = {
+  readonly label: string;
+  /** 0024. Omitted: `service` — one technician's unit. */
+  readonly kind?: CrewKind;
+};
 export type EnrollCrewOutput = { readonly id: string; readonly firmId: string; readonly regionId: string; readonly eventId: string };
 export type RetireCrewInput = { readonly crewId: string; readonly label?: string; readonly active?: boolean };
 export type RetireCrewOutput = { readonly id: string; readonly eventId: string };
@@ -1342,8 +1413,34 @@ export const OFFICE_JOB_TRANSITIONS: Readonly<Partial<Record<JobStateWire, reado
   invoice_trouble: ["invoiced"],
 });
 
+/** 0024: what an install was sold under. `foremanId` is the person who sold it — an active internal user holding `foreman`. */
+export type ProjectState = "planned" | "active" | "closed" | "cancelled";
+export type ProjectWire = {
+  readonly id: string; readonly orgId: string; readonly regionId: string; readonly contractId: string;
+  readonly customer: string; readonly name: string;
+  readonly foremanId: string | null; readonly foremanName: string | null;
+  /** ISO datetimes; end exclusive. */
+  readonly serviceWindowStart: string; readonly serviceWindowEnd: string;
+  readonly state: ProjectState;
+  readonly installJobs: number;
+};
+/** A person a project may be sold by: an active internal user holding `foreman`. */
+export type ForemanWire = { readonly id: string; readonly name: string };
+export type ListProjectsInput = { readonly orgId?: string };
+export type ListProjectsOutput = { readonly projects: readonly ProjectWire[]; readonly foremen: readonly ForemanWire[] };
+export type CreateProjectInput = {
+  readonly contractId: string;
+  readonly name: string;
+  /** Who sold it. */
+  readonly foremanId: string;
+  readonly serviceWindowStart: string;
+  readonly serviceWindowEnd: string;
+};
+export type CreateProjectOutput = { readonly id: string; readonly orgId: string; readonly regionId: string; readonly eventId: string };
+
 export type CreateJobInput = {
   readonly siteId: string;
+  /** 0025: a code in SERVICE_CATALOG. Its work class is the job's — install is never an emergency and names its project. */
   readonly serviceCode: string;
   readonly priority?: JobPriority;
   /** ISO datetime, inclusive. */
@@ -1351,6 +1448,7 @@ export type CreateJobInput = {
   /** ISO datetime, exclusive. */
   readonly serviceWindowEnd: string;
   readonly contractId?: string;
+  /** 0024: required when the service code is install work — the project it was sold under, whose foreman sold it. */
   readonly projectId?: string;
   /** Item 9: the units at the site this job is about. Each must be equipment at `siteId`; the row lands in job_equipment in the same unit of work. */
   readonly equipmentIds?: readonly string[];
@@ -1371,6 +1469,8 @@ export type JobWire = {
   readonly siteAddress: AddressWire | null;
   readonly contractId: string | null; readonly projectId: string | null;
   readonly serviceCode: string; readonly priority: JobPriority; readonly state: JobStateWire;
+  /** 0024: which kind of crew this job is dispatched to (`crewKindFor`). */
+  readonly workClass: JobWorkClass;
   readonly serviceWindowStart: string; readonly serviceWindowEnd: string; readonly version: number; readonly openedAt: string;
   /** When the job entered its current state: the latest job_state_events row into it, or openedAt when none has been written (a job still "created"). */
   readonly stateChangedAt: string;
@@ -1500,6 +1600,7 @@ export type FieldJobWire = {
 export type MyJobsOutput = { readonly jobs: readonly FieldJobWire[] };
 
 export type ComplianceRefusalWireItem = { readonly reason: "missing" | "expired_in_window" | "unverified" | "crew_inactive"; readonly credentialKind: string; readonly detail: string };
+/** 0024: only crews of the kind the job's work needs are candidates (`crewKindFor`). */
 export type CandidateCrewWire = {
   readonly crewId: string; readonly label: string; readonly employmentType: EmploymentType;
   readonly cleared: boolean;
@@ -1912,6 +2013,8 @@ export type OperationIO = {
   "settlements.lines": { input: ListSettlementLinesInput; output: ListSettlementLinesOutput };
   "settlements.acknowledge": { input: AcknowledgeSettlementInput; output: AcknowledgeSettlementOutput };
   "settlements.dispute": { input: DisputeSettlementInput; output: DisputeSettlementOutput };
+  "projects.list": { input: ListProjectsInput; output: ListProjectsOutput };
+  "projects.create": { input: CreateProjectInput; output: CreateProjectOutput };
   "jobs.create": { input: CreateJobInput; output: CreateJobOutput };
   "sites.list": { input: void; output: ListSitesOutput };
   "jobs.list": { input: ListJobsInput; output: ListJobsOutput };

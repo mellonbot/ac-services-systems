@@ -33,7 +33,7 @@ const context: HierarchyContext = {
 };
 
 const jobCreated: JobWire = {
-  id: JOB_CREATED, siteId: SITE, siteName: "Austin — Roof", siteAddress: null, contractId: null, projectId: null, serviceCode: "hvac_repair", priority: "urgent", state: "created",
+  id: JOB_CREATED, siteId: SITE, siteName: "Austin — Roof", siteAddress: null, contractId: null, projectId: null, serviceCode: "HVAC-REPAIR", priority: "urgent", state: "created", workClass: "service",
   serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T17:00:00.000Z", version: 1, openedAt: "2026-09-17T12:00:00.000Z", stateChangedAt: "2026-09-17T12:00:00.000Z",
   regionId: SOUTH, orgId: ORG, customerSegment: "commercial", currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 1, slaSatisfiedAt: null,
@@ -124,7 +124,7 @@ test("the board shows every job with its SLA glyph, its crew, and offers Dispatc
   render(app.view()); await settle(); await settle();
   const tree = app.view();
   const out = render(tree);
-  assert.match(out, /hvac repair/);
+  assert.match(out, /Repair/);
   assert.match(out, /Unassigned/);
   assert.match(out, /Crew A1/);
   assert.match(out, /s3-truck-model/);
@@ -148,7 +148,7 @@ test("the board is read off jobs.list: a row per crew holding work, bars in each
   const now = Date.parse("2026-09-18T12:00:00.000Z");
   const m = boardModel([jobCreated, jobAssigned], now, 0);
   assert.deepEqual(m.rows.map((r) => r.name), ["Crew A1"], "only crews holding work have a row");
-  assert.equal(m.rows[0]!.service, "Austin — Roof — hvac repair");
+  assert.equal(m.rows[0]!.service, "Austin — Roof — Repair");
   assert.equal(boardTone(jobCreated, now), "warn", "a late SLA is drawn as needs attention");
   assert.equal(boardTone(jobAssigned, now), "scheduled");
   const stats = Object.fromEntries(m.stats.map((t) => [t.label, t.n]));
@@ -196,13 +196,25 @@ test("dispatch: the dry run renders as ComplianceBadge with the gate's own reaso
   assert.match(out, /Crew B1/);
   assert.match(out, /Cleared/);
   assert.match(out, /Not cleared — expired in window/);
-  assert.match(out, /<h1 class="ac-page-head__title">Dispatch — hvac_repair<\/h1>/);
+  assert.match(out, /<h1 class="ac-page-head__title">Dispatch — Repair<\/h1>/);
   assert.match(out, /<h2 class="ac-panel__title">Candidate crews<\/h2>/);
   // The site is named, not linked: the site card is S6's, and S6 admits customers only — a dispatcher who followed it was refused at sign-in.
   assert.match(out, /<dt>Site<\/dt><dd>Austin — Roof<\/dd>/);
   assert.doesNotMatch(out, /href="\/customer\//);
   assert.match(out, new RegExp(`id="assign-${CREW_A}"`));
   assert.doesNotMatch(out, new RegExp(`id="assign-${CREW_B}"`), "an uncleared crew has no Assign button — there is no override path here or at the gateway");
+});
+
+test("0024: dispatch says what kind of work the job is and that only that kind of crew is offered", async () => {
+  const install: JobWire = { ...jobCreated, workClass: "install", serviceCode: "EQUIPMENT-CHANGEOUT" };
+  const { app } = await ready({ [OPERATIONS["jobs.list"].path]: { status: 200, body: { jobs: [install, jobAssigned] } } });
+  app.router.navigate("dispatch", { jobId: JOB_CREATED });
+  render(app.view()); await settle(); await settle();
+  render(app.view()); await settle(); await settle();
+  const out = render(app.view());
+  assert.match(out, /<dt>Work<\/dt><dd>Install<\/dd>/);
+  assert.match(out, /Every active install crew in this job's region/);
+  assert.match(out, /Install work goes to an install crew\./);
 });
 
 test("assigning navigates back to the board with a notice and refetches the board", async () => {
@@ -296,7 +308,7 @@ test("New job: a site whose agreement has no response time says so in plain word
   render(app.view()); await settle(); await settle();
 
   // The form's own FormData needs a DOM; the values are what the dispatcher typed.
-  const values: Record<string, string> = { siteId: U(30), serviceCode: "repairs", priority: "pm", start: "2026-10-24T08:00", end: "2026-10-24T12:00" };
+  const values: Record<string, string> = { siteId: U(30), serviceCode: "HVAC-REPAIR", priority: "pm", start: "2026-10-24T08:00", end: "2026-10-24T12:00" };
   const RealFormData = globalThis.FormData;
   globalThis.FormData = class { get(k: string) { return values[k] ?? null; } } as unknown as typeof FormData;
   try {
@@ -312,7 +324,7 @@ test("New job: a site whose agreement has no response time says so in plain word
 
   (nodesIn(app.view()).find((n) => n.type === "button" && (n.props?.children as unknown[] | undefined)?.includes("Hold for Contracts"))!.props!.onClick as () => void)();
   await settle(); await settle();
-  assert.deepEqual(held, { siteId: U(30), priority: "routine", description: "Phoned in for repairs.\nPreferred date: 2026-10-24." }, "planned work is a routine request; the date is the line Intake reads its window from");
+  assert.deepEqual(held, { siteId: U(30), priority: "routine", description: "Phoned in for Repair.\nPreferred date: 2026-10-24." }, "planned work is a routine request; the date is the line Intake reads its window from");
   assert.ok(gateway.calls.some((c) => c.path === OPERATIONS["serviceRequests.hold"].path));
   assert.match(render(app.view()), /Call held as request 5E000009/);
   assert.equal(defaultWindow(String(held!["description"]), new Date()).start, "2026-10-24T08:00", "opened from Intake, the form starts on the day the caller asked for");

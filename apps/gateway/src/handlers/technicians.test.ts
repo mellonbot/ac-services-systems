@@ -45,12 +45,12 @@ const uowFor = async (tx: Tx, p: Principal) =>
   createUnitOfWork({ surfaceId: "S2", principal: p, requestId: "r", now: () => new Date("2026-10-21T15:00:00Z"), newId: () => U(200 + ++seq) }, tx);
 const newId = () => U(300 + ++seq);
 
-const techRow = { id: TECH, org_id: FIRM, region_id: REGION, firm_id: FIRM, crew_id: FIRM_CREW, name: "Dee Alvarez", phone: "(214) 555-0101", home_address: HOME, specialties: ["commercial_rtu"], active: true };
+const techRow = { id: TECH, org_id: FIRM, region_id: REGION, firm_id: FIRM, crew_id: FIRM_CREW, name: "Dee Alvarez", phone: "(214) 555-0101", home_address: HOME, role: "technician", specialties: ["commercial_rtu"], active: true };
 const db = () => scripted({
   "FROM technicians": [techRow],
   "FROM regions": [{ id: REGION, active: true, name: "South" }],
   "FROM subcontractor_firms": [{ id: FIRM, org_id: FIRM, legal_name: "Cool Air Partners LLC", status: "active" }],
-  "FROM crews WHERE id = $1": [{ id: FIRM_CREW, firm_id: FIRM, label: "Crew CA-1" }],
+  "FROM crews WHERE id = $1": [{ id: FIRM_CREW, firm_id: FIRM, label: "Crew CA-1", kind: "service" }],
 });
 
 test("the specialty list the wire offers is the list the column's CHECK admits", () => {
@@ -108,15 +108,36 @@ test("only an account owner records or changes a home address — refused by nam
 });
 
 test("a crew of another employer is refused: one of ours on a firm's crew, or a firm's tech on our crew", async () => {
-  const ours = scripted({ "FROM regions": [{ id: REGION, active: true, name: "South" }], "FROM crews WHERE id = $1": [{ id: FIRM_CREW, firm_id: FIRM, label: "Crew CA-1" }] });
+  const ours = scripted({ "FROM regions": [{ id: REGION, active: true, name: "South" }], "FROM crews WHERE id = $1": [{ id: FIRM_CREW, firm_id: FIRM, label: "Crew CA-1", kind: "service" }] });
   await assert.rejects(
     recordTechnician(await uowFor(ours.tx, owner), { name: "Sam Ortiz", crewId: FIRM_CREW, specialties: [], homeRegionId: REGION }, owner, newId),
     (e: unknown) => e instanceof InputRefused && e.code === "crew_employer_mismatch",
   );
-  const firms = scripted({ "FROM technicians": [techRow], "FROM crews WHERE id = $1": [{ id: OUR_CREW, firm_id: null, label: "DFW-1" }] });
+  const firms = scripted({ "FROM technicians": [techRow], "FROM crews WHERE id = $1": [{ id: OUR_CREW, firm_id: null, label: "DFW-1", kind: "service" }] });
   await assert.rejects(
     updateTechnician(await uowFor(firms.tx, owner), { technicianId: TECH, crewId: OUR_CREW }, owner),
     (e: unknown) => e instanceof InputRefused && e.code === "crew_employer_mismatch",
+  );
+});
+
+test("0024: a technician is never on an install crew, an installer never on a technician's unit — and a new role is held to the crew already held", async () => {
+  const install = scripted({ "FROM regions": [{ id: REGION, active: true, name: "South" }], "FROM crews WHERE id = $1": [{ id: OUR_CREW, firm_id: null, label: "DFW Install 1", kind: "install" }] });
+  await assert.rejects(
+    recordTechnician(await uowFor(install.tx, owner), { name: "Sam Ortiz", crewId: OUR_CREW, specialties: [], homeRegionId: REGION }, owner, newId),
+    (e: unknown) => e instanceof InputRefused && e.code === "crew_role_mismatch" && /never on an install crew/.test(e.message),
+  );
+  // The same person as a lead installer is admitted, and the role is written.
+  const ok = scripted({ "FROM regions": [{ id: REGION, active: true, name: "South" }], "FROM crews WHERE id = $1": [{ id: OUR_CREW, firm_id: null, label: "DFW Install 1", kind: "install" }] });
+  await recordTechnician(await uowFor(ok.tx, owner), { name: "Sam Ortiz", crewId: OUR_CREW, role: "lead_installer", specialties: [], homeRegionId: REGION }, owner, newId);
+  assert.equal(ok.queries.find((q) => q.sql.startsWith("INSERT INTO technicians"))!.params[9], "lead_installer");
+  // Dee is a technician on a service unit; making her an installer there is refused without moving her.
+  await assert.rejects(
+    updateTechnician(await uowFor(db().tx, owner), { technicianId: TECH, role: "installer" }, owner),
+    (e: unknown) => e instanceof InputRefused && e.code === "crew_role_mismatch",
+  );
+  await assert.rejects(
+    updateTechnician(await uowFor(db().tx, owner), { technicianId: TECH, role: "foreman" as never }, owner),
+    (e: unknown) => e instanceof BadInput,
   );
 });
 

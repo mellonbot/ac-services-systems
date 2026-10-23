@@ -12,6 +12,9 @@ export const subcontractor_firms = operationalTable("subcontractor_firms", {
   ],
 });
 
+/** 0024. Mirrored by CREW_KINDS in packages/contracts; a test holds them equal. */
+export const CREW_KINDS = ["service", "install"] as const;
+
 export const crews = operationalTable("crews", {
   columns: [
     { name: "label", type: "text" },
@@ -24,6 +27,10 @@ export const crews = operationalTable("crews", {
     { name: "firm_id", type: "uuid", nullable: true, references: "subcontractor_firms(id)" },
     { name: "home_region_id", type: "uuid", references: "regions(id)", comment: "Where the crew is normally dispatched from. region_id (tenancy) equals this on insert; a crew lent across regions keeps its home." },
     { name: "active", type: "boolean", default: "true" },
+    {
+      name: "kind", type: "text", check: `kind IN (${CREW_KINDS.map((k) => `'${k}'`).join(",")})`, default: "'service'",
+      comment: "0024: service — one technician's dispatch unit; install — an install crew. A technician is never on an install crew.",
+    },
   ],
   indexes: [["firm_id"], ["home_region_id"]],
   constraints: [
@@ -57,7 +64,9 @@ export const crew_credentials = operationalTable("crew_credentials", {
  * employees: RLS keeps it internal, and the gateway serves it to account
  * owners only.
  */
-export const TECHNICIAN_SPECIALTIES = ["residential_hvac", "light_commercial", "commercial_rtu", "refrigeration", "chillers_boilers", "controls_bas", "install", "ductwork"] as const;
+/** 0024. Mirrored by TECHNICIAN_ROLES in packages/contracts; a test holds them equal. */
+export const TECHNICIAN_ROLES = ["technician", "lead_installer", "installer", "helper"] as const;
+export const TECHNICIAN_SPECIALTIES = ["residential_hvac", "light_commercial", "commercial_rtu", "refrigeration", "chillers_boilers", "controls_bas"] as const;
 
 export const technicians = operationalTable("technicians", {
   columns: [
@@ -73,6 +82,10 @@ export const technicians = operationalTable("technicians", {
       check: `jsonb_typeof(specialties) = 'array' AND specialties <@ '${JSON.stringify(TECHNICIAN_SPECIALTIES)}'::jsonb`,
     },
     { name: "active", type: "boolean", default: "true" },
+    {
+      name: "role", type: "text", check: `role IN (${TECHNICIAN_ROLES.map((r) => `'${r}'`).join(",")})`, default: "'technician'",
+      comment: "0024: a technician works alone on a service unit; the installer roles work on an install crew.",
+    },
   ],
   indexes: [["firm_id"], ["crew_id"]],
 });

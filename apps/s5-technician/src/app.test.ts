@@ -33,7 +33,7 @@ const deviceContext: HierarchyContext = {
 };
 
 const job: FieldJobWire = {
-  id: JOB, siteId: U(9), serviceCode: "hvac_repair", priority: "urgent", state: "assigned",
+  id: JOB, siteId: U(9), serviceCode: "HVAC-REPAIR", priority: "urgent", state: "assigned",
   serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T17:00:00.000Z", version: 3,
 };
 
@@ -129,7 +129,7 @@ test("a device login carries the crew onto the screen — never onto the princip
   render(app.view()); await settle(); await settle();
   const out = render(app.view());
   assert.match(out, /Crew A1/);
-  assert.match(out, /hvac_repair/);
+  assert.match(out, /Repair/);
   assert.match(out, new RegExp(`href="/jobs/${JOB}"`));
 });
 

@@ -95,12 +95,12 @@ test("an account owner records a firm's technician with a home address; the audi
   firmCrew = (await owner.gateway.createCrew({ label: `LS-A ${RUN}`, employmentType: "subcontracted", firmId: firm, homeRegionId: REGION_SOUTH })).id;
   ourCrew = (await owner.gateway.createCrew({ label: `DFW-1 ${RUN}`, employmentType: "employed", homeRegionId: REGION_SOUTH })).id;
 
-  const out = await owner.gateway.recordTechnician({ name: `Luis Ortega ${RUN}`, firmId: firm, crewId: firmCrew, phone: "(817) 555-0120", homeAddress: HOME, specialties: ["commercial_rtu", "ductwork"], homeRegionId: REGION_SOUTH });
+  const out = await owner.gateway.recordTechnician({ name: `Luis Ortega ${RUN}`, firmId: firm, crewId: firmCrew, phone: "(817) 555-0120", homeAddress: HOME, specialties: ["commercial_rtu", "refrigeration"], homeRegionId: REGION_SOUTH });
   tech = out.id;
   const row = (await admin(`SELECT org_id, firm_id, home_address, specialties FROM technicians WHERE id = $1`, [tech]))[0]!;
   assert.equal(row.org_id, firm, "a firm's technician is in the firm's tenancy");
   assert.deepEqual(row.home_address, HOME);
-  assert.deepEqual(row.specialties, ["commercial_rtu", "ductwork"]);
+  assert.deepEqual(row.specialties, ["commercial_rtu", "refrigeration"]);
 
   const audit = await admin(`SELECT before, after FROM audit_log WHERE event_id = $1`, [out.eventId]);
   assert.equal(audit.length, 1);

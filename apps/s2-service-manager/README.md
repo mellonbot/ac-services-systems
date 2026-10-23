@@ -41,6 +41,7 @@
 - `price_decision`
 - `po_receipt`
 - `rma_request`
+- `project`
 
 ## Degraded mode
 

@@ -31,6 +31,10 @@ export const GLOBAL_REFERENCE_TABLES = [
   "currencies",
   "part_manufacturers",
   "schema_migrations",
+  // 0025: the service catalogue, mirrored from packages/contracts. Every
+  // tenant's jobs are opened from the same list of codes; nothing in it
+  // describes a customer, a crew or a job.
+  "service_codes",
   "term_registry",
 ] as const;
 

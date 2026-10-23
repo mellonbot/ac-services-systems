@@ -21,20 +21,31 @@ export const JOB_STATES = [
   "needs_pricing", "awaiting_po", "awaiting_pictures", "invoice_trouble",
 ] as const;
 
+/** 0024. Mirrored by JOB_WORK_CLASSES in packages/contracts; a test holds them equal. */
+export const JOB_WORK_CLASSES = ["service", "install", "commissioning"] as const;
+
 export const jobs = operationalTable("jobs", {
   columns: [
     { name: "site_id", type: "uuid", references: "accounts(id)", comment: "Work happens at a site. The location, region and parent are its ancestors." },
     { name: "contract_id", type: "uuid", nullable: true, references: "contracts(id)" },
     { name: "project_id", type: "uuid", nullable: true, references: "projects(id)" },
-    { name: "service_code", type: "text" },
+    { name: "service_code", type: "text", references: "service_codes(code)", comment: "0025: a code in the service catalogue; its work class is the job's." },
     { name: "priority", type: "text", check: "priority IN ('emergency','urgent','routine','pm')", default: "'routine'" },
     { name: "service_window", type: "tstzrange", comment: "The gate evaluates the WHOLE window, not the instant of assignment." },
     { name: "state", type: "text", check: `state IN (${JOB_STATES.map((s) => `'${s}'`).join(",")})`, default: "'created'" },
     { name: "version", type: "integer", default: "1", comment: "Optimistic version the sync engine compares against." },
     { name: "opened_at", type: "timestamptz", default: "now()" },
     { name: "return_trip", type: "boolean", default: "false", comment: "0015: a second visit is owed on this job. The office's flag, set by hand — not read out of the notes." },
+    {
+      name: "work_class", type: "text", check: `work_class IN (${JOB_WORK_CLASSES.map((w) => `'${w}'`).join(",")})`, default: "'service'",
+      comment: "0024: install goes to an install crew; service and commissioning go to a technician.",
+    },
   ],
   indexes: [["site_id"], ["state"], ["project_id"], ["contract_id"]],
+  constraints: [
+    { name: "jobs_install_sits_under_a_project", sql: "CHECK (work_class <> 'install' OR project_id IS NOT NULL)" },
+    { name: "jobs_install_is_never_an_emergency", sql: "CHECK (work_class <> 'install' OR priority <> 'emergency')" },
+  ],
 });
 
 /**

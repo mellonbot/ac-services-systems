@@ -1,5 +1,7 @@
 import { html, ComplianceBadge, PrimaryAction, pageHead, panel, type VNode } from "../../../../packages/ui/src/index.ts";
+import { serviceLabel } from "../../../../packages/contracts/src/index.ts";
 import type { JobWire, CandidateCrewWire } from "../../../../packages/contracts/src/index.ts";
+import { JOB_WORK_CLASS_LABEL, CREW_KIND_LABEL, crewKindFor } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, type Screen } from "./common.ts";
 
@@ -29,7 +31,7 @@ export const dispatch: Screen = (ctx, params) => {
       if (!crew.cleared) return; // the button for an uncleared crew is not rendered; this is belt-and-suspenders against a stale re-render
       const out = await ctx.shell.gateway.assignCrew({ jobId: job.id, crewId: crew.crewId, orgId: job.orgId, regionId: job.regionId });
       if (out.ok) {
-        ctx.store.notice.value = [`${crew.label} assigned to ${job.serviceCode}.`];
+        ctx.store.notice.value = [`${crew.label} assigned to ${serviceLabel(job.serviceCode)}.`];
         ctx.store.invalidate("jobs.list");
         ctx.router.navigate("board", {});
       } else {
@@ -41,9 +43,10 @@ export const dispatch: Screen = (ctx, params) => {
     };
 
     return html`<section class="s3-dispatch">
-      ${pageHead(`Dispatch — ${job.serviceCode}`, "Every active crew in this job's region, checked against the same gate Assign enforces.")}
+      ${pageHead(`Dispatch — ${serviceLabel(job.serviceCode)}`, `Every active ${CREW_KIND_LABEL[crewKindFor(job.workClass)].toLowerCase()} in this job's region, checked against the same gate Assign enforces. ${job.workClass === "install" ? "Install work goes to an install crew." : "Service and commissioning go to a technician."}`)}
       ${panel(html`<dl class="s3-job-facts">
         <dt>Site</dt><dd>${job.siteName ?? job.siteId}</dd>
+        <dt>Work</dt><dd>${JOB_WORK_CLASS_LABEL[job.workClass]}</dd>
         <dt>Priority</dt><dd>${job.priority}</dd>
         <dt>Window</dt><dd class="s3-num">${new Date(job.serviceWindowStart).toLocaleString()} → ${new Date(job.serviceWindowEnd).toLocaleString()}</dd>
       </dl>`)}

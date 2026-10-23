@@ -135,7 +135,7 @@ test("the reads: list carries the position and the line count; lines refuse an i
 // ---------------------------------------------------------------------------
 // The roster and the document — firm, type and region are the principal's
 // ---------------------------------------------------------------------------
-test("enroll: label is the only input — the crew is subcontracted, under the principal's firm, in the firm's region, under the crew_roster entity", async () => {
+test("enroll: label and kind are the only inputs — the crew is subcontracted, under the principal's firm, in the firm's region, under the crew_roster entity", async () => {
   const s = scripted({ "FROM subcontractor_firms f WHERE f.id": [firmRow()] });
   const uow = await uowFor(s.tx);
   const out = await enrollCrew(uow, { label: "Crew A2" }, coordinator.firmId, newId);
@@ -145,6 +145,7 @@ test("enroll: label is the only input — the crew is subcontracted, under the p
   assert.match(w.sql, /'subcontracted'/, "the type is not an input");
   assert.equal(w.params[4], FIRM, "the firm is the principal's");
   assert.equal(w.params[2], REGION, "the region is the firm's");
+  assert.equal(w.params[5], "service", "0024: kind omitted is a technician's unit");
   assert.equal(uow.pending().audits[0]!.entity, "crew_roster");
   assert.equal(uow.pending().events[0]!.topic, "crew.created");
 });
@@ -156,6 +157,11 @@ test("enroll refuses a suspended or terminated firm by name, an onboarding firm 
   }
   const ok = scripted({ "FROM subcontractor_firms f WHERE f.id": [firmRow({ status: "onboarding", msa_signed_at: null })] });
   await enrollCrew(await uowFor(ok.tx), { label: "x" }, FIRM, newId);
+  // 0024: a firm rosters an install crew by saying so; a kind off the list is a 400.
+  const install = scripted({ "FROM subcontractor_firms f WHERE f.id": [firmRow()] });
+  await enrollCrew(await uowFor(install.tx), { label: "Install A", kind: "install" }, FIRM, newId);
+  assert.equal(install.queries.find((q) => q.sql.startsWith("INSERT INTO crews"))!.params[5], "install");
+  await assert.rejects(enrollCrew(await uowFor(scripted({}).tx), { label: "x", kind: "crane" as never }, FIRM, newId), (e: unknown) => e instanceof BadInput);
   const none = scripted({});
   await assert.rejects(enrollCrew(await uowFor(none.tx), { label: "x" }, null, newId), (e: unknown) => e instanceof InputRefused && e.code === "no_firm");
   await assert.rejects(enrollCrew(await uowFor(none.tx), { label: "x" }, FIRM, newId), (e: unknown) => e instanceof InputRefused && e.code === "unknown_firm", "a firm RLS does not show is unknown, not forbidden");

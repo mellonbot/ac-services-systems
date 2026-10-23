@@ -22,6 +22,13 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   PRIMARY KEY (version)
 );
 
+CREATE TABLE IF NOT EXISTS service_codes (
+  code text NOT NULL,
+  label text NOT NULL,
+  work_class text NOT NULL CHECK (work_class IN ('service','install','commissioning')),
+  PRIMARY KEY (code)
+);
+
 CREATE TABLE IF NOT EXISTS term_registry (
   key text NOT NULL,
   authoring_tiers jsonb NOT NULL,
@@ -142,6 +149,7 @@ CREATE TABLE IF NOT EXISTS crews (
   firm_id uuid REFERENCES subcontractor_firms(id),
   home_region_id uuid NOT NULL REFERENCES regions(id),
   active boolean NOT NULL DEFAULT true,
+  kind text NOT NULL DEFAULT 'service' CHECK (kind IN ('service','install')),
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (id),
   CONSTRAINT crews_subcontracted_have_firm CHECK ((employment_type = 'subcontracted') = (firm_id IS NOT NULL))
@@ -178,8 +186,9 @@ CREATE TABLE IF NOT EXISTS technicians (
   name text NOT NULL,
   phone text,
   home_address jsonb,
-  specialties jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(specialties) = 'array' AND specialties <@ '["residential_hvac","light_commercial","commercial_rtu","refrigeration","chillers_boilers","controls_bas","install","ductwork"]'::jsonb),
+  specialties jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(specialties) = 'array' AND specialties <@ '["residential_hvac","light_commercial","commercial_rtu","refrigeration","chillers_boilers","controls_bas"]'::jsonb),
   active boolean NOT NULL DEFAULT true,
+  role text NOT NULL DEFAULT 'technician' CHECK (role IN ('technician','lead_installer','installer','helper')),
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (id)
 );
@@ -371,15 +380,18 @@ CREATE TABLE IF NOT EXISTS jobs (
   site_id uuid NOT NULL REFERENCES accounts(id),
   contract_id uuid REFERENCES contracts(id),
   project_id uuid REFERENCES projects(id),
-  service_code text NOT NULL,
+  service_code text NOT NULL REFERENCES service_codes(code),
   priority text NOT NULL DEFAULT 'routine' CHECK (priority IN ('emergency','urgent','routine','pm')),
   service_window tstzrange NOT NULL,
   state text NOT NULL DEFAULT 'created' CHECK (state IN ('created','assigned','en_route','on_site','in_progress','awaiting_parts','complete','reopened','invoiced','cancelled','aborted','quote_requested','quote_submitted','awaiting_customer','needs_pricing','awaiting_po','awaiting_pictures','invoice_trouble')),
   version integer NOT NULL DEFAULT 1,
   opened_at timestamptz NOT NULL DEFAULT now(),
   return_trip boolean NOT NULL DEFAULT false,
+  work_class text NOT NULL DEFAULT 'service' CHECK (work_class IN ('service','install','commissioning')),
   created_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (id)
+  PRIMARY KEY (id),
+  CONSTRAINT jobs_install_sits_under_a_project CHECK (work_class <> 'install' OR project_id IS NOT NULL),
+  CONSTRAINT jobs_install_is_never_an_emergency CHECK (work_class <> 'install' OR priority <> 'emergency')
 );
 CREATE INDEX IF NOT EXISTS jobs_region_id_idx ON jobs (region_id);
 CREATE INDEX IF NOT EXISTS jobs_site_id_idx ON jobs (site_id);

@@ -61,7 +61,7 @@ const psql = (...args: string[]): string => {
  * row security, FORCEd, with at least one policy — the finding three items in
  * a row was a table that had none (0021).
  */
-const UNSCOPED_TABLES = ["currencies", "part_manufacturers", "schema_migrations", "term_registry"];
+const UNSCOPED_TABLES = ["currencies", "part_manufacturers", "schema_migrations", "service_codes", "term_registry"];
 
 if (process.argv.includes("--assert")) {
   psql("-tAc", "SELECT ac_assert_region_id_everywhere()");

@@ -1,4 +1,5 @@
 import { html, pageHead, panel, statStrip, StatusPill, DataGrid, PrimaryAction, type VNode } from "../../../../packages/ui/src/index.ts";
+import { serviceLabel } from "../../../../packages/contracts/src/index.ts";
 import type {
   AccountWire, AddressWire, EquipmentWire, EquipmentKind, ContactWire, ContactRole, InvoiceWire, JobWire, ServiceRequestWire, SiteImageryOutput,
 } from "../../../../packages/contracts/src/index.ts";
@@ -81,7 +82,7 @@ export const ledgerOf = (jobs: readonly JobWire[], requests: readonly ServiceReq
   // done in June sits in June whenever it was opened.
   for (const j of jobs) entries.push({
     key: `j:${j.id}`, at: j.serviceWindowStart, kind: "job",
-    title: `${j.serviceCode} — ${STATE_WORD[j.state]}`,
+    title: `${serviceLabel(j.serviceCode)} — ${STATE_WORD[j.state]}`,
     detail: `Window ${when(j.serviceWindowStart)} – ${when(j.serviceWindowEnd)} · opened ${when(j.openedAt)}`,
     // A closed job's response is history: responded when it was, or nothing to
     // say — never "due", whatever a timer row still reads.

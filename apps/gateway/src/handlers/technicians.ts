@@ -4,8 +4,8 @@ import { requireUuid, requireText } from "./jobs.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import {
-  TECHNICIAN_SPECIALTIES, mayReadTechnicianAddress,
-  type AddressWire, type TechnicianSpecialty, type TechnicianWire,
+  TECHNICIAN_SPECIALTIES, TECHNICIAN_ROLES, mayReadTechnicianAddress, crewKindForRole,
+  type AddressWire, type TechnicianRole, type TechnicianSpecialty, type TechnicianWire, type CrewKind,
   type ListTechniciansInput, type ListTechniciansOutput, type RecordTechnicianInput, type RecordTechnicianOutput,
   type UpdateTechnicianInput, type UpdateTechnicianOutput,
 } from "../../../../packages/contracts/src/operations.ts";
@@ -19,6 +19,10 @@ import {
  *     who changes firm is a new row, the same rule a crew follows.
  *   - A CREW NAMED BELONGS TO THE SAME EMPLOYER. Said here by name; 0020's
  *     ac_technician_crew_is_the_employers says it for every other path.
+ *   - A TECHNICIAN IS NEVER ON A CREW (0024). Their crew is a `service` unit
+ *     of one; an installer's is an `install` crew. Said here by name for the
+ *     kind; 0024's ac_technician_fits_the_crew says it, and "one technician
+ *     per unit", for every path.
  *   - THE HOME ADDRESS IS AN ACCOUNT OWNER'S OR A PRINCIPAL'S (TECHNICIAN_ADDRESS_ROLES). Every other office role reads it
  *     as restricted (the row says so; whether one exists is not disclosed) and
  *     may not write it. Address values never enter the audit row or the event
@@ -54,19 +58,24 @@ const requireSpecialties = (v: unknown): TechnicianSpecialty[] => {
   return [...new Set(v as TechnicianSpecialty[])];
 };
 
+const requireRole = (v: unknown): TechnicianRole => {
+  if (!(TECHNICIAN_ROLES as readonly unknown[]).includes(v)) throw new BadInput(`role must be one of ${TECHNICIAN_ROLES.join(", ")}`);
+  return v as TechnicianRole;
+};
+
 const addressRefused = () =>
   new InputRefused("home addresses are recorded and read by account owners and principals only — leave the address for one of them to enter", "address_restricted");
 
 type TechRow = {
   id: string; org_id: string; region_id: string; firm_id: string | null; crew_id: string | null; name: string; phone: string | null;
-  home_address: AddressWire | null; specialties: TechnicianSpecialty[]; active: boolean;
+  home_address: AddressWire | null; role: TechnicianRole; specialties: TechnicianSpecialty[]; active: boolean;
 };
-const TECH_COLUMNS = "id, org_id, region_id, firm_id, crew_id, name, phone, home_address, specialties, active";
+const TECH_COLUMNS = "id, org_id, region_id, firm_id, crew_id, name, phone, home_address, role, specialties, active";
 
 const toWire = (r: TechRow, seesAddress: boolean): TechnicianWire => ({
   id: r.id, firmId: r.firm_id, crewId: r.crew_id, name: r.name, phone: r.phone,
   homeAddress: seesAddress ? r.home_address : null, addressRestricted: !seesAddress,
-  specialties: r.specialties, homeRegionId: r.region_id, active: r.active,
+  role: r.role, specialties: r.specialties, homeRegionId: r.region_id, active: r.active,
 });
 
 export const listTechnicians = async (uow: UnitOfWork, input: ListTechniciansInput, principal: Principal): Promise<ListTechniciansOutput> => {
@@ -79,11 +88,19 @@ export const listTechnicians = async (uow: UnitOfWork, input: ListTechniciansInp
   return { technicians: rows.map((r) => toWire(r, sees)) };
 };
 
-const crewFor = async (uow: UnitOfWork, crewId: string, firmId: string | null, name: string): Promise<string> => {
-  const crew = (await uow.tx.query<{ id: string; firm_id: string | null; label: string }>("SELECT id, firm_id, label FROM crews WHERE id = $1", [crewId]))[0];
+const crewFor = async (uow: UnitOfWork, crewId: string, firmId: string | null, name: string, role: TechnicianRole): Promise<string> => {
+  const crew = (await uow.tx.query<{ id: string; firm_id: string | null; label: string; kind: CrewKind }>("SELECT id, firm_id, label, kind FROM crews WHERE id = $1", [crewId]))[0];
   if (!crew) throw new InputRefused(`no crew ${crewId} visible in this scope`, "unknown_crew");
   if (crew.firm_id !== firmId) {
     throw new InputRefused(`${name} works for ${firmId ? "a firm" : "us"}, and crew ${crew.label} is ${crew.firm_id ? "another firm's" : "ours"} — put a technician on a crew of the employer they work for`, "crew_employer_mismatch");
+  }
+  if (crew.kind !== crewKindForRole(role)) {
+    throw new InputRefused(
+      role === "technician"
+        ? `${name} is a technician, and ${crew.label} is an install crew — a technician is never on an install crew; they are dispatched on their own service unit`
+        : `${name} is an installer (${role}), and ${crew.label} is a technician's service unit — an installer goes on an install crew`,
+      "crew_role_mismatch",
+    );
   }
   return crew.id;
 };
@@ -92,6 +109,7 @@ export const recordTechnician = async (uow: UnitOfWork, input: RecordTechnicianI
   const name = requireText(input.name, "name");
   const phone = optionalPhone(input.phone);
   const specialties = requireSpecialties(input.specialties);
+  const role = input.role === undefined ? "technician" : requireRole(input.role);
   const homeAddress = input.homeAddress === undefined ? null : requireAddress(input.homeAddress);
   if (homeAddress && !mayReadAddress(principal)) throw addressRefused();
   const region = (await uow.tx.query<{ id: string; active: boolean; name: string }>("SELECT id, active, name FROM regions WHERE id = $1", [requireUuid(input.homeRegionId, "homeRegionId")]))[0];
@@ -106,21 +124,21 @@ export const recordTechnician = async (uow: UnitOfWork, input: RecordTechnicianI
     if (firm.status === "terminated") throw new InputRefused(`firm ${firm.legal_name} is terminated — it fields no technicians for us`, "firm_ended");
     firmId = firm.id; orgId = firm.org_id;
   }
-  const crewId = input.crewId === undefined ? null : await crewFor(uow, requireUuid(input.crewId, "crewId"), firmId, name);
+  const crewId = input.crewId === undefined ? null : await crewFor(uow, requireUuid(input.crewId, "crewId"), firmId, name, role);
 
   const id = newId();
   const eventId = await uow.apply(
     {
       entity: "technician", entityId: id, action: "technician.record", topic: "technician.recorded",
       before: null,
-      after: { id, name, phone, specialties, firmId, crewId, homeRegionId: region.id, homeAddress: homeAddress ? "recorded" : null, active: true },
+      after: { id, name, phone, role, specialties, firmId, crewId, homeRegionId: region.id, homeAddress: homeAddress ? "recorded" : null, active: true },
       orgId, regionId: region.id,
       payload: { firmId },
     },
     async (tx) => {
       await tx.query(
-        "INSERT INTO technicians (id, org_id, region_id, firm_id, crew_id, name, phone, home_address, specialties, active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, true)",
-        [id, orgId, region.id, firmId, crewId, name, phone, homeAddress ? JSON.stringify(homeAddress) : null, JSON.stringify(specialties)],
+        "INSERT INTO technicians (id, org_id, region_id, firm_id, crew_id, name, phone, home_address, specialties, active, role) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, true, $10)",
+        [id, orgId, region.id, firmId, crewId, name, phone, homeAddress ? JSON.stringify(homeAddress) : null, JSON.stringify(specialties), role],
       );
     },
   );
@@ -142,9 +160,14 @@ export const updateTechnician = async (uow: UnitOfWork, input: UpdateTechnicianI
     const s = requireSpecialties(input.specialties);
     set("specialties", "specialties", JSON.stringify(s), current.specialties, "::jsonb"); after.specialties = s;
   }
+  const role = input.role === undefined ? current.role : requireRole(input.role);
+  if (input.role !== undefined) set("role", "role", role, current.role);
   if (input.crewId !== undefined) {
-    const crewId = input.crewId === null ? null : await crewFor(uow, requireUuid(input.crewId, "crewId"), current.firm_id, current.name);
+    const crewId = input.crewId === null ? null : await crewFor(uow, requireUuid(input.crewId, "crewId"), current.firm_id, current.name, role);
     set("crew_id", "crewId", crewId, current.crew_id);
+  } else if (input.role !== undefined && current.crew_id) {
+    // A new role on the crew they already hold: the crew must still fit it.
+    await crewFor(uow, current.crew_id, current.firm_id, current.name, role);
   }
   if (input.active !== undefined) {
     if (typeof input.active !== "boolean") throw new BadInput("active must be true or false");
@@ -156,7 +179,7 @@ export const updateTechnician = async (uow: UnitOfWork, input: UpdateTechnicianI
     set("home_address", "homeAddress", a === null ? null : JSON.stringify(a), null, "::jsonb");
     before.homeAddress = current.home_address ? "recorded" : null; after.homeAddress = a ? "changed" : null;
   }
-  if (sets.length === 0) throw new BadInput("nothing to update — name, phone, specialties, crewId, active or homeAddress");
+  if (sets.length === 0) throw new BadInput("nothing to update — name, phone, role, specialties, crewId, active or homeAddress");
   const eventId = await uow.apply(
     {
       entity: "technician", entityId: technicianId, action: "technician.update", topic: "technician.updated",

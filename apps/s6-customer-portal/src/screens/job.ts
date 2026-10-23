@@ -1,4 +1,5 @@
 import { html, pageHead, panel, signal, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { serviceLabel } from "../../../../packages/contracts/src/index.ts";
 import type { JobWire, JobMessageWire, JobUpdateWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, submitAction, refusalView, linkTo, when, type Screen, type ScreenContext } from "./common.ts";
@@ -58,7 +59,7 @@ export const job: Screen = (ctx, params) => {
     const siteName = (nodes.value.state === "ready" ? treeOf(nodes.value.value.nodes).byId.get(j.siteId)?.name : undefined) ?? j.siteName ?? "your site";
     const o = outcome.value;
     return html`<section class="s6-job" data-job=${j.id}>
-      ${pageHead(html`${j.serviceCode.replace(/[_-]/g, " ")} at ${siteName}`, html`Job <span class="s6-num">${j.id}</span> · ${STATE_WORD[j.state]}`)}
+      ${pageHead(html`${serviceLabel(j.serviceCode)} at ${siteName}`, html`Job <span class="s6-num">${j.id}</span> · ${STATE_WORD[j.state]}`)}
       ${panel(factsView(ctx, j, siteName, now), "Where it stands")}
       <div class="s6-job__grid">
         ${panel(whenReady(ctx, convo.value, (c) => updatesView(publishedNewestFirst(c.updates)), () => ctx.store.invalidate("jobs.conversation")),

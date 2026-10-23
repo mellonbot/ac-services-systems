@@ -47,12 +47,12 @@ const HOME_NODES: AccountWire[] = [
     address: { line1: "4012 Ridgeview Dr", city: "Fort Worth", state: "TX", postal: "76109", lat: 32.7101, lng: -97.3812 }, path: [U(41), U(42), HOME] },
 ];
 const job = (n: number, state: string, end: string, siteId = HOME) => ({
-  id: U(n), siteId, siteName: "4012 Ridgeview Dr", siteAddress: null, contractId: null, projectId: null, serviceCode: "spring_tune_up", priority: "routine", state,
+  id: U(n), siteId, siteName: "4012 Ridgeview Dr", siteAddress: null, contractId: null, projectId: null, serviceCode: "PM-VISIT", priority: "routine", state,
   serviceWindowStart: end, serviceWindowEnd: end, version: 1, openedAt: end, stateChangedAt: end, regionId: SOUTH, orgId: TURNER, customerSegment: "residential",
   currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null, slaDueAt: null, slaEscalationStage: null, slaSatisfiedAt: null, returnTrip: false, latestNote: null,
 });
 const HOME_JOBS = [
-  { ...job(31, "invoiced", "2026-05-02T18:00:00.000Z"), serviceCode: "compressor_replacement", latestNote: { body: "Replaced the compressor under warranty", at: "2026-05-02T18:00:00.000Z" } },
+  { ...job(31, "invoiced", "2026-05-02T18:00:00.000Z"), serviceCode: "HVAC-REPAIR", latestNote: { body: "Replaced the compressor under warranty", at: "2026-05-02T18:00:00.000Z" } },
   job(32, "invoiced", "2025-04-11T18:00:00.000Z"),
   job(33, "in_progress", "2026-10-22T18:00:00.000Z"),
   job(34, "complete", "2025-10-03T18:00:00.000Z"),
@@ -439,8 +439,8 @@ test("ACCOUNTS: a residential customer, selected, gets its card with the home pi
   // One probe tile, not a screenful, when the gateway says there is no provider.
   assert.equal(gw.calls.filter((c) => c.path === OPERATIONS["sites.mapTile"].path).length, 1);
   // History: finished jobs at this home only, in the order they happened.
-  const rows = [...out.matchAll(/spring tune up|compressor replacement/g)].map((m) => m[0]);
-  assert.deepEqual(rows, ["spring tune up", "spring tune up", "compressor replacement"]);
+  const rows = [...out.matchAll(/Preventive maintenance|Repair/g)].map((m) => m[0]);
+  assert.deepEqual(rows, ["Preventive maintenance", "Preventive maintenance", "Repair"]);
   assert.match(out, /Replaced the compressor under warranty/);
   assert.match(out, />Complete</);
   assert.deepEqual(serviceHistoryOf(HOME_JOBS as never, HOME).map((j) => j.id), [U(32), U(34), U(31)]);

@@ -38,6 +38,8 @@ export const TOPICS = [
   "crew.created", "crew.updated",
   // 0020: the roster. S2 refetches; nothing else reads it.
   "technician.recorded", "technician.updated",
+  // 0024: what an install was sold under, and by whom.
+  "project.created",
   "firm.created", "firm.updated", "firm.status_changed",
   // a login added, edited, deactivated or reactivated (AC Logins writes these
   // directly). OFC subscribes: the Manager Dashboard's team list refetches.

@@ -131,6 +131,12 @@ const contracts: (Mutable<W.ContractWire> & { orgId: string })[] = [
   { id: BOULDER_WARRANTY, orgId: AMPED, scopeTier: "site", scopeId: N.boulderRoof, kind: "location_agreement", parentContractId: null, billingPath: "enterprise_sla", regionId: REGION_MOUNTAIN, signedAt: "2026-02-10", effectiveFrom: "2026-02-15", effectiveTo: null, diagnosticDataRightsReserved: false, documentKey: "contracts/amped/boulder-carrier-warranty.pdf", state: "active" },
   { id: CEDAR_MSA, orgId: CEDAR, scopeTier: "parent", scopeId: CEDAR, kind: "msa", parentContractId: null, billingPath: "enterprise_sla", regionId: REGION_SOUTH, signedAt: "2026-04-02", effectiveFrom: "2026-05-01", effectiveTo: null, diagnosticDataRightsReserved: false, documentKey: null, state: "active" },
 ];
+/** 0024: what an install was sold under, and the foreman who sold it. Fictional people. */
+const foremen: W.ForemanWire[] = [{ id: "u0000000-0000-0000-0000-0000000000f1", name: "Blake Keating" }];
+const projects: Mutable<W.ProjectWire>[] = [
+  { id: "p0000000-0000-0000-0000-000000000001", orgId: AMPED, regionId: REGION_SOUTH, contractId: MSA, customer: "Amped", name: "Austin roof — RTU changeout",
+    foremanId: foremen[0]!.id, foremanName: foremen[0]!.name, serviceWindowStart: "2026-11-02T13:00:00.000Z", serviceWindowEnd: "2026-11-07T05:00:00.000Z", state: "planned", installJobs: 0 },
+];
 const overrides: (Override & { orgId: string; regionId: string })[] = [
   ...OVERRIDES.map((o) => ({ ...o, orgId: AMPED, regionId: REGION_SOUTH })),
   { id: "o-100", contractId: CEDAR_MSA, scopeTier: "parent", scopeId: CEDAR, termKey: "sla_response", termValue: "next_day", effectiveFrom: "2026-05-01", effectiveTo: null, orgId: CEDAR, regionId: REGION_SOUTH },
@@ -152,27 +158,30 @@ const C = {
   lsB: "e0000000-0000-0000-0000-0000000000a2",
   gc1: "e0000000-0000-0000-0000-0000000000b1",
   fr1: "e0000000-0000-0000-0000-0000000000c1",
+  southInstall1: "e0000000-0000-0000-0000-000000000005",
 } as const;
 const crews: Crew[] = [
-  { id: C.south1, label: "South Crew 1", employmentType: "employed", firmId: null, homeRegionId: REGION_SOUTH, active: true },
-  { id: C.south2, label: "South Crew 2", employmentType: "employed", firmId: null, homeRegionId: REGION_SOUTH, active: true },
-  { id: C.west1, label: "West Crew 1", employmentType: "employed", firmId: null, homeRegionId: REGION_WEST, active: true },
-  { id: C.mountain1, label: "Mountain Crew 1", employmentType: "employed", firmId: null, homeRegionId: REGION_MOUNTAIN, active: true },
-  { id: C.lsA, label: "Lone Star — Crew A", employmentType: "subcontracted", firmId: FIRM_A, homeRegionId: REGION_SOUTH, active: true },
-  { id: C.lsB, label: "Lone Star — Crew B", employmentType: "subcontracted", firmId: FIRM_A, homeRegionId: REGION_SOUTH, active: true },
-  { id: C.gc1, label: "Gulf Coast — Crew 1", employmentType: "subcontracted", firmId: FIRM_B, homeRegionId: REGION_SOUTH, active: true },
-  { id: C.fr1, label: "Front Range — Crew 1", employmentType: "subcontracted", firmId: FIRM_C, homeRegionId: REGION_MOUNTAIN, active: true },
+  { id: C.south1, label: "South Crew 1", employmentType: "employed", kind: "service", firmId: null, homeRegionId: REGION_SOUTH, active: true },
+  { id: C.south2, label: "South Crew 2", employmentType: "employed", kind: "service", firmId: null, homeRegionId: REGION_SOUTH, active: true },
+  { id: C.west1, label: "West Crew 1", employmentType: "employed", kind: "service", firmId: null, homeRegionId: REGION_WEST, active: true },
+  { id: C.mountain1, label: "Mountain Crew 1", employmentType: "employed", kind: "service", firmId: null, homeRegionId: REGION_MOUNTAIN, active: true },
+  { id: C.lsA, label: "Lone Star — Crew A", employmentType: "subcontracted", kind: "service", firmId: FIRM_A, homeRegionId: REGION_SOUTH, active: true },
+  { id: C.lsB, label: "Lone Star — Crew B", employmentType: "subcontracted", kind: "service", firmId: FIRM_A, homeRegionId: REGION_SOUTH, active: true },
+  { id: C.gc1, label: "Gulf Coast — Crew 1", employmentType: "subcontracted", kind: "service", firmId: FIRM_B, homeRegionId: REGION_SOUTH, active: true },
+  { id: C.fr1, label: "Front Range — Crew 1", employmentType: "subcontracted", kind: "service", firmId: FIRM_C, homeRegionId: REGION_MOUNTAIN, active: true },
+  // 0024: installers only. A technician is never on one.
+  { id: C.southInstall1, label: "South Install 1", employmentType: "employed", kind: "install", firmId: null, homeRegionId: REGION_SOUTH, active: true },
 ];
 
 /** 0020 — the roster. Fictional people; 555 numbers. The address is served to account owners and principals only, as the gateway does. */
 type Tech = Omit<W.TechnicianWire, "addressRestricted">;
-const tech = (name: string, firmId: string | null, crewId: string, phone: string, line1: string, city: string, postal: string, specialties: W.TechnicianSpecialty[]): Tech =>
-  ({ id: uid("t"), firmId, crewId, name, phone, homeAddress: { line1, city, state: "TX", postal }, specialties, homeRegionId: REGION_SOUTH, active: true });
+const tech = (name: string, firmId: string | null, crewId: string, phone: string, line1: string, city: string, postal: string, specialties: W.TechnicianSpecialty[], role: W.TechnicianRole = "technician"): Tech =>
+  ({ id: uid("t"), firmId, crewId, name, phone, homeAddress: { line1, city, state: "TX", postal }, role, specialties, homeRegionId: REGION_SOUTH, active: true });
 const technicians: Tech[] = [
   tech("Marcus Bell", null, C.south1, "(214) 555-0110", "1208 Peavy Rd", "Dallas", "75228", ["commercial_rtu", "controls_bas"]),
-  tech("Ana Reyes", null, C.south1, "(214) 555-0111", "3412 Oates Dr", "Mesquite", "75150", ["residential_hvac", "install"]),
+  tech("Ana Reyes", null, C.southInstall1, "(214) 555-0111", "3412 Oates Dr", "Mesquite", "75150", ["residential_hvac"], "lead_installer"),
   tech("Jordan Pike", null, C.south2, "(972) 555-0112", "77 Brookhaven Ct", "Garland", "75043", ["refrigeration", "chillers_boilers"]),
-  tech("Luis Ortega", FIRM_A, C.lsA, "(817) 555-0120", "905 Hemphill St", "Fort Worth", "76104", ["commercial_rtu", "ductwork"]),
+  tech("Luis Ortega", FIRM_A, C.lsA, "(817) 555-0120", "905 Hemphill St", "Fort Worth", "76104", ["commercial_rtu", "refrigeration"]),
   tech("Kim Tran", FIRM_A, C.lsB, "(817) 555-0121", "2210 Bowen Rd", "Arlington", "76013", ["light_commercial", "residential_hvac"]),
   tech("Dee Alvarez", FIRM_B, C.gc1, "(469) 555-0130", "618 Sunnyvale St", "Irving", "75061", ["refrigeration"]),
 ];
@@ -200,12 +209,12 @@ const credentials: Credential[] = [
 ];
 
 const rateCards: Mutable<W.RateCardWire>[] = [
-  { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-RTU", rateMinor: "18500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: "2026-08-01" },
-  { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-RTU", rateMinor: "19500", currency: "USD", effectiveFrom: "2026-08-01", effectiveTo: null },
-  { id: uid("r"), firmId: FIRM_A, serviceCode: "REPAIR-HVAC", rateMinor: "12500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: null },
-  { id: uid("r"), firmId: FIRM_A, serviceCode: "EMERG-CALL", rateMinor: "29500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: null },
-  { id: uid("r"), firmId: FIRM_B, serviceCode: "PM-RTU", rateMinor: "17200", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null },
-  { id: uid("r"), firmId: FIRM_B, serviceCode: "REPAIR-HVAC", rateMinor: "11800", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null },
+  { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-VISIT", rateMinor: "18500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: "2026-08-01" },
+  { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-VISIT", rateMinor: "19500", currency: "USD", effectiveFrom: "2026-08-01", effectiveTo: null },
+  { id: uid("r"), firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "12500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: null },
+  { id: uid("r"), firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "29500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: null },
+  { id: uid("r"), firmId: FIRM_B, serviceCode: "PM-VISIT", rateMinor: "17200", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null },
+  { id: uid("r"), firmId: FIRM_B, serviceCode: "HVAC-REPAIR", rateMinor: "11800", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null },
 ];
 
 const job = (id: string, siteId: string, serviceCode: string, priority: W.JobPriority, state: W.JobStateWire, startMs: number, hours: number, sla: { dueMs: number; stage: number; satisfiedMs?: number } | null, equipmentIds: string[] = []): Job => {
@@ -236,20 +245,20 @@ const J = {
 } as const;
 const jobs: Job[] = [
   // Unassigned and on the clock.
-  job(J.austinLeak, S.austinRoof, "EMERG-CALL", "emergency", "created", 20 * MIN, 4, { dueMs: 38 * MIN, stage: 1 }, [E.austinRtu2]),
-  job(J.elPasoNoCool, S.elPasoFloor, "REPAIR-HVAC", "urgent", "created", 3 * HOUR, 4, { dueMs: 5 * HOUR, stage: 0 }, [E.elPasoSplit]),
-  job(J.houstonRepair, S.cedarHoustonMain, "REPAIR-HVAC", "routine", "created", DAY, 4, { dueMs: 20 * HOUR, stage: 0 }, [E.houstonRtu]),
-  job(J.boulderPm, N.boulderRoof, "PM-RTU", "pm", "created", 2 * DAY, 6, { dueMs: 2 * DAY, stage: 0 }, [E.boulderRtu]),
+  job(J.austinLeak, S.austinRoof, "HVAC-REPAIR", "emergency", "created", 20 * MIN, 4, { dueMs: 38 * MIN, stage: 1 }, [E.austinRtu2]),
+  job(J.elPasoNoCool, S.elPasoFloor, "HVAC-REPAIR", "urgent", "created", 3 * HOUR, 4, { dueMs: 5 * HOUR, stage: 0 }, [E.elPasoSplit]),
+  job(J.houstonRepair, S.cedarHoustonMain, "HVAC-REPAIR", "routine", "created", DAY, 4, { dueMs: 20 * HOUR, stage: 0 }, [E.houstonRtu]),
+  job(J.boulderPm, N.boulderRoof, "PM-VISIT", "pm", "created", 2 * DAY, 6, { dueMs: 2 * DAY, stage: 0 }, [E.boulderRtu]),
   // Assigned and moving.
-  job(J.austinPm, S.austinRoof, "PM-RTU", "pm", "assigned", 2 * HOUR, 5, { dueMs: -1 * HOUR, stage: 0, satisfiedMs: -3 * HOUR }, [E.austinRtu1, E.austinRtu3]),
-  job(J.austinPoolPm, S.austinPool, "PM-RTU", "pm", "en_route", 30 * MIN, 3, { dueMs: -2 * HOUR, stage: 0, satisfiedMs: -5 * HOUR }, [E.austinDehu]),
-  job(J.elPasoPm, S.elPasoFloor, "PM-RTU", "pm", "assigned", DAY + 2 * HOUR, 5, { dueMs: -DAY, stage: 0, satisfiedMs: -DAY - HOUR }),
-  job(J.sjCompressor, N.sanJoseRoof, "REPAIR-HVAC", "urgent", "in_progress", -HOUR, 4, { dueMs: -2 * HOUR, stage: 0, satisfiedMs: -3 * HOUR }, [E.sjRtu]),
+  job(J.austinPm, S.austinRoof, "PM-VISIT", "pm", "assigned", 2 * HOUR, 5, { dueMs: -1 * HOUR, stage: 0, satisfiedMs: -3 * HOUR }, [E.austinRtu1, E.austinRtu3]),
+  job(J.austinPoolPm, S.austinPool, "PM-VISIT", "pm", "en_route", 30 * MIN, 3, { dueMs: -2 * HOUR, stage: 0, satisfiedMs: -5 * HOUR }, [E.austinDehu]),
+  job(J.elPasoPm, S.elPasoFloor, "PM-VISIT", "pm", "assigned", DAY + 2 * HOUR, 5, { dueMs: -DAY, stage: 0, satisfiedMs: -DAY - HOUR }),
+  job(J.sjCompressor, N.sanJoseRoof, "HVAC-REPAIR", "urgent", "in_progress", -HOUR, 4, { dueMs: -2 * HOUR, stage: 0, satisfiedMs: -3 * HOUR }, [E.sjRtu]),
   // Done — the work behind the statements.
-  job(J.austinAugPm, S.austinRoof, "PM-RTU", "pm", "invoiced", -30 * DAY, 5, null, [E.austinRtu1, E.austinRtu2, E.austinRtu3]),
-  job(J.houstonAug, S.cedarHoustonMain, "REPAIR-HVAC", "routine", "complete", -26 * DAY, 3, null, [E.houstonRtu]),
-  job(J.elPasoAug, S.elPasoFloor, "REPAIR-HVAC", "urgent", "invoiced", -22 * DAY, 4, null, [E.elPasoSplit]),
-  job(J.austinJulyPm, S.austinPool, "PM-RTU", "pm", "invoiced", -60 * DAY, 3, null, [E.austinDehu]),
+  job(J.austinAugPm, S.austinRoof, "PM-VISIT", "pm", "invoiced", -30 * DAY, 5, null, [E.austinRtu1, E.austinRtu2, E.austinRtu3]),
+  job(J.houstonAug, S.cedarHoustonMain, "HVAC-REPAIR", "routine", "complete", -26 * DAY, 3, null, [E.houstonRtu]),
+  job(J.elPasoAug, S.elPasoFloor, "HVAC-REPAIR", "urgent", "invoiced", -22 * DAY, 4, null, [E.elPasoSplit]),
+  job(J.austinJulyPm, S.austinPool, "PM-VISIT", "pm", "invoiced", -60 * DAY, 3, null, [E.austinDehu]),
 ];
 
 // The Austin leak's conversation (0016): one published update, one draft the
@@ -292,11 +301,11 @@ const settlements: Settlement[] = [
 ];
 const rateOf = (firmId: string, code: string) => rateCards.find((r) => r.firmId === firmId && r.serviceCode === code && r.effectiveTo === null)!;
 const settlementLines: W.SettlementLineWire[] = [
-  { id: uid("l"), settlementId: ST.lsJul, jobId: J.austinJulyPm, serviceCode: "PM-RTU", siteName: "Austin — Pool Hall Dehumidifier", rateCardId: rateCards[0]!.id, rateMinor: "18500", quantityMilli: "1000", amountMinor: "18500" },
-  { id: uid("l"), settlementId: ST.lsAug, jobId: J.austinAugPm, serviceCode: "PM-RTU", siteName: "Austin — Rooftop RTUs", rateCardId: rateOf(FIRM_A, "PM-RTU").id, rateMinor: "19500", quantityMilli: "3000", amountMinor: "58500" },
-  { id: uid("l"), settlementId: ST.lsAug, jobId: J.elPasoAug, serviceCode: "REPAIR-HVAC", siteName: "El Paso — Main Floor", rateCardId: rateOf(FIRM_A, "REPAIR-HVAC").id, rateMinor: "12500", quantityMilli: "3960", amountMinor: "49500" },
-  { id: uid("l"), settlementId: ST.lsSep, jobId: J.austinPm, serviceCode: "PM-RTU", siteName: "Austin — Rooftop RTUs", rateCardId: rateOf(FIRM_A, "PM-RTU").id, rateMinor: "19500", quantityMilli: "3000", amountMinor: "58500" },
-  { id: uid("l"), settlementId: ST.gcAug, jobId: J.houstonAug, serviceCode: "REPAIR-HVAC", siteName: "Houston — Clinic Main", rateCardId: rateOf(FIRM_B, "REPAIR-HVAC").id, rateMinor: "11800", quantityMilli: "3000", amountMinor: "35400" },
+  { id: uid("l"), settlementId: ST.lsJul, jobId: J.austinJulyPm, serviceCode: "PM-VISIT", siteName: "Austin — Pool Hall Dehumidifier", rateCardId: rateCards[0]!.id, rateMinor: "18500", quantityMilli: "1000", amountMinor: "18500" },
+  { id: uid("l"), settlementId: ST.lsAug, jobId: J.austinAugPm, serviceCode: "PM-VISIT", siteName: "Austin — Rooftop RTUs", rateCardId: rateOf(FIRM_A, "PM-RTU").id, rateMinor: "19500", quantityMilli: "3000", amountMinor: "58500" },
+  { id: uid("l"), settlementId: ST.lsAug, jobId: J.elPasoAug, serviceCode: "HVAC-REPAIR", siteName: "El Paso — Main Floor", rateCardId: rateOf(FIRM_A, "REPAIR-HVAC").id, rateMinor: "12500", quantityMilli: "3960", amountMinor: "49500" },
+  { id: uid("l"), settlementId: ST.lsSep, jobId: J.austinPm, serviceCode: "PM-VISIT", siteName: "Austin — Rooftop RTUs", rateCardId: rateOf(FIRM_A, "PM-RTU").id, rateMinor: "19500", quantityMilli: "3000", amountMinor: "58500" },
+  { id: uid("l"), settlementId: ST.gcAug, jobId: J.houstonAug, serviceCode: "HVAC-REPAIR", siteName: "Houston — Clinic Main", rateCardId: rateOf(FIRM_B, "REPAIR-HVAC").id, rateMinor: "11800", quantityMilli: "3000", amountMinor: "35400" },
 ];
 
 const equipment: (Omit<W.EquipmentWire, "lastServicedAt" | "lastServicedJobId" | "lastServicedServiceCode" | "jobCount">)[] = [
@@ -505,7 +514,7 @@ const jobWire = (j: Job, p: Principal): W.JobWire => {
   const crew = a ? crews.find((c) => c.id === a!.crewId) ?? null : null;
   const open = j.slaDueAt !== null && j.slaSatisfiedAt === null;
   return {
-    id: j.id, siteId: j.siteId, siteName: site.name, siteAddress: site.address, contractId: j.contractId, projectId: null, serviceCode: j.serviceCode, priority: j.priority, state: j.state,
+    id: j.id, siteId: j.siteId, siteName: site.name, siteAddress: site.address, contractId: j.contractId, projectId: null, serviceCode: j.serviceCode, priority: j.priority, state: j.state, workClass: "service",
     serviceWindowStart: j.serviceWindowStart, serviceWindowEnd: j.serviceWindowEnd, version: j.version, openedAt: j.openedAt, stateChangedAt: j.stateChangedAt, regionId: j.regionId, orgId: j.orgId, customerSegment: "commercial",
     currentCrewId: crew?.id ?? null, currentCrewLabel: crew?.label ?? null, currentAssignmentId: a?.id ?? null,
     slaDueAt: open ? j.slaDueAt : null, slaEscalationStage: open ? j.slaEscalationStage : null, slaSatisfiedAt: j.slaSatisfiedAt,
@@ -785,6 +794,24 @@ const H: Partial<Record<OperationId, Handler>> = {
     return { z: Number(i.z), x: Number(i.x), y: Number(i.y), image: null, attribution: null, unavailable: a?.address?.lat !== undefined ? "not_configured" : "no_coordinates" };
   },
 
+  // ---- 0024: projects ----
+  "projects.list": (i: W.ListProjectsInput, { p }) => {
+    need(p.namespace === "internal", "projects are the office's", "namespace");
+    return { projects: projects.filter((x) => !i.orgId || x.orgId === i.orgId), foremen };
+  },
+  "projects.create": (i: W.CreateProjectInput, { surface }) => {
+    const c = contracts.find((x) => x.id === i.contractId);
+    need(c, `no agreement ${i.contractId} visible in this scope`, "unknown_contract");
+    if (c!.state !== "active") throw input422(`agreement ${c!.id} is ${c!.state} — nothing is sold under an agreement that is not in force`, "contract_not_in_force");
+    const f = foremen.find((x) => x.id === i.foremanId);
+    need(f, "a project is sold by a foreman, and they stay on it as the person who sold it", "not_a_foreman");
+    need(i.name?.trim(), "name is required", "empty_name");
+    const id = uid("p");
+    projects.unshift({ id, orgId: c!.orgId, regionId: c!.regionId, contractId: c!.id, customer: orgs.find((o) => o.id === c!.orgId)?.name ?? "", name: i.name.trim(),
+      foremanId: f!.id, foremanName: f!.name, serviceWindowStart: i.serviceWindowStart, serviceWindowEnd: i.serviceWindowEnd, state: "planned", installJobs: 0 });
+    return { id, orgId: c!.orgId, regionId: c!.regionId, eventId: publish(surface, "project.created", "project", id, c!.orgId, c!.regionId) };
+  },
+
   // ---- agreements & terms ----
   "contracts.list": (i: W.ListContractsInput, { p }) => {
     const orgId = p.namespace === "internal" ? i.orgId : p.orgId;
@@ -876,7 +903,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     const firm = i.firmId ? firms.find((f) => f.id === i.firmId) : null;
     if (firm?.status === "terminated") throw input422(`firm ${firm.legalName} is terminated — a crew rostered under it is a crew nobody can dispatch`, "firm_ended");
     const id = uid("e");
-    crews.push({ id, label: i.label.trim(), employmentType: i.employmentType, firmId: i.firmId ?? null, homeRegionId: i.homeRegionId, active: true });
+    crews.push({ id, label: i.label.trim(), employmentType: i.employmentType, kind: i.kind ?? "service", firmId: i.firmId ?? null, homeRegionId: i.homeRegionId, active: true });
     return { id, regionId: i.homeRegionId, eventId: publish(surface, "crew.created", "crew", id, i.firmId ?? INTERNAL_ORG_ID, i.homeRegionId) };
   },
   "technicians.list": (i: W.ListTechniciansInput, { p }) => {
@@ -891,7 +918,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     if (firm?.status === "terminated") throw input422(`firm ${firm.legalName} is terminated — it fields no technicians for us`, "firm_ended");
     if (i.crewId) need(crews.find((c) => c.id === i.crewId)?.firmId === (i.firmId ?? null), "put a technician on a crew of the employer they work for", "crew_employer_mismatch");
     const id = uid("t");
-    technicians.push({ id, firmId: i.firmId ?? null, crewId: i.crewId ?? null, name: i.name.trim(), phone: i.phone?.trim() || null, homeAddress: i.homeAddress ?? null, specialties: [...new Set(i.specialties)], homeRegionId: i.homeRegionId, active: true });
+    technicians.push({ id, firmId: i.firmId ?? null, crewId: i.crewId ?? null, name: i.name.trim(), phone: i.phone?.trim() || null, homeAddress: i.homeAddress ?? null, role: i.role ?? "technician", specialties: [...new Set(i.specialties)], homeRegionId: i.homeRegionId, active: true });
     return { id, regionId: i.homeRegionId, eventId: publish(surface, "technician.recorded", "technician", id, i.firmId ?? INTERNAL_ORG_ID, i.homeRegionId) };
   },
   "technicians.update": (i: W.UpdateTechnicianInput, { surface, p }) => {
@@ -902,6 +929,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     Object.assign(t!, {
       ...(i.name !== undefined ? { name: i.name.trim() } : {}), ...(i.phone !== undefined ? { phone: i.phone.trim() || null } : {}),
       ...(i.specialties !== undefined ? { specialties: [...new Set(i.specialties)] } : {}), ...(i.crewId !== undefined ? { crewId: i.crewId } : {}),
+      ...(i.role !== undefined ? { role: i.role } : {}),
       ...(i.active !== undefined ? { active: i.active } : {}), ...(i.homeAddress !== undefined ? { homeAddress: i.homeAddress } : {}),
     });
     return { id: t!.id, eventId: publish(surface, "technician.updated", "technician", t!.id, t!.firmId ?? INTERNAL_ORG_ID, t!.homeRegionId) };
@@ -949,7 +977,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     const firm = firms.find((f) => f.id === p.firmId)!;
     if (firm.status === "suspended" || firm.status === "terminated") throw input422(`firm ${firm.legalName} is ${firm.status} — a crew rostered under it is a crew nobody can dispatch.`, "firm_ended");
     const id = uid("e");
-    crews.push({ id, label: i.label.trim(), employmentType: "subcontracted", firmId: firm.id, homeRegionId: firm.regionId, active: true });
+    crews.push({ id, label: i.label.trim(), employmentType: "subcontracted", kind: i.kind ?? "service", firmId: firm.id, homeRegionId: firm.regionId, active: true });
     return { id, firmId: firm.id, regionId: firm.regionId, eventId: publish(surface, "crew.created", "crew", id, firm.id, firm.regionId) };
   },
   "crews.retire": (i: W.RetireCrewInput, { surface, p }) => {
@@ -1039,7 +1067,8 @@ const H: Partial<Record<OperationId, Handler>> = {
     const window = { start: Date.parse(j!.serviceWindowStart), end: Date.parse(j!.serviceWindowEnd) };
     return {
       jobId: j!.id,
-      candidates: crews.filter((c) => c.homeRegionId === j!.regionId && c.active).map((c) => {
+      // Every demo job is service work (0024): only technicians' units are candidates.
+      candidates: crews.filter((c) => c.homeRegionId === j!.regionId && c.active && c.kind === "service").map((c) => {
         const r = evaluate(c, credentials.filter((x) => x.crewId === c.id).map((x) => ({ id: x.id, kind: x.kind, validFrom: Date.parse(x.validFrom), validTo: Date.parse(x.validTo) + DAY - 1, verifiedAt: x.verifiedAt ? Date.parse(x.verifiedAt) : null })), window, Date.now());
         return { crewId: c.id, label: c.label, employmentType: c.employmentType, cleared: !isRefusal(r), refusal: isRefusal(r) ? { reason: r.reason, credentialKind: r.credentialKind, detail: r.detail.replace(c.id, c.label) } : null };
       }),
@@ -1050,6 +1079,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     need(j, `job ${i.jobId} not found in scope`, "unknown_job");
     const c = crews.find((x) => x.id === i.crewId && x.homeRegionId === j!.regionId);
     need(c, `crew ${i.crewId} not found in scope`, "unknown_crew");
+    if (c!.kind !== "service") throw input422(`job ${j!.id} is service work and ${c!.label} is an install crew — install work goes to an install crew; service and commissioning go to a technician`, "crew_kind_mismatch");
     const window = { start: Date.parse(j!.serviceWindowStart), end: Date.parse(j!.serviceWindowEnd) };
     const r = evaluate(c!, credentials.filter((x) => x.crewId === c!.id).map((x) => ({ id: x.id, kind: x.kind, validFrom: Date.parse(x.validFrom), validTo: Date.parse(x.validTo) + DAY - 1, verifiedAt: x.verifiedAt ? Date.parse(x.verifiedAt) : null })), window, Date.now());
     if (isRefusal(r)) {

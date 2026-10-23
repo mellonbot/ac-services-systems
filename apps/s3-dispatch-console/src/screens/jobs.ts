@@ -1,5 +1,5 @@
 import { html, signal, DataGrid, StatusPill, pageHead, statStrip, panel, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
-import { OFFICE_JOB_TRANSITIONS, type JobWire, type JobStateWire, type AddressWire } from "../../../../packages/contracts/src/index.ts";
+import { serviceLabel, OFFICE_JOB_TRANSITIONS, JOB_WORK_CLASS_LABEL, type JobWire, type JobStateWire, type AddressWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, linkTo, submitAction, type Screen, type ScreenContext } from "./common.ts";
 import { slaStatus, isDispatchable } from "./board.ts";
@@ -181,7 +181,7 @@ export const jobs: Screen = (ctx) => {
 
   const columns = (): readonly Column<JobWire>[] => [
     { key: "id", header: "Job #", numeric: true, cell: (j) => linkTo(ctx, "detail", { jobId: j.id }, j.id) },
-    { key: "site", header: "Customer", cell: (j) => html`<span class="s3-cust"><strong>${j.siteName ?? "Site name unavailable"}</strong>${homeMark(j.customerSegment)}<small>${placeLine(j.siteAddress) ?? "Address not recorded"}</small><small class="s3-cust__svc">${j.serviceCode.replace(/_/g, " ")} · ${j.priority}</small></span>` },
+    { key: "site", header: "Customer", cell: (j) => html`<span class="s3-cust"><strong>${j.siteName ?? "Site name unavailable"}</strong>${homeMark(j.customerSegment)}<small>${placeLine(j.siteAddress) ?? "Address not recorded"}</small><small class="s3-cust__svc">${JOB_WORK_CLASS_LABEL[j.workClass]} · ${serviceLabel(j.serviceCode)} · ${j.priority}</small></span>` },
     { key: "crew", header: "Tech", cell: (j) => j.currentCrewLabel
       ? html`<span class="s3-tech"><span class="dispatch-board__avatar" aria-hidden="true">${initials(j.currentCrewLabel)}</span>${j.currentCrewLabel}</span>`
       : html`<span class="s3-muted">Unassigned</span>` },

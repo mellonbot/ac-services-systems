@@ -41,7 +41,7 @@ const firm: FirmWire = {
   diagnosticDataRightsReserved: true, w9DocumentKey: "docs/w9.pdf", crewCount: 3, activeCrewCount: 2,
 };
 const crew = (id: string, label: string, docs: Partial<CrewWire["documents"]>, active = true): CrewWire => ({
-  id, label, employmentType: "subcontracted", firmId: FIRM, homeRegionId: SOUTH, active,
+  id, label, employmentType: "subcontracted", kind: "service", firmId: FIRM, homeRegionId: SOUTH, active,
   documents: { required: ["insurance", "license", "background_check"], satisfied: [], unverified: [], expired: [], missing: [], earliestExpiry: null, ...docs },
 });
 const crewReady = crew(CREW_A, "Crew A1", { satisfied: ["insurance", "license", "background_check"], earliestExpiry: "2027-01-01" });
@@ -50,7 +50,7 @@ const crewRetired = crew(CREW_OLD, "Crew A0", { missing: ["insurance", "license"
 const coi: CredentialWire = { id: COI, crewId: CREW_B, kind: "insurance", identifier: "COI-2026-A2", validFrom: "2026-01-01", validTo: "2026-12-31", documentKey: null, verifiedAt: "2026-02-01T00:00:00.000Z", verifiedBy: U(90) };
 const lic: CredentialWire = { id: LIC, crewId: CREW_B, kind: "license", identifier: "TX-LIC-4471", validFrom: "2026-01-01", validTo: "2027-06-30", documentKey: "docs/lic.pdf", verifiedAt: null, verifiedBy: null };
 const job: JobWire = {
-  id: JOB, siteId: SITE, siteName: "Austin — Roof", siteAddress: null, contractId: null, projectId: null, serviceCode: "HVAC-REPAIR", priority: "urgent", state: "on_site",
+  id: JOB, siteId: SITE, siteName: "Austin — Roof", siteAddress: null, contractId: null, projectId: null, serviceCode: "HVAC-REPAIR", priority: "urgent", state: "on_site", workClass: "service",
   serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T13:00:00.000Z", version: 4, openedAt: "2026-09-17T12:00:00.000Z", stateChangedAt: "2026-09-18T09:00:00.000Z",
   regionId: SOUTH, orgId: U(80), customerSegment: null, currentCrewId: CREW_A, currentCrewLabel: "Crew A1", currentAssignmentId: U(81),
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 0, slaSatisfiedAt: "2026-09-17T13:00:00.000Z",
@@ -140,7 +140,7 @@ test("YOUR FIRM: the one row the gateway returned, the ladder in words, and the 
   assert.doesNotMatch(out, /Firm B/, "the portal adds no rows the gateway withheld");
 });
 
-test("CREWS: readiness in the firm's words from the gateway's summary; Retire only on active crews; the enroll form takes a label and nothing else", async () => {
+test("CREWS: readiness in the firm's words from the gateway's summary; Retire only on active crews; the enroll form takes a label and a kind, nothing else", async () => {
   const { app, gateway } = await ready();
   resetRosterForm();
   app.router.navigate("crews", {});
@@ -153,14 +153,17 @@ test("CREWS: readiness in the firm's words from the gateway's summary; Retire on
   assert.equal((out.match(/data-retire=/g) ?? []).length, 2, "two active crews, two Retire controls");
   assert.match(out, /id="enroll-form"/);
   assert.match(out, /name="label"/);
+  // 0024: a firm rosters a technician's unit or an install crew, and the roster says which.
+  assert.match(out, /<select class="ac-input" name="kind" id="enroll-kind"><option value="service">Technician's unit<\/option><option value="install">Install crew<\/option><\/select>/);
+  assert.match(out, /<td[^>]*>Technician's unit<\/td>/);
   assert.doesNotMatch(out, /name="firmId"|name="employmentType"|name="homeRegionId"/, "firm, type and region are the principal's — not typed here");
   assert.equal(readiness(crewRetired).word, "Retired");
   assert.equal(readiness(crew(U(50), "x", { missing: ["insurance"] })).detail, "No insurance on file");
   assert.equal(readiness(crew(U(51), "x", { expired: ["license"] })).status, "blocked");
   // The write, through the real client: x-ac-surface: S8, a body of one field.
-  await shellOf(app).gateway.enrollCrew({ label: "Crew A3" });
+  await shellOf(app).gateway.enrollCrew({ label: "Crew A3", kind: "install" });
   const call = gateway.calls.find((c) => c.path === OPERATIONS["crews.enroll"].path)!;
-  assert.deepEqual(JSON.parse(String(call.init?.body)), { label: "Crew A3" });
+  assert.deepEqual(JSON.parse(String(call.init?.body)), { label: "Crew A3", kind: "install" });
   assert.equal((call.init?.headers as Record<string, string>)["x-ac-surface"], "S8");
 });
 

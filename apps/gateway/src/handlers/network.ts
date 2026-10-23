@@ -7,8 +7,9 @@ import type {
   EmploymentType, CrewDocumentSummary, ListCrewsInput, ListCrewsOutput, CreateCrewInput, CreateCrewOutput, UpdateCrewInput, UpdateCrewOutput,
   CredentialWire, CredentialKind, ListCredentialsInput, ListCredentialsOutput, RecordCredentialInput, RecordCredentialOutput, VerifyCredentialInput, VerifyCredentialOutput,
   RateCardWire, ListRateCardsInput, ListRateCardsOutput, SetRateCardInput, SetRateCardOutput,
-  SubmitCredentialInput, SubmitCredentialOutput, EnrollCrewInput, EnrollCrewOutput, RetireCrewInput, RetireCrewOutput,
+  SubmitCredentialInput, SubmitCredentialOutput, EnrollCrewInput, EnrollCrewOutput, RetireCrewInput, RetireCrewOutput, CrewKind,
 } from "../../../../packages/contracts/src/operations.ts";
+import { CREW_KINDS } from "../../../../packages/contracts/src/operations.ts";
 
 /**
  * C4 — THE SUBCONTRACTOR NETWORK S2 RECORDS: the firm, the crew, the document
@@ -225,7 +226,7 @@ export const updateFirm = async (uow: UnitOfWork, input: UpdateFirmInput): Promi
 // ---------------------------------------------------------------------------
 // Crews
 // ---------------------------------------------------------------------------
-type CrewRow = { id: string; org_id: string; region_id: string; label: string; employment_type: EmploymentType; firm_id: string | null; home_region_id: string; active: boolean };
+type CrewRow = { id: string; org_id: string; region_id: string; label: string; employment_type: EmploymentType; kind: CrewKind; firm_id: string | null; home_region_id: string; active: boolean };
 type CredRow = { id: string; crew_id: string; kind: CredentialKind; identifier: string; valid_from: string; valid_to: string; document_key: string | null; verified_at: string | null; verified_by: string | null };
 const CRED_COLUMNS = `id, crew_id, kind, identifier, to_char(valid_from, 'YYYY-MM-DD') AS valid_from, to_char(valid_to, 'YYYY-MM-DD') AS valid_to,
         document_key, to_char(verified_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS verified_at, verified_by`;
@@ -260,7 +261,7 @@ export const listCrews = async (uow: UnitOfWork, input: ListCrewsInput, today: s
   const firmId = input.firmId === undefined ? null : requireUuid(input.firmId, "firmId");
   const regionId = input.regionId === undefined ? null : requireUuid(input.regionId, "regionId");
   const crews = await uow.tx.query<CrewRow>(
-    `SELECT id, org_id, region_id, label, employment_type, firm_id, home_region_id, active
+    `SELECT id, org_id, region_id, label, employment_type, kind, firm_id, home_region_id, active
        FROM crews WHERE ($1::uuid IS NULL OR firm_id = $1) AND ($2::uuid IS NULL OR home_region_id = $2)
       ORDER BY label`,
     [firmId, regionId],
@@ -271,7 +272,7 @@ export const listCrews = async (uow: UnitOfWork, input: ListCrewsInput, today: s
   for (const d of docs) { const w = credToWire(d); (byCrew.get(w.crewId) ?? byCrew.set(w.crewId, []).get(w.crewId)!).push(w); }
   return {
     crews: crews.map((c) => ({
-      id: c.id, label: c.label, employmentType: c.employment_type, firmId: c.firm_id, homeRegionId: c.home_region_id, active: c.active,
+      id: c.id, label: c.label, employmentType: c.employment_type, kind: c.kind, firmId: c.firm_id, homeRegionId: c.home_region_id, active: c.active,
       documents: summarizeDocuments(c.employment_type, byCrew.get(c.id) ?? [], today),
     })),
   };
@@ -280,6 +281,7 @@ export const listCrews = async (uow: UnitOfWork, input: ListCrewsInput, today: s
 export const createCrew = async (uow: UnitOfWork, input: CreateCrewInput, newId: () => string): Promise<CreateCrewOutput> => {
   const label = requireText(input.label, "label");
   const employmentType = requireOneOf(input.employmentType, "employmentType", EMPLOYMENT);
+  const kind = input.kind === undefined ? "service" : requireOneOf(input.kind, "kind", CREW_KINDS);
   const region = await activeRegion(uow, requireUuid(input.homeRegionId, "homeRegionId"));
 
   let firmId: string | null = null;
@@ -305,14 +307,14 @@ export const createCrew = async (uow: UnitOfWork, input: CreateCrewInput, newId:
   const eventId = await uow.apply(
     {
       entity: "crew", entityId: id, action: "crew.create", topic: "crew.created",
-      before: null, after: { id, label, employmentType, firmId, homeRegionId: region.id, active: true },
+      before: null, after: { id, label, employmentType, kind, firmId, homeRegionId: region.id, active: true },
       orgId, regionId: region.id,
       payload: { label, firmId, regionCode: region.code },
     },
     async (tx) => {
       await tx.query(
-        "INSERT INTO crews (id, org_id, region_id, label, employment_type, firm_id, home_region_id, active) VALUES ($1, $2, $3, $4, $5, $6, $3, true)",
-        [id, orgId, region.id, label, employmentType, firmId],
+        "INSERT INTO crews (id, org_id, region_id, label, employment_type, firm_id, home_region_id, active, kind) VALUES ($1, $2, $3, $4, $5, $6, $3, true, $7)",
+        [id, orgId, region.id, label, employmentType, firmId, kind],
       );
     },
   );
@@ -320,7 +322,7 @@ export const createCrew = async (uow: UnitOfWork, input: CreateCrewInput, newId:
 };
 
 const loadCrew = async (uow: UnitOfWork, id: string): Promise<CrewRow> => {
-  const row = (await uow.tx.query<CrewRow>("SELECT id, org_id, region_id, label, employment_type, firm_id, home_region_id, active FROM crews WHERE id = $1", [id]))[0];
+  const row = (await uow.tx.query<CrewRow>("SELECT id, org_id, region_id, label, employment_type, kind, firm_id, home_region_id, active FROM crews WHERE id = $1", [id]))[0];
   if (!row) throw new InputRefused(`no crew ${id} visible in this scope`, "unknown_crew");
   return row;
 };
@@ -354,6 +356,7 @@ export const updateCrew = async (uow: UnitOfWork, input: UpdateCrewInput): Promi
 // ---------------------------------------------------------------------------
 export const enrollCrew = async (uow: UnitOfWork, input: EnrollCrewInput, firmId: string | null, newId: () => string): Promise<EnrollCrewOutput> => {
   const label = requireText(input.label, "label");
+  const kind = input.kind === undefined ? "service" : requireOneOf(input.kind, "kind", CREW_KINDS);
   if (!firmId) throw new InputRefused("this principal carries no firm — a roster belongs to a firm", "no_firm");
   // RLS: a firm principal sees one firm. If the row is not there, the token and the registry disagree, and nothing is rostered.
   const firm = await loadFirm(uow, firmId);
@@ -364,14 +367,14 @@ export const enrollCrew = async (uow: UnitOfWork, input: EnrollCrewInput, firmId
   const eventId = await uow.apply(
     {
       entity: "crew_roster", entityId: id, action: "crew.enroll", topic: "crew.created",
-      before: null, after: { id, label, employmentType: "subcontracted", firmId: firm.id, homeRegionId: firm.region_id, active: true },
+      before: null, after: { id, label, employmentType: "subcontracted", kind, firmId: firm.id, homeRegionId: firm.region_id, active: true },
       orgId: firm.org_id, regionId: firm.region_id,
       payload: { label, firmId: firm.id, enrolledBy: "firm" },
     },
     async (tx) => {
       await tx.query(
-        "INSERT INTO crews (id, org_id, region_id, label, employment_type, firm_id, home_region_id, active) VALUES ($1, $2, $3, $4, 'subcontracted', $5, $3, true)",
-        [id, firm.org_id, firm.region_id, label, firm.id],
+        "INSERT INTO crews (id, org_id, region_id, label, employment_type, firm_id, home_region_id, active, kind) VALUES ($1, $2, $3, $4, 'subcontracted', $5, $3, true, $6)",
+        [id, firm.org_id, firm.region_id, label, firm.id, kind],
       );
     },
   );
