@@ -13,14 +13,14 @@ const REST_ANGLE = -0.7;
 /** The truck is the subject, so it is drawn larger than the floor around it is to scale. */
 const TRUCK_SCALE = 2.8;
 /** The portal pads sit on this ellipse around the turntable, in metres. */
-const PAD_RX = 17, PAD_RZ = 11.5;
+const PAD_RX = 21, PAD_RZ = 14;
 /** Equipment in the yard waiting to go out — [model, x, z, heading], on a pallet or skid, at the truck's scale. */
 const STOCK: readonly (readonly [string, number, number, number])[] = [
   ["/condenser.glb", -30, -26, 0.1], ["/condenser.glb", -25.5, -26, -0.05], ["/condenser.glb", -30, -21.5, 0.05], ["/condenser.glb", -25.5, -21.5, 0.3],
   ["/rtu.glb", 24, -27.5, 0], ["/rtu.glb", 22, -21, 0.08],
 ];
 /** Below this stage width the plates leave the floor and stack under it; the camera frames the truck alone. */
-const FLAT_BELOW_PX = 640;
+const FLAT_BELOW_PX = 720;
 
 /**
  * THE SIGN-IN YARD — the outdoor service yard on packed dirt, seen from a camera above it:
