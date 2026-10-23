@@ -208,7 +208,7 @@ async function main(): Promise<void> {
     // Fixed inside the invoice's June period: a date relative to now overtook the July invoice once now passed mid-October.
     const pws = "2026-06-15T09:00:00.000Z";
     const pwe = "2026-06-15T13:00:00.000Z";
-    const pm = await s2.gateway.createJob({ siteId: austinRoof, serviceCode: "PM-Q2", priority: "pm", serviceWindowStart: pws, serviceWindowEnd: pwe, equipmentIds: [rtu1, rtu2] });
+    const pm = await s2.gateway.createJob({ siteId: austinRoof, serviceCode: "PM-VISIT", priority: "pm", serviceWindowStart: pws, serviceWindowEnd: pwe, equipmentIds: [rtu1, rtu2] });
     await admin(`UPDATE jobs SET state = 'complete' WHERE id = $1`, [pm.id]);
     const inv = (await admin(`INSERT INTO invoices (org_id, region_id, bill_to_tier, bill_to_id, contract_id, billing_path, period_start, period_end, total_minor, currency, issued_at, due_at)
       VALUES ($1, $2, 'parent', $1, $3, 'enterprise_sla', '2026-06-01', '2026-06-30', 128450, 'USD', '2026-07-03T15:00:00Z', '2026-08-17T00:00:00Z') RETURNING id`, [org.orgId, REGION_SOUTH, msa]))[0]!.id;

@@ -186,7 +186,7 @@ test("path is materialised from the parent edge and moves with the node", skip, 
 
 test("a job's tenancy is inherited from its site — a script typing the wrong region is refused", skip, async () => {
   await assert.rejects(
-    admin(`INSERT INTO jobs (org_id, region_id, site_id, service_code, service_window) VALUES ($1,$2,$3,'HVAC_REPAIR','[2026-09-16 09:00,2026-09-16 13:00)')`, [ORG, REGION_WEST, N.boulderRoof]),
+    admin(`INSERT INTO jobs (org_id, region_id, site_id, service_code, service_window) VALUES ($1,$2,$3,'HVAC-REPAIR','[2026-09-16 09:00,2026-09-16 13:00)')`, [ORG, REGION_WEST, N.boulderRoof]),
     /Tenancy is inherited, not typed/,
   );
 });
@@ -285,7 +285,7 @@ test("audit_log refuses UPDATE and DELETE even from the superuser", skip, async 
 // Non-negotiable #8 — the gate, all three layers
 // ---------------------------------------------------------------------------
 const newJob = async (tx: Tx, site: string, region: string, from: string, to: string) => {
-  const r = await tx.query<{ id: string }>(`INSERT INTO jobs (org_id, region_id, site_id, service_code, service_window) VALUES ($1,$2,$3,'HVAC_REPAIR', tstzrange($4,$5,'[)')) RETURNING id`, [ORG, region, site, from, to]);
+  const r = await tx.query<{ id: string }>(`INSERT INTO jobs (org_id, region_id, site_id, service_code, service_window) VALUES ($1,$2,$3,'HVAC-REPAIR', tstzrange($4,$5,'[)')) RETURNING id`, [ORG, region, site, from, to]);
   return r[0]!.id;
 };
 

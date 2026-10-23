@@ -66,7 +66,7 @@ export const crew_credentials = operationalTable("crew_credentials", {
  */
 /** 0024. Mirrored by TECHNICIAN_ROLES in packages/contracts; a test holds them equal. */
 export const TECHNICIAN_ROLES = ["technician", "lead_installer", "installer", "helper"] as const;
-export const TECHNICIAN_SPECIALTIES = ["residential_hvac", "light_commercial", "commercial_rtu", "refrigeration", "chillers_boilers", "controls_bas", "install", "ductwork"] as const;
+export const TECHNICIAN_SPECIALTIES = ["residential_hvac", "light_commercial", "commercial_rtu", "refrigeration", "chillers_boilers", "controls_bas"] as const;
 
 export const technicians = operationalTable("technicians", {
   columns: [

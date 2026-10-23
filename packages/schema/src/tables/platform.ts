@@ -160,6 +160,22 @@ export const schema_migrations = globalReferenceTable("schema_migrations", {
  * admission trigger can refuse an override row from a psql session. The code
  * is the register; this is its shadow in the database.
  */
+/**
+ * 0025 — MIRROR of SERVICE_CATALOG in packages/contracts. GENERATED into the
+ * repeatable R_service_codes.sql by tools/ci/emit-schema.ts; SELECT-only for
+ * every runtime role. jobs.service_code references it, and a trigger holds a
+ * job's work class to its code's, so a psql session cannot open an install
+ * as a repair.
+ */
+export const service_codes = globalReferenceTable("service_codes", {
+  primaryKey: ["code"],
+  columns: [
+    { name: "code", type: "text" },
+    { name: "label", type: "text" },
+    { name: "work_class", type: "text", check: "work_class IN ('service','install','commissioning')" },
+  ],
+});
+
 export const term_registry = globalReferenceTable("term_registry", {
   primaryKey: ["key"],
   columns: [

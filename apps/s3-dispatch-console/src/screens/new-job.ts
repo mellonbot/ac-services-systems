@@ -1,6 +1,6 @@
 import { html, PrimaryAction, pageHead, panel, shortRef, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { JobPriority, JobWorkClass, ProjectWire, Refusal, SiteWire } from "../../../../packages/contracts/src/index.ts";
-import { JOB_WORK_CLASSES, JOB_WORK_CLASS_LABEL } from "../../../../packages/contracts/src/index.ts";
+import type { JobPriority, ProjectWire, Refusal, SiteWire } from "../../../../packages/contracts/src/index.ts";
+import { JOB_WORK_CLASSES, JOB_WORK_CLASS_LABEL, SERVICE_CATALOG, serviceLabel, serviceOf } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, type Screen, type ScreenContext } from "./common.ts";
 import { perStore, defaultWindow, JOB_PRIORITIES, PRIORITY_WORD } from "./intake.ts";
@@ -17,16 +17,17 @@ import { perStore, defaultWindow, JOB_PRIORITIES, PRIORITY_WORD } from "./intake
  * the call as a request at that site (`serviceRequests.hold`), so it waits in
  * Intake — flagged until Contracts sets the term — instead of being lost.
  *
- * 0024: the work decides who is sent. Service and commissioning go to a
- * technician; install goes to an install crew, sits under the project of the
- * person who sold it (S2, Projects), and is never an emergency — so choosing
- * Install asks for the project and drops Emergency from the priorities.
+ * 0024/0025: the service is picked from the catalogue, and its work decides
+ * who is sent. Service and commissioning go to a technician; install goes to
+ * an install crew, sits under the project of the person who sold it (S2,
+ * Projects), and is never an emergency — so an install service asks for the
+ * project and drops Emergency from the priorities.
  */
 type Call = { readonly siteId: string; readonly serviceCode: string; readonly priority: JobPriority; readonly day: string };
 type Submitting = { readonly busy: boolean; readonly refusal: Refusal | null; readonly call: Call | null };
 const submittingFor = perStore<Submitting>({ busy: false, refusal: null, call: null });
-type Choice = { readonly work: JobWorkClass; readonly siteId: string };
-const choiceFor = perStore<Choice>({ work: "service", siteId: "" });
+type Choice = { readonly code: string; readonly siteId: string };
+const choiceFor = perStore<Choice>({ code: "", siteId: "" });
 
 const byCustomer = (sites: readonly SiteWire[]): [string, SiteWire[]][] => {
   const m = new Map<string, SiteWire[]>();
@@ -37,7 +38,7 @@ const byCustomer = (sites: readonly SiteWire[]): [string, SiteWire[]][] => {
 const create = async (ctx: ScreenContext, form: HTMLFormElement): Promise<void> => {
   const state = submittingFor(ctx.store);
   const f = new FormData(form);
-  const work = choiceFor(ctx.store).value.work;
+  const work = serviceOf(String(f.get("serviceCode") ?? ""))?.workClass;
   const call: Call = {
     siteId: String(f.get("siteId") ?? ""), serviceCode: String(f.get("serviceCode") ?? "").trim(),
     priority: String(f.get("priority") ?? "routine") as JobPriority, day: String(f.get("start")).slice(0, 10),
@@ -48,13 +49,12 @@ const create = async (ctx: ScreenContext, form: HTMLFormElement): Promise<void> 
       siteId: call.siteId,
       serviceCode: call.serviceCode,
       priority: call.priority,
-      workClass: work,
       ...(work === "install" ? { projectId: String(f.get("projectId") ?? "") } : {}),
       serviceWindowStart: new Date(String(f.get("start"))).toISOString(),
       serviceWindowEnd: new Date(String(f.get("end"))).toISOString(),
     });
     state.value = { busy: false, refusal: null, call: null };
-    choiceFor(ctx.store).value = { work: "service", siteId: "" };
+    choiceFor(ctx.store).value = { code: "", siteId: "" };
     ctx.store.notice.value = [`Job ${out.id} is open, response due ${new Date(out.dueAt).toLocaleString()}. Assign a crew below.`];
     ctx.store.invalidate("jobs.list");
     ctx.router.navigate("dispatch", { jobId: out.id });
@@ -64,7 +64,7 @@ const create = async (ctx: ScreenContext, form: HTMLFormElement): Promise<void> 
 };
 
 /** "Preferred date:" is the line Intake's form reads its window from (defaultWindow). A request has no "pm" priority; planned work is routine. */
-export const heldDescription = (c: Call): string => `Phoned in for ${c.serviceCode}.\nPreferred date: ${c.day}.`;
+export const heldDescription = (c: Call): string => `Phoned in for ${serviceLabel(c.serviceCode)}.\nPreferred date: ${c.day}.`;
 
 const hold = async (ctx: ScreenContext, call: Call): Promise<void> => {
   const state = submittingFor(ctx.store);
@@ -91,7 +91,8 @@ const routesFor = (ctx: ScreenContext, s: Submitting) =>
 const form = (ctx: ScreenContext, sites: readonly SiteWire[]): VNode => {
   const s = submittingFor(ctx.store).value;
   const choice = choiceFor(ctx.store);
-  const { work, siteId } = choice.value;
+  const { code, siteId } = choice.value;
+  const work = serviceOf(code)?.workClass;
   const orgOfSite = sites.find((x) => x.id === siteId)?.orgId;
   // Only an install asks for the projects; the list waits until it does.
   const projectField = (): VNode => {
@@ -118,16 +119,16 @@ const form = (ctx: ScreenContext, sites: readonly SiteWire[]): VNode => {
           </optgroup>`)}
         </select>
       </label>
-      <label class="ac-field"><span>Work</span>
-        <select class="ac-input" name="workClass" id="new-job-work" onChange=${(e: Event) => { choice.value = { ...choice.value, work: (e.currentTarget as HTMLSelectElement).value as JobWorkClass }; }}>
-          ${JOB_WORK_CLASSES.map((w) => html`<option value=${w} selected=${w === work}>${JOB_WORK_CLASS_LABEL[w]}</option>`)}
+      <label class="ac-field"><span>Service</span>
+        <select class="ac-input" name="serviceCode" id="new-job-service" required onChange=${(e: Event) => { choice.value = { ...choice.value, code: (e.currentTarget as HTMLSelectElement).value }; }}>
+          <option value="">Choose a service</option>
+          ${JOB_WORK_CLASSES.map((w) => html`<optgroup label=${JOB_WORK_CLASS_LABEL[w]}>
+            ${SERVICE_CATALOG.filter((x) => x.workClass === w).map((x) => html`<option value=${x.code} selected=${x.code === code}>${x.label}</option>`)}
+          </optgroup>`)}
         </select>
-        <small>${work === "install" ? "Sent to an install crew." : "Sent to a technician."}</small>
+        <small>${work === "install" ? "Install work — sent to an install crew." : work ? "Sent to a technician." : "The service decides who is sent: install work to an install crew, the rest to a technician."}</small>
       </label>
       ${work === "install" ? projectField() : null}
-      <label class="ac-field"><span>Service</span>
-        <input class="ac-input" name="serviceCode" id="new-job-service" required maxlength="80" placeholder="e.g. repairs, rtu_changeout, pm_route" />
-      </label>
       <label class="ac-field"><span>Priority</span>
         <select class="ac-input" name="priority" id="new-job-priority">
           ${JOB_PRIORITIES.filter((p) => !(work === "install" && p === "emergency")).map((p) => html`<option value=${p} defaultSelected=${p === "routine"}>${PRIORITY_WORD[p]}</option>`)}
@@ -141,7 +142,7 @@ const form = (ctx: ScreenContext, sites: readonly SiteWire[]): VNode => {
           density: ctx.density, label: s.busy ? "Opening…" : "Open job", type: "submit", id: "new-job-submit",
           ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : s.busy ? { disabledReason: "Opening…" } : {}),
         })}
-        <button type="button" class="s3-act" id="new-job-cancel" onClick=${() => { submittingFor(ctx.store).value = { busy: false, refusal: null, call: null }; choice.value = { work: "service", siteId: "" }; ctx.router.navigate("board", {}); }}>Cancel</button>
+        <button type="button" class="s3-act" id="new-job-cancel" onClick=${() => { submittingFor(ctx.store).value = { busy: false, refusal: null, call: null }; choice.value = { code: "", siteId: "" }; ctx.router.navigate("board", {}); }}>Cancel</button>
       </span>
       ${s.refusal ? refusalView(ctx, s.refusal, routesFor(ctx, s)) : null}
     </form>`, "Job", "A call with no portal request behind it", undefined, "new-job");

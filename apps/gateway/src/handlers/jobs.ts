@@ -7,7 +7,7 @@ import type {
   FieldJobWire, MyJobsOutput, AddressWire, TransitionJobInput, TransitionJobOutput,
   AddJobNoteInput, AddJobNoteOutput, SetReturnTripInput, SetReturnTripOutput, CustomerSegment, JobWorkClass,
 } from "../../../../packages/contracts/src/operations.ts";
-import { OFFICE_JOB_TRANSITIONS, JOB_WORK_CLASSES } from "../../../../packages/contracts/src/operations.ts";
+import { OFFICE_JOB_TRANSITIONS, SERVICE_CATALOG, serviceOf } from "../../../../packages/contracts/src/operations.ts";
 
 /**
  * ITEM 4 — THE JOB ITSELF. A job is created in Office & Dispatch (00 §2.2)
@@ -86,10 +86,14 @@ export const localDate = (at: Date, timeZone: string): string => {
 export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: () => string, now: Date): Promise<CreateJobOutput> => {
   const siteId = requireUuid(input.siteId, "siteId");
   const serviceCode = requireText(input.serviceCode, "serviceCode");
+  // 0025: the code is the catalogue's, and its work class is the job's.
+  const service = serviceOf(serviceCode);
+  if (!service) {
+    throw new InputRefused(`"${serviceCode}" is not a service we open jobs for — use one of ${SERVICE_CATALOG.map((s) => s.code).join(", ")}`, "unknown_service_code");
+  }
+  const workClass: JobWorkClass = service.workClass;
   const priority = input.priority ?? "routine";
   if (!PRIORITIES.includes(priority)) throw new BadInput(`priority must be one of ${PRIORITIES.join(", ")}`);
-  const workClass = input.workClass ?? "service";
-  if (!JOB_WORK_CLASSES.includes(workClass)) throw new BadInput(`workClass must be one of ${JOB_WORK_CLASSES.join(", ")}`);
   const windowStart = requireIso(input.serviceWindowStart, "serviceWindowStart");
   const windowEnd = requireIso(input.serviceWindowEnd, "serviceWindowEnd");
   if (windowEnd.getTime() <= windowStart.getTime()) throw new InputRefused("serviceWindowEnd must be after serviceWindowStart — an empty window is not a job", "bad_window");
@@ -99,10 +103,10 @@ export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: (
   // never without the person who sold it. Said here by name; 0024's checks
   // and trigger say it for every other path.
   if (workClass === "install" && priority === "emergency") {
-    throw new InputRefused("an install is never an emergency — an emergency is a technician's call; open it as service work", "install_not_emergency");
+    throw new InputRefused(`${service.label} is install work, and an install is never an emergency — an emergency is a technician's call; open it as a repair or a diagnostic`, "install_not_emergency");
   }
   if (workClass === "install" && !projectId) {
-    throw new InputRefused("an install job sits under the project of the person who sold it — name the project", "install_needs_project");
+    throw new InputRefused(`${service.label} is install work, and an install job sits under the project of the person who sold it — name the project`, "install_needs_project");
   }
   if (input.equipmentIds !== undefined && !Array.isArray(input.equipmentIds)) throw new BadInput("equipmentIds must be a list of uuids");
   const equipmentIds = [...new Set((input.equipmentIds ?? []).map((e, i) => requireUuid(e, `equipmentIds[${i}]`)))];

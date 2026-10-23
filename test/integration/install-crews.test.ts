@@ -51,10 +51,12 @@ const refused = (pattern: RegExp, code = "AC422") => (e: unknown) => {
   assert.match(err.message ?? "", pattern);
   return true;
 };
-const job = (work: string, project: string | null, priority = "routine") => admin(
+/** 0025: a job's work is its code's — one catalogue code per work class. */
+const CODE_FOR: Record<string, string> = { service: "HVAC-REPAIR", install: "EQUIPMENT-CHANGEOUT", commissioning: "STARTUP-COMMISSIONING" };
+const job = (work: string, project: string | null, priority = "routine", code = CODE_FOR[work]) => admin(
   `INSERT INTO jobs (org_id, region_id, site_id, project_id, service_code, priority, work_class, service_window)
-   VALUES ($1,$2,$3,$4,'CONDENSER-INSTALL',$5,$6, tstzrange(now() + interval '1 day', now() + interval '2 days', '[)')) RETURNING id`,
-  [ORG, REGION_SOUTH, SITE, project, priority, work]);
+   VALUES ($1,$2,$3,$4,$7,$5,$6, tstzrange(now() + interval '1 day', now() + interval '2 days', '[)')) RETURNING id`,
+  [ORG, REGION_SOUTH, SITE, project, priority, work, code]);
 const tech = (crew: string | null, role: string, name: string) => admin(
   `INSERT INTO technicians (org_id, region_id, crew_id, name, role) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
   [INTERNAL_ORG_ID, REGION_SOUTH, crew, name, role]);
@@ -171,6 +173,21 @@ test("an assignment of the wrong kind of crew is refused ahead of the clearance 
   await assert.rejects(assign(installJob!.id, INSTALL), (e: unknown) => !/goes to an install crew|go to a technician/.test((e as Error).message));
 });
 
+test("0025: a job's code is the catalogue's and its work is the code's; a specialty is equipment, never work", { skip }, async () => {
+  // A code the catalogue does not hold is refused on every path.
+  await assert.rejects(job("service", null, "routine", "repairs"), refused(/jobs_service_code_fkey/, "23503"));
+  // An install code opened as service work — or a repair opened as install — is refused in words.
+  await assert.rejects(job("service", null, "routine", "EQUIPMENT-CHANGEOUT"), refused(/Equipment changeout is install work/));
+  await assert.rejects(job("install", SOLD, "routine", "HVAC-REPAIR"), refused(/Repair is service work/));
+  const [plain] = await job("service", null) as { id: string }[];
+  await assert.rejects(admin(`UPDATE jobs SET service_code = 'DUCTWORK' WHERE id = $1`, [plain!.id]), refused(/Ductwork is install work/));
+  // The runtime roles read the catalogue and cannot write it.
+  await assert.rejects(admin(`SET LOCAL ROLE ac_gateway; INSERT INTO service_codes VALUES ('X','X','service')`), /permission denied/);
+  // Install and ductwork are no longer specialties.
+  await assert.rejects(admin(`INSERT INTO technicians (org_id, region_id, name, specialties) VALUES ($1,$2,'Spec','["install"]')`, [INTERNAL_ORG_ID, REGION_SOUTH]),
+    refused(/technicians_specialties_check/, "23514"));
+});
+
 test("over the wire: the office records what was sold, opens install work under it, and dispatch is offered install crews only", { skip }, async () => {
   const office = await shellAs("S2", "owner");
   const window = { serviceWindowStart: new Date(Date.now() + 86_400_000).toISOString(), serviceWindowEnd: new Date(Date.now() + 2 * 86_400_000).toISOString() };
@@ -189,9 +206,9 @@ test("over the wire: the office records what was sold, opens install work under 
   assert.equal(row.foremanName, "The Seller");
 
   // An install without a project is refused by name; under the project it opens.
-  await assert.rejects(office.gateway.createJob({ siteId: SITE, serviceCode: "CONDENSER-INSTALL", workClass: "install", ...window }),
+  await assert.rejects(office.gateway.createJob({ siteId: SITE, serviceCode: "EQUIPMENT-CHANGEOUT", ...window }),
     (e: unknown) => refusal(office, e).code === "install_needs_project");
-  const job = await office.gateway.createJob({ siteId: SITE, serviceCode: "CONDENSER-INSTALL", workClass: "install", projectId: project.id, ...window });
+  const job = await office.gateway.createJob({ siteId: SITE, serviceCode: "EQUIPMENT-CHANGEOUT", projectId: project.id, ...window });
   const listedJob = (await office.gateway.listJobs({})).jobs.find((j) => j.id === job.id)!;
   assert.equal(listedJob.workClass, "install");
   assert.equal((await office.gateway.listProjects({ orgId: ORG })).projects.find((p) => p.id === project.id)!.installJobs, 1);

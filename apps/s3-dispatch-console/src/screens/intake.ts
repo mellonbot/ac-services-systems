@@ -1,5 +1,5 @@
 import { html, signal, DataGrid, StatusPill, PrimaryAction, pageHead, statStrip, panel, shortRef, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
-import { TERMS, type ServiceRequestWire, type ServiceRequestPriority, type JobPriority, type Refusal } from "../../../../packages/contracts/src/index.ts";
+import { TERMS, SERVICE_CATALOG, JOB_WORK_CLASS_LABEL, type ServiceRequestWire, type ServiceRequestPriority, type JobPriority, type Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, linkTo, refusalView, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL } from "./jobs.ts";
@@ -107,7 +107,13 @@ const openPanel = (ctx: ScreenContext, requests: readonly ServiceRequestWire[], 
   return panel(html`<form class="ac-form" id="intake-open-form" onSubmit=${(e: Event) => { e.preventDefault(); if (!ctx.degraded && !o.busy) void openJob(ctx, r, e.currentTarget as HTMLFormElement, opening); }}>
       <p class="s3-customer-text">${r.description}</p>
       <label class="ac-field"><span>Service</span>
-        <input class="ac-input" name="serviceCode" id="intake-service" required maxlength="80" placeholder="e.g. repairs, rtu_changeout, pm_route" />
+        <select class="ac-input" name="serviceCode" id="intake-service" required>
+          <option value="">Choose a service</option>
+          ${(["service", "commissioning"] as const).map((w) => html`<optgroup label=${JOB_WORK_CLASS_LABEL[w]}>
+            ${SERVICE_CATALOG.filter((x) => x.workClass === w).map((x) => html`<option value=${x.code}>${x.label}</option>`)}
+          </optgroup>`)}
+        </select>
+        <small>A request is answered by a technician. Install work is sold first (Service Manager, Projects) and opened from New job under its project.</small>
       </label>
       <label class="ac-field"><span>Priority</span>
         <select class="ac-input" name="priority" id="intake-priority">

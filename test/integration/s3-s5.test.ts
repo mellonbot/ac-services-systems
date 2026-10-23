@@ -255,7 +255,9 @@ test("release before the field moves: the crew comes off, the job returns for re
 test("waiting on the customer, before dispatch: quote requested, quote submitted, approved back to created — each move logged, and a move the office does not have refused by name", { skip }, async () => {
   const west = await westDispatcher();
   // Its own job: the one above is back on a crew for the field half below.
-  const quoteJob = (await s2.gateway.createJob({ siteId: site, serviceCode: "CONDENSER-INSTALL", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;
+  // 0024/0025: a quote is a technician's visit before anything is sold — a
+  // diagnostic. The install it leads to is opened under the project once sold.
+  const quoteJob = (await s2.gateway.createJob({ siteId: site, serviceCode: "DIAGNOSTIC", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;
   const move = (to: string) => s3.gateway.transitionJob({ jobId: quoteJob, orgId, regionId: REGION_SOUTH, to: to as never });
   await assert.rejects(move("awaiting_customer"), (e: unknown) => code(s3, e) === "illegal_transition", "a hold for the customer is mid-job; this job has no crew yet");
   await assert.rejects(

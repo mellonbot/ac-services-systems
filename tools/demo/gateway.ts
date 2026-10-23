@@ -179,9 +179,9 @@ const tech = (name: string, firmId: string | null, crewId: string, phone: string
   ({ id: uid("t"), firmId, crewId, name, phone, homeAddress: { line1, city, state: "TX", postal }, role, specialties, homeRegionId: REGION_SOUTH, active: true });
 const technicians: Tech[] = [
   tech("Marcus Bell", null, C.south1, "(214) 555-0110", "1208 Peavy Rd", "Dallas", "75228", ["commercial_rtu", "controls_bas"]),
-  tech("Ana Reyes", null, C.southInstall1, "(214) 555-0111", "3412 Oates Dr", "Mesquite", "75150", ["residential_hvac", "install"], "lead_installer"),
+  tech("Ana Reyes", null, C.southInstall1, "(214) 555-0111", "3412 Oates Dr", "Mesquite", "75150", ["residential_hvac"], "lead_installer"),
   tech("Jordan Pike", null, C.south2, "(972) 555-0112", "77 Brookhaven Ct", "Garland", "75043", ["refrigeration", "chillers_boilers"]),
-  tech("Luis Ortega", FIRM_A, C.lsA, "(817) 555-0120", "905 Hemphill St", "Fort Worth", "76104", ["commercial_rtu", "ductwork"]),
+  tech("Luis Ortega", FIRM_A, C.lsA, "(817) 555-0120", "905 Hemphill St", "Fort Worth", "76104", ["commercial_rtu", "refrigeration"]),
   tech("Kim Tran", FIRM_A, C.lsB, "(817) 555-0121", "2210 Bowen Rd", "Arlington", "76013", ["light_commercial", "residential_hvac"]),
   tech("Dee Alvarez", FIRM_B, C.gc1, "(469) 555-0130", "618 Sunnyvale St", "Irving", "75061", ["refrigeration"]),
 ];
@@ -209,12 +209,12 @@ const credentials: Credential[] = [
 ];
 
 const rateCards: Mutable<W.RateCardWire>[] = [
-  { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-RTU", rateMinor: "18500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: "2026-08-01" },
-  { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-RTU", rateMinor: "19500", currency: "USD", effectiveFrom: "2026-08-01", effectiveTo: null },
-  { id: uid("r"), firmId: FIRM_A, serviceCode: "REPAIR-HVAC", rateMinor: "12500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: null },
-  { id: uid("r"), firmId: FIRM_A, serviceCode: "EMERG-CALL", rateMinor: "29500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: null },
-  { id: uid("r"), firmId: FIRM_B, serviceCode: "PM-RTU", rateMinor: "17200", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null },
-  { id: uid("r"), firmId: FIRM_B, serviceCode: "REPAIR-HVAC", rateMinor: "11800", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null },
+  { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-VISIT", rateMinor: "18500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: "2026-08-01" },
+  { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-VISIT", rateMinor: "19500", currency: "USD", effectiveFrom: "2026-08-01", effectiveTo: null },
+  { id: uid("r"), firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "12500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: null },
+  { id: uid("r"), firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "29500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: null },
+  { id: uid("r"), firmId: FIRM_B, serviceCode: "PM-VISIT", rateMinor: "17200", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null },
+  { id: uid("r"), firmId: FIRM_B, serviceCode: "HVAC-REPAIR", rateMinor: "11800", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null },
 ];
 
 const job = (id: string, siteId: string, serviceCode: string, priority: W.JobPriority, state: W.JobStateWire, startMs: number, hours: number, sla: { dueMs: number; stage: number; satisfiedMs?: number } | null, equipmentIds: string[] = []): Job => {
@@ -245,20 +245,20 @@ const J = {
 } as const;
 const jobs: Job[] = [
   // Unassigned and on the clock.
-  job(J.austinLeak, S.austinRoof, "EMERG-CALL", "emergency", "created", 20 * MIN, 4, { dueMs: 38 * MIN, stage: 1 }, [E.austinRtu2]),
-  job(J.elPasoNoCool, S.elPasoFloor, "REPAIR-HVAC", "urgent", "created", 3 * HOUR, 4, { dueMs: 5 * HOUR, stage: 0 }, [E.elPasoSplit]),
-  job(J.houstonRepair, S.cedarHoustonMain, "REPAIR-HVAC", "routine", "created", DAY, 4, { dueMs: 20 * HOUR, stage: 0 }, [E.houstonRtu]),
-  job(J.boulderPm, N.boulderRoof, "PM-RTU", "pm", "created", 2 * DAY, 6, { dueMs: 2 * DAY, stage: 0 }, [E.boulderRtu]),
+  job(J.austinLeak, S.austinRoof, "HVAC-REPAIR", "emergency", "created", 20 * MIN, 4, { dueMs: 38 * MIN, stage: 1 }, [E.austinRtu2]),
+  job(J.elPasoNoCool, S.elPasoFloor, "HVAC-REPAIR", "urgent", "created", 3 * HOUR, 4, { dueMs: 5 * HOUR, stage: 0 }, [E.elPasoSplit]),
+  job(J.houstonRepair, S.cedarHoustonMain, "HVAC-REPAIR", "routine", "created", DAY, 4, { dueMs: 20 * HOUR, stage: 0 }, [E.houstonRtu]),
+  job(J.boulderPm, N.boulderRoof, "PM-VISIT", "pm", "created", 2 * DAY, 6, { dueMs: 2 * DAY, stage: 0 }, [E.boulderRtu]),
   // Assigned and moving.
-  job(J.austinPm, S.austinRoof, "PM-RTU", "pm", "assigned", 2 * HOUR, 5, { dueMs: -1 * HOUR, stage: 0, satisfiedMs: -3 * HOUR }, [E.austinRtu1, E.austinRtu3]),
-  job(J.austinPoolPm, S.austinPool, "PM-RTU", "pm", "en_route", 30 * MIN, 3, { dueMs: -2 * HOUR, stage: 0, satisfiedMs: -5 * HOUR }, [E.austinDehu]),
-  job(J.elPasoPm, S.elPasoFloor, "PM-RTU", "pm", "assigned", DAY + 2 * HOUR, 5, { dueMs: -DAY, stage: 0, satisfiedMs: -DAY - HOUR }),
-  job(J.sjCompressor, N.sanJoseRoof, "REPAIR-HVAC", "urgent", "in_progress", -HOUR, 4, { dueMs: -2 * HOUR, stage: 0, satisfiedMs: -3 * HOUR }, [E.sjRtu]),
+  job(J.austinPm, S.austinRoof, "PM-VISIT", "pm", "assigned", 2 * HOUR, 5, { dueMs: -1 * HOUR, stage: 0, satisfiedMs: -3 * HOUR }, [E.austinRtu1, E.austinRtu3]),
+  job(J.austinPoolPm, S.austinPool, "PM-VISIT", "pm", "en_route", 30 * MIN, 3, { dueMs: -2 * HOUR, stage: 0, satisfiedMs: -5 * HOUR }, [E.austinDehu]),
+  job(J.elPasoPm, S.elPasoFloor, "PM-VISIT", "pm", "assigned", DAY + 2 * HOUR, 5, { dueMs: -DAY, stage: 0, satisfiedMs: -DAY - HOUR }),
+  job(J.sjCompressor, N.sanJoseRoof, "HVAC-REPAIR", "urgent", "in_progress", -HOUR, 4, { dueMs: -2 * HOUR, stage: 0, satisfiedMs: -3 * HOUR }, [E.sjRtu]),
   // Done — the work behind the statements.
-  job(J.austinAugPm, S.austinRoof, "PM-RTU", "pm", "invoiced", -30 * DAY, 5, null, [E.austinRtu1, E.austinRtu2, E.austinRtu3]),
-  job(J.houstonAug, S.cedarHoustonMain, "REPAIR-HVAC", "routine", "complete", -26 * DAY, 3, null, [E.houstonRtu]),
-  job(J.elPasoAug, S.elPasoFloor, "REPAIR-HVAC", "urgent", "invoiced", -22 * DAY, 4, null, [E.elPasoSplit]),
-  job(J.austinJulyPm, S.austinPool, "PM-RTU", "pm", "invoiced", -60 * DAY, 3, null, [E.austinDehu]),
+  job(J.austinAugPm, S.austinRoof, "PM-VISIT", "pm", "invoiced", -30 * DAY, 5, null, [E.austinRtu1, E.austinRtu2, E.austinRtu3]),
+  job(J.houstonAug, S.cedarHoustonMain, "HVAC-REPAIR", "routine", "complete", -26 * DAY, 3, null, [E.houstonRtu]),
+  job(J.elPasoAug, S.elPasoFloor, "HVAC-REPAIR", "urgent", "invoiced", -22 * DAY, 4, null, [E.elPasoSplit]),
+  job(J.austinJulyPm, S.austinPool, "PM-VISIT", "pm", "invoiced", -60 * DAY, 3, null, [E.austinDehu]),
 ];
 
 // The Austin leak's conversation (0016): one published update, one draft the
@@ -301,11 +301,11 @@ const settlements: Settlement[] = [
 ];
 const rateOf = (firmId: string, code: string) => rateCards.find((r) => r.firmId === firmId && r.serviceCode === code && r.effectiveTo === null)!;
 const settlementLines: W.SettlementLineWire[] = [
-  { id: uid("l"), settlementId: ST.lsJul, jobId: J.austinJulyPm, serviceCode: "PM-RTU", siteName: "Austin — Pool Hall Dehumidifier", rateCardId: rateCards[0]!.id, rateMinor: "18500", quantityMilli: "1000", amountMinor: "18500" },
-  { id: uid("l"), settlementId: ST.lsAug, jobId: J.austinAugPm, serviceCode: "PM-RTU", siteName: "Austin — Rooftop RTUs", rateCardId: rateOf(FIRM_A, "PM-RTU").id, rateMinor: "19500", quantityMilli: "3000", amountMinor: "58500" },
-  { id: uid("l"), settlementId: ST.lsAug, jobId: J.elPasoAug, serviceCode: "REPAIR-HVAC", siteName: "El Paso — Main Floor", rateCardId: rateOf(FIRM_A, "REPAIR-HVAC").id, rateMinor: "12500", quantityMilli: "3960", amountMinor: "49500" },
-  { id: uid("l"), settlementId: ST.lsSep, jobId: J.austinPm, serviceCode: "PM-RTU", siteName: "Austin — Rooftop RTUs", rateCardId: rateOf(FIRM_A, "PM-RTU").id, rateMinor: "19500", quantityMilli: "3000", amountMinor: "58500" },
-  { id: uid("l"), settlementId: ST.gcAug, jobId: J.houstonAug, serviceCode: "REPAIR-HVAC", siteName: "Houston — Clinic Main", rateCardId: rateOf(FIRM_B, "REPAIR-HVAC").id, rateMinor: "11800", quantityMilli: "3000", amountMinor: "35400" },
+  { id: uid("l"), settlementId: ST.lsJul, jobId: J.austinJulyPm, serviceCode: "PM-VISIT", siteName: "Austin — Pool Hall Dehumidifier", rateCardId: rateCards[0]!.id, rateMinor: "18500", quantityMilli: "1000", amountMinor: "18500" },
+  { id: uid("l"), settlementId: ST.lsAug, jobId: J.austinAugPm, serviceCode: "PM-VISIT", siteName: "Austin — Rooftop RTUs", rateCardId: rateOf(FIRM_A, "PM-RTU").id, rateMinor: "19500", quantityMilli: "3000", amountMinor: "58500" },
+  { id: uid("l"), settlementId: ST.lsAug, jobId: J.elPasoAug, serviceCode: "HVAC-REPAIR", siteName: "El Paso — Main Floor", rateCardId: rateOf(FIRM_A, "REPAIR-HVAC").id, rateMinor: "12500", quantityMilli: "3960", amountMinor: "49500" },
+  { id: uid("l"), settlementId: ST.lsSep, jobId: J.austinPm, serviceCode: "PM-VISIT", siteName: "Austin — Rooftop RTUs", rateCardId: rateOf(FIRM_A, "PM-RTU").id, rateMinor: "19500", quantityMilli: "3000", amountMinor: "58500" },
+  { id: uid("l"), settlementId: ST.gcAug, jobId: J.houstonAug, serviceCode: "HVAC-REPAIR", siteName: "Houston — Clinic Main", rateCardId: rateOf(FIRM_B, "REPAIR-HVAC").id, rateMinor: "11800", quantityMilli: "3000", amountMinor: "35400" },
 ];
 
 const equipment: (Omit<W.EquipmentWire, "lastServicedAt" | "lastServicedJobId" | "lastServicedServiceCode" | "jobCount">)[] = [

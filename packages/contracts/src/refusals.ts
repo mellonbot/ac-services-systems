@@ -130,6 +130,10 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   unknown_foreman: "structural",
   not_a_foreman: "structural",
   ac_project_seller_is_a_foreman: "structural",
+  // 0025 — the service catalogue: a code we do not open jobs for, or a job whose work is not its code's.
+  unknown_service_code: "structural",
+  ac_job_work_is_its_services: "structural",
+  jobs_service_code_fkey: "structural",
 });
 
 export const admissionAxis = (code: string | undefined): AdmissionAxis =>

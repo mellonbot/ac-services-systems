@@ -21,6 +21,7 @@ export const ALL_TABLES: readonly Table[] = Object.freeze([
   platform.currencies,
   platform.part_manufacturers,
   platform.schema_migrations,
+  platform.service_codes,
   platform.term_registry,
   // tenancy roots
   roots.organizations,

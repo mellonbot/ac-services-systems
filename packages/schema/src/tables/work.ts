@@ -29,7 +29,7 @@ export const jobs = operationalTable("jobs", {
     { name: "site_id", type: "uuid", references: "accounts(id)", comment: "Work happens at a site. The location, region and parent are its ancestors." },
     { name: "contract_id", type: "uuid", nullable: true, references: "contracts(id)" },
     { name: "project_id", type: "uuid", nullable: true, references: "projects(id)" },
-    { name: "service_code", type: "text" },
+    { name: "service_code", type: "text", references: "service_codes(code)", comment: "0025: a code in the service catalogue; its work class is the job's." },
     { name: "priority", type: "text", check: "priority IN ('emergency','urgent','routine','pm')", default: "'routine'" },
     { name: "service_window", type: "tstzrange", comment: "The gate evaluates the WHOLE window, not the instant of assignment." },
     { name: "state", type: "text", check: `state IN (${JOB_STATES.map((s) => `'${s}'`).join(",")})`, default: "'created'" },

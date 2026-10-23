@@ -1,5 +1,5 @@
 import { html, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
-import { MAP_TILE_REACH, MAP_ZOOM_MAX, MAP_ZOOM_MIN, WORK_DONE_STATES, tileOf, type AccountWire, type JobStateWire, type JobWire, type LocateSiteOutput } from "../../../../packages/contracts/src/index.ts";
+import { serviceLabel, MAP_TILE_REACH, MAP_ZOOM_MAX, MAP_ZOOM_MIN, WORK_DONE_STATES, tileOf, type AccountWire, type JobStateWire, type JobWire, type LocateSiteOutput } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, type ScreenContext } from "./common.ts";
 
@@ -177,7 +177,7 @@ const serviceHistory = (ctx: ScreenContext, site: AccountWire): VNode => {
     caption: "Service history",
     columns: [
       { key: "serviceWindowEnd", header: "Visit", cell: (r: JobWire) => html`<span class="s2-num">${day(r.serviceWindowEnd)}</span>` },
-      { key: "serviceCode", header: "Service", cell: (r: JobWire) => r.serviceCode.replace(/[_-]/g, " ") },
+      { key: "serviceCode", header: "Service", cell: (r: JobWire) => serviceLabel(r.serviceCode) },
       { key: "state", header: "Status", cell: (r: JobWire) => html`${STATE_WORD[r.state] ?? r.state}${r.returnTrip ? html` · <span class="s2-muted">return trip owed</span>` : null}` },
       { key: "latestNote", header: "Latest note", cell: (r: JobWire) => (r.latestNote ? html`<span class="s2-history__note">${r.latestNote.body}</span>` : html`<span class="s2-muted">—</span>`) },
     ],

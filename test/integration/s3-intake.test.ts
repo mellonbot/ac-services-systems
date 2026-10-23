@@ -131,7 +131,7 @@ test("fixture: Amped under an agreement with a 4-hour response, a site in South 
 
 test("the South dispatcher answers the request: a job at the request's site, the SLA derived from the agreement, the request linked — and the customer sees it move", { skip }, async () => {
   const before = Date.now();
-  const out = await disp.gateway.openServiceRequestJob({ requestId: request, serviceCode: "repairs", ...window_(1) });
+  const out = await disp.gateway.openServiceRequestJob({ requestId: request, serviceCode: "HVAC-REPAIR", ...window_(1) });
   job = out.id;
   assert.equal(out.requestId, request);
   assert.equal(out.responseTerm, "4_hour", "derived from the site's agreed term, not chosen");
@@ -149,15 +149,15 @@ test("the South dispatcher answers the request: a job at the request's site, the
 
 test("answered once: a second press is told which job answered it, and nothing new is opened", { skip }, async () => {
   const jobsBefore = (await admin(`SELECT count(*)::int AS n FROM jobs WHERE site_id = $1`, [austinRoof]))[0]!.n;
-  try { await disp.gateway.openServiceRequestJob({ requestId: request, serviceCode: "repairs", ...window_(2) }); assert.fail("admitted twice"); }
+  try { await disp.gateway.openServiceRequestJob({ requestId: request, serviceCode: "HVAC-REPAIR", ...window_(2) }); assert.fail("admitted twice"); }
   catch (e) { const r = disp.refusalOf(e)!; assert.equal("code" in r ? r.code : null, "already_opened"); assert.match(r.message, new RegExp(job)); }
   assert.equal((await admin(`SELECT count(*)::int AS n FROM jobs WHERE site_id = $1`, [austinRoof]))[0]!.n, jobsBefore);
 });
 
 test("another region's dispatcher cannot see a request to answer it; a customer cannot call the operation at all", { skip }, async () => {
   const second = (await fm.gateway.createServiceRequest({ siteId: austinRoof, description: "Noise from RTU-2." })).id;
-  await refusedWith(dispWest, dispWest.gateway.openServiceRequestJob({ requestId: second, serviceCode: "repairs", ...window_(1) }), "unknown_request");
-  await refusedWith(fm, fm.gateway.openServiceRequestJob({ requestId: second, serviceCode: "repairs", ...window_(1) }), "scope");
+  await refusedWith(dispWest, dispWest.gateway.openServiceRequestJob({ requestId: second, serviceCode: "HVAC-REPAIR", ...window_(1) }), "unknown_request");
+  await refusedWith(fm, fm.gateway.openServiceRequestJob({ requestId: second, serviceCode: "HVAC-REPAIR", ...window_(1) }), "scope");
   assert.equal((await admin(`SELECT job_id FROM service_requests WHERE id = $1`, [second]))[0]!.job_id, null);
 });
 
@@ -170,7 +170,7 @@ test("with the handler bypassed: a customer cannot update its request, an answer
 
   await assert.rejects(admin(`UPDATE service_requests SET job_id = NULL WHERE id = $1`, [request]), (e: { code?: string; message: string }) => e.code === "AC422" && /the link is final/.test(e.message));
   const renoJob = (await admin(`INSERT INTO jobs (org_id, region_id, site_id, service_code, priority, state, service_window)
-    VALUES ($1, $2, $3, 'repairs', 'routine', 'created', tstzrange(now(), now() + interval '4 hours')) RETURNING id`, [amped, REGION_WEST, renoRoof]))[0]!.id as string;
+    VALUES ($1, $2, $3, 'HVAC-REPAIR', 'routine', 'created', tstzrange(now(), now() + interval '4 hours')) RETURNING id`, [amped, REGION_WEST, renoRoof]))[0]!.id as string;
   await assert.rejects(admin(`UPDATE service_requests SET job_id = $1 WHERE id = $2`, [renoJob, third]), (e: { code?: string; message: string }) => e.code === "AC422" && /is not at the site/.test(e.message));
 });
 
@@ -181,12 +181,12 @@ test("New job, no request behind it: the South dispatcher picks from South's sit
   const west = (await dispWest.gateway.listSites()).sites.filter((s) => s.orgId === amped);
   assert.deepEqual(west.map((s) => s.id), [renoRoof]);
 
-  const out = await disp.gateway.createJob({ siteId: austinRoof, serviceCode: "phone_call", priority: "routine", ...window_(2) });
+  const out = await disp.gateway.createJob({ siteId: austinRoof, serviceCode: "HVAC-REPAIR", priority: "routine", ...window_(2) });
   assert.equal(out.responseTerm, "4_hour", "derived from the site's agreed term, not chosen");
   const row = (await admin(`SELECT site_id, region_id, state FROM jobs WHERE id = $1`, [out.id]))[0]!;
   assert.deepEqual(row, { site_id: austinRoof, region_id: REGION_SOUTH, state: "created" });
 
-  await refusedWith(disp, disp.gateway.createJob({ siteId: renoRoof, serviceCode: "phone_call", ...window_(2) }), "scope");
+  await refusedWith(disp, disp.gateway.createJob({ siteId: renoRoof, serviceCode: "HVAC-REPAIR", ...window_(2) }), "scope");
 });
 
 test("a call at a site whose agreement has no response time: the refusal names what is missing, Hold for Contracts records it in Intake, and it opens once Contracts sets the term", { skip }, async () => {
@@ -195,7 +195,7 @@ test("a call at a site whose agreement has no response time: the refusal names w
   const lab = (await s2.gateway.createAccount({ orgId: h.orgId, tier: "location", parentId: h.regionNodeId, name: "Lab" })).id;
   const labRoof = (await s2.gateway.createAccount({ orgId: h.orgId, tier: "site", parentId: lab, name: "Lab — Roof" })).id;
 
-  try { await disp.gateway.createJob({ siteId: labRoof, serviceCode: "repairs", ...window_(1) }); assert.fail("a job opened with no response time"); }
+  try { await disp.gateway.createJob({ siteId: labRoof, serviceCode: "HVAC-REPAIR", ...window_(1) }); assert.fail("a job opened with no response time"); }
   catch (e) {
     const r = disp.refusalOf(e)!;
     assert.equal(r.kind, "admission");
@@ -219,6 +219,6 @@ test("a call at a site whose agreement has no response time: the refusal names w
   await s2.gateway.transitionContract({ contractId: msa, to: "active" });
 
   assert.equal((await disp.gateway.listServiceRequests({ siteId: labRoof })).requests.find((r) => r.id === held)?.waitingOnTerm, null, "derived on every read — it clears itself");
-  const out = await disp.gateway.openServiceRequestJob({ requestId: held, serviceCode: "repairs", ...window_(1) });
+  const out = await disp.gateway.openServiceRequestJob({ requestId: held, serviceCode: "HVAC-REPAIR", ...window_(1) });
   assert.equal(out.requestId, held);
 });

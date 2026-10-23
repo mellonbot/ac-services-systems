@@ -53,7 +53,12 @@ const rel = (p: string) => relative(ROOT, p);
 // ---------------------------------------------------------------------------
 {
   const ts = read(join(ROOT, "packages/schema/src/tenancy.ts"));
-  const sql = read(join(ROOT, "packages/schema/migrations/0003_assert_region_id.sql"));
+  // The LATEST definition: an applied migration is frozen (migrate.ts refuses
+  // an edited one), so a new exception redefines the function in a new file.
+  const MIG = join(ROOT, "packages/schema/migrations");
+  const assertFile = readdirSync(MIG).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort()
+    .filter((f) => /FUNCTION ac_assert_region_id_everywhere\(/.test(read(join(MIG, f)))).at(-1)!;
+  const sql = read(join(MIG, assertFile));
   const names = (src: string, key: RegExp) => {
     const m = key.exec(src);
     return m ? [...m[1]!.matchAll(/['"]([a-z_]+)['"]/g)].map((x) => x[1]!).sort() : [];
@@ -65,7 +70,7 @@ const rel = (p: string) => relative(ROOT, p);
   for (const [label, tsRe, sqlRe] of pairs) {
     const a = names(ts, tsRe), b = names(sql, sqlRe);
     if (a.join(",") !== b.join(","))
-      fail("allowlists agree", `${label}: tenancy.ts has [${a}] but 0003_assert_region_id.sql has [${b}]`);
+      fail("allowlists agree", `${label}: tenancy.ts has [${a}] but ${assertFile} has [${b}]`);
   }
 }
 

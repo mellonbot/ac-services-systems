@@ -163,11 +163,11 @@ test("the office records a site's record — units, contacts, the jobs that name
   assert.equal(code(s2, await s2.gateway.setContact({ accountId: austinRoof, name: "Nobody" }).catch((e) => e)), "unreachable_contact");
 
   // Jobs that name units. The PM visit touched both RTUs; the repair touched RTU-2 alone and is still open.
-  pmAustin = (await s2.gateway.createJob({ siteId: austinRoof, serviceCode: "PM-Q2", priority: "pm", serviceWindowStart: day(-100, 9), serviceWindowEnd: day(-100, 13), equipmentIds: [rtu1, rtu2] })).id;
+  pmAustin = (await s2.gateway.createJob({ siteId: austinRoof, serviceCode: "PM-VISIT", priority: "pm", serviceWindowStart: day(-100, 9), serviceWindowEnd: day(-100, 13), equipmentIds: [rtu1, rtu2] })).id;
   repairAustin = (await s2.gateway.createJob({ siteId: austinRoof, serviceCode: "HVAC-REPAIR", priority: "urgent", serviceWindowStart: day(1, 9), serviceWindowEnd: day(1, 13), equipmentIds: [rtu2] })).id;
-  jobReno = (await s2.gateway.createJob({ siteId: renoRoof, serviceCode: "PM-Q2", priority: "pm", serviceWindowStart: day(-30, 9), serviceWindowEnd: day(-30, 13), equipmentIds: [renoUnit] })).id;
+  jobReno = (await s2.gateway.createJob({ siteId: renoRoof, serviceCode: "PM-VISIT", priority: "pm", serviceWindowStart: day(-30, 9), serviceWindowEnd: day(-30, 13), equipmentIds: [renoUnit] })).id;
   // A unit at another site is refused BEFORE anything is written — and the trigger would have said the same.
-  assert.equal(code(s2, await s2.gateway.createJob({ siteId: austinRoof, serviceCode: "X", serviceWindowStart: day(1, 9), serviceWindowEnd: day(1, 13), equipmentIds: [renoUnit] }).catch((e) => e)), "equipment_not_at_site");
+  assert.equal(code(s2, await s2.gateway.createJob({ siteId: austinRoof, serviceCode: "HVAC-REPAIR", serviceWindowStart: day(1, 9), serviceWindowEnd: day(1, 13), equipmentIds: [renoUnit] }).catch((e) => e)), "equipment_not_at_site");
   assert.equal(Number((await admin(`SELECT count(*)::int AS n FROM jobs WHERE site_id = $1`, [austinRoof]))[0]!.n), 2);
   await assert.rejects(admin(`INSERT INTO job_equipment (org_id, region_id, job_id, equipment_id) SELECT org_id, region_id, id, $2 FROM jobs WHERE id = $1`, [pmAustin, renoUnit]), /not at the job's site/);
 

@@ -16,7 +16,7 @@ import { OWN_CREWS_LABEL } from "./network.ts";
  */
 export const SPECIALTY_WORD: Readonly<Record<TechnicianSpecialty, string>> = Object.freeze({
   residential_hvac: "Residential HVAC", light_commercial: "Light commercial", commercial_rtu: "Commercial RTU", refrigeration: "Refrigeration",
-  chillers_boilers: "Chillers & boilers", controls_bas: "Controls / BAS", install: "Install", ductwork: "Ductwork",
+  chillers_boilers: "Chillers & boilers", controls_bas: "Controls / BAS"
 });
 
 export const addressLine = (a: AddressWire | null): string =>

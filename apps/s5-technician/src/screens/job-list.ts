@@ -1,4 +1,5 @@
 import { html, statStrip, pageHead, panel, StatusPill, type Status } from "../../../../packages/ui/src/index.ts";
+import { serviceLabel } from "../../../../packages/contracts/src/index.ts";
 import type { JobPriority } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, linkTo, type Screen } from "./common.ts";
@@ -34,7 +35,7 @@ export const jobList: Screen = (ctx) => {
       : html`<ul class="s5-job-list">
           ${out.jobs.map((j) => html`<li class="s5-job-row" key=${j.id}>
             ${StatusPill({ density: ctx.density, status: priorityStatus(j.priority), label: j.priority })}
-            <span class="s5-job-row__service">${j.serviceCode}</span>
+            <span class="s5-job-row__service">${serviceLabel(j.serviceCode)}</span>
             <span class="s5-job-row__state">${j.state.replace(/_/g, " ")}</span>
             ${linkTo(ctx, "job", { jobId: j.id }, "Open", "ac-link s5-link--open")}
           </li>`)}

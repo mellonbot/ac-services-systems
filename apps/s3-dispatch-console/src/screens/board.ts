@@ -1,5 +1,5 @@
 import { html, signal, shortRef, StatusPill, pageHead, statStrip, panel, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
-import { WORK_DONE_STATES, JOB_WORK_CLASS_LABEL, type JobWire } from "../../../../packages/contracts/src/index.ts";
+import { serviceLabel, WORK_DONE_STATES, JOB_WORK_CLASS_LABEL, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, submitAction, linkTo, type Screen } from "./common.ts";
 
@@ -90,7 +90,7 @@ const truckModel = (id: string): VNode => html`<svg class="s3-truck-model" viewB
 const jobRow = (ctx: Parameters<Screen>[0], job: JobWire, now: number): VNode => html`<li class="s3-map-job" data-state=${job.state}>
   <div class="s3-map-job__main">
     <span class="s3-map-job__site">${job.siteName ?? "Site name unavailable"}</span>${homeMark(job.customerSegment)}
-    <span class="s3-map-job__service">${JOB_WORK_CLASS_LABEL[job.workClass]} · ${job.serviceCode.replace(/_/g, " ")} · ${job.priority}</span>
+    <span class="s3-map-job__service">${JOB_WORK_CLASS_LABEL[job.workClass]} · ${serviceLabel(job.serviceCode)} · ${job.priority}</span>
   </div>
   <div class="s3-map-job__assignment">
     ${job.currentCrewId && job.currentCrewLabel
@@ -112,7 +112,7 @@ const releaseJob = async (ctx: Parameters<Screen>[0], job: JobWire): Promise<voi
   if (!job.currentAssignmentId) return;
   try {
     await ctx.shell.gateway.releaseAssignment({ assignmentId: job.currentAssignmentId, orgId: job.orgId, regionId: job.regionId, reason: "released from the board" });
-    ctx.store.notice.value = [`${job.serviceCode} at its site was released for re-dispatch.`];
+    ctx.store.notice.value = [`${serviceLabel(job.serviceCode)} at its site was released for re-dispatch.`];
     ctx.store.invalidate("jobs.list");
   } catch {
     ctx.store.notice.value = ["The release did not go through. The board still shows the crew as assigned — try again."];
@@ -129,7 +129,7 @@ const startOfDay = (ms: number, offset: number): number => {
   return d.getTime();
 };
 const initialsOf = (label: string): string => label.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
-const describe = (job: JobWire): string => `${job.siteName ?? "Site name unavailable"} — ${job.serviceCode.replace(/_/g, " ")}`;
+const describe = (job: JobWire): string => `${job.siteName ?? "Site name unavailable"} — ${serviceLabel(job.serviceCode)}`;
 
 const WAITING: readonly string[] = ["awaiting_customer", "awaiting_parts", "quote_requested", "quote_submitted", "awaiting_po", "awaiting_pictures"];
 const DONE: readonly string[] = [...WORK_DONE_STATES];

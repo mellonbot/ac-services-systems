@@ -1122,6 +1122,29 @@ export const JOB_WORK_CLASSES = ["service", "install", "commissioning"] as const
 export type JobWorkClass = (typeof JOB_WORK_CLASSES)[number];
 /** The one place the work decides the crew. Read by jobs.create, dispatch.candidates and dispatch.assign; 0024's trigger says the same in SQL. */
 export const crewKindFor = (work: JobWorkClass): CrewKind => (work === "install" ? "install" : "service");
+/**
+ * 0025 — THE SERVICE CATALOGUE. What a job may be opened for, and which kind
+ * of work each one is: the work class of a job is its code's, never typed
+ * beside it. Mirrored into `service_codes` (tools/ci/emit-schema.ts), which
+ * jobs.service_code references. Adding a code is a reviewed diff here.
+ */
+export const SERVICE_CATALOG = [
+  { code: "DIAGNOSTIC", label: "Diagnostic", workClass: "service" },
+  { code: "HVAC-REPAIR", label: "Repair", workClass: "service" },
+  { code: "PM-VISIT", label: "Preventive maintenance", workClass: "service" },
+  { code: "WARRANTY-CALLBACK", label: "Warranty callback", workClass: "service" },
+  { code: "EQUIPMENT-CHANGEOUT", label: "Equipment changeout", workClass: "install" },
+  { code: "NEW-INSTALL", label: "New installation", workClass: "install" },
+  { code: "DUCTWORK", label: "Ductwork", workClass: "install" },
+  { code: "STARTUP-COMMISSIONING", label: "Startup & commissioning", workClass: "commissioning" },
+] as const satisfies readonly { readonly code: string; readonly label: string; readonly workClass: JobWorkClass }[];
+export type ServiceCode = (typeof SERVICE_CATALOG)[number]["code"];
+export type ServiceEntry = (typeof SERVICE_CATALOG)[number];
+/** The catalogue entry for a code, or undefined for one that is not in it (a job opened before 0025). */
+export const serviceOf = (code: string): ServiceEntry | undefined => SERVICE_CATALOG.find((s) => s.code === code);
+/** A code's words, falling back to the code itself for a job opened before the catalogue. */
+export const serviceLabel = (code: string): string => serviceOf(code)?.label ?? code.replace(/_/g, " ");
+
 /** One set of words for the three, read by every surface that shows them. */
 export const CREW_KIND_LABEL: Readonly<Record<CrewKind, string>> = { service: "Technician's unit", install: "Install crew" };
 export const JOB_WORK_CLASS_LABEL: Readonly<Record<JobWorkClass, string>> = { service: "Service", install: "Install", commissioning: "Commissioning" };
@@ -1171,8 +1194,12 @@ export type UpdateCrewOutput = { readonly id: string; readonly eventId: string }
 export const TECHNICIAN_ADDRESS_ROLES = ["account_owner", "principal"] as const;
 export const mayReadTechnicianAddress = (roles: readonly string[]): boolean => roles.some((r) => (TECHNICIAN_ADDRESS_ROLES as readonly string[]).includes(r));
 
-/** 0020. Mirrors TECHNICIAN_SPECIALTIES in packages/schema (the column's CHECK); a test holds them equal. */
-export const TECHNICIAN_SPECIALTIES = ["residential_hvac", "light_commercial", "commercial_rtu", "refrigeration", "chillers_boilers", "controls_bas", "install", "ductwork"] as const;
+/**
+ * 0020. Mirrors TECHNICIAN_SPECIALTIES in packages/schema (the column's CHECK); a test holds them equal.
+ * The kinds of equipment a person is qualified on. Since 0025, never the kind of work they do — that is
+ * their role (TECHNICIAN_ROLES): "install" and "ductwork" left this list for it.
+ */
+export const TECHNICIAN_SPECIALTIES = ["residential_hvac", "light_commercial", "commercial_rtu", "refrigeration", "chillers_boilers", "controls_bas"] as const;
 export type TechnicianSpecialty = (typeof TECHNICIAN_SPECIALTIES)[number];
 /** 0024. `technician` goes on a service unit (alone); the others on an install crew. Mirrors TECHNICIAN_ROLES in packages/schema. */
 export const TECHNICIAN_ROLES = ["technician", "lead_installer", "installer", "helper"] as const;
@@ -1413,6 +1440,7 @@ export type CreateProjectOutput = { readonly id: string; readonly orgId: string;
 
 export type CreateJobInput = {
   readonly siteId: string;
+  /** 0025: a code in SERVICE_CATALOG. Its work class is the job's — install is never an emergency and names its project. */
   readonly serviceCode: string;
   readonly priority?: JobPriority;
   /** ISO datetime, inclusive. */
@@ -1420,9 +1448,8 @@ export type CreateJobInput = {
   /** ISO datetime, exclusive. */
   readonly serviceWindowEnd: string;
   readonly contractId?: string;
+  /** 0024: required when the service code is install work — the project it was sold under, whose foreman sold it. */
   readonly projectId?: string;
-  /** 0024. Omitted: `service`. `install` requires `projectId`, a project that names its foreman (who sold it), and is never an emergency. */
-  readonly workClass?: JobWorkClass;
   /** Item 9: the units at the site this job is about. Each must be equipment at `siteId`; the row lands in job_equipment in the same unit of work. */
   readonly equipmentIds?: readonly string[];
 };

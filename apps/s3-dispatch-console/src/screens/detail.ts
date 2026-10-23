@@ -1,5 +1,5 @@
 import { html, signal, StatusPill, pageHead, panel, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
-import { WORK_DONE_STATES, type JobDetailOutput, type JobMediaWire, type JobNoteWire, type JobUpdateWire, type JobVisitWire, type JobWire } from "../../../../packages/contracts/src/index.ts";
+import { serviceLabel, WORK_DONE_STATES, type JobDetailOutput, type JobMediaWire, type JobNoteWire, type JobUpdateWire, type JobVisitWire, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, linkTo, submitAction, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL, initials, placeLine, daysInState } from "./jobs.ts";
@@ -123,7 +123,7 @@ const timeline = (d: JobDetailOutput, ui: Signal<UiState>, now: number): VNode =
           <span class="s3-visit__sched">Scheduled — unassigned tech</span>
           <span class="s3-visit__when s3-num">Window ${time(d.job.serviceWindowStart)} – ${time(d.job.serviceWindowEnd)}</span>
         </div>
-        <p class="s3-visit__note">${d.job.serviceCode.replace(/_/g, " ")} · ${d.job.priority}</p>
+        <p class="s3-visit__note">${serviceLabel(d.job.serviceCode)} · ${d.job.priority}</p>
       </div>
     </li>` : null}
   </ol>`;
