@@ -214,6 +214,18 @@ test("a row you can activate is a grid row, and says whether it is selected", ()
   assert.match(live, /aria-selected="false"/);
 });
 
+test("a group head is a banded row on the head's ground, and only the rows the caller names are marked", () => {
+  type Row = { id: string; head: boolean };
+  const rows = [{ id: "a", head: true }, { id: "b", head: false }];
+  const out = render(html`<${DataGrid} density="console" columns=${[{ key: "id", header: "Id" }]} rows=${rows} rowKey=${(r: Row) => r.id} groupHead=${(r: Row) => r.head} />`);
+  assert.equal(out.match(/data-group="head"/g)?.length, 1);
+  assert.doesNotMatch(render(html`<${DataGrid} density="console" columns=${[{ key: "id", header: "Id" }]} rows=${rows} rowKey=${(r: Row) => r.id} />`), /data-group/);
+  const band = UI_CSS.match(/\.ac-grid__row\[data-group="head"\]\{background:([^}]+)\}/)?.[1];
+  const head = UI_CSS.match(/\.ac-grid__th\{[^}]*background:([^;]+);/)?.[1];
+  assert.ok(band && band === head, "the band is the head's ground, so no ink needs measuring again");
+  assert.ok(UI_CSS.indexOf('.ac-grid__row[data-group="head"]{') < UI_CSS.indexOf('.ac-grid__row[data-selected="true"]{'), "selection outranks the band");
+});
+
 test("the compliance gate's detail is rendered, not hidden in a title attribute", () => {
   const out = render(html`<${ComplianceBadge} density="console" cleared=${false} reason="expired_in_window" detail="EPA 608 expires 2026-10-02." />`);
   assert.doesNotMatch(out, /title=/, "a title is unreachable by keyboard and by touch");

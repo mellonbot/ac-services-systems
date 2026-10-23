@@ -99,6 +99,46 @@ export const orderTree = (nodes: readonly AccountWire[]): readonly AccountWire[]
 
 const childTier = (t: AccountWire["tier"]): "location" | "site" | null => (t === "region" ? "location" : t === "location" ? "site" : null);
 
+/**
+ * How each row joins the tree, drawn the way a file tree is: one guide per
+ * level below the region node — a rail where an ancestor still has siblings to
+ * come, blank where it has none — then the row's own tee, or an elbow if it is
+ * the last child. Read off `path`, so it holds for any depth.
+ */
+type Guide = "rail" | "blank" | "tee" | "elbow";
+export const treeGuides = (ordered: readonly AccountWire[]): ReadonlyMap<string, readonly Guide[]> => {
+  const last = new Map<string | null, string>();
+  for (const n of ordered) last.set(n.parentId, n.id);
+  const isLast = (n: AccountWire) => last.get(n.parentId) === n.id;
+  const byId = new Map(ordered.map((n) => [n.id, n]));
+  return new Map(ordered.map((n) => [n.id, n.path.slice(1).map((id, i, below): Guide => {
+    const at = byId.get(id);
+    const lastHere = at ? isLast(at) : true;
+    return i === below.length - 1 ? (lastHere ? "elbow" : "tee") : (lastHere ? "blank" : "rail");
+  })]));
+};
+
+/** What sits under each node, by tier — "2 locations · 5 sites" — so a collapsed glance at the region rows still says how big each is. */
+const descendantCounts = (nodes: readonly AccountWire[]): ReadonlyMap<string, { location: number; site: number }> => {
+  const out = new Map<string, { location: number; site: number }>();
+  for (const n of nodes) {
+    if (n.tier === "region") continue;
+    for (const id of n.path.slice(0, -1)) {
+      const c = out.get(id) ?? { location: 0, site: 0 };
+      c[n.tier] += 1;
+      out.set(id, c);
+    }
+  }
+  return out;
+};
+const countLine = (n: AccountWire, c: { location: number; site: number } | undefined): VNode | null => {
+  if (n.tier === "site") return null;
+  const parts = ([["location", c?.location ?? 0], ["site", c?.site ?? 0]] as const)
+    .filter(([t]) => n.tier === "region" || t === "site")
+    .map(([t, k]) => html`<span class="s2-num">${k}</span> ${t}${k === 1 ? "" : "s"}`);
+  return html`<span class="s2-node__count">${parts.map((p, i) => html`${i ? " · " : ""}${p}`)}</span>`;
+};
+
 export const accountsTree: Screen = (ctx, params) => {
   const { store, shell } = ctx;
   const orgs = store.read(keyOf("organizations.list", { kind: "customer" }), () => shell.gateway.listOrganizations({ kind: "customer" }));
@@ -132,13 +172,16 @@ export const accountsTree: Screen = (ctx, params) => {
   const treeGrid = (nodes: readonly AccountWire[], regionList: readonly RegionWire[], org: OrganizationWire | undefined): VNode => {
     const regionName = (id: string) => regionList.find((r) => r.id === id)?.name ?? id;
     const ordered = orderTree(nodes);
+    const guides = treeGuides(ordered);
+    const counts = descendantCounts(ordered);
     return panel(DataGrid({
       density: ctx.density,
       stack: true,
       columns: [
-        { key: "name", header: "Node", cell: (n: AccountWire) => html`<span class="s2-node" data-depth=${n.path.length - 1} data-tier=${n.tier}>${n.name}</span>` },
-        { key: "tier", header: "Tier" },
-        { key: "regionId", header: "Our region", cell: (n: AccountWire) => regionName(n.regionId) },
+        { key: "name", header: "Node", cell: (n: AccountWire) => html`<span class="s2-node" data-depth=${n.path.length - 1} data-tier=${n.tier}>${(guides.get(n.id) ?? []).map((g) => html`<span class="s2-node__guide" data-guide=${g} aria-hidden="true"></span>`)}<span class="s2-node__label"><span class="s2-node__name">${n.name}</span>${countLine(n, counts.get(n.id))}</span></span>` },
+        { key: "tier", header: "Tier", cell: (n: AccountWire) => html`<span class="s2-tier">${n.tier}</span>` },
+        // Below the region node the region is inherited, so it reads quiet; the region node is where it is set.
+        { key: "regionId", header: "Our region", cell: (n: AccountWire) => n.tier === "region" ? regionName(n.regionId) : html`<span class="s2-muted">${regionName(n.regionId)}</span>` },
         { key: "customerGroup", header: "Customer group", cell: (n: AccountWire) => n.customerGroup ?? "—" },
         { key: "active", header: "Status", cell: (n: AccountWire) => html`<span class="s2-state" data-tone=${n.active ? "live" : "ended"}>${n.active ? "Active" : "Inactive"}</span>` },
         { key: "actions", header: "", align: "end", cell: (n: AccountWire) => html`<span class="s2-row-actions">
@@ -148,6 +191,7 @@ export const accountsTree: Screen = (ctx, params) => {
       ],
       rows: ordered,
       rowKey: (n: AccountWire) => n.id,
+      groupHead: (n: AccountWire) => n.tier === "region",
       emptyText: "No nodes. A customer parent always has at least one region node — if this is empty, the tree failed to load.",
     }), org?.name ?? "Customer", undefined, linkTo(ctx, "accounts.new", { orgId: orgId!, tier: "region" }, "+ Region node", "ac-action s2-link--action"), "account-tree");
   };

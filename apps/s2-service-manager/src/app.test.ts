@@ -6,7 +6,7 @@ import { S2_CSS } from "./styles.ts";
 import { UI_CSS } from "../../../packages/ui/src/styles.ts";
 import { SCREENS } from "./screens.ts";
 import { confirmPanel } from "./screens/common.ts";
-import { orderTree, showSegment, showCustomerCard } from "./screens/accounts-tree.ts";
+import { orderTree, treeGuides, showSegment, showCustomerCard } from "./screens/accounts-tree.ts";
 import { serviceHistoryOf, panMap, recentreMap, forgetLocating } from "./screens/home-card.ts";
 import { parentCandidates } from "./screens/accounts-move.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
@@ -266,6 +266,8 @@ test("the tree screen: customers on the left, the selected tree ordered region â
   assert.ok(order.every((i) => i >= 0), `all nodes rendered: ${order}`);
   assert.deepEqual([...order].sort((a, b) => a - b), order, "depth-first: the site sits under its location, the location under its region node");
   assert.match(out, /data-depth="2" data-tier="site"/);
+  const tree = out.split('id="account-tree"')[1]!;
+  assert.equal(tree.match(/data-group="head"/g)?.length, 2, "each region node heads its band, and nothing below it does");
   assert.match(out, /Texas/, "the customer's grouping is shown as the attribute it is");
   assert.ok(out.includes(">South<") || /South<\/td>/.test(out), "the row says which of OUR regions dispatches it");
   assert.match(out, /href="\/accounts\/[^"]+\/new\/location\/[^"]+"/, "+ location from a region node");
@@ -319,6 +321,20 @@ test("the move screen offers only parents of the right tier, never the current o
   assert.deepEqual(parentCandidates(NODES, roof).map((n) => n.id), [], "the only location is its current parent");
   assert.deepEqual(parentCandidates(NODES, NODES[0]!), [], "a region node is not moved");
   assert.deepEqual(orderTree(NODES).map((n) => n.name), ["Amped / South", "Amped Austin", "Rooftop units", "Amped / West"]);
+});
+
+test("the tree draws a file-tree guide per level: a tee before a sibling, an elbow on the last child, a rail only where an ancestor has siblings to come", () => {
+  const SITE2 = U(90), LOC2 = U(91);
+  const more: AccountWire[] = [...NODES,
+    { ...NODES[2]!, id: SITE2, name: "Warehouse", path: [N_SOUTH, AUSTIN, SITE2] },
+    { ...NODES[3]!, id: LOC2, name: "Amped Dallas", path: [N_SOUTH, LOC2] }];
+  const g = treeGuides(orderTree(more));
+  assert.deepEqual(g.get(N_SOUTH), [], "a region node is a root");
+  assert.deepEqual(g.get(AUSTIN), ["tee"], "Dallas follows Austin under South");
+  assert.deepEqual(g.get(ROOF), ["rail", "tee"], "the rail carries South's line past Austin's sites to Dallas");
+  assert.deepEqual(g.get(SITE2), ["rail", "elbow"]);
+  assert.deepEqual(g.get(LOC2), ["elbow"]);
+  assert.deepEqual(treeGuides(orderTree(NODES)).get(ROOF), ["blank", "elbow"], "no rail below a last child");
 });
 
 test("degraded: every submit renders disabled with the surface's declared reason, and the screens keep their last value", async () => {

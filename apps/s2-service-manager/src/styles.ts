@@ -13,11 +13,18 @@ export const S2_CSS = `
 /* Accounts: the customer list is a four-column table, not a list of names — give the side column room for it rather than letting it run out of its panel. */
 .s2-two-col--wide-side{grid-template-columns:minmax(min-content,2fr) minmax(0,3fr)}
 @media (max-width:1100px){.s2-two-col--wide-side{grid-template-columns:minmax(0,1fr)}.s2-two-col--wide-side .s2-col--orgs{position:static}}
-.s2-node{display:inline-block;padding-inline-start:calc(var(--depth,0) * var(--space-6))}
-.s2-node[data-depth="1"]{--depth:1}
-.s2-node[data-depth="2"]{--depth:2}
-.s2-node[data-tier="region"]{font-weight:600}
-.s2-node[data-tier="site"]{color:var(--color-text-muted)}
+/* The account tree: guides drawn per row like a file tree, stretched through the cell's padding so they join row to row. The node is the row's tallest cell (a row of chips is a line plus a pill), so the guides span the whole row rather than floating centred in it. A guide is a rule that carries shape, so it is drawn in the muted ink (8.41:1 on the surface), not the decorative border-hard (2.83:1). */
+.s2-node{display:flex;align-items:stretch;min-height:calc(var(--row-height) + var(--space-2));margin-block:calc(-1 * var(--space-2))}
+.s2-node__guide{position:relative;flex:none;width:var(--space-6)}
+.s2-node__guide::before,.s2-node__guide::after{content:"";position:absolute;inset-inline-start:var(--space-2)}
+.s2-node__guide[data-guide="rail"]::before,.s2-node__guide[data-guide="tee"]::before{top:0;bottom:-1px;border-inline-start:1px solid var(--color-text-muted)}
+.s2-node__guide[data-guide="elbow"]::before{top:0;height:50%;border-inline-start:1px solid var(--color-text-muted)}
+.s2-node__guide[data-guide="tee"]::after,.s2-node__guide[data-guide="elbow"]::after{top:50%;inset-inline-end:var(--space-1);border-top:1px solid var(--color-text-muted)}
+.s2-node__label{align-self:center;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:var(--space-3);padding-block:var(--space-1)}
+.s2-node__count{color:var(--color-text-muted);font-size:var(--text-sm);white-space:nowrap}
+.s2-node[data-tier="region"] .s2-node__name{font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
+.s2-node[data-tier="location"] .s2-node__name{font-weight:600}
+.s2-tier{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
 .s2-row-actions{display:inline-flex;gap:var(--space-3);white-space:nowrap}
 .s2-doc-summary{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3)}
 .s2-link--action{display:inline-flex;align-items:center;text-decoration:none}
@@ -73,6 +80,11 @@ export const S2_CSS = `
   .s2-address-row{grid-template-columns:1fr}
   .s2-notice__dismiss{min-height:var(--space-12);display:inline-flex;align-items:center}
   .s2-two-col{grid-template-columns:minmax(0,1fr)}
+  .s2-node{display:block;margin-block:0;min-height:0}
+  .s2-node__guide{display:none}
+  .s2-node__label{padding-block:0}
+  .s2-node[data-depth="1"]{padding-inline-start:var(--space-3)}
+  .s2-node[data-depth="2"]{padding-inline-start:var(--space-6)}
   .s2-col--orgs{position:static}
   .s2-form__actions{align-items:stretch;flex-direction:column}
   .s2-context{grid-template-columns:minmax(0,1fr)}
