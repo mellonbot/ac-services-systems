@@ -820,6 +820,8 @@ export type CreateResidentialInput = {
 };
 export type CreateResidentialOutput = {
   readonly orgId: string; readonly regionNodeId: string; readonly locationId: string; readonly siteId: string;
+  /** The standard home agreement the home is on from today, already active. */
+  readonly contractId: string;
   readonly eventId: string;
   /** D14's caveats from opening the household's location, if any. */
   readonly caveats: readonly string[];

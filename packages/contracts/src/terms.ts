@@ -132,6 +132,25 @@ export const REQUIRED_AT_ACTIVATION: readonly string[] = Object.freeze(
     .map((t) => t.key),
 );
 
+/**
+ * THE STANDARD HOME AGREEMENT — what a residential customer is on from the
+ * day the office sets them up (2026-10-23). A home has no negotiated MSA, but
+ * a job needs every no-default term resolvable, so a home with no agreement
+ * was refused on its first call. Payment is due on completion; same-day
+ * response with no credit on a miss; no maintenance visits included (a
+ * homeowner may buy more — the term only ratchets up); $45/hr labour; the
+ * diagnostic data rights reserved, as on every agreement we sign (OQ5).
+ * Exactly the activation-required terms — terms.test.ts holds it there.
+ */
+export const RESIDENTIAL_STANDARD_TERMS: Readonly<Record<string, unknown>> = Object.freeze({
+  payment_terms_days: 0,
+  sla_response: "same_day",
+  sla_credit_pct: 0,
+  pm_visits_per_year: 0,
+  labor_rate_minor: "4500",
+  diagnostic_data_rights_reserved: true,
+});
+
 export const TERM_KEYS = Object.freeze(Object.keys(TERMS)) as readonly string[];
 
 export class UnknownTermError extends Error {

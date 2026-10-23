@@ -2,6 +2,11 @@ import type { UnitOfWork } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import { createOrganization, createAccount } from "./hierarchy.ts";
 import { setContact } from "./site-record.ts";
+import { createContract, transitionContract } from "./contracts.ts";
+import { authorTermOverride } from "./terms.ts";
+import { localDate } from "./jobs.ts";
+import type { HierarchyContext } from "../context.ts";
+import { REQUIRED_AT_ACTIVATION, RESIDENTIAL_STANDARD_TERMS } from "../../../../packages/contracts/src/terms.ts";
 import type {
   CreateResidentialInput, CreateResidentialOutput, ListLeadsInput, ListLeadsOutput, ConvertLeadInput, ConvertLeadOutput,
   LeadContact, AddressWire,
@@ -18,6 +23,11 @@ import type {
  * building. What changes is that the office makes all four in one step, by
  * calling the same handlers the four-step path calls — the same checks, the
  * same events, in one unit of work.
+ *
+ * And the agreement: a home is put on the standard home agreement
+ * (RESIDENTIAL_STANDARD_TERMS) in the same unit of work — created, its terms
+ * stated, activated through the same handlers S2 uses, so the activation gate
+ * still decides. Without it a home's first call was refused `no_value`.
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const requireUuid = (v: unknown, field: string): string => {
@@ -33,7 +43,31 @@ const requireAddress = (a: AddressWire | undefined): AddressWire & { line1: stri
   return { ...a, line1: requireText(a.line1, "address.line1") };
 };
 
-export const createResidential = async (uow: UnitOfWork, input: CreateResidentialInput, newId: () => string): Promise<CreateResidentialOutput> => {
+/**
+ * Puts a home's organization on the standard home agreement from today, where
+ * the home is. Exported for the one-off backfill of homes made before this
+ * existed (tools/ci/backfill-home-agreements.ts) — the same path, not a copy.
+ */
+export const startStandardHomeAgreement = async (
+  uow: UnitOfWork, ctx: HierarchyContext, home: { readonly orgId: string; readonly regionId: string }, now: Date, newId: () => string,
+): Promise<string> => {
+  const tz = (await uow.tx.query<{ timezone: string | null }>(`SELECT timezone FROM regions WHERE id = $1`, [home.regionId]))[0]?.timezone ?? "UTC";
+  const today = localDate(now, tz);
+  const { id: contractId } = await createContract(uow, {
+    orgId: home.orgId, regionId: home.regionId, scopeTier: "parent", scopeId: home.orgId, kind: "msa", billingPath: "one_time",
+    signedAt: today, effectiveFrom: today, diagnosticDataRightsReserved: RESIDENTIAL_STANDARD_TERMS.diagnostic_data_rights_reserved === true,
+  }, newId);
+  for (const termKey of REQUIRED_AT_ACTIVATION) {
+    await authorTermOverride(uow, ctx, {
+      contractId, scopeTier: "parent", scopeId: home.orgId, termKey, termValue: RESIDENTIAL_STANDARD_TERMS[termKey],
+      effectiveFrom: today, effectiveTo: null, orgId: home.orgId, regionId: home.regionId,
+    });
+  }
+  await transitionContract(uow, { contractId, to: "active" });
+  return contractId;
+};
+
+export const createResidential = async (uow: UnitOfWork, ctx: HierarchyContext, input: CreateResidentialInput, newId: () => string, now: Date): Promise<CreateResidentialOutput> => {
   const name = requireText(input.name, "name");
   const address = requireAddress(input.address);
   const org = await createOrganization(uow, {
@@ -52,7 +86,8 @@ export const createResidential = async (uow: UnitOfWork, input: CreateResidentia
       ...(c.phone ? { phone: c.phone } : {}), ...(c.email ? { email: c.email } : {}),
     }, newId);
   }
-  return { orgId: org.orgId, regionNodeId: org.regionNodeId, locationId: location.id, siteId: site.id, eventId: org.eventId, caveats: location.caveats };
+  const contractId = await startStandardHomeAgreement(uow, ctx, { orgId: org.orgId, regionId: input.regionId }, now, newId);
+  return { orgId: org.orgId, regionNodeId: org.regionNodeId, locationId: location.id, siteId: site.id, contractId, eventId: org.eventId, caveats: location.caveats };
 };
 
 type LeadRow = { id: string; source: string; contact: LeadContact; requested_metro: string | null; created_at: string; converted_account_id: string | null };
@@ -74,7 +109,7 @@ export const listLeads = async (uow: UnitOfWork, input: ListLeadsInput): Promise
  * first, so two people converting the same lead make one customer, and the
  * second is told which home it already became.
  */
-export const convertLead = async (uow: UnitOfWork, input: ConvertLeadInput, newId: () => string): Promise<ConvertLeadOutput> => {
+export const convertLead = async (uow: UnitOfWork, ctx: HierarchyContext, input: ConvertLeadInput, newId: () => string, now: Date): Promise<ConvertLeadOutput> => {
   const leadId = requireUuid(input.leadId, "leadId");
   const lead = (await uow.tx.query<{ contact: LeadContact; converted_account_id: string | null; org_id: string; region_id: string }>(
     `SELECT contact, converted_account_id, org_id, region_id FROM leads WHERE id = $1 FOR UPDATE`, [leadId],
@@ -82,10 +117,10 @@ export const convertLead = async (uow: UnitOfWork, input: ConvertLeadInput, newI
   if (!lead) throw new InputRefused(`no lead ${leadId} visible in this scope`, "unknown_lead");
   if (lead.converted_account_id) throw new InputRefused(`this lead was already converted — it is home ${lead.converted_account_id}`, "already_converted");
 
-  const home = await createResidential(uow, {
+  const home = await createResidential(uow, ctx, {
     name: input.name?.trim() || lead.contact.name, regionId: input.regionId, address: input.address,
     contact: { name: lead.contact.name, ...(lead.contact.phone ? { phone: lead.contact.phone } : {}), ...(lead.contact.email ? { email: lead.contact.email } : {}) },
-  }, newId);
+  }, newId, now);
   await uow.apply(
     {
       entity: "lead", entityId: leadId, action: "lead.convert", topic: "lead.converted",

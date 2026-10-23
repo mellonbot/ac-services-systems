@@ -24,6 +24,7 @@ import { hashPassword } from "../../apps/gateway/src/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
+import { RESIDENTIAL_STANDARD_TERMS } from "../../packages/contracts/src/terms.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — residential customers were not verified over the wire";
@@ -77,7 +78,7 @@ const refusal = async (s: ConnectedShell, p: Promise<unknown>) => {
 const address = { line1: "905 Hidden Creek Pkwy", city: "Burleson", state: "TX", postal: "76028", country: "US" };
 
 let s2: ConnectedShell;
-let home = { orgId: "", regionNodeId: "", locationId: "", siteId: "" };
+let home = { orgId: "", regionNodeId: "", locationId: "", siteId: "", contractId: "" };
 
 test("one step makes a home: a residential org, its region node, the household and the home at the address, the homeowner as primary contact", { skip }, async () => {
   s2 = await shell("S2", "owner.d2a@ac.test");
@@ -95,6 +96,18 @@ test("one step makes a home: a residential org, its region node, the household a
   assert.equal(site.address?.postal, "76028");
   const contacts = (await s2.gateway.listContacts({ accountId: out.siteId })).contacts;
   assert.ok(contacts.some((c) => c.name === "Pat Turner" && c.isPrimary && c.phone === "(817) 555-0142"), "the homeowner, where a crew calling ahead finds them");
+});
+
+test("a home is on the standard home agreement from the day it is made — active, every term stated — so its first call opens a job", { skip }, async () => {
+  const contracts = (await s2.gateway.listContracts({ orgId: home.orgId })).contracts;
+  assert.equal(contracts.length, 1);
+  const msa = contracts[0]!;
+  assert.deepEqual([msa.kind, msa.state, msa.billingPath, msa.scopeId, msa.diagnosticDataRightsReserved], ["msa", "active", "one_time", home.orgId, true]);
+  const terms = await s2.gateway.resolvedTerms({ orgId: home.orgId, nodeId: home.siteId });
+  for (const [k, v] of Object.entries(RESIDENTIAL_STANDARD_TERMS)) assert.deepEqual(terms.resolved[k]?.value, v, k);
+  const job = await s2.gateway.createJob({ siteId: home.siteId, serviceCode: "repairs",
+    serviceWindowStart: new Date(Date.now() + 86_400_000).toISOString(), serviceWindowEnd: new Date(Date.now() + 100_800_000).toISOString() });
+  assert.equal(job.responseTerm, "same_day", "the home's response time, not a refusal");
 });
 
 test("a commercial customer is made the old way and is commercial; only a customer has a segment, and it never changes", { skip }, async () => {

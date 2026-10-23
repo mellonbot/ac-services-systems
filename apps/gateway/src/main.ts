@@ -561,9 +561,11 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "serviceRequests.list": (req, input) => withRead(req, "serviceRequests.list", (uow, p) => listServiceRequests(uow, input, new Date(), p.namespace === "internal")),
   "serviceRequests.attachPhoto": (req, input) => withUow(req, "serviceRequests.attachPhoto", (uow, p) => attachPhoto(uow, p.subjectId, STORE, input, randomUUID)),
   "media.get": (req, input) => withRead(req, "media.get", (uow) => getMedia(uow, STORE, input)),
-  "customers.createResidential": (req, input) => withUow(req, "customers.createResidential", (uow) => createResidential(uow, input, randomUUID)),
+  "customers.createResidential": (req, input) => withUow(req, "customers.createResidential", async (uow, p) =>
+    createResidential(uow, await buildContext(p, hierarchyReader(uow.tx)), input, randomUUID, new Date())),
   "leads.list": (req, input) => withRead(req, "leads.list", (uow) => listLeads(uow, input)),
-  "leads.convert": (req, input) => withUow(req, "leads.convert", (uow) => convertLead(uow, input, randomUUID)),
+  "leads.convert": (req, input) => withUow(req, "leads.convert", async (uow, p) =>
+    convertLead(uow, await buildContext(p, hierarchyReader(uow.tx)), input, randomUUID, new Date())),
   "serviceRequests.openJob": (req, input) => withUow(req, "serviceRequests.openJob", (uow) => openJobFromRequest(uow, input, randomUUID, new Date())),
   "serviceRequests.hold": (req, input) => withUow(req, "serviceRequests.hold", (uow, p) => createServiceRequest(uow, p.subjectId, input, randomUUID)),
 
