@@ -42,14 +42,16 @@ export const S1_CSS = `
    pinned beside its pad on the side away from the turntable, so no plate crosses the truck's swept
    volume (r 9.5 m, 6.3 m tall) at any heading. The front page sits on the page grid, so the logo, the heading and the
    panel share one left edge and the panel runs the page width. Live, each plate takes --x/--y from the scene's projection; until then, and where
-   WebGL is unavailable, the plates sit on a CSS ellipse over the still (public/scene-still.webp).
+   WebGL is unavailable, the plates sit on a CSS ellipse over the still (public/scene-still.webp),
+   fitted to the pads as the live camera projects them (within 2.4% of the stage). Re-capture the
+   still and re-fit the ellipse whenever the pads or the camera move.
    Under 45rem the plates leave the floor and stack under it. ---- */
 .s1-scene{position:relative;container-type:inline-size;margin-top:var(--space-4);border-radius:var(--radius-card);overflow:hidden;box-shadow:var(--elevation-card)}
 .s1-scene__stage{aspect-ratio:16/9;background:url(/scene-still.webp) center/cover no-repeat}
 .s1-scene[data-live] .s1-scene__stage{background:none}
 .s1-scene__stage canvas{display:block;width:100%;height:100%}
 .s1-scene__plates{position:absolute;inset:0;margin:0;padding:0;list-style:none;pointer-events:none}
-.s1-scene__plate{position:absolute;left:calc(50% + sin(var(--slot)) * 36cqi);top:calc(50% - cos(var(--slot)) * 20cqi);width:max-content;--out-x:clamp(-1, 2 * sin(var(--slot)), 1);--out-y:clamp(-1, -2 * cos(var(--slot)), 1);transform:translate(calc(-50% + var(--out-x) * (50% + var(--space-3))),calc(-50% + var(--out-y) * (50% + var(--space-3))));pointer-events:auto}
+.s1-scene__plate{position:absolute;left:calc(49.4% + sin(var(--slot)) * 30.6% + cos(var(--slot)) * 3.2%);top:calc(57.3% + sin(var(--slot)) * 5.4% - cos(var(--slot)) * 23.5%);width:max-content;--out-x:clamp(-1, 2 * sin(var(--slot)), 1);--out-y:clamp(-1, -2 * cos(var(--slot)), 1);transform:translate(calc(-50% + var(--out-x) * (50% + var(--space-3))),calc(-50% + var(--out-y) * (50% + var(--space-3))));pointer-events:auto}
 .s1-scene[data-live] .s1-scene__plate{left:var(--x);top:var(--y)}
 .s1-portal{display:flex;flex-direction:column;justify-content:center;min-height:var(--control-height);padding:var(--space-1) var(--space-3);white-space:nowrap;line-height:1.25;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);color:var(--color-text);text-align:center;text-decoration:none;transition:border-color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease)}
 .s1-portal strong{font-family:var(--font-display);font-size:var(--text-sm);font-weight:700;letter-spacing:var(--track-tight)}
