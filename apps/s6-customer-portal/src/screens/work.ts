@@ -1,5 +1,5 @@
 import { html, pageHead, panel, statStrip, signal, StatusPill, PrimaryAction, PLAN_WORD, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
-import { WORK_DONE_STATES, type JobWire, type JobStateWire, type ServiceRequestWire, type InvoiceWire, type ServiceRequestPriority, type RequestPhotoWire, type ListJobsOutput, type ListServiceRequestsOutput } from "../../../../packages/contracts/src/index.ts";
+import { WORK_DONE_STATES, serviceLabel, type JobWire, type JobStateWire, type ServiceRequestWire, type InvoiceWire, type ServiceRequestPriority, type RequestPhotoWire, type ListJobsOutput, type ListServiceRequestsOutput } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Resource } from "../state.ts";
 import { whenReady, readNodes, linkTo, type Screen, type ScreenContext } from "./common.ts";
 import { requestForm, outcomeView, refOf } from "./request.ts";
@@ -87,7 +87,7 @@ export const ordersOf = (requests: readonly ServiceRequestWire[], jobs: readonly
     };
   });
   const fromJobs = jobs.filter((j) => !asked.has(j.id)).map((j): WorkOrder => ({
-    key: j.id, ref: refOf(j.id), title: j.serviceCode, siteId: j.siteId, siteName: j.siteName ?? "—",
+    key: j.id, ref: refOf(j.id), title: serviceLabel(j.serviceCode), siteId: j.siteId, siteName: j.siteName ?? "—",
     submittedAt: j.openedAt, priority: null, jobState: j.state, job: j, photos: [],
   }));
   const open = (o: WorkOrder) => stepOf(o) >= 0 && stepOf(o) < 3;
