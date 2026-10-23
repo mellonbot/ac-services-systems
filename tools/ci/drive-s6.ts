@@ -336,8 +336,8 @@ async function main(): Promise<void> {
     must(/4500 Burnet Rd/.test(card) && /Austin, TX 78756/.test(card), "the address as recorded");
     must(/3 units — 2 RTU · 1 Exhaust/.test(card.replace(/\s+/g, " ")), `the count line, got ${JSON.stringify(/\d+ units[^\n]*/.exec(card)?.[0])}`);
     must(/4819U10231/.test(card) && /Carrier 48TC-D08/.test(card), "serial, make and model");
-    must(/PM-Q2/.test(card), "last serviced names the completed PM");
-    must((card.match(/PM-Q2/g) ?? []).length >= 2, "both RTUs were serviced by the PM — RTU-2's OPEN repair does not move its date");
+    must(/Preventive maintenance/.test(card), "last serviced names the completed PM");
+    must((card.match(/Preventive maintenance/g) ?? []).length >= 2, "both RTUs were serviced by the PM — RTU-2's OPEN repair does not move its date");
     must(/Not yet serviced by us/.test(card), "the exhaust fan has no history");
     must(/Dana Ortiz/.test(card) && /On site 6a–3p/.test(card), "the on-site manager and their note");
     must(/Front desk/.test(card) && /Location: Austin/i.test(card), "the location's desk, marked as inherited (the role line is set in small caps, so innerText is upper-case)");
@@ -424,8 +424,8 @@ async function main(): Promise<void> {
 
     // ── 14. the executive's Work spans both regions, though the token is bound to South
     await cdp.navigate(`${CUSTOMER}/`);
-    await cdp.waitFor(has("PM-VISIT"), "Reno's job on the executive's board");
-    must(await cdp.eval<boolean>(has("HVAC-REPAIR")), "and Austin's");
+    await cdp.waitFor(has("Preventive maintenance"), "Reno's job on the executive's board");
+    must(await cdp.eval<boolean>(has("Repair")), "and Austin's");
     check(14, "the executive's Work carries both regions' jobs");
 
     // ── 15. the executive's card for Reno: the same bundle over Reno's rows — no coordinates, no picture, no Austin

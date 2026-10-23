@@ -279,7 +279,7 @@ test("WORK ORDERS: the home — the account, the counts, the form beside every r
   assert.match(out, /It is with the office/);
   assert.match(out, /data-state="current" aria-current="step"><span class="s6-step__dot" aria-hidden="true"><\/span><span class="s6-step__label">Requested/);
   // the job no request stands behind is still the customer's work: Scheduled, with its window
-  assert.match(out, /HVAC-REPAIR/);
+  assert.match(out, /Repair/);
   assert.match(out, /Technician booked for/);
   assert.doesNotMatch(out, /en_route|Crew<\/th>|Unassigned|currentCrew/, "no enum, no crew, by construction");
   assert.equal(STATE_WORD.awaiting_parts, "Awaiting parts");

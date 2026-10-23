@@ -223,7 +223,7 @@ const equipmentView = (ctx: ScreenContext, units: readonly EquipmentWire[]): VNo
         {
           key: "lastServicedAt", header: "Last serviced", numeric: true,
           cell: (u) => (u.lastServicedAt
-            ? html`${when(u.lastServicedAt)} <span class="s6-muted">${u.lastServicedServiceCode ?? ""}</span>`
+            ? html`${when(u.lastServicedAt)} <span class="s6-muted">${u.lastServicedServiceCode ? serviceLabel(u.lastServicedServiceCode) : ""}</span>`
             : html`<span class="s6-muted">${u.jobCount ? "Work open, none complete" : "Not yet serviced by us"}</span>`),
         },
       ],
