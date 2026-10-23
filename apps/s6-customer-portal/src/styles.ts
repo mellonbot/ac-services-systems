@@ -15,10 +15,25 @@ export const S6_CSS = `
 .s6-actions{display:flex;gap:var(--space-4);margin:0}
 .s6-tree{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
 .s6-tree .s6-tree{margin-inline-start:var(--space-6);margin-top:var(--space-2)}
-.s6-node__row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--row-height);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
+.s6-node{position:relative}
+.s6-node__row{position:relative;display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--row-height);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
+/* Guides, as a file tree draws them: each child row is joined to its parent by
+   a line down the indent and a tick into the row's middle; a child with
+   siblings still to come carries the line on past its own subtree, the last
+   child stops at its tick. Drawn in the muted ink (8.41:1 on the surface) —
+   a guide carries shape, and border-hard (2.83:1) is decorative. Neither role
+   is tenant-overridable, so a white-label block cannot repaint the structure. */
+.s6-tree .s6-tree>.s6-node>.s6-node__row::before{content:"";position:absolute;inset-inline-start:calc(-1 * var(--space-3) - 1px);top:calc(-1 * var(--space-2) - 1px);height:calc(50% + var(--space-2) + 1px);border-inline-start:1px solid var(--color-text-muted)}
+.s6-tree .s6-tree>.s6-node>.s6-node__row::after{content:"";position:absolute;inset-inline-start:calc(-1 * var(--space-3) - 1px);top:50%;width:var(--space-3);border-top:1px solid var(--color-text-muted)}
+.s6-tree .s6-tree>.s6-node:not(:last-child)::before{content:"";position:absolute;inset-inline-start:calc(-1 * var(--space-3));top:0;bottom:calc(-1 * var(--space-2));border-inline-start:1px solid var(--color-text-muted)}
 .s6-node[data-scope="true"]>.s6-node__row{border-color:var(--color-border-hard)}
+/* A region heads its group: banded on the table head's ground (the lighter of the two the inks are measured on) and set in the display cut. */
+.s6-node[data-tier="region"]>.s6-node__row{background:color-mix(in srgb,var(--color-surface-sunken) 45%,var(--color-surface))}
 .s6-node__tier{font-family:var(--font-label);font-size:var(--text-xs);font-weight:600;letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
 .s6-node__name{font-weight:600}
+.s6-node[data-tier="region"]>.s6-node__row .s6-node__name{font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
+.s6-node[data-tier="site"]>.s6-node__row .s6-node__name{font-weight:400}
+.s6-node__count{font-size:var(--text-sm);color:var(--color-text-muted);white-space:nowrap}
 .s6-node__group{font-size:var(--text-sm);color:var(--color-text-muted);border:1px solid var(--color-border);border-radius:var(--radius-pill);padding:0 var(--space-2)}
 .s6-node__facts{display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm)}
 .s6-node__actions{margin-inline-start:auto;display:inline-flex;gap:var(--space-3);white-space:nowrap}

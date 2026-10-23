@@ -4,6 +4,7 @@ import { renderToString as render } from "../../../packages/ui/src/testing.ts";
 import { createApp, SCREEN_VIEWS } from "./app.ts";
 import { SCREENS } from "./screens.ts";
 import { treeOf } from "./screens/common.ts";
+import { countsUnder } from "./screens/sites.ts";
 import { STATE_WORD, isOpen, ordersOf, pillOf } from "./screens/work.ts";
 import { plannedVisits } from "./screens/home.ts";
 import { valueWord, wonWhere } from "./screens/terms.ts";
@@ -178,6 +179,8 @@ test("SITES, facility manager: the region node is the breadcrumb root, the locat
   const tree = treeOf(FACILITY_NODES);
   assert.deepEqual(tree.children(null).map((n) => n.id), [SOUTH_NODE], "the visible ancestor is the root");
   assert.deepEqual(tree.crumbs(AUSTIN_ROOF), ["Amped / South", "Austin", "Austin — Roof"]);
+  assert.deepEqual(countsUnder(tree, SOUTH_NODE), { location: 1, site: 2 }, "a region counts what is in view under it, not what the gateway withheld");
+  assert.match(out, /class="s6-node__count"><span class="s6-num">1<\/span> location · <span class="s6-num">2<\/span> sites/);
 });
 
 test("SITES, executive: the SAME screen over more rows — every region, every location", async () => {

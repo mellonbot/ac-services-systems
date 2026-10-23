@@ -58,6 +58,23 @@ export const scopeSentence = (ctx: ScreenContext): string => {
   return `${word}: ${at?.name ?? "—"}. You see this ${word.toLowerCase()} and what is under it.`;
 };
 
+/** What sits under a node in view, by tier — "2 locations · 5 sites" — so a region or location says how big it is before it is read through. */
+export const countsUnder = (tree: Tree, id: string): { location: number; site: number } => {
+  const c = { location: 0, site: 0 };
+  const walk = (at: string) => { for (const k of tree.children(at)) { if (k.tier !== "region") c[k.tier] += 1; walk(k.id); } };
+  walk(id);
+  return c;
+};
+
+const countLine = (tree: Tree, n: AccountWire): VNode | null => {
+  if (n.tier === "site") return null;
+  const c = countsUnder(tree, n.id);
+  const parts = ([["location", c.location], ["site", c.site]] as const)
+    .filter(([t]) => n.tier === "region" || t === "site")
+    .map(([t, k]) => html`<span class="s6-num">${k}</span> ${t}${k === 1 ? "" : "s"}`);
+  return html`<span class="s6-node__count">${parts.map((p, i) => html`${i ? " · " : ""}${p}`)}</span>`;
+};
+
 const nodeView = (ctx: ScreenContext, tree: Tree, n: AccountWire, jobs: readonly JobWire[], requests: readonly ServiceRequestWire[], scopeId: string): VNode => {
   const kids = tree.children(n.id);
   const isSite = n.tier === "site";
@@ -71,6 +88,7 @@ const nodeView = (ctx: ScreenContext, tree: Tree, n: AccountWire, jobs: readonly
     <div class="s6-node__row">
       <span class="s6-node__tier">${TIER_WORD[n.tier]}</span>
       ${isSite ? linkTo(ctx, "site", { siteId: n.id }, n.name, "s6-node__name ac-link") : html`<span class="s6-node__name">${n.name}</span>`}
+      ${countLine(tree, n)}
       ${n.customerGroup ? html`<span class="s6-node__group" title="Your own grouping — reportable, never structure">${n.customerGroup}</span>` : null}
       ${isSite ? html`<span class="s6-node__facts">
         ${here.length ? StatusPill({ density: ctx.density, status: worst, label: `${here.length} open job${here.length === 1 ? "" : "s"}` }) : html`<span class="s6-muted">No open work</span>`}
