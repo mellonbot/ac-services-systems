@@ -389,6 +389,11 @@ export const OPERATIONS = {
     surfaces: ["S3"], carrier: "body", sdkMethod: "openServiceRequestJob",
     summary: "The office answers a customer's request: opens a job at the request's site (jobs.create's own path — the SLA timer derived, never typed) and links the request to it, in one unit of work. A request is answered once; the link is final.",
   },
+  "serviceRequests.hold": {
+    id: "serviceRequests.hold", method: "POST", path: "/s3/service-requests/hold", kind: "mutation", auth: "bearer",
+    surfaces: ["S3"], carrier: "body", sdkMethod: "holdServiceRequest",
+    summary: "A phoned-in call the office cannot open a job for yet — the site's agreement is missing a term with no default — recorded as a request at that site, so it waits in Intake instead of being lost. createServiceRequest's own path; the dispatcher is the requester. It is opened from Intake once Contracts sets the term.",
+  },
   "media.get": {
     id: "media.get", method: "GET", path: "/media", kind: "query", auth: "bearer",
     surfaces: ["S2", "S3", "S6"], carrier: "query", sdkMethod: "getMedia",
@@ -1400,6 +1405,13 @@ export type ServiceRequestWire = {
   readonly customerSegment: CustomerSegment | null;
   /** Oldest first. Fetch each with `media.get`. */
   readonly photos: readonly RequestPhotoWire[];
+  /**
+   * For a waiting request read by the office (S2, S3): the no-default term the
+   * site's agreement is missing today, so a job cannot be opened until
+   * Contracts sets it. Derived on every read, never stored — it clears itself
+   * the moment the term exists. Null otherwise, and always null for S6.
+   */
+  readonly waitingOnTerm: string | null;
 };
 /** A photo sent with a request: what it is, never where it is stored. */
 export type RequestPhotoWire = { readonly id: string; readonly contentType: PhotoContentType; readonly bytes: number };
@@ -1905,6 +1917,7 @@ export type OperationIO = {
   "serviceRequests.list": { input: ListServiceRequestsInput; output: ListServiceRequestsOutput };
   "serviceRequests.attachPhoto": { input: AttachPhotoInput; output: AttachPhotoOutput };
   "serviceRequests.openJob": { input: OpenRequestJobInput; output: OpenRequestJobOutput };
+  "serviceRequests.hold": { input: CreateServiceRequestInput; output: CreateServiceRequestOutput };
   "media.get": { input: GetMediaInput; output: GetMediaOutput };
   "jobs.mine": { input: void; output: MyJobsOutput };
   "dispatch.assign": { input: AssignInput; output: AssignOutput };

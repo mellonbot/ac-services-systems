@@ -1,4 +1,4 @@
-import { TERMS, type Refusal, type Tier, type AdmissionAxis } from "../../../contracts/src/index.ts";
+import { TERMS, type Refusal, type Tier, type AdmissionAxis, type MissingTerm } from "../../../contracts/src/index.ts";
 import { MARK_GLYPHS } from "../../../tokens/src/index.ts";
 import { RefusalCardSpec } from "../component.ts";
 import { component, html } from "../render.ts";
@@ -44,6 +44,17 @@ export const refusalHeading = (r: Refusal): string => {
 };
 
 /**
+ * A missing term, in the words of the person who hit it and cannot fix it.
+ * Built from the gateway's facts and the register's label — not a second
+ * table of reasons, because nothing here decides WHY; the register did.
+ */
+export const missingTermHeading = (m: MissingTerm): string =>
+  `No agreed ${termLabel(m.termKey).toLowerCase()} for ${m.customer}`;
+export const missingTermSentence = (m: MissingTerm): string =>
+  `A job at ${m.siteName} can't be opened until Contracts sets the ${termLabel(m.termKey).toLowerCase()} in the agreement with ${m.customer}.`;
+const termLabel = (key: string): string => TERMS[key]?.label ?? key;
+
+/**
  * 05 Rev D: every refusal states the term, the tier attempted, the permitted
  * tiers, and which of the two kinds it is; a commercial refusal routes to the
  * person who prices it, inside the surface.
@@ -54,6 +65,7 @@ export const refusalHeading = (r: Refusal): string => {
  */
 export const RefusalCard = component<typeof RefusalCardSpec, RefusalCardProps>(RefusalCardSpec, (p) => {
   const r = p.refusal;
+  if (r.kind === "admission" && r.missingTerm) return missingTermCard(p, r, r.missingTerm);
   const axis: AdmissionAxis | null = r.kind === "admission" ? r.axis : null;
   const policy = p.termKey ? TERMS[p.termKey] : undefined;
   const permitted = policy?.authoring ?? null;
@@ -77,3 +89,28 @@ export const RefusalCard = component<typeof RefusalCardSpec, RefusalCardProps>(R
       : null}
   </section>`;
 });
+
+/**
+ * The same card for a refusal that names a missing term: what is missing and
+ * who sets it first, the facts beside it, the gateway's message verbatim
+ * behind Details for whoever has to trace it.
+ */
+const missingTermCard = (p: RefusalCardProps & { readonly density: string }, r: Extract<Refusal, { kind: "admission" }>, m: MissingTerm) =>
+  html`<section class="ac-refusal" role="alert" data-kind=${r.kind} data-axis=${r.axis} data-density=${p.density}>
+    <h2 class="ac-refusal__heading"><span class="ac-refusal__mark" aria-hidden="true">${MARK_GLYPHS.fault}</span> ${missingTermHeading(m)}</h2>
+    <p class="ac-refusal__lede">${missingTermSentence(m)}</p>
+    <dl class="ac-refusal__facts">
+      <dt>Missing</dt><dd>${termLabel(m.termKey)}</dd>
+      <dt>Site</dt><dd>${m.siteName}</dd>
+      <dt>As of</dt><dd>${m.asOf}</dd>
+    </dl>
+    ${p.routes && p.routes.length
+      ? html`<div class="ac-refusal__routes">
+          ${p.routes.map((route) => html`<button type="button" class="ac-action" data-kind=${route.primary ? "primary" : "quiet"} data-density=${p.density} onClick=${route.onSelect}>${route.label}</button>`)}
+        </div>`
+      : null}
+    <details class="ac-refusal__detail"><summary>Details</summary>
+      <p class="ac-refusal__message">${r.message}</p>
+      <p class="ac-refusal__code"><code>${r.code}</code> · <code>${m.termKey}</code></p>
+    </details>
+  </section>`;

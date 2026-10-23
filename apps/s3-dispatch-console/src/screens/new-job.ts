@@ -1,4 +1,4 @@
-import { html, PrimaryAction, pageHead, panel, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, PrimaryAction, pageHead, panel, shortRef, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { JobPriority, Refusal, SiteWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, type Screen, type ScreenContext } from "./common.ts";
@@ -10,9 +10,15 @@ import { perStore, defaultWindow, JOB_PRIORITIES, PRIORITY_WORD } from "./intake
  * derived from the site's agreed term when the job opens, never typed here.
  * The site list (`sites.list`) is the dispatcher's own region; a site that is
  * not on it is a customer S2 has not signed in yet.
+ *
+ * A call at a site whose agreement is missing the response time cannot open
+ * a job, and the dispatcher cannot set the term. "Hold for Contracts" records
+ * the call as a request at that site (`serviceRequests.hold`), so it waits in
+ * Intake — flagged until Contracts sets the term — instead of being lost.
  */
-type Submitting = { readonly busy: boolean; readonly refusal: Refusal | null };
-const submittingFor = perStore<Submitting>({ busy: false, refusal: null });
+type Call = { readonly siteId: string; readonly serviceCode: string; readonly priority: JobPriority; readonly day: string };
+type Submitting = { readonly busy: boolean; readonly refusal: Refusal | null; readonly call: Call | null };
+const submittingFor = perStore<Submitting>({ busy: false, refusal: null, call: null });
 
 const byCustomer = (sites: readonly SiteWire[]): [string, SiteWire[]][] => {
   const m = new Map<string, SiteWire[]>();
@@ -23,23 +29,52 @@ const byCustomer = (sites: readonly SiteWire[]): [string, SiteWire[]][] => {
 const create = async (ctx: ScreenContext, form: HTMLFormElement): Promise<void> => {
   const state = submittingFor(ctx.store);
   const f = new FormData(form);
-  state.value = { busy: true, refusal: null };
+  const call: Call = {
+    siteId: String(f.get("siteId") ?? ""), serviceCode: String(f.get("serviceCode") ?? "").trim(),
+    priority: String(f.get("priority") ?? "routine") as JobPriority, day: String(f.get("start")).slice(0, 10),
+  };
+  state.value = { busy: true, refusal: null, call };
   try {
     const out = await ctx.shell.gateway.createJob({
-      siteId: String(f.get("siteId") ?? ""),
-      serviceCode: String(f.get("serviceCode") ?? "").trim(),
-      priority: String(f.get("priority") ?? "routine") as JobPriority,
+      siteId: call.siteId,
+      serviceCode: call.serviceCode,
+      priority: call.priority,
       serviceWindowStart: new Date(String(f.get("start"))).toISOString(),
       serviceWindowEnd: new Date(String(f.get("end"))).toISOString(),
     });
-    state.value = { busy: false, refusal: null };
+    state.value = { busy: false, refusal: null, call: null };
     ctx.store.notice.value = [`Job ${out.id} is open, response due ${new Date(out.dueAt).toLocaleString()}. Assign a crew below.`];
     ctx.store.invalidate("jobs.list");
     ctx.router.navigate("dispatch", { jobId: out.id });
   } catch (e) {
-    state.value = { busy: false, refusal: ctx.shell.refusalOf(e) ?? { kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) } };
+    state.value = { busy: false, refusal: ctx.shell.refusalOf(e) ?? { kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) }, call };
   }
 };
+
+/** "Preferred date:" is the line Intake's form reads its window from (defaultWindow). A request has no "pm" priority; planned work is routine. */
+export const heldDescription = (c: Call): string => `Phoned in for ${c.serviceCode}.\nPreferred date: ${c.day}.`;
+
+const hold = async (ctx: ScreenContext, call: Call): Promise<void> => {
+  const state = submittingFor(ctx.store);
+  state.value = { ...state.value, busy: true };
+  try {
+    const out = await ctx.shell.gateway.holdServiceRequest({
+      siteId: call.siteId, priority: call.priority === "pm" ? "routine" : call.priority, description: heldDescription(call),
+    });
+    state.value = { busy: false, refusal: null, call: null };
+    ctx.store.notice.value = [`Call held as request ${shortRef(out.id)}. It waits in Intake until Contracts sets the missing term, then opens from there.`];
+    ctx.store.invalidate("serviceRequests.list");
+    ctx.router.navigate("intake", {});
+  } catch (e) {
+    state.value = { busy: false, refusal: ctx.shell.refusalOf(e) ?? { kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) }, call };
+  }
+};
+
+/** Where a refusal can go from here: a missing term can be held for Contracts; nothing else is the dispatcher's to route. */
+const routesFor = (ctx: ScreenContext, s: Submitting) =>
+  s.refusal?.kind === "admission" && s.refusal.missingTerm && s.call && !ctx.degraded && !s.busy
+    ? [{ label: "Hold for Contracts", primary: true, onSelect: () => void hold(ctx, s.call!) }]
+    : [];
 
 const form = (ctx: ScreenContext, sites: readonly SiteWire[]): VNode => {
   const s = submittingFor(ctx.store).value;
@@ -70,9 +105,9 @@ const form = (ctx: ScreenContext, sites: readonly SiteWire[]): VNode => {
           density: ctx.density, label: s.busy ? "Opening…" : "Open job", type: "submit", id: "new-job-submit",
           ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : s.busy ? { disabledReason: "Opening…" } : {}),
         })}
-        <button type="button" class="s3-act" id="new-job-cancel" onClick=${() => { submittingFor(ctx.store).value = { busy: false, refusal: null }; ctx.router.navigate("board", {}); }}>Cancel</button>
+        <button type="button" class="s3-act" id="new-job-cancel" onClick=${() => { submittingFor(ctx.store).value = { busy: false, refusal: null, call: null }; ctx.router.navigate("board", {}); }}>Cancel</button>
       </span>
-      ${s.refusal ? refusalView(ctx, s.refusal) : null}
+      ${s.refusal ? refusalView(ctx, s.refusal, routesFor(ctx, s)) : null}
     </form>`, "Job", "A call with no portal request behind it", undefined, "new-job");
 };
 

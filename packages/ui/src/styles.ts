@@ -197,6 +197,10 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
 .ac-refusal__facts dd{margin:0;color:var(--color-text);text-transform:none}
 .ac-refusal__axis{margin:0 0 var(--space-3);font-family:var(--font-label);font-style:italic;color:var(--color-text-muted)}
 .ac-refusal__routes{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.ac-refusal__lede{margin:0 0 var(--space-3);font-size:var(--text-lg)}
+.ac-refusal__detail{margin-top:var(--space-3);color:var(--color-text-muted);font-size:var(--text-sm)}
+.ac-refusal__detail summary{cursor:pointer;min-height:var(--control-height);line-height:var(--control-height);font-family:var(--font-label);letter-spacing:var(--track-wide);text-transform:uppercase;font-size:var(--text-xs)}
+.ac-refusal__detail .ac-refusal__message{margin:var(--space-2) 0}
 
 /* ---- DegradedBanner / <ac-degraded> ----
    A frozen board with a visible staleness clock beats a board that quietly

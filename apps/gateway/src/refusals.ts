@@ -1,3 +1,5 @@
+import type { MissingTerm } from "../../../packages/contracts/src/refusals.ts";
+
 /**
  * REFUSALS THAT DO NOT COME FROM THE DOMAIN.
  *
@@ -22,10 +24,13 @@
  */
 export class InputRefused extends Error {
   readonly code: string;
-  constructor(message: string, code = "input") {
+  /** Set on a `no_value` refusal, so a surface can say what is missing without parsing the message. */
+  readonly missingTerm: MissingTerm | undefined;
+  constructor(message: string, code = "input", missingTerm?: MissingTerm) {
     super(message);
     this.name = "InputRefused";
     this.code = code;
+    this.missingTerm = missingTerm;
   }
 }
 

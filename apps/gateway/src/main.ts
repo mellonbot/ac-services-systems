@@ -33,6 +33,7 @@ import { SURFACES, admits, type SurfaceId } from "../../../packages/contracts/sr
 import { OPERATIONS, OPERATION_IDS, PHOTO_MAX_BYTES, routeKey, surfacesFor, seesManagerOverview, type OperationId, type OperationIO } from "../../../packages/contracts/src/operations.ts";
 import type { Claims, Namespace, Principal } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
+import type { MissingTerm } from "../../../packages/contracts/src/refusals.ts";
 import { INTERNAL_ORG_ID, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
 import { hqMetrics, hqHistory } from "./handlers/hq.ts";
 import { managerOverview } from "./handlers/manager.ts";
@@ -165,14 +166,15 @@ class HttpError extends Error {
  * flips the surface degraded, which is the right response to a bug and the
  * wrong response to a refused row — so a refused row must never be a 500.
  */
-const describe = (e: unknown): { status: number; name: string; code?: string | undefined; message: string } => {
+const describe = (e: unknown): { status: number; name: string; code?: string | undefined; message: string; missingTerm?: MissingTerm | undefined } => {
   const err = e as Error & { code?: string };
   if (e instanceof HttpError) return { status: e.status, name: err.name, message: err.message };
   if (e instanceof BadInput) return { status: 400, name: err.name, message: err.message };
   if (e instanceof AuthError) return { status: 401, name: err.name, code: err.code, message: err.message };
   if (e instanceof SurfaceWriteDenied || e instanceof TenancyMismatch || e instanceof ScopeResolutionError || e instanceof RoleDenied) return { status: 403, name: err.name, message: err.message };
   if (e instanceof SurfaceDisabled) return { status: 404, name: err.name, message: err.message };
-  if (e instanceof AdmissionRefused || e instanceof ResolutionError || e instanceof InputRefused) return { status: 422, name: err.name, code: err.code, message: err.message };
+  if (e instanceof InputRefused) return { status: 422, name: err.name, code: err.code, message: err.message, missingTerm: e.missingTerm };
+  if (e instanceof AdmissionRefused || e instanceof ResolutionError) return { status: 422, name: err.name, code: err.code, message: err.message };
   const db = dbRefusal(e);
   if (db) return db;
   return { status: 500, name: "InternalError", message: "internal error" };
@@ -556,13 +558,14 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
 
   // item 6 — S6's first write, and the office's read of it.
   "serviceRequests.create": (req, input) => withUow(req, "serviceRequests.create", (uow, p) => createServiceRequest(uow, p.subjectId, input, randomUUID)),
-  "serviceRequests.list": (req, input) => withRead(req, "serviceRequests.list", (uow) => listServiceRequests(uow, input)),
+  "serviceRequests.list": (req, input) => withRead(req, "serviceRequests.list", (uow, p) => listServiceRequests(uow, input, new Date(), p.namespace === "internal")),
   "serviceRequests.attachPhoto": (req, input) => withUow(req, "serviceRequests.attachPhoto", (uow, p) => attachPhoto(uow, p.subjectId, STORE, input, randomUUID)),
   "media.get": (req, input) => withRead(req, "media.get", (uow) => getMedia(uow, STORE, input)),
   "customers.createResidential": (req, input) => withUow(req, "customers.createResidential", (uow) => createResidential(uow, input, randomUUID)),
   "leads.list": (req, input) => withRead(req, "leads.list", (uow) => listLeads(uow, input)),
   "leads.convert": (req, input) => withUow(req, "leads.convert", (uow) => convertLead(uow, input, randomUUID)),
   "serviceRequests.openJob": (req, input) => withUow(req, "serviceRequests.openJob", (uow) => openJobFromRequest(uow, input, randomUUID, new Date())),
+  "serviceRequests.hold": (req, input) => withUow(req, "serviceRequests.hold", (uow, p) => createServiceRequest(uow, p.subjectId, input, randomUUID)),
 
   // S3 — the one gated door, its dry run, and its release.
   "dispatch.assign": (req, input) => withUow(req, "dispatch.assign", (uow, p) => assignCrew(uow, p.subjectId, input, new Date())),
@@ -750,7 +753,7 @@ const server = createServer(async (req, res) => {
   } catch (e) {
     const d = describe(e);
     if (d.status === 500) console.error(e);
-    send(res, d.status, { error: d.name, code: d.code, message: d.message });
+    send(res, d.status, { error: d.name, code: d.code, message: d.message, missingTerm: d.missingTerm });
   }
 });
 

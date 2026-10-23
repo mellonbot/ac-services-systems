@@ -281,6 +281,43 @@ test("New job: the form picks from the region's sites, grouped by customer, and 
   assert.match(none, /signed in from Service Manager/);
 });
 
+test("New job: a site whose agreement has no response time says so in plain words, and Hold for Contracts records the call in Intake instead of losing it", async () => {
+  const site = { id: U(30), name: "Roof North", orgId: ORG, orgName: "Shipman Co", regionId: SOUTH, address: null };
+  const missingTerm = { termKey: "sla_response", siteId: U(30), siteName: "Roof North", customer: "Shipman Co", asOf: "2026-10-23" };
+  let held: Record<string, unknown> | null = null;
+  const { app, gateway } = await ready({
+    [OPERATIONS["sites.list"].path]: { status: 200, body: { sites: [site] } },
+    [OPERATIONS["jobs.create"].path]: { status: 422, body: { error: "InputRefused", code: "no_value", missingTerm,
+      message: 'cannot open a job at this site: [inheritance] no value for "sla_response" anywhere on the path as of 2026-10-23, and the register declares no default.' } },
+    [OPERATIONS["serviceRequests.hold"].path]: (init) => { held = JSON.parse(String(init?.body)); return { status: 200, body: { id: "5e000009-0000-4000-8000-000000000009", orgId: ORG, regionId: SOUTH, eventId: "e" } }; },
+    [OPERATIONS["serviceRequests.list"].path]: { status: 200, body: { requests: [] } },
+  });
+  app.router.navigate("new-job", {});
+  render(app.view()); await settle(); await settle();
+
+  // The form's own FormData needs a DOM; the values are what the dispatcher typed.
+  const values: Record<string, string> = { siteId: U(30), serviceCode: "repairs", priority: "pm", start: "2026-10-24T08:00", end: "2026-10-24T12:00" };
+  const RealFormData = globalThis.FormData;
+  globalThis.FormData = class { get(k: string) { return values[k] ?? null; } } as unknown as typeof FormData;
+  try {
+    (nodesIn(app.view()).find((n) => n.type === "form" && n.props?.id === "new-job-form")!.props!.onSubmit as (e: unknown) => void)({ preventDefault() {}, currentTarget: {} });
+    await settle(); await settle();
+  } finally { globalThis.FormData = RealFormData; }
+
+  const out = render(app.view());
+  assert.match(out, /No agreed response time for Shipman Co/, "the heading names the term in plain words and the customer");
+  assert.match(out, /A job at Roof North can't be opened until Contracts sets the response time in the agreement with Shipman Co\./);
+  assert.doesNotMatch(out, /Refused — incomplete/);
+  assert.match(out, /<details class="ac-refusal__detail"><summary>Details<\/summary>\s*<p class="ac-refusal__message">cannot open a job at this site: \[inheritance\]/, "the gateway's words are kept, verbatim, behind Details");
+
+  (nodesIn(app.view()).find((n) => n.type === "button" && (n.props?.children as unknown[] | undefined)?.includes("Hold for Contracts"))!.props!.onClick as () => void)();
+  await settle(); await settle();
+  assert.deepEqual(held, { siteId: U(30), priority: "routine", description: "Phoned in for repairs.\nPreferred date: 2026-10-24." }, "planned work is a routine request; the date is the line Intake reads its window from");
+  assert.ok(gateway.calls.some((c) => c.path === OPERATIONS["serviceRequests.hold"].path));
+  assert.match(render(app.view()), /Call held as request 5E000009/);
+  assert.equal(defaultWindow(String(held!["description"]), new Date()).start, "2026-10-24T08:00", "opened from Intake, the form starts on the day the caller asked for");
+});
+
 test("the dark dispatch bar is the only navigation, and its Sign out ends the session at the gateway", async () => {
   const { app, gateway } = await ready({ [OPERATIONS["auth.logout"].path]: { status: 200, body: { ok: true, sessionId: "sess-1" } } });
   await settle();
@@ -419,13 +456,26 @@ const REQ_ROUTINE = "5e000001-0000-4000-8000-000000000001", REQ_EMERGENCY = "5e0
 const PHOTO_A = U(40), PHOTO_B = U(41);
 const req = (id: string, priority: ServiceRequestWire["priority"], createdAt: string, extra: Partial<ServiceRequestWire> = {}): ServiceRequestWire => ({
   id, siteId: SITE, siteName: "Austin — Roof", priority, description: `Request ${id.slice(0, 8)}`, requestedBy: "u-cust", createdAt,
-  jobId: null, jobState: null, orgId: ORG, regionId: SOUTH, customerSegment: "commercial", photos: [], ...extra,
+  jobId: null, jobState: null, orgId: ORG, regionId: SOUTH, customerSegment: "commercial", photos: [], waitingOnTerm: null, ...extra,
 });
 const REQUESTS: ServiceRequestWire[] = [
   req(REQ_ROUTINE, "routine", "2026-09-17T11:00:00.000Z", { siteName: "Home", customerSegment: "residential" }),
   req(REQ_OPENED, "emergency", "2026-09-17T12:30:00.000Z", { jobId: JOB_CREATED, jobState: "created" }),
   req(REQ_EMERGENCY, "emergency", "2026-09-17T10:00:00.000Z", { description: "Water through the ceiling under RTU-2.", photos: [{ id: PHOTO_A, contentType: "image/jpeg", bytes: 2048 }, { id: PHOTO_B, contentType: "image/png", bytes: 1024 }] }),
 ];
+
+test("INTAKE: a request waiting on a missing term says Waiting on Contracts and offers no Open job — the office cannot set the term", async () => {
+  const { app } = await ready({
+    [OPERATIONS["serviceRequests.list"].path]: { status: 200, body: { requests: [req(REQ_ROUTINE, "routine", "2026-10-22T10:00:00.000Z", { waitingOnTerm: "sla_response" }), REQUESTS[2]] } },
+  });
+  app.router.navigate("intake", {});
+  render(app.view()); await settle(); await settle();
+  const out = render(app.view());
+  assert.match(out, /Waiting on Contracts/);
+  assert.match(out, /No response time on the agreement/);
+  assert.doesNotMatch(out, new RegExp(`id="open-${REQ_ROUTINE}"`), "no button that can only be refused");
+  assert.match(out, new RegExp(`id="open-${REQ_EMERGENCY}"`), "a request whose agreement is complete still opens");
+});
 
 test("intakeRows: waiting before opened, then the customer's declared priority, then newest; 'waiting' drops what already has a job", () => {
   assert.deepEqual(intakeRows(REQUESTS, "all").map((r) => r.id), [REQ_EMERGENCY, REQ_ROUTINE, REQ_OPENED]);

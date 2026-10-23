@@ -128,6 +128,16 @@ test("RefusalCard: axis heading, the gateway's message verbatim, the register's 
   assert.match(i, /Refused — incomplete/);
   assert.match(i, /A contract term is missing\. Contracts has to set it before this can go ahead\./);
   assert.doesNotMatch(i, /can never be valid/, "a missing term is not a wrong row");
+
+  // With the gateway's facts, the card leads with what is missing and who sets it, in the register's words.
+  const named: Refusal = { ...incomplete, missingTerm: { termKey: "sla_response", siteId: "s", siteName: "Roof North", customer: "Shipman Co", asOf: "2026-10-21" } };
+  const n = render(html`<${RefusalCard} density="console" refusal=${named} routes=${[{ label: "Hold for Contracts", onSelect: () => {}, primary: true }]} />`);
+  assert.match(n, /No agreed response time for Shipman Co/);
+  assert.match(n, /Contracts sets the response time in the agreement with Shipman Co/);
+  assert.match(n, /<dt>Missing<\/dt><dd>Response time<\/dd>/, "the label comes from the register, not the card");
+  assert.match(n, /data-axis="incomplete"/, "still drawn as the incomplete axis");
+  assert.match(n, /data-kind="primary"[^>]*>Hold for Contracts/);
+  assert.match(n, /<details class="ac-refusal__detail">[\s\S]*\[inheritance\] no value for &quot;sla_response&quot;[\s\S]*<code>no_value<\/code>/, "the gateway's message stays verbatim, behind Details");
 });
 
 test("RefusalCard renders every refusal kind with a heading — none falls through to a generic error", () => {
