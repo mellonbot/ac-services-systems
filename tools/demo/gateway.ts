@@ -10,7 +10,7 @@
  * (term resolution, override admission, the compliance gate, context
  * resolution) the real module is imported and run.
  */
-import { OPERATIONS, OFFICE_JOB_TRANSITIONS, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, routeKey, mayReadTechnicianAddress, type OperationId } from "../../packages/contracts/src/operations.ts";
+import { OPERATIONS, OFFICE_JOB_TRANSITIONS, serviceOf, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, routeKey, mayReadTechnicianAddress, type OperationId } from "../../packages/contracts/src/operations.ts";
 import type * as W from "../../packages/contracts/src/operations.ts";
 import { SURFACES, type SurfaceId } from "../../packages/contracts/src/surfaces.ts";
 import type { Principal } from "../../packages/contracts/src/scope.ts";
@@ -212,7 +212,6 @@ const rateCards: Mutable<W.RateCardWire>[] = [
   { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-VISIT", rateMinor: "18500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: "2026-08-01" },
   { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-VISIT", rateMinor: "19500", currency: "USD", effectiveFrom: "2026-08-01", effectiveTo: null },
   { id: uid("r"), firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "12500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: null },
-  { id: uid("r"), firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "29500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: null },
   { id: uid("r"), firmId: FIRM_B, serviceCode: "PM-VISIT", rateMinor: "17200", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null },
   { id: uid("r"), firmId: FIRM_B, serviceCode: "HVAC-REPAIR", rateMinor: "11800", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null },
 ];
@@ -960,6 +959,7 @@ const H: Partial<Record<OperationId, Handler>> = {
   },
   "rateCards.set": (i: W.SetRateCardInput, { surface }) => {
     need(/^\d+$/.test(i.rateMinor ?? ""), "rateMinor is integer minor units as a string of digits", "bad_money");
+    need(serviceOf(i.serviceCode), `"${i.serviceCode}" is not a service we open jobs for`, "unknown_service_code");
     const firm = firms.find((f) => f.id === i.firmId);
     need(firm, `no firm ${i.firmId} visible in this scope`, "unknown_firm");
     const open = rateCards.find((r) => r.firmId === i.firmId && r.serviceCode === i.serviceCode && r.effectiveFrom <= i.effectiveFrom && (r.effectiveTo === null || r.effectiveTo > i.effectiveFrom));

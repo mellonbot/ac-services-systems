@@ -134,6 +134,7 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   unknown_service_code: "structural",
   ac_job_work_is_its_services: "structural",
   jobs_service_code_fkey: "structural",
+  rate_cards_service_code_fkey: "structural",
 });
 
 export const admissionAxis = (code: string | undefined): AdmissionAxis =>
