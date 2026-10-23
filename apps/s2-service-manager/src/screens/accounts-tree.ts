@@ -191,6 +191,7 @@ export const accountsTree: Screen = (ctx, params) => {
       ],
       rows: ordered,
       rowKey: (n: AccountWire) => n.id,
+      groupHead: (n: AccountWire) => n.tier === "region",
       emptyText: "No nodes. A customer parent always has at least one region node — if this is empty, the tree failed to load.",
     }), org?.name ?? "Customer", undefined, linkTo(ctx, "accounts.new", { orgId: orgId!, tier: "region" }, "+ Region node", "ac-action s2-link--action"), "account-tree");
   };

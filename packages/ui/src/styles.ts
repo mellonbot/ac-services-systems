@@ -154,6 +154,8 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
 .ac-grid__sort{min-height:var(--row-height);appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:0;text-align:inherit;cursor:pointer;color:inherit;font:inherit}
 .ac-grid__row[tabindex]{cursor:pointer;height:var(--row-height)}
 .ac-grid__row:hover{background:color-mix(in srgb,var(--color-surface-sunken) calc(100% * var(--hover)),transparent)}
+/* A group head (DataGrid groupHead) is banded on the head's ground and keeps it under the pointer; selection still outranks it. */
+.ac-grid__row[data-group="head"]{background:color-mix(in srgb,var(--color-surface-sunken) 45%,var(--color-surface))}
 .ac-grid__row[data-selected="true"]{background:color-mix(in srgb,var(--color-surface-sunken) 60%,var(--color-surface));box-shadow:inset 3px 0 0 var(--color-action)}
 .ac-grid__empty td{color:var(--color-text-muted);text-align:center}
 /* A comfort grid on a phone: a table cannot shrink below its content, so S6's

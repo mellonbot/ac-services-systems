@@ -34,6 +34,13 @@ export type DataGridProps<Row> = {
   readonly caption?: string;
   /** Below 760px each row becomes a block of label/value pairs, labelled from the column headers. For screens a phone opens. */
   readonly stack?: boolean;
+  /**
+   * The rows that head a group the caller has ordered beneath them — a region
+   * node over its locations and sites. Drawn as a band on the table head's own
+   * ground, so it is structure, not a state, and every ink already measured
+   * against the head reads on it.
+   */
+  readonly groupHead?: (row: Row) => boolean;
 };
 
 /**
@@ -73,7 +80,7 @@ const view = <Row,>(p: ViewProps<typeof DataGridSpec, DataGridProps<Row>>): VNod
         : p.rows.map((row) => {
             const k = p.rowKey(row);
             const selected = p.selectedKey !== undefined && p.selectedKey === k;
-            return html`<tr key=${k} class="ac-grid__row" data-selected=${selected ? "true" : "false"}
+            return html`<tr key=${k} class="ac-grid__row" data-selected=${selected ? "true" : "false"} data-group=${p.groupHead?.(row) ? "head" : undefined}
               aria-selected=${interactive ? (selected ? "true" : "false") : undefined}
               tabindex=${p.onSelect ? 0 : undefined}
               onClick=${p.onSelect ? () => p.onSelect?.(row) : undefined}

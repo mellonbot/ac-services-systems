@@ -266,6 +266,8 @@ test("the tree screen: customers on the left, the selected tree ordered region â
   assert.ok(order.every((i) => i >= 0), `all nodes rendered: ${order}`);
   assert.deepEqual([...order].sort((a, b) => a - b), order, "depth-first: the site sits under its location, the location under its region node");
   assert.match(out, /data-depth="2" data-tier="site"/);
+  const tree = out.split('id="account-tree"')[1]!;
+  assert.equal(tree.match(/data-group="head"/g)?.length, 2, "each region node heads its band, and nothing below it does");
   assert.match(out, /Texas/, "the customer's grouping is shown as the attribute it is");
   assert.ok(out.includes(">South<") || /South<\/td>/.test(out), "the row says which of OUR regions dispatches it");
   assert.match(out, /href="\/accounts\/[^"]+\/new\/location\/[^"]+"/, "+ location from a region node");
