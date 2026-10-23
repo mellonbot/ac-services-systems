@@ -18,8 +18,9 @@
 --      work goes to an install crew; service AND commissioning go to a
 --      technician (partner: "a tech always, for now").
 --   4. An install job sits under the person who sold it: the job names a
---      project, and the project names its foreman. A foreman cannot be taken
---      off a project that still has install work under it.
+--      project, and the project names its foreman — an active foreman of
+--      ours when named. A foreman cannot be taken off a project that still
+--      has install work under it. projects.create (S2) is the door.
 --   5. An install is never an emergency. An emergency is a technician's call.
 --
 -- Existing rows: every crew is 'service', every technician 'technician',
@@ -121,6 +122,23 @@ END $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS ac_project_keeps_its_seller ON projects;
 CREATE TRIGGER ac_project_keeps_its_seller BEFORE UPDATE OF foreman_id ON projects
   FOR EACH ROW EXECUTE FUNCTION ac_project_keeps_its_seller();
+
+-- 4, the other half: the person who sold it is a foreman of ours. Checked when
+-- named, not afterwards — a foreman who later leaves stays on what they sold.
+CREATE OR REPLACE FUNCTION ac_project_seller_is_a_foreman() RETURNS TRIGGER AS $$
+DECLARE u RECORD;
+BEGIN
+  IF NEW.foreman_id IS NULL OR (TG_OP = 'UPDATE' AND NEW.foreman_id IS NOT DISTINCT FROM OLD.foreman_id) THEN RETURN NEW; END IF;
+  SELECT namespace, active, roles, display_name INTO u FROM users WHERE id = NEW.foreman_id;
+  IF NOT FOUND OR u.namespace <> 'internal' OR NOT u.active OR NOT (u.roles ? 'foreman') THEN
+    RAISE EXCEPTION 'project % names % as its foreman — the person who sold it is an active foreman on our staff', NEW.name, COALESCE(u.display_name, NEW.foreman_id::text)
+      USING ERRCODE = 'AC422';
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS ac_project_seller_is_a_foreman ON projects;
+CREATE TRIGGER ac_project_seller_is_a_foreman BEFORE INSERT OR UPDATE OF foreman_id ON projects
+  FOR EACH ROW EXECUTE FUNCTION ac_project_seller_is_a_foreman();
 
 -- 3: the crew fits the work. dispatch.assign refuses by name first
 -- (handlers/assignment.ts); this is the same rule where no handler can skip it.

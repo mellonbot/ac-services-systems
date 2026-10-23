@@ -127,6 +127,9 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   ac_assignment_crew_fits_the_work: "structural",
   jobs_install_sits_under_a_project: "structural",
   jobs_install_is_never_an_emergency: "structural",
+  unknown_foreman: "structural",
+  not_a_foreman: "structural",
+  ac_project_seller_is_a_foreman: "structural",
 });
 
 export const admissionAxis = (code: string | undefined): AdmissionAxis =>

@@ -344,6 +344,18 @@ export const OPERATIONS = {
   },
 
   // ---- item 4: the job itself, created in Office & Dispatch ----
+  // 0024: an install is sold. The project is what it was sold under, and its
+  // foreman is the person who sold it — every install job sits under one.
+  "projects.list": {
+    id: "projects.list", method: "GET", path: "/projects", kind: "query", auth: "bearer",
+    surfaces: ["S2", "S3"], carrier: "query", sdkMethod: "listProjects",
+    summary: "The projects install work is opened under — who sold each, and how much install work sits under it — and the foremen a new one may be sold by. Optionally one customer's.",
+  },
+  "projects.create": {
+    id: "projects.create", method: "POST", path: "/s2/projects", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createProject",
+    summary: "Record what was sold: under an agreement in force, by a foreman (the person who sold it), for a window. The customer and region are the agreement's, never typed in.",
+  },
   "jobs.create": {
     id: "jobs.create", method: "POST", path: "/s2/jobs", kind: "mutation", auth: "bearer",
     // S3 since 2026-10-21: a dispatcher opens a job for a call that came in by
@@ -1366,6 +1378,31 @@ export const OFFICE_JOB_TRANSITIONS: Readonly<Partial<Record<JobStateWire, reado
   invoice_trouble: ["invoiced"],
 });
 
+/** 0024: what an install was sold under. `foremanId` is the person who sold it — an active internal user holding `foreman`. */
+export type ProjectState = "planned" | "active" | "closed" | "cancelled";
+export type ProjectWire = {
+  readonly id: string; readonly orgId: string; readonly regionId: string; readonly contractId: string;
+  readonly customer: string; readonly name: string;
+  readonly foremanId: string | null; readonly foremanName: string | null;
+  /** ISO datetimes; end exclusive. */
+  readonly serviceWindowStart: string; readonly serviceWindowEnd: string;
+  readonly state: ProjectState;
+  readonly installJobs: number;
+};
+/** A person a project may be sold by: an active internal user holding `foreman`. */
+export type ForemanWire = { readonly id: string; readonly name: string };
+export type ListProjectsInput = { readonly orgId?: string };
+export type ListProjectsOutput = { readonly projects: readonly ProjectWire[]; readonly foremen: readonly ForemanWire[] };
+export type CreateProjectInput = {
+  readonly contractId: string;
+  readonly name: string;
+  /** Who sold it. */
+  readonly foremanId: string;
+  readonly serviceWindowStart: string;
+  readonly serviceWindowEnd: string;
+};
+export type CreateProjectOutput = { readonly id: string; readonly orgId: string; readonly regionId: string; readonly eventId: string };
+
 export type CreateJobInput = {
   readonly siteId: string;
   readonly serviceCode: string;
@@ -1941,6 +1978,8 @@ export type OperationIO = {
   "settlements.lines": { input: ListSettlementLinesInput; output: ListSettlementLinesOutput };
   "settlements.acknowledge": { input: AcknowledgeSettlementInput; output: AcknowledgeSettlementOutput };
   "settlements.dispute": { input: DisputeSettlementInput; output: DisputeSettlementOutput };
+  "projects.list": { input: ListProjectsInput; output: ListProjectsOutput };
+  "projects.create": { input: CreateProjectInput; output: CreateProjectOutput };
   "jobs.create": { input: CreateJobInput; output: CreateJobOutput };
   "sites.list": { input: void; output: ListSitesOutput };
   "jobs.list": { input: ListJobsInput; output: ListJobsOutput };

@@ -134,7 +134,10 @@ const REGISTRY = {
              // issues a `purchase_order`, decides a vendor's proposed price,
              // receives goods and asks for a return. The vendor's four answers
              // are S7's list.
-             "vendor", "receiving_point", "price_decision", "po_receipt", "rma_request"],
+             "vendor", "receiving_point", "price_decision", "po_receipt", "rma_request",
+             // 0024 (2026-10-23): what an install was sold under, and by whom.
+             // Every install job sits under a project whose foreman sold it.
+             "project"],
     density: "console", realtime: false, offline: false,
     degraded: "Read-only from last server state. NO offline writes, ever — this is the only surface that authors hierarchy, contract and subcontractor-network truth, and a forked truth here is unrecoverable.",
     degradedNotice: "Offline — showing the records as last saved. Changes are paused until the connection returns; nothing is saved on this device.",
