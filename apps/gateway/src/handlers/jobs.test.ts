@@ -84,6 +84,33 @@ test("createJob derives due_at from the resolved sla_response term and opens the
   assert.deepEqual(pending.events.map((e) => e.topic), ["job.created", "sla.timer_opened"]);
 });
 
+test("0024: an install job is sold — it names a project whose foreman sold it, is never an emergency, and lands as install work", async () => {
+  const PROJECT = U(60);
+  const window = { serviceWindowStart: "2026-09-18T09:00:00Z", serviceWindowEnd: "2026-09-18T17:00:00Z" };
+  const refused = async (input: Parameters<typeof createJob>[1], answers: (readonly [string, readonly unknown[]])[], code: string) => {
+    const s = scripted(answers);
+    await assert.rejects(createJob(await uowFor(s.tx), input, newId, now), (e: unknown) => e instanceof InputRefused && e.code === code);
+    assert.equal(s.queries.filter((q) => q.sql.startsWith("INSERT")).length, 0, `${code}: nothing written`);
+  };
+  await refused({ siteId: SITE, serviceCode: "CONDENSER-INSTALL", workClass: "install", ...window }, baseAnswers([overrideRow("4_hour")]), "install_needs_project");
+  await refused({ siteId: SITE, serviceCode: "CONDENSER-INSTALL", workClass: "install", priority: "emergency", projectId: PROJECT, ...window }, baseAnswers([overrideRow("4_hour")]), "install_not_emergency");
+  await refused(
+    { siteId: SITE, serviceCode: "CONDENSER-INSTALL", workClass: "install", projectId: PROJECT, ...window },
+    [["FROM projects WHERE id", [{ org_id: ORG, name: "Roof changeout", foreman_id: null }]], ...baseAnswers([overrideRow("4_hour")])],
+    "project_has_no_seller",
+  );
+
+  const s = scripted([["FROM projects WHERE id", [{ org_id: ORG, name: "Roof changeout", foreman_id: U(61) }]], ...baseAnswers([overrideRow("4_hour")])]);
+  await createJob(await uowFor(s.tx), { siteId: SITE, serviceCode: "CONDENSER-INSTALL", workClass: "install", projectId: PROJECT, ...window }, newId, now);
+  const insert = s.queries.find((q) => q.sql.startsWith("INSERT INTO jobs"))!;
+  assert.equal(insert.params[10], "install");
+
+  // Omitted, the work is service — what every job before 0024 was.
+  const plain = scripted(baseAnswers([overrideRow("4_hour")]));
+  await createJob(await uowFor(plain.tx), { siteId: SITE, serviceCode: "hvac_repair", ...window }, newId, now);
+  assert.equal(plain.queries.find((q) => q.sql.startsWith("INSERT INTO jobs"))!.params[10], "service");
+});
+
 test("createJob refuses a site that does not resolve to a site tier, an empty window, and an unresolvable sla_response", async () => {
   const notSite = await uowFor(scripted(baseAnswers([])).tx);
   await assert.rejects(

@@ -112,6 +112,21 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   // 0016: a published update is final, and an update id that is not this job's draft is not one to edit.
   already_published: "structural",
   unknown_update: "structural",
+  // 0024 — an install crew is not a technician. All structural: the wrong kind
+  // of crew for the work, a person on the wrong kind of crew, an install with
+  // nobody who sold it — each is a row to fix, not a position to price.
+  crew_kind_mismatch: "structural",
+  crew_role_mismatch: "structural",
+  install_needs_project: "structural",
+  install_not_emergency: "structural",
+  project_has_no_seller: "structural",
+  ac_technician_fits_the_crew: "structural",
+  ac_crew_kind_fits_its_people: "structural",
+  ac_install_job_has_its_seller: "structural",
+  ac_project_keeps_its_seller: "structural",
+  ac_assignment_crew_fits_the_work: "structural",
+  jobs_install_sits_under_a_project: "structural",
+  jobs_install_is_never_an_emergency: "structural",
 });
 
 export const admissionAxis = (code: string | undefined): AdmissionAxis =>

@@ -44,11 +44,11 @@ const FIRMS: FirmWire[] = [
 ];
 const CREWS: CrewWire[] = [
   {
-    id: CREW_A, label: "Crew A1", employmentType: "subcontracted", firmId: FIRM_A, homeRegionId: SOUTH, active: true,
+    id: CREW_A, label: "Crew A1", employmentType: "subcontracted", kind: "service", firmId: FIRM_A, homeRegionId: SOUTH, active: true,
     documents: { required: ["insurance", "license", "background_check"], satisfied: ["insurance", "license"], unverified: [], expired: [], missing: ["background_check"], earliestExpiry: "2027-06-30" },
   },
   {
-    id: CREW_OURS, label: "Crew W1", employmentType: "employed", firmId: null, homeRegionId: SOUTH, active: true,
+    id: CREW_OURS, label: "Crew W1", employmentType: "employed", kind: "service", firmId: null, homeRegionId: SOUTH, active: true,
     documents: { required: ["license", "background_check"], satisfied: ["license", "background_check"], unverified: [], expired: [], missing: [], earliestExpiry: "2028-01-01" },
   },
 ];

@@ -5,9 +5,9 @@ import { InputRefused, BadInput } from "../refusals.ts";
 import type {
   CreateJobInput, CreateJobOutput, JobPriority, JobStateWire, JobWire, ListJobsOutput,
   FieldJobWire, MyJobsOutput, AddressWire, TransitionJobInput, TransitionJobOutput,
-  AddJobNoteInput, AddJobNoteOutput, SetReturnTripInput, SetReturnTripOutput, CustomerSegment,
+  AddJobNoteInput, AddJobNoteOutput, SetReturnTripInput, SetReturnTripOutput, CustomerSegment, JobWorkClass,
 } from "../../../../packages/contracts/src/operations.ts";
-import { OFFICE_JOB_TRANSITIONS } from "../../../../packages/contracts/src/operations.ts";
+import { OFFICE_JOB_TRANSITIONS, JOB_WORK_CLASSES } from "../../../../packages/contracts/src/operations.ts";
 
 /**
  * ITEM 4 — THE JOB ITSELF. A job is created in Office & Dispatch (00 §2.2)
@@ -41,7 +41,7 @@ const PRIORITIES: readonly JobPriority[] = ["emergency", "urgent", "routine", "p
 
 export type JobRow = {
   id: string; site_id: string; site_name: string | null; site_address: AddressWire | null; contract_id: string | null; project_id: string | null;
-  service_code: string; priority: JobPriority; state: JobStateWire;
+  service_code: string; priority: JobPriority; state: JobStateWire; work_class: JobWorkClass;
   ws: string; we: string; version: number; opened_at: string; state_changed_at: string; region_id: string; org_id: string; customer_segment: CustomerSegment | null;
   current_crew_id: string | null; current_crew_label: string | null; current_assignment_id: string | null;
   sla_due_at: string | null; sla_escalation_stage: number | null; sla_satisfied_at: string | null;
@@ -50,7 +50,7 @@ export type JobRow = {
 
 export const toWire = (r: JobRow): JobWire => ({
   id: r.id, siteId: r.site_id, siteName: r.site_name, siteAddress: r.site_address, contractId: r.contract_id, projectId: r.project_id,
-  serviceCode: r.service_code, priority: r.priority, state: r.state,
+  serviceCode: r.service_code, priority: r.priority, state: r.state, workClass: r.work_class,
   serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version, openedAt: r.opened_at, stateChangedAt: r.state_changed_at,
   regionId: r.region_id, orgId: r.org_id, customerSegment: r.customer_segment ?? null,
   currentCrewId: r.current_crew_id, currentCrewLabel: r.current_crew_label, currentAssignmentId: r.current_assignment_id,
@@ -59,7 +59,7 @@ export const toWire = (r: JobRow): JobWire => ({
 });
 
 export const JOB_SELECT = `
-  SELECT j.id, j.site_id, s.name AS site_name, s.address AS site_address, j.contract_id, j.project_id, j.service_code, j.priority, j.state,
+  SELECT j.id, j.site_id, s.name AS site_name, s.address AS site_address, j.contract_id, j.project_id, j.service_code, j.priority, j.state, j.work_class,
          lower(j.service_window) AS ws, upper(j.service_window) AS we, j.version,
          to_char(j.opened_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS opened_at,
          to_char(COALESCE((SELECT max(e.occurred_at) FROM job_state_events e WHERE e.job_id = j.id AND e.to_state = j.state), j.opened_at)
@@ -88,11 +88,22 @@ export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: (
   const serviceCode = requireText(input.serviceCode, "serviceCode");
   const priority = input.priority ?? "routine";
   if (!PRIORITIES.includes(priority)) throw new BadInput(`priority must be one of ${PRIORITIES.join(", ")}`);
+  const workClass = input.workClass ?? "service";
+  if (!JOB_WORK_CLASSES.includes(workClass)) throw new BadInput(`workClass must be one of ${JOB_WORK_CLASSES.join(", ")}`);
   const windowStart = requireIso(input.serviceWindowStart, "serviceWindowStart");
   const windowEnd = requireIso(input.serviceWindowEnd, "serviceWindowEnd");
   if (windowEnd.getTime() <= windowStart.getTime()) throw new InputRefused("serviceWindowEnd must be after serviceWindowStart — an empty window is not a job", "bad_window");
   const contractId = input.contractId === undefined ? null : requireUuid(input.contractId, "contractId");
   const projectId = input.projectId === undefined ? null : requireUuid(input.projectId, "projectId");
+  // 0024: an install is sold, scheduled and crewed — never an emergency, and
+  // never without the person who sold it. Said here by name; 0024's checks
+  // and trigger say it for every other path.
+  if (workClass === "install" && priority === "emergency") {
+    throw new InputRefused("an install is never an emergency — an emergency is a technician's call; open it as service work", "install_not_emergency");
+  }
+  if (workClass === "install" && !projectId) {
+    throw new InputRefused("an install job sits under the project of the person who sold it — name the project", "install_needs_project");
+  }
   if (input.equipmentIds !== undefined && !Array.isArray(input.equipmentIds)) throw new BadInput("equipmentIds must be a list of uuids");
   const equipmentIds = [...new Set((input.equipmentIds ?? []).map((e, i) => requireUuid(e, `equipmentIds[${i}]`)))];
 
@@ -108,9 +119,12 @@ export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: (
     if (c.org_id !== site.org_id) throw new InputRefused(`agreement ${contractId} is not this site's customer's`, "tenancy_mismatch");
   }
   if (projectId) {
-    const pr = (await uow.tx.query<{ org_id: string }>(`SELECT org_id FROM projects WHERE id = $1`, [projectId]))[0];
+    const pr = (await uow.tx.query<{ org_id: string; name: string; foreman_id: string | null }>(`SELECT org_id, name, foreman_id FROM projects WHERE id = $1`, [projectId]))[0];
     if (!pr) throw new InputRefused(`no project ${projectId} visible in this scope`, "unknown_project");
     if (pr.org_id !== site.org_id) throw new InputRefused(`project ${projectId} is not this site's customer's`, "tenancy_mismatch");
+    if (workClass === "install" && !pr.foreman_id) {
+      throw new InputRefused(`project ${pr.name} names no foreman — an install sits under the person who sold it; name them on the project first`, "project_has_no_seller");
+    }
   }
 
   // Item 9: the units this job is about must be units at THIS site. The
@@ -159,15 +173,15 @@ export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: (
     {
       entity: "job", entityId: jobId, action: "job.create", topic: "job.created",
       before: null,
-      after: { id: jobId, siteId: site.id, serviceCode, priority, state: "created", serviceWindowStart: windowStart.toISOString(), serviceWindowEnd: windowEnd.toISOString(), equipmentIds },
+      after: { id: jobId, siteId: site.id, serviceCode, priority, workClass, state: "created", serviceWindowStart: windowStart.toISOString(), serviceWindowEnd: windowEnd.toISOString(), equipmentIds },
       orgId: site.org_id, regionId: site.region_id,
-      payload: { siteId: site.id, serviceCode, priority },
+      payload: { siteId: site.id, serviceCode, priority, workClass },
     },
     async (tx) => {
       await tx.query(
-        `INSERT INTO jobs (id, org_id, region_id, site_id, contract_id, project_id, service_code, priority, service_window)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, tstzrange($9::timestamptz, $10::timestamptz, '[)'))`,
-        [jobId, site.org_id, site.region_id, site.id, contractId, projectId, serviceCode, priority, windowStart.toISOString(), windowEnd.toISOString()],
+        `INSERT INTO jobs (id, org_id, region_id, site_id, contract_id, project_id, service_code, priority, service_window, work_class)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, tstzrange($9::timestamptz, $10::timestamptz, '[)'), $11)`,
+        [jobId, site.org_id, site.region_id, site.id, contractId, projectId, serviceCode, priority, windowStart.toISOString(), windowEnd.toISOString(), workClass],
       );
       for (const equipmentId of equipmentIds) {
         await tx.query(

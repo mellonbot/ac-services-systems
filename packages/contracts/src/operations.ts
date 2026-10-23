@@ -1098,6 +1098,18 @@ export type UpdateFirmInput = {
 export type UpdateFirmOutput = { readonly id: string; readonly status: FirmStatus; readonly eventId: string };
 
 export type EmploymentType = "employed" | "subcontracted";
+/**
+ * 0024. A technician is never on a crew: their dispatch unit is a `service`
+ * crew of one technician. An `install` crew is installers only. Mirrors
+ * CREW_KINDS in packages/schema (the column's CHECK); a test holds them equal.
+ */
+export const CREW_KINDS = ["service", "install"] as const;
+export type CrewKind = (typeof CREW_KINDS)[number];
+/** 0024. Install work goes to an install crew; service and commissioning go to a technician. Mirrors JOB_WORK_CLASSES in packages/schema. */
+export const JOB_WORK_CLASSES = ["service", "install", "commissioning"] as const;
+export type JobWorkClass = (typeof JOB_WORK_CLASSES)[number];
+/** The one place the work decides the crew. Read by jobs.create, dispatch.candidates and dispatch.assign; 0024's trigger says the same in SQL. */
+export const crewKindFor = (work: JobWorkClass): CrewKind => (work === "install" ? "install" : "service");
 /** What the gate would say about this crew's documents today — not a clearance, a summary S2 reads. */
 export type CrewDocumentSummary = {
   /** The kinds the gate requires for this employment shape (domain/compliance/gate.ts REQUIRED). */
@@ -1117,6 +1129,7 @@ export type CrewWire = {
   readonly id: string;
   readonly label: string;
   readonly employmentType: EmploymentType;
+  readonly kind: CrewKind;
   readonly firmId: string | null;
   readonly homeRegionId: string;
   readonly active: boolean;
@@ -1128,6 +1141,8 @@ export type ListCrewsOutput = { readonly crews: readonly CrewWire[] };
 export type CreateCrewInput = {
   readonly label: string;
   readonly employmentType: EmploymentType;
+  /** Omitted: `service` — one technician's unit. */
+  readonly kind?: CrewKind;
   /** Required for a subcontracted crew; refused for an employed one. */
   readonly firmId?: string;
   /** OUR region the crew is normally dispatched from. Its tenancy region on insert. */
@@ -1144,6 +1159,11 @@ export const mayReadTechnicianAddress = (roles: readonly string[]): boolean => r
 /** 0020. Mirrors TECHNICIAN_SPECIALTIES in packages/schema (the column's CHECK); a test holds them equal. */
 export const TECHNICIAN_SPECIALTIES = ["residential_hvac", "light_commercial", "commercial_rtu", "refrigeration", "chillers_boilers", "controls_bas", "install", "ductwork"] as const;
 export type TechnicianSpecialty = (typeof TECHNICIAN_SPECIALTIES)[number];
+/** 0024. `technician` goes on a service unit (alone); the others on an install crew. Mirrors TECHNICIAN_ROLES in packages/schema. */
+export const TECHNICIAN_ROLES = ["technician", "lead_installer", "installer", "helper"] as const;
+export type TechnicianRole = (typeof TECHNICIAN_ROLES)[number];
+/** The crew kind a role belongs on. */
+export const crewKindForRole = (role: TechnicianRole): CrewKind => (role === "technician" ? "service" : "install");
 export type TechnicianWire = {
   readonly id: string;
   /** Null: one of ours. */
@@ -1155,6 +1175,7 @@ export type TechnicianWire = {
   readonly homeAddress: AddressWire | null;
   /** True for every role outside TECHNICIAN_ADDRESS_ROLES: the address exists or not, and this reader is not told. */
   readonly addressRestricted: boolean;
+  readonly role: TechnicianRole;
   readonly specialties: readonly TechnicianSpecialty[];
   readonly homeRegionId: string;
   readonly active: boolean;
@@ -1169,6 +1190,8 @@ export type RecordTechnicianInput = {
   readonly phone?: string;
   /** Account owners and principals only. */
   readonly homeAddress?: AddressWire;
+  /** Omitted: `technician`. */
+  readonly role?: TechnicianRole;
   readonly specialties: readonly TechnicianSpecialty[];
   /** OUR region they work from; the row's tenancy region. */
   readonly homeRegionId: string;
@@ -1181,6 +1204,7 @@ export type UpdateTechnicianInput = {
   readonly phone?: string;
   /** Account owners and principals only. Null clears it. */
   readonly homeAddress?: AddressWire | null;
+  readonly role?: TechnicianRole;
   readonly specialties?: readonly TechnicianSpecialty[];
   /** Null takes them off their crew. */
   readonly crewId?: string | null;
@@ -1352,6 +1376,8 @@ export type CreateJobInput = {
   readonly serviceWindowEnd: string;
   readonly contractId?: string;
   readonly projectId?: string;
+  /** 0024. Omitted: `service`. `install` requires `projectId`, a project that names its foreman (who sold it), and is never an emergency. */
+  readonly workClass?: JobWorkClass;
   /** Item 9: the units at the site this job is about. Each must be equipment at `siteId`; the row lands in job_equipment in the same unit of work. */
   readonly equipmentIds?: readonly string[];
 };
@@ -1371,6 +1397,8 @@ export type JobWire = {
   readonly siteAddress: AddressWire | null;
   readonly contractId: string | null; readonly projectId: string | null;
   readonly serviceCode: string; readonly priority: JobPriority; readonly state: JobStateWire;
+  /** 0024: which kind of crew this job is dispatched to (`crewKindFor`). */
+  readonly workClass: JobWorkClass;
   readonly serviceWindowStart: string; readonly serviceWindowEnd: string; readonly version: number; readonly openedAt: string;
   /** When the job entered its current state: the latest job_state_events row into it, or openedAt when none has been written (a job still "created"). */
   readonly stateChangedAt: string;
@@ -1500,6 +1528,7 @@ export type FieldJobWire = {
 export type MyJobsOutput = { readonly jobs: readonly FieldJobWire[] };
 
 export type ComplianceRefusalWireItem = { readonly reason: "missing" | "expired_in_window" | "unverified" | "crew_inactive"; readonly credentialKind: string; readonly detail: string };
+/** 0024: only crews of the kind the job's work needs are candidates (`crewKindFor`). */
 export type CandidateCrewWire = {
   readonly crewId: string; readonly label: string; readonly employmentType: EmploymentType;
   readonly cleared: boolean;

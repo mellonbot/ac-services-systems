@@ -30,7 +30,7 @@ const fakeGateway = (roles: string[]) => {
     parent: { tier: "parent", id: "org-internal", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: SOUTH,
   };
   const tech = (id: string, firmId: string | null, name: string): TechnicianWire => ({
-    id, firmId, crewId: firmId ? CREW : null, name, phone: "(817) 555-0120", homeAddress: owner ? HOME : null, addressRestricted: !owner,
+    id, firmId, crewId: firmId ? CREW : null, name, phone: "(817) 555-0120", homeAddress: owner ? HOME : null, addressRestricted: !owner, role: "technician",
     specialties: ["commercial_rtu", "refrigeration"], homeRegionId: SOUTH, active: true,
   });
   let session = false;

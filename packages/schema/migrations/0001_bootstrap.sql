@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS crews (
   firm_id uuid REFERENCES subcontractor_firms(id),
   home_region_id uuid NOT NULL REFERENCES regions(id),
   active boolean NOT NULL DEFAULT true,
+  kind text NOT NULL DEFAULT 'service' CHECK (kind IN ('service','install')),
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (id),
   CONSTRAINT crews_subcontracted_have_firm CHECK ((employment_type = 'subcontracted') = (firm_id IS NOT NULL))
@@ -180,6 +181,7 @@ CREATE TABLE IF NOT EXISTS technicians (
   home_address jsonb,
   specialties jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(specialties) = 'array' AND specialties <@ '["residential_hvac","light_commercial","commercial_rtu","refrigeration","chillers_boilers","controls_bas","install","ductwork"]'::jsonb),
   active boolean NOT NULL DEFAULT true,
+  role text NOT NULL DEFAULT 'technician' CHECK (role IN ('technician','lead_installer','installer','helper')),
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (id)
 );
@@ -378,8 +380,11 @@ CREATE TABLE IF NOT EXISTS jobs (
   version integer NOT NULL DEFAULT 1,
   opened_at timestamptz NOT NULL DEFAULT now(),
   return_trip boolean NOT NULL DEFAULT false,
+  work_class text NOT NULL DEFAULT 'service' CHECK (work_class IN ('service','install','commissioning')),
   created_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (id)
+  PRIMARY KEY (id),
+  CONSTRAINT jobs_install_sits_under_a_project CHECK (work_class <> 'install' OR project_id IS NOT NULL),
+  CONSTRAINT jobs_install_is_never_an_emergency CHECK (work_class <> 'install' OR priority <> 'emergency')
 );
 CREATE INDEX IF NOT EXISTS jobs_region_id_idx ON jobs (region_id);
 CREATE INDEX IF NOT EXISTS jobs_site_id_idx ON jobs (site_id);

@@ -3,7 +3,8 @@ import { evaluate, isRefusal, type Crew, type Credential } from "../../../../pac
 import { buildAssignment } from "../../../../packages/domain/src/compliance/assignment.ts";
 import type { Refusal } from "../../../../packages/domain/src/compliance/clearance.ts";
 import { InputRefused } from "../refusals.ts";
-import type { CandidateCrewsInput, CandidateCrewsOutput, CandidateCrewWire, ReleaseAssignmentInput, ReleaseAssignmentOutput } from "../../../../packages/contracts/src/operations.ts";
+import type { CandidateCrewsInput, CandidateCrewsOutput, CandidateCrewWire, CrewKind, JobWorkClass, ReleaseAssignmentInput, ReleaseAssignmentOutput } from "../../../../packages/contracts/src/operations.ts";
+import { crewKindFor } from "../../../../packages/contracts/src/operations.ts";
 
 /** Shared by `assignCrew` and `candidateCrews` — one query shape, one mapping, so a dry run reads exactly what the gated door reads. One query for any number of crews. */
 const credentialsOf = async (uow: UnitOfWork, crewIds: readonly string[]): Promise<Map<string, Credential[]>> => {
@@ -25,9 +26,9 @@ const credentialsOf = async (uow: UnitOfWork, crewIds: readonly string[]): Promi
 };
 
 /** The crew as the gate reads it — with its firm's status, so a suspended firm's crew is refused at the same door. */
-const CREW_SELECT = `SELECT c.id, c.label, c.active, c.employment_type, f.status AS firm_status
+const CREW_SELECT = `SELECT c.id, c.label, c.active, c.employment_type, c.kind, f.status AS firm_status
   FROM crews c LEFT JOIN subcontractor_firms f ON f.id = c.firm_id`;
-type CrewRow = { id: string; label: string; active: boolean; employment_type: Crew["employmentType"]; firm_status: string | null };
+type CrewRow = { id: string; label: string; active: boolean; employment_type: Crew["employmentType"]; kind: CrewKind; firm_status: string | null };
 const crewOf = (r: CrewRow): Crew => ({ id: r.id, active: r.active, employmentType: r.employment_type, firmStatus: r.firm_status });
 
 /** The states a job may be dispatched from. Anything else — on site, done, cancelled, waiting on a quote — is not a dispatch. */
@@ -61,8 +62,8 @@ export type AssignResult =
 export const assignCrew = async (uow: UnitOfWork, actorId: string, input: AssignInput, evaluatedAt: Date): Promise<AssignResult> => {
   // FOR UPDATE: two dispatchers (or one double-click) on the same job queue
   // here, and the second reads the state the first left behind.
-  const job = (await uow.tx.query<{ id: string; ws: string; we: string; state: string; region_id: string; org_id: string }>(
-    `SELECT id, lower(service_window) AS ws, upper(service_window) AS we, state, region_id, org_id FROM jobs WHERE id = $1 FOR UPDATE`, [input.jobId],
+  const job = (await uow.tx.query<{ id: string; ws: string; we: string; state: string; region_id: string; org_id: string; work_class: JobWorkClass }>(
+    `SELECT id, lower(service_window) AS ws, upper(service_window) AS we, state, region_id, org_id, work_class FROM jobs WHERE id = $1 FOR UPDATE`, [input.jobId],
   ))[0];
   if (!job) throw new InputRefused(`job ${input.jobId} not found in scope`, "unknown_job");
   if (job.region_id !== input.regionId || job.org_id !== input.orgId) throw new InputRefused(`job ${input.jobId} tenancy does not match input`, "tenancy_mismatch");
@@ -72,6 +73,15 @@ export const assignCrew = async (uow: UnitOfWork, actorId: string, input: Assign
 
   const crewRow = (await uow.tx.query<CrewRow>(`${CREW_SELECT} WHERE c.id = $1`, [input.crewId]))[0];
   if (!crewRow) throw new InputRefused(`crew ${input.crewId} not found in scope`, "unknown_crew");
+  // 0024: the work decides the kind of crew. Not a compliance verdict — no
+  // credential was read — so it is refused by name, not recorded as one.
+  const needed = crewKindFor(job.work_class);
+  if (crewRow.kind !== needed) {
+    throw new InputRefused(
+      `job ${input.jobId} is ${job.work_class} work and ${crewRow.label} is ${crewRow.kind === "install" ? "an install crew" : "a technician"} — install work goes to an install crew; service and commissioning go to a technician`,
+      "crew_kind_mismatch",
+    );
+  }
   const crew = crewOf(crewRow);
   const credentials = (await credentialsOf(uow, [input.crewId])).get(input.crewId)!;
   const window = { start: Date.parse(job.ws), end: Date.parse(job.we) };
@@ -141,8 +151,8 @@ export const assignCrew = async (uow: UnitOfWork, actorId: string, input: Assign
  * one gated door with the crew they picked.
  */
 export const candidateCrews = async (uow: UnitOfWork, input: CandidateCrewsInput, evaluatedAt: Date): Promise<CandidateCrewsOutput> => {
-  const job = (await uow.tx.query<{ id: string; ws: string; we: string; region_id: string; org_id: string }>(
-    `SELECT id, lower(service_window) AS ws, upper(service_window) AS we, region_id, org_id FROM jobs WHERE id = $1`, [input.jobId],
+  const job = (await uow.tx.query<{ id: string; ws: string; we: string; region_id: string; org_id: string; work_class: JobWorkClass }>(
+    `SELECT id, lower(service_window) AS ws, upper(service_window) AS we, region_id, org_id, work_class FROM jobs WHERE id = $1`, [input.jobId],
   ))[0];
   if (!job) throw new InputRefused(`job ${input.jobId} not found in scope`, "unknown_job");
   if (job.region_id !== input.regionId || job.org_id !== input.orgId) throw new InputRefused(`job ${input.jobId} tenancy does not match input`, "tenancy_mismatch");
@@ -151,8 +161,8 @@ export const candidateCrews = async (uow: UnitOfWork, input: CandidateCrewsInput
   const crews = await uow.tx.query<CrewRow>(
     // The job's own region, not the caller's — RLS narrows further for a
     // region-locked principal; an org-scoped one may legitimately be looking
-    // at a job outside their home region.
-    `${CREW_SELECT} WHERE c.home_region_id = $1 AND c.active ORDER BY c.label`, [job.region_id],
+    // at a job outside their home region. Only the kind the work needs (0024).
+    `${CREW_SELECT} WHERE c.home_region_id = $1 AND c.active AND c.kind = $2 ORDER BY c.label`, [job.region_id, crewKindFor(job.work_class)],
   );
   const credentials = await credentialsOf(uow, crews.map((c) => c.id));
 
