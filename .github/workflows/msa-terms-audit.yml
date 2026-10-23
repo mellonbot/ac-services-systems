@@ -1,0 +1,30 @@
+name: msa-terms-audit
+
+# Manual only. Read-only against production: lists every active MSA missing a
+# term the activation gate requires, and every customer with sites and no MSA
+# in effect. A red run means some dispatcher would be refused `no_value`.
+# Zero-install: the script imports the term register and shells out to psql.
+on:
+  workflow_dispatch:
+    inputs:
+      as_of:
+        description: "As-of date (YYYY-MM-DD). Empty = today."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      - name: audit
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AS_OF: ${{ inputs.as_of }}
+        run: node tools/ci/audit-msa-terms.ts $AS_OF
