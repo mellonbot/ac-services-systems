@@ -39,23 +39,24 @@ export const S1_CSS = `
 /* ---- The sign-in yard: the outdoor service yard in 3D (src/scene.ts), after the ERS recovery
    line — the truck turning on a turntable, condensers and RTUs waiting behind it, a pad on the
    asphalt for each portal, and that portal's plate
-   pinned above its pad. The front page sits on the page grid, so the logo, the heading and the
+   pinned beside its pad on the side away from the turntable, so no plate crosses the truck's swept
+   volume (r 9.5 m, 6.3 m tall) at any heading. The front page sits on the page grid, so the logo, the heading and the
    panel share one left edge and the panel runs the page width. Live, each plate takes --x/--y from the scene's projection; until then, and where
    WebGL is unavailable, the plates sit on a CSS ellipse over the still (public/scene-still.webp).
-   Under 40rem the plates leave the floor and stack under it. ---- */
+   Under 45rem the plates leave the floor and stack under it. ---- */
 .s1-scene{position:relative;container-type:inline-size;margin-top:var(--space-4);border-radius:var(--radius-card);overflow:hidden;box-shadow:var(--elevation-card)}
 .s1-scene__stage{aspect-ratio:16/9;background:url(/scene-still.webp) center/cover no-repeat}
 .s1-scene[data-live] .s1-scene__stage{background:none}
 .s1-scene__stage canvas{display:block;width:100%;height:100%}
 .s1-scene__plates{position:absolute;inset:0;margin:0;padding:0;list-style:none;pointer-events:none}
-.s1-scene__plate{position:absolute;left:calc(50% + sin(var(--slot)) * 36cqi);top:calc(50% - cos(var(--slot)) * 20cqi);width:clamp(11rem, 15cqi, 12rem);transform:translate(-50%,-100%);pointer-events:auto}
+.s1-scene__plate{position:absolute;left:calc(50% + sin(var(--slot)) * 36cqi);top:calc(50% - cos(var(--slot)) * 20cqi);width:max-content;--out-x:clamp(-1, 2 * sin(var(--slot)), 1);--out-y:clamp(-1, -2 * cos(var(--slot)), 1);transform:translate(calc(-50% + var(--out-x) * (50% + var(--space-3))),calc(-50% + var(--out-y) * (50% + var(--space-3))));pointer-events:auto}
 .s1-scene[data-live] .s1-scene__plate{left:var(--x);top:var(--y)}
-.s1-portal{display:flex;flex-direction:column;justify-content:center;gap:var(--space-1);min-height:calc(2 * var(--control-height));padding:var(--space-3);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);color:var(--color-text);text-align:center;text-decoration:none;transition:border-color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease)}
-.s1-portal strong{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-tight)}
-.s1-portal span{color:var(--color-text-muted);font-size:var(--text-sm)}
+.s1-portal{display:flex;flex-direction:column;justify-content:center;min-height:var(--control-height);padding:var(--space-1) var(--space-3);white-space:nowrap;line-height:1.25;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);color:var(--color-text);text-align:center;text-decoration:none;transition:border-color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease)}
+.s1-portal strong{font-family:var(--font-display);font-size:var(--text-sm);font-weight:700;letter-spacing:var(--track-tight)}
+.s1-portal span{color:var(--color-text-muted);font-size:var(--text-xs)}
 .s1-portal:hover{border-color:var(--color-border-hard);box-shadow:var(--elevation-raised)}
 .s1-portal:hover strong{text-decoration:underline}
-@container (max-width:40rem){
+@container (max-width:45rem){
   .s1-scene__stage{aspect-ratio:4/3}
   .s1-scene__plates{position:static;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);padding:var(--space-3);pointer-events:auto}
   .s1-scene__plate,.s1-scene[data-live] .s1-scene__plate{position:static;width:auto;transform:none}
