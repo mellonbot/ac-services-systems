@@ -1,5 +1,6 @@
 import { html, pageHead, panel, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { RateCardWire, FirmWire, Refusal } from "../../../../packages/contracts/src/index.ts";
+import { JOB_WORK_CLASSES, JOB_WORK_CLASS_LABEL, SERVICE_CATALOG, serviceLabel } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen } from "./common.ts";
 
@@ -77,7 +78,7 @@ export const networkRates: Screen = (ctx, params) => {
       density: ctx.density,
       stack: true, caption: "Rates over time",
       columns: [
-        { key: "serviceCode", header: "Service code" },
+        { key: "serviceCode", header: "Service", cell: (r: RateCardWire) => serviceLabel(r.serviceCode) },
         { key: "rateMinor", header: "Rate", align: "end", numeric: true, cell: (r: RateCardWire) => html`<span>${r.rateMinor} <small class="s2-muted">${readable(r.rateMinor, r.currency)}</small></span>` },
         { key: "effectiveFrom", header: "In effect", cell: (r: RateCardWire) => `${r.effectiveFrom} → ${r.effectiveTo ?? "open"}` },
         { key: "now", header: "", cell: (r: RateCardWire) => inEffect(r, today) ? html`<span class="s2-state" data-tone="live">today</span>` : null },
@@ -93,7 +94,15 @@ export const networkRates: Screen = (ctx, params) => {
     })}
     ${panel(whenReady(ctx, cards.value, (c) => grid(c.rateCards)))}
     ${panel(html`<form class="ac-form" onSubmit=${submit} id="rate-form">
-      <label class="ac-field"><span>Service code</span><input class="ac-input" name="serviceCode" required placeholder="HVAC_REPAIR" /></label>
+      <label class="ac-field"><span>Service</span>
+        <select class="ac-input" name="serviceCode" required>
+          <option value="">Choose a service</option>
+          ${JOB_WORK_CLASSES.map((w) => html`<optgroup label=${JOB_WORK_CLASS_LABEL[w]}>
+            ${SERVICE_CATALOG.filter((x) => x.workClass === w).map((x) => html`<option value=${x.code}>${x.label}</option>`)}
+          </optgroup>`)}
+        </select>
+        <small>The services jobs are opened for. A rate is for one of them, so a settlement can match it to the work.</small>
+      </label>
       <label class="ac-field">
         <span>Rate (minor units)</span>
         <input class="ac-input" name="rateMinor" required inputmode="numeric" pattern="[0-9]*" placeholder="9500" />

@@ -57,8 +57,8 @@ const DOCS: CredentialWire[] = [
   { id: LIC, crewId: CREW_A, kind: "license", identifier: "LIC-1", validFrom: "2026-01-01", validTo: "2027-01-01", documentKey: null, verifiedAt: null, verifiedBy: null },
 ];
 const RATES: RateCardWire[] = [
-  { id: RATE_JAN, firmId: FIRM_A, serviceCode: "HVAC_REPAIR", rateMinor: "9500", currency: "USD", effectiveFrom: "2026-01-01", effectiveTo: "2026-10-01" },
-  { id: RATE_OCT, firmId: FIRM_A, serviceCode: "HVAC_REPAIR", rateMinor: "9900", currency: "USD", effectiveFrom: "2026-10-01", effectiveTo: null },
+  { id: RATE_JAN, firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "9500", currency: "USD", effectiveFrom: "2026-01-01", effectiveTo: "2026-10-01" },
+  { id: RATE_OCT, firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "9900", currency: "USD", effectiveFrom: "2026-10-01", effectiveTo: null },
 ];
 
 type Reply = { status: number; body: unknown };

@@ -110,7 +110,7 @@ before(async () => {
     ($1,$4,$6,'Crew A1','subcontracted',$4,$6), ($2,$5,$6,'Crew B1','subcontracted',$5,$6), ($3,$7,$8,'Crew W1','employed',NULL,$8) ON CONFLICT (id) DO NOTHING`,
     [CREW_A, CREW_B, CREW_EMP, FIRM_A, FIRM_B, REGION_SOUTH, INTERNAL_ORG_ID, REGION_WEST]);
   await admin(`INSERT INTO rate_cards (org_id, region_id, firm_id, service_code, rate_minor, currency, effective) VALUES
-    ($1,$3,$1,'HVAC_REPAIR',9500,'USD','[2026-01-01,)'), ($2,$3,$2,'HVAC_REPAIR',8800,'USD','[2026-01-01,)') ON CONFLICT DO NOTHING`, [FIRM_A, FIRM_B, REGION_SOUTH]);
+    ($1,$3,$1,'HVAC-REPAIR',9500,'USD','[2026-01-01,)'), ($2,$3,$2,'HVAC-REPAIR',8800,'USD','[2026-01-01,)') ON CONFLICT DO NOTHING`, [FIRM_A, FIRM_B, REGION_SOUTH]);
   // Credentials for crew A: full set, verified. Insurance expires 2026-09-20 — the one that matters.
   // Since 0005 a document ARRIVES unverified on every path, the superuser's
   // included, and is verified by S2 as a separate act — so the fixture does

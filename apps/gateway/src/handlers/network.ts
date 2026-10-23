@@ -9,7 +9,7 @@ import type {
   RateCardWire, ListRateCardsInput, ListRateCardsOutput, SetRateCardInput, SetRateCardOutput,
   SubmitCredentialInput, SubmitCredentialOutput, EnrollCrewInput, EnrollCrewOutput, RetireCrewInput, RetireCrewOutput, CrewKind,
 } from "../../../../packages/contracts/src/operations.ts";
-import { CREW_KINDS } from "../../../../packages/contracts/src/operations.ts";
+import { CREW_KINDS, SERVICE_CATALOG, serviceOf } from "../../../../packages/contracts/src/operations.ts";
 
 /**
  * C4 — THE SUBCONTRACTOR NETWORK S2 RECORDS: the firm, the crew, the document
@@ -543,6 +543,10 @@ export const listRateCards = async (uow: UnitOfWork, input: ListRateCardsInput):
 export const setRateCard = async (uow: UnitOfWork, input: SetRateCardInput, newId: () => string): Promise<SetRateCardOutput> => {
   const firm = await loadFirm(uow, requireUuid(input.firmId, "firmId"));
   const serviceCode = requireText(input.serviceCode, "serviceCode").toUpperCase();
+  // 0026: a rate is for a service we open jobs for — the same code a job carries.
+  if (!serviceOf(serviceCode)) {
+    throw new InputRefused(`"${serviceCode}" is not a service we open jobs for — price one of ${SERVICE_CATALOG.map((s) => s.code).join(", ")}`, "unknown_service_code");
+  }
   if (typeof input.rateMinor !== "string" || !DIGITS.test(input.rateMinor)) {
     throw new BadInput("rateMinor must be a string of integer minor units — a JSON number is a double and is not money");
   }

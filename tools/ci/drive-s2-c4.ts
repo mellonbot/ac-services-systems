@@ -353,7 +353,7 @@ async function main(): Promise<void> {
     const currencyDefault = await cdp.eval<string>(`document.querySelector('#rate-form [name="currency"]').value`);
     must(currencyDefault === "USD", `the currency field should carry USD before any submit, got ${JSON.stringify(currencyDefault)}`);
 
-    await cdp.eval(fillAndSubmit("rate-form", { serviceCode: "HVAC_REPAIR", rateMinor: "9500", effectiveFrom: "2026-09-10" }));
+    await cdp.eval(fillAndSubmit("rate-form", { serviceCode: "HVAC-REPAIR", rateMinor: "9500", effectiveFrom: "2026-09-10" }));
     await cdp.waitFor(gridRow("9500"), "the first rate as a row in the grid");
     // The handler clears the per-row fields last, so an empty rateMinor is the
     // signal that the first submit finished — filling before it lands is how a
@@ -366,9 +366,9 @@ async function main(): Promise<void> {
     const afterFirst = await cdp.eval<string>(`document.querySelector('#rate-form [name="currency"]').value`);
     must(afterFirst === "USD", `REGRESSION: the currency field was emptied by the first submit (got ${JSON.stringify(afterFirst)}) — the second rate will never reach the gateway`);
     const codeKept = await cdp.eval<string>(`document.querySelector('#rate-form [name="serviceCode"]').value`);
-    must(codeKept === "HVAC_REPAIR", `the service code should survive a submit for the next row, got ${JSON.stringify(codeKept)}`);
+    must(codeKept === "HVAC-REPAIR", `the service code should survive a submit for the next row, got ${JSON.stringify(codeKept)}`);
 
-    await cdp.eval(fillAndSubmit("rate-form", { serviceCode: "HVAC_REPAIR", rateMinor: "10500", effectiveFrom: "2026-10-01" }));
+    await cdp.eval(fillAndSubmit("rate-form", { serviceCode: "HVAC-REPAIR", rateMinor: "10500", effectiveFrom: "2026-10-01" }));
     try {
       await cdp.waitFor(gridRow("10500"), "the SECOND rate as a row in the grid — the regression this file exists for", 8_000);
     } catch (e) {

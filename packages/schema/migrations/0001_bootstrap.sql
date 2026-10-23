@@ -201,7 +201,7 @@ CREATE TABLE IF NOT EXISTS rate_cards (
   org_id uuid NOT NULL REFERENCES organizations(id),
   region_id uuid NOT NULL REFERENCES regions(id),
   firm_id uuid NOT NULL REFERENCES subcontractor_firms(id),
-  service_code text NOT NULL,
+  service_code text NOT NULL REFERENCES service_codes(code),
   rate_minor bigint NOT NULL,
   currency text NOT NULL REFERENCES currencies(code),
   effective daterange NOT NULL,

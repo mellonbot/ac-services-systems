@@ -98,7 +98,7 @@ export const technicians = operationalTable("technicians", {
 export const rate_cards = operationalTable("rate_cards", {
   columns: [
     { name: "firm_id", type: "uuid", references: "subcontractor_firms(id)" },
-    { name: "service_code", type: "text" },
+    { name: "service_code", type: "text", references: "service_codes(code)", comment: "0026: a code in the service catalogue, as a job's is." },
     { name: "rate_minor", type: "bigint", comment: "Integer minor units. No float in the money path, enforced by lint." },
     { name: "currency", type: "text", references: "currencies(code)" },
     { name: "effective", type: "daterange" },

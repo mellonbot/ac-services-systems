@@ -238,15 +238,15 @@ test("the document summary is the gate's question asked of today: required from 
 // A rate is set from a day forward
 // ---------------------------------------------------------------------------
 test("setRateCard closes the row in effect at the new first day and inserts — two mutations, both audited, one topic", async () => {
-  const open = { id: OPEN_RATE, org_id: FIRM, region_id: REGION, firm_id: FIRM, service_code: "HVAC_REPAIR", rate_minor: "9500", currency: "USD", eff_from: "2026-01-01", eff_to: null };
+  const open = { id: OPEN_RATE, org_id: FIRM, region_id: REGION, firm_id: FIRM, service_code: "HVAC-REPAIR", rate_minor: "9500", currency: "USD", eff_from: "2026-01-01", eff_to: null };
   const s = scripted({ "FROM subcontractor_firms": [firmRow({ status: "active" })], "effective @>": [open] });
   const uow = await uowFor(s.tx);
-  const out = await setRateCard(uow, { firmId: FIRM, serviceCode: "hvac_repair", rateMinor: "9900", currency: "usd", effectiveFrom: "2026-10-01" }, newId);
+  const out = await setRateCard(uow, { firmId: FIRM, serviceCode: "hvac-repair", rateMinor: "9900", currency: "usd", effectiveFrom: "2026-10-01" }, newId);
   assert.equal(out.closedId, OPEN_RATE);
   const close = s.queries.find((q) => /UPDATE rate_cards SET effective/.test(q.sql))!;
   assert.deepEqual(close.params, [OPEN_RATE, "2026-10-01"]);
   const ins = s.queries.find((q) => /INSERT INTO rate_cards/.test(q.sql))!;
-  assert.equal(ins.params[4], "HVAC_REPAIR", "service codes are upper-cased so 'hvac_repair' and 'HVAC_REPAIR' are one price line");
+  assert.equal(ins.params[4], "HVAC-REPAIR", "service codes are upper-cased so 'hvac-repair' and 'HVAC-REPAIR' are one price line");
   assert.equal(ins.params[5], "9900", "money crosses as a string of minor units");
   const { audits, events } = uow.pending();
   assert.equal(audits.length, 2);
@@ -256,22 +256,33 @@ test("setRateCard closes the row in effect at the new first day and inserts — 
 });
 
 test("a rate that begins on the same day as the row in effect is refused by name; a float is not money", async () => {
-  const open = { id: OPEN_RATE, org_id: FIRM, region_id: REGION, firm_id: FIRM, service_code: "HVAC_REPAIR", rate_minor: "9500", currency: "USD", eff_from: "2026-10-01", eff_to: null };
+  const open = { id: OPEN_RATE, org_id: FIRM, region_id: REGION, firm_id: FIRM, service_code: "HVAC-REPAIR", rate_minor: "9500", currency: "USD", eff_from: "2026-10-01", eff_to: null };
   const uow = await uowFor(scripted({ "FROM subcontractor_firms": [firmRow({ status: "active" })], "effective @>": [open] }).tx);
   await assert.rejects(
-    setRateCard(uow, { firmId: FIRM, serviceCode: "HVAC_REPAIR", rateMinor: "9900", currency: "USD", effectiveFrom: "2026-10-01" }, newId),
+    setRateCard(uow, { firmId: FIRM, serviceCode: "HVAC-REPAIR", rateMinor: "9900", currency: "USD", effectiveFrom: "2026-10-01" }, newId),
     (e: unknown) => e instanceof InputRefused && e.code === "rate_begins_same_day",
   );
   await assert.rejects(
     // How a double actually arrives: off the wire, as JSON. The lint rule that
     // forbids a float literal in the money path is the same rule this refusal
     // is the runtime half of.
-    setRateCard(uow, { firmId: FIRM, serviceCode: "HVAC_REPAIR", rateMinor: JSON.parse("99.5"), currency: "USD", effectiveFrom: "2026-11-01" } as never, newId),
+    setRateCard(uow, { firmId: FIRM, serviceCode: "HVAC-REPAIR", rateMinor: JSON.parse("99.5"), currency: "USD", effectiveFrom: "2026-11-01" } as never, newId),
     (e: unknown) => e instanceof BadInput && /not money/.test(String(e)),
   );
   await assert.rejects(
-    setRateCard(uow, { firmId: FIRM, serviceCode: "HVAC_REPAIR", rateMinor: "9900", currency: "USD", effectiveFrom: "2026-11-01", effectiveTo: "2026-11-01" }, newId),
+    setRateCard(uow, { firmId: FIRM, serviceCode: "HVAC-REPAIR", rateMinor: "9900", currency: "USD", effectiveFrom: "2026-11-01", effectiveTo: "2026-11-01" }, newId),
     (e: unknown) => e instanceof InputRefused && e.code === "empty_window",
   );
   assert.equal(admissionAxis("rate_cards_no_overlap"), "structural", "the EXCLUDE constraint's refusal is a wrong row, not a negotiation");
+});
+
+test("0026: a rate is for a service in the catalogue — the old spelling and an emergency premium are refused by name, before anything is read", async () => {
+  for (const code of ["HVAC_REPAIR", "EMERG-CALL"]) {
+    const s = scripted({ "FROM subcontractor_firms": [firmRow({ status: "active" })] });
+    await assert.rejects(
+      setRateCard(await uowFor(s.tx), { firmId: FIRM, serviceCode: code, rateMinor: "9900", currency: "USD", effectiveFrom: "2026-11-01" }, newId),
+      (e: unknown) => e instanceof InputRefused && e.code === "unknown_service_code" && /HVAC-REPAIR/.test(e.message),
+    );
+    assert.equal(s.queries.filter((q) => /rate_cards/.test(q.sql)).length, 0, `${code}: no rate read or written`);
+  }
 });

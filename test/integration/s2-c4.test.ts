@@ -252,10 +252,10 @@ test("ONLY S2 VERIFIES. A verification from S3's binding is refused; by a princi
 });
 
 test("a rate is set from a day forward: the row in effect is closed at it; an overlap is the EXCLUDE's to refuse, and the close rolls back with it", { skip }, async () => {
-  const jan = await s2.gateway.setRateCard({ firmId: firmA, serviceCode: "hvac_repair", rateMinor: "9500", currency: "USD", effectiveFrom: "2026-01-01" });
+  const jan = await s2.gateway.setRateCard({ firmId: firmA, serviceCode: "hvac-repair", rateMinor: "9500", currency: "USD", effectiveFrom: "2026-01-01" });
   rateJan = jan.id;
   assert.equal(jan.closedId, null);
-  const oct = await s2.gateway.setRateCard({ firmId: firmA, serviceCode: "HVAC_REPAIR", rateMinor: "9900", currency: "USD", effectiveFrom: "2026-10-01" });
+  const oct = await s2.gateway.setRateCard({ firmId: firmA, serviceCode: "HVAC-REPAIR", rateMinor: "9900", currency: "USD", effectiveFrom: "2026-10-01" });
   rateOct = oct.id;
   assert.equal(oct.closedId, rateJan, "the January row was the one in effect on 1 October");
   let cards = (await s2.gateway.listRateCards({ firmId: firmA })).rateCards;
@@ -265,10 +265,16 @@ test("a rate is set from a day forward: the row in effect is closed at it; an ov
 
   // Overlap: a bounded rate from September to December. The handler closes
   // January at 1 September and inserts; the insert collides with October's
+  // 0026: a rate is for a service in the catalogue — an emergency premium is a
+  // priority, not a service, and is refused by name with nothing written.
+  await assert.rejects(
+    s2.gateway.setRateCard({ firmId: firmA, serviceCode: "EMERG-CALL", rateMinor: "29500", currency: "USD", effectiveFrom: "2026-03-01" }),
+    (e: unknown) => refusal(s2, e).code === "unknown_service_code",
+  );
   // row; the EXCLUDE refuses; the whole unit of work — the close included — is
   // rolled back. Two prices on one day is unrepresentable, not tie-broken.
   await assert.rejects(
-    s2.gateway.setRateCard({ firmId: firmA, serviceCode: "HVAC_REPAIR", rateMinor: "9700", currency: "USD", effectiveFrom: "2026-09-01", effectiveTo: "2026-12-01" }),
+    s2.gateway.setRateCard({ firmId: firmA, serviceCode: "HVAC-REPAIR", rateMinor: "9700", currency: "USD", effectiveFrom: "2026-09-01", effectiveTo: "2026-12-01" }),
     (e: unknown) => {
       const r = refusal(s2, e);
       assert.equal(r.kind, "admission", JSON.stringify(r));
@@ -282,11 +288,11 @@ test("a rate is set from a day forward: the row in effect is closed at it; an ov
   assert.deepEqual(cards.map((c) => c.effectiveTo), ["2026-10-01", null], "the refused unit of work left January exactly as it was");
 
   await assert.rejects(
-    s2.gateway.setRateCard({ firmId: firmA, serviceCode: "HVAC_REPAIR", rateMinor: "9999", currency: "USD", effectiveFrom: "2026-10-01" }),
+    s2.gateway.setRateCard({ firmId: firmA, serviceCode: "HVAC-REPAIR", rateMinor: "9999", currency: "USD", effectiveFrom: "2026-10-01" }),
     (e: unknown) => { const r = refusal(s2, e); return r.kind === "admission" && r.code === "rate_begins_same_day"; },
   );
   await assert.rejects(
-    s2.gateway.setRateCard({ firmId: firmA, serviceCode: "HVAC_REPAIR", rateMinor: JSON.parse("99.5") as never, currency: "USD", effectiveFrom: "2027-01-01" }),
+    s2.gateway.setRateCard({ firmId: firmA, serviceCode: "HVAC-REPAIR", rateMinor: JSON.parse("99.5") as never, currency: "USD", effectiveFrom: "2027-01-01" }),
     (e: unknown) => refusal(s2, e).kind === "bad_request",
     "a JSON number is a double, not money",
   );
@@ -302,7 +308,7 @@ test("a firm on S8 sees its own firm, crews, documents and price and no other fi
   // Firm B has a crew and a rate too, so "nothing else" is a real statement.
   const crewB = (await s2.gateway.createCrew({ label: `Crew B1 ${RUN}`, employmentType: "subcontracted", firmId: firmB, homeRegionId: REGION_SOUTH })).id;
   await s2.gateway.recordCredential({ crewId: crewB, kind: "license", identifier: `LIC-B ${RUN}`, validFrom: "2026-01-01", validTo: "2027-01-01" });
-  await s2.gateway.setRateCard({ firmId: firmB, serviceCode: "HVAC_REPAIR", rateMinor: "8800", currency: "USD", effectiveFrom: "2026-01-01" });
+  await s2.gateway.setRateCard({ firmId: firmB, serviceCode: "HVAC-REPAIR", rateMinor: "8800", currency: "USD", effectiveFrom: "2026-01-01" });
 
   const s8 = await connectShell({ surfaceId: "S8", baseUrl: BASE, fetch, credentials: { email: `coord.${RUN}@firma.test`, password: PASSWORD } });
   const firms = (await s8.gateway.listFirms({})).firms;
@@ -319,7 +325,7 @@ test("a firm on S8 sees its own firm, crews, documents and price and no other fi
   for (const call of [
     () => s8.gateway.recordCredential({ crewId: crewA, kind: "license", identifier: "x", validFrom: "2026-01-01", validTo: "2027-01-01" }),
     () => s8.gateway.verifyCredential({ credentialId: coi }),
-    () => s8.gateway.setRateCard({ firmId: firmA, serviceCode: "HVAC_REPAIR", rateMinor: "1", currency: "USD", effectiveFrom: "2027-01-01" }),
+    () => s8.gateway.setRateCard({ firmId: firmA, serviceCode: "HVAC-REPAIR", rateMinor: "1", currency: "USD", effectiveFrom: "2027-01-01" }),
     () => s8.gateway.updateFirm({ firmId: firmA, status: "terminated" }),
   ]) await assert.rejects(call(), (e: unknown) => refusal(s8, e).kind === "scope");
   assert.equal((await admin(`SELECT status FROM subcontractor_firms WHERE id = $1`, [firmA]))[0]!.status, "active", "nothing S8 attempted took effect");
