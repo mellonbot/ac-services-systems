@@ -1,4 +1,4 @@
-import { html, pageHead, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, pageHead, mount, spinFavicon, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type AccountWire, type CrewWire, type FirmWire, type OrganizationWire, type PurchaseOrderDetailOutput, type Refusal, type TechnicianWire, type VendorWire } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -346,6 +346,7 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   // Root is the one Preact component; every signal a screen reads during its render re-renders Root.
   const Root = () => app.view();
   mount(html`<${Root} />`, el);
+  spinFavicon(document);
   effect(() => {
     if (!slot) return;
     const p = app.phase.value;

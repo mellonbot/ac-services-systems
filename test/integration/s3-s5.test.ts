@@ -438,10 +438,10 @@ test("notes and the return-trip flag (0015): append-only notes with the newest o
   await s3.gateway.setReturnTrip({ jobId, orgId, regionId: REGION_SOUTH, returnTrip: false });
   assert.equal((await board()).returnTrip, false);
 
-  for (const attempt of [
-    west.gateway.addJobNote({ jobId, orgId, regionId: REGION_WEST, body: "not mine" }),
-    west.gateway.setReturnTrip({ jobId, orgId, regionId: REGION_WEST, returnTrip: true }),
-  ]) await assert.rejects(attempt, (e: unknown) => code(west, e) === "unknown_job", "RLS: the West dispatcher cannot see the South job");
+  for (const call of [
+    () => west.gateway.addJobNote({ jobId, orgId, regionId: REGION_WEST, body: "not mine" }),
+    () => west.gateway.setReturnTrip({ jobId, orgId, regionId: REGION_WEST, returnTrip: true }),
+  ]) await assert.rejects(call(), (e: unknown) => code(west, e) === "unknown_job", "RLS: the West dispatcher cannot see the South job");
   assert.equal((await west.gateway.listJobs({})).jobs.filter((j) => j.id === jobId).length, 0);
   await west.logout();
 });

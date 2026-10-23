@@ -24,4 +24,5 @@ export * from "./resource-store.ts";
 export * from "./screen-helpers.ts";
 export * from "./fixed-units.ts";
 export * from "./layout.ts";
+export { spinFavicon } from "./favicon.ts";
 export { UI_CSS } from "./styles.ts";

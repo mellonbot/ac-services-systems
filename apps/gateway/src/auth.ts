@@ -1,4 +1,4 @@
-import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify, randomUUID, scryptSync, randomBytes, timingSafeEqual, type KeyObject } from "node:crypto";
+import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify, randomUUID, scrypt, scryptSync, randomBytes, timingSafeEqual, type KeyObject } from "node:crypto";
 import { NAMESPACES, type Claims, type Principal, type Namespace } from "../../../packages/contracts/src/scope.ts";
 import { TIERS, type Tier } from "../../../packages/contracts/src/tiers.ts";
 import { UNASSIGNED_REGION_ID, PROSPECT_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
@@ -130,4 +130,20 @@ export const verifyPassword = (password: string, stored: string): boolean => {
   const expected = unb64u(hash);
   const actual = scryptSync(password, unb64u(salt), expected.length, { N: 16384, r: 8, p: 1 });
   return timingSafeEqual(actual, expected);
+};
+
+/**
+ * The gateway's check: off the event loop (scrypt is tens of milliseconds of
+ * CPU, and synchronously every tenant waits behind every login), and the same
+ * work whether or not the login exists — a missing user is checked against a
+ * hash nobody holds, so the response time does not say which emails are real.
+ */
+const NOBODY = hashPassword(randomBytes(18).toString("base64url"));
+export const verifyPasswordAsync = async (password: string, stored: string | null | undefined): Promise<boolean> => {
+  const [alg, salt, hash] = (stored ?? NOBODY).split("$");
+  if (alg !== "scrypt" || !salt || !hash) return false;
+  const expected = unb64u(hash);
+  const actual = await new Promise<Buffer>((resolve, reject) =>
+    scrypt(password, unb64u(salt), expected.length, { N: 16384, r: 8, p: 1 }, (e, k) => (e ? reject(e) : resolve(k))));
+  return timingSafeEqual(actual, expected) && stored != null;
 };

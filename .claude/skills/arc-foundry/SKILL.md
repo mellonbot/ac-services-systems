@@ -41,23 +41,25 @@ white-label tenant. Consume the semantic roles as CSS custom properties.
 stylesheet back to `semantic.ts` without a lookup table. Use these names — `--stock`,
 `--panel`, `--arc` and `--ink` are **not** variables in this repo.
 
-## The two accent layers — settle this before choosing any colour
+## The two accent layers — both red since Rev C (2026-10-22)
 
 |  | Brand layer | Instrument layer |
 |---|---|---|
-| Accent | `--color-brand` `#D91F11` | `--color-action` `#00A3D9` |
-| Where | Wordmark, livery, badge, app icon, S1 marketing, a poster with no state legend | Every console, dashboard, portal and tablet surface (S2–S8), and any chart or diagram carrying status |
+| Accent | `--color-brand` `#D91F11` | `--color-action` `#D91F11` |
+| Where | Wordmark, livery, badge, app icon, S1 marketing, a poster with no state legend | Every control and highlight on every surface (S1–S8), and any chart or diagram carrying status |
 | Renders a state ramp | No | Yes |
 | Declared by | `stateRamp: false` in the surface registry | the default |
 
-Brand red measures **0.55°** from the fault ink `#A32318`. No bright red clears the accent
-gate's 30°, and there is nowhere to move it: the band between the fault at 4.75° and the
-warning at 39.52° is 34.78° wide. So red is not rejected — **the slot is.** Red is admitted
-exactly where a colliding tenant accent is admitted, and barred everywhere a state ramp
-renders, where `tokenCss` resolves the brand roles to Ink Black.
+**The fault is garnet, not red.** Bulletin 2 as issued drew the fault in oxide `#A32318`,
+0.55° from the house red, so red was barred from every surface that showed state and the
+interface ran on a cyan arc. Rev C moved the **fault**: `--color-status-breached` is garnet
+`#9C1F6E`. Red now measures **42.12°** from it and **35.32°** from its nearest state hue, the
+warning amber — clear of the 30° gate — so it is the instrument accent everywhere.
 
-A surface that forgets to declare renders in the neutral: the unsafe direction requires an
-explicit opt-in. We do not hold a tenant to a rule the house exempts itself from.
+The brand roles keep their surface fence (`tokenCss` resolves them to Ink Black where a state
+ramp renders): it is the mechanism a tenant accent that fails the gate still falls behind,
+and the house goes through the same gate. A surface that forgets to declare renders in the
+neutral.
 
 ## Light stock
 
@@ -70,23 +72,22 @@ explicit opt-in. We do not hold a tenant to a rule the house exempts itself from
 | `--color-border-hard` | `#8695A2` | plate heads, the rule under a table head. Still decorative |
 | `--color-text` | `#0E1418` | body, rules, marks. A cold near-black, never pure |
 | `--color-text-muted` | `#3C4A55` | muted text. `ink.light` is 3.27:1 here and is a non-text rule only (E-07) |
-| `--color-action` | `#00A3D9` | the arc **fill**, 2.09:1. Never a word |
-| `--color-action-ink` | `#0E1418` | the label on an arc fill, 6.40:1 — fixed in both themes because the fill is fixed |
-| `--color-action-text` | `#0A4F66` | every arc word under 24px, every rule, 6.52:1 |
-| `--color-action-pressed` | `#7FE9FF` | a press brightens toward the core |
-| `--color-focus-ring` | `#0A4F66` | never themeable |
+| `--color-action` | `#D91F11` | the red **fill**, 3.65:1. Never a word under 24px |
+| `--color-action-ink` | `#FFFFFF` | the label on the red fill, 5.05:1 — fixed in both themes because the fill is fixed |
+| `--color-action-text` | `#A81208` | every red word under 24px, every rule, 5.50:1 |
+| `--color-action-pressed` | `#A81208` | a press deepens to the text-safe red; the white label reads 7.62:1 on it |
+| `--color-focus-ring` | `#0A4F66` | the arc envelope — never themeable, and in a hue no control is painted in |
 | `--color-brand` | `#D91F11` | brand layer only |
 | `--color-brand-ink` | `#FFFFFF` | |
 | `--color-brand-text` | `#A81208` | any red word under 24px, brand layer only |
 | `--color-status-ok` | `#0E6A46` | **state only** — never emphasis, never a chart series |
 | `--color-status-at-risk` | `#7E5300` | state only |
-| `--color-status-breached` | `#A32318` | state only |
+| `--color-status-breached` | `#9C1F6E` | state only — garnet, 5.35:1 on the sunken ground |
 | `--color-status-blocked` | `#3C4A55` | state only |
 | `--color-status-breached-fill` | `transparent` | in the light stock a fault is an outline chip |
 
-The arc is three steps at **one hue** — envelope, fill, core — because an arc has a cooler
-envelope and a hot core. That is the phenomenon, not decoration: three steps without breaking
-Rule One, which a second decorative hue would have broken.
+The arc — envelope `#0A4F66`, core `#7FE9FF` — survives as the focus ring alone. A focus ring
+in a hue no control is painted in is easier to find, not harder.
 
 ## Field ground — fixed, never themed
 
@@ -97,9 +98,10 @@ always the most urgent state.
 
 page `#080D11` · surface `#111A20` · sunken `#050A0D` · border `#253039` ·
 border-hard `#55636F` · text `#E4ECF2` · text-muted `#91A1AE` (labels and units only, never
-a value) · action `#00A3D9` · action-ink `#0E1418` · action-text and focus ring `#7FE9FF`
-(12.58:1 — the accent here) · brand-text `#F4796C` · ok `#5FD39B` · at-risk `#E8B23C` ·
-breached `#E4ECF2` (the **word**) · breached-fill `#7A2A2E`, the tier's only solid chip.
+a value) · action `#D91F11` (3.48:1, a fill) · action-ink `#FFFFFF` · action-text and
+brand-text `#F4796C` (6.54:1 — the red word here) · action-pressed `#A81208` · focus ring
+`#7FE9FF` · ok `#5FD39B` · at-risk `#E8B23C` · breached `#E4ECF2` (the **word**) ·
+breached-fill `#7A2A5E` garnet, the tier's only solid chip (frost on it 7.58:1).
 
 State is encoded in **form** first — outline-mute nominal, outline-bright warning, solid
 fault — and hue only confirms. Greyscale the tier and the order still reads. E-14: the
@@ -125,21 +127,22 @@ including our own, because the semantic tier spends three roles separating fill 
 (E-15). Gate a fill at the fill's threshold.
 
 When an artefact needs more than one category colour, derive the extra slots from the arc's
-hue family and check each against the gate before use. Do not reach for a rainbow.
+blue hue family — the far side of the wheel from red, garnet and amber — and check each against the gate before use. Do not reach for a rainbow.
 
 ## The four rules that make it safe
 
 1. **Colour is state or category, never both on one artefact's legend.** If a legend entry
    reads like a state — breached, overdue, healthy — it is one. Use the state ink.
-2. **A fill colour never sets a word.** An arc word takes `--color-action-text`; a red word
-   under 24px takes `--color-brand-text`; the label on an arc fill takes
+2. **A fill colour never sets a word.** A red word under 24px takes `--color-action-text`
+   (or `--color-brand-text` on the brand layer); the label on a red fill takes
    `--color-action-ink`. A variant that repaints its fill on `:active` without repainting its
    ink pressed its own label to 1.00:1 (E-11) — carry both or neither.
 3. **Colour never carries alone.** Every state carries a word; every category carries a
    second channel — a number, a label, or a line form. The marks are `● ▲ ■ ✕`, and they must
    be in the subset (E-13).
-4. **Brand red never enters a state-bearing artefact**, and `--color-action` is never body
-   text.
+4. **Red never decorates a state chip** — clearing the gate is not a licence to paint a
+   status column — the brand roles stay on the brand layer, and `--color-action` is never
+   body text.
 
 ## Type
 
@@ -148,7 +151,7 @@ One family, four cuts, plus a script with exactly one job.
 | Role | Face | Where |
 |---|---|---|
 | Wordmark | **Yellowtail** | The masthead lockup and nothing else. 28px floor. Never in an interface |
-| Display | **IBM Plex Sans Condensed** | Plate titles, buttons, headings |
+| Display | **IBM Plex Sans Condensed** | Plate titles, buttons, headings. Caps only on a fixed label (a plate title) — never on a title that carries a name, because `text-transform` changes what is copied and read back |
 | Label | **IBM Plex Sans** | Descriptors, eyebrows, the company line — caps at `--track-wide` `0.14em` and up |
 | Text | **IBM Plex Sans** | Body copy, prose, contracts |
 | Instrument | **IBM Plex Mono** | Every numeral in the company, without exception |
@@ -157,10 +160,15 @@ The one rule that does most of the work: **every number in the company** — SLA
 staleness clocks, job numbers, gauge readings, invoice totals, tonnage, CFM — is set in the
 instrument face with tabular figures. Digits that hold their column are the entire effect.
 
-The script is a **mark, not a typeface**; the `°R` monogram is the badge, favicon, app icon
-and patch, and carries every size the script cannot. `°R` is a real unit of measurement —
+The script is a **mark, not a typeface**; the `°R` monogram is the app icon and patch, and
+carries every size the script cannot. The **favicon and the masthead mark are not the badge**:
+both are a yard model turning in a livery-red glow that fades to nothing — no hard edge — the truck on S5, the rooftop unit
+on every other surface — turned on one timer by `packages/ui/src/favicon.ts` (`FAVICON` and
+`faviconArtFor` in `brand.ts`, art in `packages/tokens/icons/`, rendered from S1's own models
+by `tools/icons/`). Each art also ships a 180px `apple-touch-icon.png`, without which iOS
+draws a letter tile. `°R` is a real unit of measurement —
 degrees Rankine — so it is a credential, not an ornament, and the ring precedes the letter
-because `°R` is one indivisible symbol. `badgeSvg()` names **no** font family: a favicon is
+because `°R` is one indivisible symbol. `badgeSvg()` names **no** font family: an icon is
 fetched before any stylesheet, so on a machine without the face the mark silently becomes a
 different mark (E-17).
 
@@ -179,7 +187,7 @@ loads at all.
 
 | Tier | Where | Control | Row | Body | Focus | Hover | Ground |
 |---|---|---|---|---|---|---|---|
-| Console | S2, S3, S4 | 36px | 28px | 13px | 2px | yes | light |
+| Console | S2, S3, S4 | 36px | 32px | 14px | 2px | yes | light |
 | Comfort | S1, S6, S7, S8 | 44px | 40px | 15px | 2px | yes | light |
 | Field | S5, the tablet | 56px | 56px | 18px | 3px | **no** | dark |
 
@@ -194,22 +202,36 @@ floors at 15px — the smallest uppercase instrument label that survives a roof 
 field tier there is no cursor, so a hover-only affordance is an invisible control: press is
 `:active`.
 
-**Corners and elevation — Rev A (2026-09-27).** The partners adopted the field-ops
-reference layout (`Work/AC Services/artifacts/dispatch board visualuizer.html`) for its
-page structure and shape, with every colour unchanged. The system now draws rounded corners
-at exactly three steps and one soft elevation:
+**Type ramp — Rev B (2026-10-22).** Each step above body opens by roughly 1.2–1.25, so a
+caption, body and a panel title never read as one size. `TYPE_SCALE` in
+`packages/tokens/src/density.ts` is the schedule:
+
+| Tier | xs | sm | md (body) | lg | xl | display | mast |
+|---|---|---|---|---|---|---|---|
+| Console | 11 | 12 | 14 | 16 | 20 | 26 | 34 |
+| Comfort | 11 | 13 | 15 | 18 | 22 | 28 | 40 |
+| Field | 15 | 17 | 18 | 23 | 28 | 36 | 48 |
+
+Console xs and sm stay 1px apart because xs is set in caps at `--track-wide`: form separates
+them where size cannot.
+
+**Corners and elevation — Rev A (2026-09-27), tightened by Rev B (2026-10-22).** The
+partners adopted the field-ops reference layout (`Work/AC Services/artifacts/dispatch board
+visualuizer.html`) for its page structure and shape, with every colour unchanged. Rev B keeps
+that structure and machines the shape: the corners tighten and the soft spread becomes a 1px
+edge. The system draws rounded corners at exactly three steps and one tight elevation:
 
 | Token | Value | Where |
 |---|---|---|
-| `--radius-control` | 8px | inputs, buttons, a segmented tab, a stat tile's inner well |
-| `--radius-card` | 12px | a panel, a stat tile, a card, a table's container |
-| `--radius-pill` | 999px | a status chip, a filter chip, the segmented control's track |
+| `--radius-control` | 4px | inputs, buttons, a segmented tab, a stat tile's inner well |
+| `--radius-card` | 6px | a panel, a stat tile, a card, a table's container, the segmented control's track |
+| `--radius-pill` | 999px | a status chip, a filter chip — nothing else |
 | `--radius-none` | 0px | rules and plates that are straight on purpose: the masthead rule, a table head |
-| `--elevation-card` | shadow | a panel or tile on the page ground |
-| `--elevation-raised` | shadow | the selected segment of a segmented control |
+| `--elevation-card` | `0 1px 0` | a panel or tile on the page ground: a 1px edge, no spread |
+| `--elevation-raised` | `0 1px 2px` | the selected segment of a segmented control |
 
 A shadow is never a new ink: it is the tier's darkest role mixed to a few per cent
-(`color-mix(in srgb, var(--color-text) 7%, transparent)` on the light stock, the sunken well
+(`color-mix(in srgb, var(--color-text) 10%, transparent)` on the light stock, the sunken well
 on the field ground). `icon` 8px and `app` 16px stay artwork primitives and are not emitted
 to a surface. Do not invent a fourth radius or a second shadow.
 
@@ -235,7 +257,7 @@ minimum (a date, an amount) sizes to its content and stays where it is.
 The page structure that comes with Rev A: a **page head** (the screen's name and one plain
 sentence of what it is for), a **stat strip** of tiles where a screen has figures worth
 leading with, content in **panels**, tables inside a panel, and navigation as a
-**segmented control** (a pill track with the current screen raised).
+**segmented control** (a card-radius track with the current screen raised).
 
 Accent rules are 3px and sit on the **top** edge; a coloured left border is not part of this
 system. No backdrop blur, no gradient meshes, no blurred blobs, no emoji.
@@ -244,7 +266,8 @@ system. No backdrop blur, no gradient meshes, no blurred blobs, no emoji.
 on `--ease` `cubic-bezier(.2,.6,.3,1)`, emitted by `tokenCss` to every density. A transition
 names those variables and never a number; a control's state change moves and data does not
 (no entrance animation, no keyframes); and `prefers-reduced-motion: reduce` stills every
-control that moves. `styles.test.ts` checks all three.
+control that moves. The turning favicon and masthead mark are brand-layer artwork, not interface, and are the
+one loop the system runs; they obey the same rule and rest on their first frame under reduced motion. `styles.test.ts` checks all three.
 
 Never use `all: unset` on a control. It ties `:focus-visible` on specificity `(0,1,0)`, is
 declared later, and the cascade resolves per property rather than per state — which computed
@@ -289,7 +312,10 @@ repo the tokens govern; these are the known deltas, and a fix belongs in
 | Field `border-hard` | `#5A6873` | `#55636F` |
 | A `rule-soft` `#CBD4DC` | present | no such primitive |
 | Label tracking | `+0.28em` | `--track-wide` `0.14em` and up |
-| Corners | 2 / 3 / 5 / 8px | **Rev A:** 8px control, 12px card, pill for chips and the segmented control; 0px for rules and plates |
-| Red ↔ fault separation | 1.2° | 0.55° — `1.2` was a hand-carried figure, corrected by E-21 (commit 157b0bb). The skill predates it. |
+| Corners | 2 / 3 / 5 / 8px | **Rev B:** 4px control, 6px card, pill for chips only; 0px for rules and plates |
+| Red ↔ fault separation | 1.2° | **Rev C:** 42.12° from the garnet fault. (0.55° from the oxide fault before Rev C; `1.2` was a hand-carried figure, corrected by E-21.) |
+| Fault ink | oxide `#A32318` | **Rev C:** garnet `#9C1F6E`; field fill `#7A2A5E` |
+| Instrument accent | arc `#00A3D9` | **Rev C:** red `#D91F11`; the arc is the focus ring only |
 | Field row height | 48px | 56px |
+| Console row / body | 28px / 13px | **Rev B:** 32px / 14px |
 | Variable names | `--stock`, `--panel`, `--arc`, `--ink` | `--color-*`, from `cssVar()` |

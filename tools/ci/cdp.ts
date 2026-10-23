@@ -42,19 +42,16 @@ export const findChrome = (): string | null => {
 };
 
 /**
- * THE COLD START IS THE FIRST DRIVE'S BILL, and it is not small.
+ * THE COLD START IS EVERY DRIVE'S BILL, and it is not small.
  *
  * The first browser launch in a job pays for a page-cache miss on the binary
- * and a profile that does not exist yet; every later launch in the same job is
- * warm. Measured on ubuntu-latest, same commit, same `/usr/bin/chromium-browser`:
- * 9.9s and 15.5s cold on two green runs, over 20s on a red one — against 2.6s
- * warm for the three drives that follow.
- *
- * C4 runs first, so C4 always pays it, which is why C4 is the step that flaked
- * and the other three never did. The old budget was 20s: inside that spread,
- * not above it.
+ * and a profile that does not exist yet. It used to be C4's alone, because C4
+ * ran first and the rest launched warm; each drive is now its own matrix job,
+ * so all four pay it. Measured on ubuntu-24.04 20261021.345 with the runner's
+ * `/usr/bin/chromium-browser`, nine drives: 10.3s to 40.5s to advertise the
+ * endpoint.
  */
-export const COLD_START_OBSERVED_MS = 20_000;
+export const COLD_START_OBSERVED_MS = 41_000;
 
 /**
  * How long a cold Chrome may take to advertise its endpoint. Three times the
@@ -112,7 +109,9 @@ export class Cdp {
       "--remote-debugging-port=0", `--user-data-dir=${c.profile}`, "about:blank",
     ], { stdio: ["ignore", "pipe", "pipe"] });
 
+    const t0 = Date.now();
     const endpoint = await awaitEndpoint(c.proc);
+    console.log(`cdp: chrome up in ${Date.now() - t0}ms`);
 
     c.ws = new WebSocket(endpoint);
     await new Promise<void>((res, rej) => { c.ws.onopen = () => res(); c.ws.onerror = () => rej(new Error("cdp socket failed")); });
@@ -138,12 +137,23 @@ export class Cdp {
     });
   }
 
+  /**
+   * Open a blank tab, attach, THEN navigate. Handing the URL to createTarget
+   * left a cold browser's tab on about:blank for good — readyState complete,
+   * no scripts, nothing ever requested — and every drive that drew it timed
+   * out on its first page. Page.navigate answers once the navigation commits,
+   * or with the reason it did not.
+   */
   async openTab(url: string): Promise<void> {
-    const { targetId } = await this.send("Target.createTarget", { url }, false) as { targetId: string };
+    const t0 = Date.now();
+    const { targetId } = await this.send("Target.createTarget", { url: "about:blank" }, false) as { targetId: string };
     const { sessionId } = await this.send("Target.attachToTarget", { targetId, flatten: true }, false) as { sessionId: string };
     this.sessionId = sessionId;
     await this.send("Page.enable");
     await this.send("Runtime.enable");
+    const nav = await this.send("Page.navigate", { url }) as { errorText?: string };
+    if (nav.errorText) throw new Error(`navigation to ${url} failed: ${nav.errorText}`);
+    console.log(`cdp: tab open in ${Date.now() - t0}ms`);
   }
 
   async navigate(url: string): Promise<void> { await this.send("Page.navigate", { url }); }
@@ -163,7 +173,9 @@ export class Cdp {
       if (await this.eval<boolean>(`!!(${expression})`)) return;
       if (Date.now() > deadline) {
         const seen = await this.eval<string>(`document.body ? document.body.innerText.slice(0, 600) : "(no body)"`).catch(() => "(unreadable)");
-        throw new Error(`timed out waiting for ${what}\n--- page text ---\n${seen}`);
+        // A blank page is two different failures: a navigation that never committed, and a document that loaded and never painted.
+        const at = await this.eval<string>(`location.href + " · readyState " + document.readyState + " · scripts " + document.scripts.length`).catch(() => "(unreadable)");
+        throw new Error(`timed out waiting for ${what} after ${ms}ms\n--- page ---\n${at}\n--- page text ---\n${seen}`);
       }
       await new Promise((r) => setTimeout(r, 100));
     }

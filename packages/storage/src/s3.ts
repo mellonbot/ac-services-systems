@@ -21,7 +21,7 @@ export type S3Config = {
   readonly secretAccessKey: string;
 };
 
-export type S3Fetch = (url: string, init: { method: string; headers: Record<string, string>; body?: Uint8Array }) =>
+export type S3Fetch = (url: string, init: { method: string; headers: Record<string, string>; body?: Uint8Array; signal?: AbortSignal }) =>
   Promise<{ ok: boolean; status: number; arrayBuffer(): Promise<ArrayBuffer>; text(): Promise<string> }>;
 
 const sha256Hex = (b: Uint8Array | string) => createHash("sha256").update(b).digest("hex");
@@ -60,6 +60,8 @@ export const signV4 = (req: {
 
 const amzDateOf = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
+const STORE_TIMEOUT_MS = 15_000;
+
 export const s3Store = (cfg: S3Config, fetchImpl: S3Fetch, now: () => Date = () => new Date()): ObjectStore => {
   const base = new URL(cfg.endpoint);
   const call = async (method: "PUT" | "GET", key: StorageKey, body?: Uint8Array, contentType?: string) => {
@@ -76,6 +78,9 @@ export const s3Store = (cfg: S3Config, fetchImpl: S3Fetch, now: () => Date = () 
       method,
       headers: { ...headers, "x-amz-date": amzDate, "x-amz-content-sha256": payloadHash, authorization },
       ...(body ? { body } : {}),
+      // The caller holds a database transaction while this runs; a store that
+      // never answers must not hold it forever.
+      signal: AbortSignal.timeout(STORE_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`[storage] ${method} ${key} → ${res.status} ${(await res.text()).slice(0, 200)}`);
     return res;

@@ -27,12 +27,17 @@ const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").
  */
 export const isBranchDerived = (title: string, branch: string): boolean => norm(title) === norm(branch);
 
-/** GitHub cuts a commit subject at 72 chars and marks the cut. The tail lands in the body. */
-export const isTruncated = (title: string): boolean => /(?:…|\.\.\.)\s*$/.test(title);
+/**
+ * GitHub cuts a commit subject at 72 chars and marks the cut — AND starts the
+ * body with the same mark and the tail. Both, never the title alone: a person
+ * who types "Migrate billing..." has written a title, not been truncated.
+ */
+export const isTruncated = (title: string, body: string): boolean =>
+  /(?:…|\.\.\.)\s*$/.test(title) && /^\s*(?:…|\.\.\.)\s*\S/.test(body);
 
 /** Only these three. A title a person typed is never touched. */
-export const needsTitle = (title: string, branch: string): boolean =>
-  title.trim() === "" || isBranchDerived(title, branch) || isTruncated(title);
+export const needsTitle = (title: string, branch: string, body = ""): boolean =>
+  title.trim() === "" || isBranchDerived(title, branch) || isTruncated(title, body);
 
 /**
  * The headline is the first non-merge commit: the one GitHub would have used
@@ -75,7 +80,7 @@ export const retitle = (
   pr: { readonly title: string; readonly body: string; readonly branch: string },
   commits: readonly PrCommit[],
 ): { readonly title?: string; readonly body?: string } => {
-  if (!needsTitle(pr.title, pr.branch)) return {};
+  if (!needsTitle(pr.title, pr.branch, pr.body ?? "")) return {};
   const title = titleFrom(commits);
   if (!title) return {};
   const patch: { title: string; body?: string } = { title };

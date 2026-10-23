@@ -276,8 +276,9 @@ test("WHAT THE CUSTOMER IS TOLD (0016): a draft update is the office's until it 
   assert.deepEqual(office.messages.map((m) => m.body), thread.map((m) => m.body), "the office reads the same thread");
   assert.ok(office.notes.some((n) => n.id === note.id), "and its own notes, which the customer never sees");
 
-  for (const attempt of [otherFm.gateway.jobConversation({ jobId: jobAustin }), otherFm.gateway.postJobMessage({ jobId: jobAustin, body: "not my job" })])
-    await assert.rejects(attempt, (e: unknown) => code(otherFm, e) === "unknown_job", "another customer: unknown, not forbidden");
+  // Thunks, not promises: a refusal that lands before its assert.rejects is attached is an unhandled rejection, and fails the test.
+  for (const call of [() => otherFm.gateway.jobConversation({ jobId: jobAustin }), () => otherFm.gateway.postJobMessage({ jobId: jobAustin, body: "not my job" })])
+    await assert.rejects(call(), (e: unknown) => code(otherFm, e) === "unknown_job", "another customer: unknown, not forbidden");
 
   const b = customerBinding(amped, REGION_SOUTH, "location", austin, USER_FM_AUSTIN);
   assert.equal((await asBinding(b, `SELECT count(*)::int AS n FROM job_updates WHERE state = 'draft'`))[0]!.n, 0, "zero draft rows for a customer, not an error");

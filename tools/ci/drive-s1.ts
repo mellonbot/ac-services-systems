@@ -185,7 +185,7 @@ async function main(): Promise<void> {
     check(2, "the degraded slot's text is in the frame, so it does not depend on the bundle having loaded");
 
     // ── 3. the form takes a lead while the gateway is down, and says QUEUED
-    await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Ask us to call").click(); return true; })()`);
+    await cdp.navigate(`${SITE}/enquire`);
     await cdp.waitFor(`document.getElementById("lead-form")`, "the lead form");
     await cdp.eval(fillAndSubmit("lead-form", { name: `Queued Visitor ${RUN}`, phone: "555 0101", metro: "South", note: "Roof unit short-cycling." }));
     await cdp.waitFor(has("waiting to send"), "the queued notice");
@@ -284,14 +284,13 @@ async function main(): Promise<void> {
     // ── 12. S1 wears the house red, and it is the brand role that put it there
     await cdp.navigate(`${SITE}/`);
     await cdp.waitFor(has("AC Services — Service System"), "the front page");
-    const brand = await cdp.eval<{ token: string; painted: string }>(`(() => {
+    const brand = await cdp.eval<{ token: string; ink: string }>(`(() => {
       const cs = getComputedStyle(document.documentElement);
-      const el = document.querySelector(".s1-cta");
-      return { token: cs.getPropertyValue("--color-brand").trim(), painted: getComputedStyle(el).backgroundColor };
+      return { token: cs.getPropertyValue("--color-brand").trim(), ink: cs.getPropertyValue("--color-text").trim() };
     })()`);
     must(brand.token.length > 0, "the brand role is defined on this surface");
-    must(!/^rgb\(0,\s*0,\s*0\)$/.test(brand.painted), `S1 is the one surface where the brand does NOT resolve to Ink Black, got ${brand.painted}`);
-    check(12, "the call-to-action is painted from --color-brand — S1 is the one surface that wears the house red");
+    must(brand.token.toLowerCase() !== brand.ink.toLowerCase(), `S1 is the one surface where the brand does NOT resolve to Ink Black, got ${brand.token}`);
+    check(12, "--color-brand is the house red here, not Ink Black — S1 is the one surface that wears it (the sign-in yard's forklift and cones draw from it)");
 
     console.log(`\ndrive-s1: ${passed} checks passed`);
   } finally {

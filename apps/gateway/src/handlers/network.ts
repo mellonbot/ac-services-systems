@@ -386,6 +386,11 @@ export const retireCrew = async (uow: UnitOfWork, input: RetireCrewInput): Promi
   if (input.label !== undefined) { params.push(requireText(input.label, "label")); sets.push(`label = $${params.length}`); before.label = current.label; after.label = params[params.length - 1]; }
   if (input.active !== undefined) {
     if (typeof input.active !== "boolean") throw new BadInput("active must be true or false");
+    // A firm retires; it does not reinstate. The office may have taken the crew
+    // off for cause, and S2 is where a crew comes back.
+    if (input.active && !current.active) {
+      throw new InputRefused(`crew ${current.label} is off the roster — ask the office to reinstate it`, "crew_reinstated_by_office");
+    }
     if (input.active === false && current.active) {
       // A crew holding a live assignment is not taken off the roster from a portal: the dispatcher releases it, with a reason, on S3.
       const live = (await uow.tx.query<{ n: string }>("SELECT count(*)::text AS n FROM assignments WHERE crew_id = $1 AND released_at IS NULL", [crewId]))[0]!;

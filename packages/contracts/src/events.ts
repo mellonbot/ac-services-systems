@@ -39,6 +39,9 @@ export const TOPICS = [
   // 0020: the roster. S2 refetches; nothing else reads it.
   "technician.recorded", "technician.updated",
   "firm.created", "firm.updated", "firm.status_changed",
+  // a login added, edited, deactivated or reactivated (AC Logins writes these
+  // directly). OFC subscribes: the Manager Dashboard's team list refetches.
+  "user.created", "user.updated",
   "rate_card.changed",
   // item 4 — D-2a's primitive, recorded. No subscriber yet; added when a
   // screen needs to react rather than in anticipation of one.
@@ -96,7 +99,12 @@ export type DomainEvent = {
  * shell's subscribe() delivers this, not a DomainEvent, so a surface cannot
  * be written against a field that is never there.
  */
-export type EventEnvelope = Pick<DomainEvent, "eventId" | "topic" | "entity" | "entityId" | "regionId" | "orgId" | "occurredAt">;
+/**
+ * What a subscriber receives. Entity, entity id and org are present for an
+ * internal subscriber only: outside it they are other tenants' facts, and a
+ * subscriber outside it refetches by topic, through row security.
+ */
+export type EventEnvelope = Pick<DomainEvent, "eventId" | "topic" | "regionId" | "occurredAt"> & Partial<Pick<DomainEvent, "entity" | "entityId" | "orgId">>;
 
 /** Block subscriptions declared, not discovered. */
 export const SUBSCRIBERS: Readonly<Record<"OFC" | "FLD" | "INV" | "WORKER", readonly Topic[]>> = {

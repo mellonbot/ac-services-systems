@@ -26,7 +26,9 @@ test("a subject GitHub cut at 72 chars is restored, and its tail unstranded from
   // PR #7, verbatim: the overflow was sitting as the body's first line.
   const full = "Brand: Bulletin No. 1 errata E-09..E-16 — the schedule was right, the cascade was not";
   const title = "Brand: Bulletin No. 1 errata E-09..E-16 — the schedule was right, the…";
-  assert.equal(isTruncated(title), true);
+  assert.equal(isTruncated(title, "… cascade was not"), true);
+  // A title a person typed with an ellipsis, over a body of their own, is not GitHub's cut.
+  assert.equal(isTruncated("Migrate billing...", "Moves the ledger to bigint."), false);
   const patch = retitle(
     { title, body: "… cascade was not\r\n\r\nEvery ink ratio in Rev. B holds; I re-measured them.", branch: "claude/amazing-wozniak-qj4koq" },
     [c(full, "Every ink ratio in Rev. B holds; I re-measured them.")],

@@ -135,8 +135,8 @@ const GUIDE = {
   S1: {
     about: "The public site. Visitors never sign in and the page never waits for the server. It renders with the gateway down, and the metros it lists come from the regions table.",
     steps: [
-      "Open <b>Where we work</b>. West, Mountain and South come from our <code>regions</code> rows, not from the page.",
-      "Open <b>Ask us to call</b> and submit the form. The log shows one write, <code>leads.submit</code>, and nothing reads it back.",
+      "Press <b>Just blow into town, partner?</b> at the foot of the front page and submit the form. The log shows one write, <code>leads.submit</code>, and nothing reads it back.",
+      "Follow <b>Where we work</b> under the form. West, Mountain and South come from our <code>regions</code> rows, not from the page.",
       "Switch <b>Gateway up</b> to down, then submit again. The form queues in the browser and the degraded banner appears.",
       "Switch the gateway back up. The queued lead sends once. Its submission ID means a retry can't create a duplicate.",
     ],
@@ -242,7 +242,7 @@ const renderTabs = () => {
     const b = document.createElement("button");
     b.className = "tab"; b.type = "button"; b.role = "tab"; b.dataset.id = s.id;
     b.setAttribute("aria-selected", String(s.id === current));
-    b.innerHTML = `<span class="id">${s.id} · ${s.block}${s.built ? (s.demoOnly ? " · demo only" : "") : ` · Phase ${s.phase}`}</span><span class="nm">${s.name}</span>`;
+    b.innerHTML = `<span class="id">${esc(s.id)} · ${esc(s.block)}${s.built ? (s.demoOnly ? " · demo only" : "") : ` · Phase ${esc(s.phase)}`}</span><span class="nm">${esc(s.name)}</span>`;
     if (!s.built) { b.disabled = true; b.title = `Not built yet: Phase ${s.phase}`; }
     b.addEventListener("click", () => select(s.id));
     $("tabs").appendChild(b);
@@ -309,7 +309,7 @@ G.onActivity((a) => {
   log.querySelector(".empty")?.remove();
   const li = document.createElement("li");
   const label = { read: "read", write: "write", refused: a.status ? `${a.status}` : "refused", event: "event", offline: "down" }[a.kind];
-  li.innerHTML = `<span class="t">${fmt.format(new Date(a.at))}</span><span class="s">${a.surface}</span><span class="op"><span class="k ${a.kind}">${label}</span>${esc(a.op)}</span>${a.note ? `<span class="note">${esc(a.note)}</span>` : ""}`;
+  li.innerHTML = `<span class="t">${fmt.format(new Date(a.at))}</span><span class="s">${esc(a.surface)}</span><span class="op"><span class="k ${esc(a.kind)}">${esc(label)}</span>${esc(a.op)}</span>${a.note ? `<span class="note">${esc(a.note)}</span>` : ""}`;
   log.prepend(li);
   while (log.children.length > 250) log.lastChild.remove();
   if ((a.op === "auth.login" || a.op === "auth.logout") && a.surface === current) renderPersona();

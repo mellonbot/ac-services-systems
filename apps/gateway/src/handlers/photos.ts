@@ -52,6 +52,10 @@ export const attachPhoto = async (
   if (!contentType) throw new InputRefused("that file is not a JPEG, PNG or HEIC photo", "not_a_photo");
   if (!store) throw new InputRefused("photo storage is not configured on this gateway — the request itself was received", "storage_not_configured");
 
+  // Count and insert as one step per request: parallel uploads would each
+  // count the same photos and all fit under the cap. (An advisory lock, not a
+  // row lock: a customer may not lock a request it cannot update.)
+  await uow.tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`request-photos:${requestId}`]);
   const req = (await uow.tx.query<{ org_id: string; region_id: string; requested_by: string; job_id: string | null; photos: number }>(
     `SELECT r.org_id, r.region_id, r.requested_by, r.job_id,
             (SELECT count(*)::int FROM service_request_media m WHERE m.request_id = r.id) AS photos

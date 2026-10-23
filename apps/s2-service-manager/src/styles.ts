@@ -106,4 +106,26 @@ export const S2_CSS = `
 .s2-help summary{display:flex;align-items:center;min-height:var(--control-height);color:var(--color-action-text);cursor:pointer;font-weight:600}
 .s2-help p{margin:var(--space-1) 0 0}
 .s2-proposal{display:flex;flex-direction:column;gap:var(--space-2)}
+
+/* A selected homeowner: the customer card beside the map of the home, the service history under both. */
+.s2-col--tree{display:flex;flex-direction:column;gap:var(--space-3)}
+.s2-home{display:flex;flex-direction:column;gap:var(--space-3)}
+.s2-home__top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:var(--space-3);align-items:start}
+.s2-map{margin:0;display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
+.s2-map--empty{padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-card);background:var(--color-surface-sunken)}
+.s2-map--empty p{margin:0}
+/* The tile grid is drawn by the tiles' own hairlines, so an unconfigured basemap still reads as a map and the pin as a place on it. */
+.s2-map__view{position:relative;overflow:hidden;height:calc(var(--row-height) * 9);border:1px solid var(--color-border-hard);border-radius:var(--radius-card);background:var(--color-surface-sunken);cursor:grab;touch-action:none;user-select:none}
+.s2-map__view:active{cursor:grabbing}
+.s2-map__view:focus-visible{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}
+.s2-map__tile{position:absolute;width:256px;height:256px;box-shadow:inset 0 0 0 0.5px var(--color-border)}
+.s2-map__tile img{display:block;width:100%;height:100%;pointer-events:none}
+.s2-map[data-basemap="tiles"] .s2-map__tile{box-shadow:none}
+.s2-map__pin{position:absolute;transform:translate(-50%,-100%);pointer-events:none}
+.s2-map__pin path{fill:var(--color-action);stroke:var(--color-text);stroke-width:1}
+.s2-map__pin circle{fill:var(--color-action-ink)}
+.s2-map__controls{display:flex;gap:var(--space-2)}
+.s2-map__caption{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);font-size:var(--text-sm);color:var(--color-text-muted)}
+.s2-history__note{display:inline-block;max-width:var(--measure-cell);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+@media (max-width:1100px){.s2-home__top{grid-template-columns:minmax(0,1fr)}}
 `;

@@ -71,11 +71,20 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
   text-decoration:none;color:inherit}
 .ac-badge-mark{display:inline-flex;flex:none}
 .ac-badge-mark__svg{display:block}
+/* The masthead mark: the tab's yard model turning in the livery glow, which fades to the
+   page with no edge. The strip is cycled by packages/ui/src/favicon.ts; it rests on
+   frame 0 without it. */
+.ac-mast__mark{width:48px;height:48px;background:url("mark-strip.png") 0 0/auto 100% no-repeat}
 .ac-wordmark{font-family:var(--font-wordmark);font-size:var(--text-mast);line-height:1;
   color:var(--color-livery);padding-right:0.08em}
 .ac-wordmark__co{font-family:var(--font-label);font-weight:600;font-size:var(--text-xs);
   letter-spacing:var(--track-widest);text-transform:uppercase;color:var(--color-text-muted)}
 .ac-mast__rule{height:4px;background:var(--color-livery);max-width:320px;margin-top:var(--space-2)}
+/* A titled masthead (S1): the rule the full width under the wordmark, the company line
+   under the rule, and the site's name under the company line. */
+.ac-mast__title{margin:var(--space-2) 0 0;font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);line-height:1.15;color:var(--color-text)}
+.ac-mast--titled .ac-mast__rule{max-width:none}
+.ac-mast--titled .ac-wordmark__co{display:block;margin-top:var(--space-2)}
 
 /* ---- Plate head: a titled section is numbered, like a plate ---- */
 .ac-plate__head{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-2) var(--space-4);padding-bottom:var(--space-2);border-bottom:3px solid var(--color-text);margin-bottom:var(--space-3)}
@@ -88,7 +97,7 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
    without adding a hue. FORM still carries the order before hue does: ok is
    fill only, at-risk adds an outline in its ink, breached adds a solid
    outline and the strongest fill — and on the field ground the breached fill
-   is oxide (--color-status-breached-fill), the tier's only solid chip. The
+   is garnet (--color-status-breached-fill), the tier's only solid chip. The
    glyph stays: colour never carries alone. An outline is drawn in the state's
    OWN ink, never in --color-border: a chip's rule carries SHAPE, and the border
    role measures 2.22:1 (errata E-08). */
@@ -100,12 +109,11 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
 [data-density="field"] .ac-pill[data-status="breached"]{--status-fill:var(--color-status-breached-fill)}
 .ac-pill[data-status="blocked"]{--status-color:var(--color-status-blocked)}
 
-/* ---- PrimaryAction: an arc fill, sized by the density ----
-   The label is --color-action-ink at 6.40:1 on the fill, NOT --color-surface:
-   the arc fill is 2.09:1 on the header ground and is never a word, so the ink
-   that sits on it is its own role. The rule carries the control's shape, which
-   is what licenses the fill to be an arc; on the field ground the fill reads
-   6.07:1 and the press state is brighter still. */
+/* ---- PrimaryAction: a red fill, sized by the density ----
+   The label is --color-action-ink, white at 5.05:1 on the fill, NOT
+   --color-surface: the fill is never a small word, so the ink that sits on it
+   is its own role. The rule carries the control's shape; on the field ground
+   the fill reads 3.48:1 and the press deepens to the text-safe red. */
 .ac-action-wrap{display:inline-flex;flex-direction:column;gap:var(--space-1);align-items:flex-start}
 .ac-action{min-height:var(--control-height);min-width:var(--control-height);padding:0 var(--space-4);border-radius:var(--radius-control);border:1px solid var(--color-action-text);background:var(--color-action);color:var(--color-action-ink);font-family:var(--font-label);font-size:var(--text-md);font-weight:700;letter-spacing:var(--track-tight);cursor:pointer;transition:background-color var(--motion-fast) var(--ease),border-color var(--motion-fast) var(--ease),color var(--motion-fast) var(--ease),filter var(--motion-fast) var(--ease)}
 .ac-action[data-kind="quiet"]{background:var(--color-surface);color:var(--color-action-text);border-color:var(--color-border-hard)}
@@ -118,8 +126,8 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
    1.24:1. A variant that sets a resting colour keeps it unless the press sets
    one too; ON_FILL measures both pairs now. */
 .ac-action:active{background:var(--color-action-pressed);border-color:var(--color-action-text);color:var(--color-action-ink)}
-/* Danger inverts rather than filling with the arc: a destructive control does
-   not borrow the primary's ink to say "pressed". 6.23:1 on the light stock,
+/* Danger inverts rather than filling with the accent: a destructive control does
+   not borrow the primary's ink to say "pressed". 6.18:1 on the light stock,
    16.34:1 on the plate. */
 .ac-action[data-kind="danger"]:active{background:var(--color-status-breached);border-color:var(--color-status-breached);color:var(--color-page)}
 .ac-action[aria-disabled="true"]{opacity:0.55;cursor:not-allowed}
@@ -198,7 +206,7 @@ ac-degraded[hidden]{display:none}
    hue has stopped working — so a banner drawn only in the word role renders its
    alarm in body-copy cream on the one surface read in sunlight. Form R-4 says
    the fill carries salience; this is the fill. Transparent on the light stock,
-   where a fault is an outline, and oxide at 6.63:1 on the plate. */
+   where a fault is an outline, and garnet on the plate. */
 .ac-degraded__mark{color:var(--color-status-breached);background:var(--color-status-breached-fill);padding:0 var(--space-1);line-height:1.4}
 .ac-degraded__age{font-family:var(--font-instrument);color:var(--color-text-muted);font-size:var(--text-xs);letter-spacing:var(--track-normal)}
 /* ---- Rev A page structure — shared by every surface ----
@@ -216,7 +224,7 @@ ac-degraded[hidden]{display:none}
 .ac-stat[data-tone="ok"]{--stat-ink:var(--color-status-ok)}
 .ac-stat[data-tone="at_risk"]{--stat-ink:var(--color-status-at-risk)}
 .ac-stat[data-tone="breached"]{--stat-ink:var(--color-status-breached)}
-/* E-14 on a tile: on the plate the breached ink is body-copy cream, so the fault moves into FORM — the oxide fill, the one solid chip — and every word on it takes the ink measured against that fill (Form R-4, 8.00:1). Transparent on the light stock, so this is a no-op there. */
+/* E-14 on a tile: on the plate the breached ink is body-copy cream, so the fault moves into FORM — the garnet fill, the one solid chip — and every word on it takes the ink measured against that fill (Form R-4, 7.58:1). Transparent on the light stock, so this is a no-op there. */
 [data-density="field"] .ac-stat[data-tone="breached"]{background:var(--color-status-breached-fill);border-color:var(--color-status-breached)}
 [data-density="field"] .ac-stat[data-tone="breached"] .ac-stat__l,[data-density="field"] .ac-stat[data-tone="breached"] .ac-stat__s{color:var(--color-status-breached)}
 .ac-panel{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-4)}
@@ -331,8 +339,8 @@ export const cssVariablesDefined = (css: string): readonly string[] =>
 /**
  * The selectors that render the state ramp. Bulletin 1's copper sat 16.3° from
  * its warning ink and the system did not solve that with a better orange; the
- * arc clears the same gate at 38.41° from jade, and the invariant did not
- * relax when the accent changed. It is structural, not a hue budget: every
+ * red clears the same gate at 35.32° from the warning amber, and the invariant
+ * did not relax when the accent changed. It is structural, not a hue budget: every
  * state carries a word, and THE ACTION ROLE NEVER PAINTS A STATE-BEARING
  * COLUMN — because colour on one artefact is state or category and never both,
  * which an accent that clears the gate would break just as quietly. So the
@@ -343,9 +351,9 @@ export const cssVariablesDefined = (css: string): readonly string[] =>
 export const STATE_BEARING_SELECTORS = Object.freeze([".ac-pill", ".ac-badge", ".ac-notice"]);
 
 /**
- * The accent roles that may NEVER appear in a state-bearing rule. The house red
- * is 0.55° from the fault ink and the arc is 38.41° from the nearest state, and
- * neither may decorate a chip: a dispatcher reads the column, not the palette.
+ * The accent roles that may NEVER appear in a state-bearing rule. The red clears
+ * the gate at 35.32° from its nearest state, and still may not decorate a chip:
+ * a dispatcher reads the column, not the palette.
  * styles.test.ts fails any rule above that breaks this.
  */
 export const ACCENT_ROLES = Object.freeze([

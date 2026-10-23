@@ -1,4 +1,5 @@
 import type { UnitOfWork } from "../unit-of-work.ts";
+import { lineAmount } from "../../../../packages/domain/src/money/allocate.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import { threeWayMatch } from "../../../../packages/domain/src/procurement/match.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
@@ -63,8 +64,8 @@ const requireLines = <T>(v: unknown, field: string): readonly T[] => {
   if (!Array.isArray(v) || v.length === 0) throw new BadInput(`${field} needs at least one line`);
   return v as T[];
 };
-/** quantity (thousandths) × unit price (minor) → minor, half up. The same arithmetic the office and the vendor see. */
-export const lineAmount = (quantityMilli: bigint, unitPriceMinor: bigint): bigint => (quantityMilli * unitPriceMinor + 500n) / 1000n;
+/** quantity (thousandths) × unit price (minor) → minor, half away from zero. The same arithmetic the office, the vendor and the invoice see (domain/money). */
+export { lineAmount };
 const ts = (col: string) => `to_char(${col} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
 // ---------------------------------------------------------------------------
@@ -253,6 +254,17 @@ const poWire = (r: PoRow): PurchaseOrderWire => ({
   id: r.id, number: r.number, vendorId: r.vendor_id, vendorName: r.vendor_name, receivingPointId: r.receiving_point_id, receivingPointCode: r.rp_code, receivingTier: r.rp_tier,
   regionId: r.region_id, state: r.state, currency: r.currency, totalMinor: r.total_minor, issuedAt: r.issued_at, acknowledgedAt: r.acknowledged_at, promisedShipOn: r.promised_ship_on, createdAt: r.created_at,
 });
+/**
+ * Quantity caps (shipped ≤ ordered, received ≤ shipped, returned ≤ received)
+ * are summed by 0011's trigger under READ COMMITTED; two writes against one
+ * order at once would each see the other's rows missing. Every write that
+ * adds quantity to an order takes the order's row lock first, as invoice
+ * submission always has.
+ */
+const lockPo = async (uow: UnitOfWork, id: string): Promise<void> => {
+  await uow.tx.query("SELECT id FROM purchase_orders WHERE id = $1 FOR UPDATE", [id]);
+};
+
 const loadPo = async (uow: UnitOfWork, id: string): Promise<PoRow> => {
   const r = (await uow.tx.query<PoRow>(`${PO_SELECT} WHERE po.id = $1`, [id]))[0];
   if (!r) throw new InputRefused(`no purchase order ${id} visible in this scope`, "unknown_po");
@@ -261,7 +273,8 @@ const loadPo = async (uow: UnitOfWork, id: string): Promise<PoRow> => {
 
 export const listPurchaseOrders = async (uow: UnitOfWork, input: ListPurchaseOrdersInput): Promise<ListPurchaseOrdersOutput> => {
   const state = input.state === undefined ? null : requireOneOf(input.state, "state", PO_STATES);
-  return { orders: (await uow.tx.query<PoRow>(`${PO_SELECT} WHERE ($1::text IS NULL OR po.state = $1) ORDER BY po.created_at DESC`, [state])).map(poWire) };
+  // The newest 500, as leads.list: a history screen, not an export.
+  return { orders: (await uow.tx.query<PoRow>(`${PO_SELECT} WHERE ($1::text IS NULL OR po.state = $1) ORDER BY po.created_at DESC LIMIT 500`, [state])).map(poWire) };
 };
 
 type LineRow = { id: string; line_no: number; item_id: string; vendor_sku: string; description: string; uom: string; quantity_milli: string; unit_price_minor: string; shipped: string; received: string; invoiced: string; returned: string };
@@ -398,6 +411,7 @@ const parseQtyLines = (v: unknown, lineIds: ReadonlySet<string>): QtyLine[] => {
 };
 
 export const recordShipment = async (uow: UnitOfWork, input: RecordShipmentInput, newId: () => string): Promise<RecordShipmentOutput> => {
+  await lockPo(uow, requireUuid(input.poId, "poId"));
   const po = await loadPo(uow, requireUuid(input.poId, "poId"));
   const shippedOn = requireDate(input.shippedOn, "shippedOn");
   const carrier = requireText(input.carrier, "carrier", 80);
@@ -420,6 +434,7 @@ export const recordShipment = async (uow: UnitOfWork, input: RecordShipmentInput
 };
 
 export const recordReceipt = async (uow: UnitOfWork, input: RecordReceiptInput, actorId: string, newId: () => string): Promise<RecordReceiptOutput> => {
+  await lockPo(uow, requireUuid(input.poId, "poId"));
   const po = await loadPo(uow, requireUuid(input.poId, "poId"));
   if (po.state !== "acknowledged") throw new InputRefused(`order ${po.number} is ${po.state}; goods are received against an acknowledged order`, "not_acknowledged");
   const current = await loadLines(uow, po.id);
@@ -453,10 +468,11 @@ export const listVendorInvoices = async (uow: UnitOfWork, input: ListVendorInvoi
     `SELECT i.id, i.po_id, po.number AS po_number, i.vendor_id, i.invoice_number, to_char(i.invoice_date, 'YYYY-MM-DD') AS invoice_date, i.total_minor::text AS total_minor,
             i.currency, i.match_state, i.match_notes, ${ts("i.created_at")} AS created_at
        FROM vendor_invoices i LEFT JOIN purchase_orders po ON po.id = i.po_id
-      WHERE ($1::uuid IS NULL OR i.po_id = $1) ORDER BY i.created_at DESC`, [poId]);
+      WHERE ($1::uuid IS NULL OR i.po_id = $1) ORDER BY i.created_at DESC LIMIT 500`, [poId]);
+  // The lines of the invoices listed, not of every invoice there is.
   const lines = await uow.tx.query<{ invoice_id: string; po_line_id: string; quantity_milli: string; unit_price_minor: string; amount_minor: string }>(
     `SELECT l.invoice_id, l.po_line_id, l.quantity_milli::text AS quantity_milli, l.unit_price_minor::text AS unit_price_minor, l.amount_minor::text AS amount_minor
-       FROM vendor_invoice_lines l JOIN vendor_invoices i ON i.id = l.invoice_id WHERE ($1::uuid IS NULL OR i.po_id = $1)`, [poId]);
+       FROM vendor_invoice_lines l WHERE l.invoice_id = ANY($1::uuid[])`, [rows.map((r) => r.id)]);
   const linesByInvoice = new Map<string, typeof lines[number][]>();
   for (const line of lines) {
     const group = linesByInvoice.get(line.invoice_id);
@@ -475,7 +491,7 @@ export const listVendorInvoices = async (uow: UnitOfWork, input: ListVendorInvoi
 export const submitVendorInvoice = async (uow: UnitOfWork, input: SubmitVendorInvoiceInput, newId: () => string): Promise<SubmitVendorInvoiceOutput> => {
   const poId = requireUuid(input.poId, "poId");
   // Serialize invoice matching for this order before reading matched quantities.
-  await uow.tx.query("SELECT id FROM purchase_orders WHERE id = $1 FOR UPDATE", [poId]);
+  await lockPo(uow, poId);
   const po = await loadPo(uow, poId);
   const invoiceNumber = requireText(input.invoiceNumber, "invoiceNumber", 60);
   const invoiceDate = requireDate(input.invoiceDate, "invoiceDate");
@@ -495,7 +511,8 @@ export const submitVendorInvoice = async (uow: UnitOfWork, input: SubmitVendorIn
     return { poLineId, quantityMilli, unitPriceMinor, amount: lineAmount(quantityMilli, unitPriceMinor) };
   });
   const verdict = threeWayMatch(
-    current.map((c) => ({ poLineId: c.id, lineNo: c.line_no, unitPriceMinor: BigInt(c.unit_price_minor), receivedMilli: BigInt(c.received), invoicedMilli: BigInt(c.invoiced) })),
+    // Goods sent back (a return asked for or authorized) are not goods we pay for: the match is against what we kept.
+    current.map((c) => ({ poLineId: c.id, lineNo: c.line_no, unitPriceMinor: BigInt(c.unit_price_minor), receivedMilli: BigInt(c.received) - BigInt(c.returned), invoicedMilli: BigInt(c.invoiced) })),
     lines,
   );
   const total = lines.reduce((t, l) => t + l.amount, 0n);
@@ -532,10 +549,11 @@ const rmaWire = (r: RmaRow): RmaWire => ({
 
 export const listReturns = async (uow: UnitOfWork, input: ListReturnsInput): Promise<ListReturnsOutput> => {
   const poId = input.poId === undefined ? null : requireUuid(input.poId, "poId");
-  return { returns: (await uow.tx.query<RmaRow>(`${RMA_SELECT} WHERE ($1::uuid IS NULL OR m.po_id = $1) ORDER BY m.created_at DESC`, [poId])).map(rmaWire) };
+  return { returns: (await uow.tx.query<RmaRow>(`${RMA_SELECT} WHERE ($1::uuid IS NULL OR m.po_id = $1) ORDER BY m.created_at DESC LIMIT 500`, [poId])).map(rmaWire) };
 };
 
 export const requestReturn = async (uow: UnitOfWork, input: RequestReturnInput, actorId: string, newId: () => string): Promise<RequestReturnOutput> => {
+  await lockPo(uow, requireUuid(input.poId, "poId"));
   const po = await loadPo(uow, requireUuid(input.poId, "poId"));
   const poLineId = requireUuid(input.poLineId, "poLineId");
   if (!(await loadLines(uow, po.id)).some((l) => l.id === poLineId)) throw new InputRefused(`line ${poLineId} is not on order ${po.number}`, "unknown_line");

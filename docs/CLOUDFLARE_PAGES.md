@@ -67,6 +67,24 @@ npx wrangler@4 secret put DATABASE_URL       -c infra/cloudflare/wrangler.jsonc 
 rm /tmp/ac-signing.pem
 ```
 
+Optional — S2's home map (Accounts → a residential customer). One MapTiler
+key gives it both its tiles and the address lookup that places a typed
+address on them (the first time a home's map opens, the gateway geocodes it
+once and writes the point onto the site's address — an audited
+`accounts.update`). The key lives here and never in a bundle. Use a key with
+**no allowed-origin restriction** — the gateway sends no browser Origin:
+
+```bash
+npx wrangler@4 secret put AC_MAPTILER_KEY -c infra/cloudflare/wrangler.jsonc   # paste the key alone
+```
+
+That fills satellite-with-labels 256px tiles and US address geocoding. For
+another style or provider, set `AC_MAP_TILE_URL` (`{z}/{x}/{y}`) or
+`AC_GEOCODE_URL` (`{q}`) as full URL templates; either wins over the key.
+`AC_MAP_ATTRIBUTION` is already a plain var in `wrangler.jsonc`. Unset, the
+map says no provider is configured. A secret reaches the container when it
+next starts — the next deploy.
+
 Paste the connection string exactly as the provider shows it for psql.
 PlanetScale's ends in `sslmode=verify-full&sslrootcert=system`; the gateway
 reads libpq's `sslrootcert=system` as what node `pg` does by default and

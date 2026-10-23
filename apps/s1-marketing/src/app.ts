@@ -1,4 +1,4 @@
-import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, effect, createRouter, browserHistory, applyDegraded, type VNode } from "../../../packages/ui/src/index.ts";
 import type { AnonymousShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type SubmitLeadInput } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, open } from "./main.ts";
@@ -150,11 +150,6 @@ export const createApp = (opts: {
     const loc = router.current.value;
     const screen = loc ? SCREEN_VIEWS[loc.screen] : null;
     return html`<div class="s1-app">
-      <nav class="s1-nav" aria-label="Sections">
-        ${nav("coverage", "Where we work")}
-        <span class="s1-nav__spacer"></span>
-        ${nav("enquire", "Ask us to call")}
-      </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s1-empty">Nothing at this address. ${nav("home", "Start here")}</p>`}
     </div>`;
   };
@@ -186,6 +181,7 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   const slot = document.querySelector("ac-degraded") as (HTMLElement | null);
   const Root = () => app.view();
   mount(html`<${Root} />`, el);
+  spinFavicon(document);
   effect(() => {
     if (!slot) return;
     applyDegraded(slot, {

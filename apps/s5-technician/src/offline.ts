@@ -24,6 +24,12 @@ import type { SyncMutationWire, SyncOutcomeWire } from "../../../packages/contra
  * reused: a retried flush after a dropped response replays the SAME id, and
  * the server's own `resolveMutation()` recognizes it as "duplicate" rather
  * than writing the same intent twice.
+ *
+ * The queue is written to storage on every change and read back when the
+ * device signs in again (keyed by device, so a reload, a discarded tab or a
+ * sign-out in a dead zone loses nothing). Storage is injected for the same
+ * reason S1's buffer injects it: absent under node, and it THROWS in a
+ * browser with site data blocked — a failure degrades to memory only.
  */
 export const JOB_TRANSITIONS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   created: ["assigned", "cancelled", "quote_requested"],
@@ -63,8 +69,14 @@ export type QueueEntry = { readonly mutation: SyncMutationWire; readonly enqueue
 /** A mutation the server did not simply apply — something for the tech (or a supervisor) to read, not to silently retry. */
 export type Attention = { readonly mutationId: string; readonly entityTable: string; readonly entityId: string; readonly kind: SyncOutcomeWire["outcome"]; readonly note: string };
 
+/** The slice of the Storage API this needs. A browser's localStorage satisfies it; a test passes a Map. */
+export type QueueStore = { getItem(key: string): string | null; setItem(key: string, value: string): void };
+export const queueKey = (deviceId: string): string => `ac.s5.pending.${deviceId}`;
+
 export type OfflineQueue = {
   readonly pending: Signal<readonly QueueEntry[]>;
+  /** Why the last flush got no answer (null once one is answered) — a token refusal means sign in again, not retry. */
+  readonly failure: Signal<unknown>;
   readonly attention: Signal<readonly Attention[]>;
   readonly flushing: Signal<boolean>;
   enqueue(entityTable: string, entityId: string, op: SyncMutationWire["op"], payload: Readonly<Record<string, unknown>>, clientObservedVersion: number | null): SyncMutationWire;
@@ -75,11 +87,33 @@ export type OfflineQueue = {
 
 const noteOf = (o: SyncOutcomeWire): string => ("note" in o ? o.note : "");
 
-export const createOfflineQueue = (opts: { deviceId: string; newId: () => string; now: () => number }): OfflineQueue => {
-  const pending = signal<readonly QueueEntry[]>([]);
+export const createOfflineQueue = (opts: { deviceId: string; newId: () => string; now: () => number; store?: QueueStore | null }): OfflineQueue => {
+  const store = opts.store ?? null;
+  const key = queueKey(opts.deviceId);
+  const load = (): readonly QueueEntry[] => {
+    if (!store) return [];
+    try {
+      const parsed: unknown = JSON.parse(store.getItem(key) ?? "[]");
+      if (!Array.isArray(parsed)) return [];
+      // Written by an earlier session of this page; checked before it is trusted into the gateway.
+      return parsed.filter((e): e is QueueEntry =>
+        !!e && typeof e === "object" && typeof (e as QueueEntry).mutation?.mutationId === "string"
+        && typeof (e as QueueEntry).mutation?.deviceSeq === "number" && (e as QueueEntry).mutation.deviceId === opts.deviceId);
+    } catch {
+      return [];
+    }
+  };
+  const pending = signal<readonly QueueEntry[]>(load());
   const attention = signal<readonly Attention[]>([]);
   const flushing = signal(false);
-  let seq = 0;
+  const failure = signal<unknown>(null);
+  // Device order continues across sessions: a reloaded queue's next intent comes after its last.
+  let seq = pending.value.reduce((m, e) => Math.max(m, e.mutation.deviceSeq), 0);
+  const persist = (next: readonly QueueEntry[]) => {
+    pending.value = next;
+    if (!store) return;
+    try { store.setItem(key, JSON.stringify(next)); } catch { /* blocked site data: the queue is this session's */ }
+  };
 
   const enqueue: OfflineQueue["enqueue"] = (entityTable, entityId, op, payload, clientObservedVersion) => {
     const mutation: SyncMutationWire = {
@@ -87,7 +121,7 @@ export const createOfflineQueue = (opts: { deviceId: string; newId: () => string
       entityTable, entityId, op, payload, clientObservedVersion,
       deviceAt: new Date(opts.now()).toISOString(),
     };
-    pending.value = [...pending.value, { mutation, enqueuedAt: opts.now() }];
+    persist([...pending.value, { mutation, enqueuedAt: opts.now() }]);
     return mutation;
   };
 
@@ -121,9 +155,11 @@ export const createOfflineQueue = (opts: { deviceId: string; newId: () => string
       let outcomes: readonly SyncOutcomeWire[];
       try {
         ({ outcomes } = await replay(batch.map((e) => e.mutation)));
-      } catch {
+      } catch (e) {
+        failure.value = e;
         return false; // unreachable gateway — nothing learned per-mutation; batch stays queued as-is
       }
+      failure.value = null;
       const byId = new Map(outcomes.map((o) => [o.mutationId, o]));
       const flagged: Attention[] = [];
       const unanswered: QueueEntry[] = [];
@@ -136,7 +172,7 @@ export const createOfflineQueue = (opts: { deviceId: string; newId: () => string
       // `batch` is always a prefix of whatever `pending.value` has become —
       // only `enqueue` (append-only) and this assignment touch it — so
       // anything appended during the await is exactly the tail past batch.length.
-      pending.value = [...unanswered, ...pending.value.slice(batch.length)];
+      persist([...unanswered, ...pending.value.slice(batch.length)]);
       if (flagged.length) attention.value = [...attention.value, ...flagged];
       return true;
     } finally {
@@ -144,5 +180,5 @@ export const createOfflineQueue = (opts: { deviceId: string; newId: () => string
     }
   };
 
-  return { pending, attention, flushing, enqueue, dismissAttention, flush };
+  return { pending, failure, attention, flushing, enqueue, dismissAttention, flush };
 };

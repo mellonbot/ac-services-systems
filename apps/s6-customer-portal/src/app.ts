@@ -1,4 +1,4 @@
-import { html, pageHead, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalNotice, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, pageHead, mount, spinFavicon, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalNotice, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect, brand } from "./main.ts";
@@ -183,6 +183,7 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   const slot = document.querySelector("ac-degraded") as (HTMLElement | null);
   const Root = () => app.view();
   mount(html`<${Root} />`, el);
+  spinFavicon(document);
   effect(() => {
     if (!slot) return;
     const p = app.phase.value;

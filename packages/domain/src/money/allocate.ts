@@ -18,6 +18,9 @@
 export const allocate = (total: bigint, weights: readonly bigint[]): readonly bigint[] => {
   if (weights.length === 0) throw new Error("[money] cannot allocate across zero targets");
   if (weights.some((w) => w < 0n)) throw new Error("[money] negative weight");
+  // A credit splits exactly as a charge does, mirrored: bigint division
+  // truncates toward zero, and the leftover below assumes it rounds down.
+  if (total < 0n) return allocate(-total, weights).map((x) => -x);
 
   const sum = weights.reduce((a, b) => a + b, 0n);
   if (sum === 0n) {
@@ -46,6 +49,17 @@ export const allocate = (total: bigint, weights: readonly bigint[]): readonly bi
     leftover -= 1n;
   }
   return out;
+};
+
+/**
+ * A line's amount: quantity in thousandths × unit price, to the nearest minor
+ * unit, half away from zero. One rule for every line in the system — an
+ * invoice line and a purchase-order line for the same quantity and price come
+ * to the same cent, and a credit rounds as its charge does.
+ */
+export const lineAmount = (quantityMilli: bigint, unitPriceMinor: bigint): bigint => {
+  const x = quantityMilli * unitPriceMinor;
+  return x < 0n ? -((-x + 500n) / 1000n) : (x + 500n) / 1000n;
 };
 
 /** The invariant, callable. The invoice builder asserts it before persisting. */

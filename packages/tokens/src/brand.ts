@@ -138,7 +138,7 @@ export const thickenFor = (px: number): number =>
 
 /**
  * The badge: the monogram on the plate ground, letter in brand red, ring and
- * bar in arc core. One artwork — truck lettering, embroidery, a 16px favicon
+ * bar in arc core. One artwork — truck lettering, embroidery, the app icon
  * and an anodised faceplate all take it.
  *
  * KNOWN DEFECT, recorded rather than hidden (E-17): this renders the letter as
@@ -160,9 +160,43 @@ export const badgeSvg = (px: number = ICON_SIZES.masthead): string => {
     `</svg>`;
 };
 
-/** The badge as a data URI the frame carries inline — no second request, no second file to drift. */
-export const faviconDataUri = (px: number = ICON_SIZES.favicon): string =>
-  `data:image/svg+xml,${encodeURIComponent(badgeSvg(px)).replace(/'/g, "%27").replace(/"/g, "%22")}`;
+/**
+ * THE FAVICON AND THE MASTHEAD MARK — a yard model turning in a livery-red
+ * glow, not the badge.
+ *
+ * Every surface's tab shows the packaged rooftop unit from S1's yard turning
+ * once every 2.25s; S5, the technician's surface, shows the service truck
+ * instead. Both are S1's own models (apps/s1-marketing/public/*.glb) rendered
+ * by tools/icons/ into packages/tokens/icons/<art>/, so the tab and the yard
+ * cannot drift apart. The glow is the livery red, solid behind the model and
+ * faded to nothing inside the square, so no ground meets a hard edge; the
+ * masthead turns the same frames beside the wordmark. The °R badge keeps the
+ * app icon and the patch.
+ *
+ * Four files per art: favicon.png, an animated PNG (Firefox plays it as-is);
+ * favicon-strip.png, the same frames side by side, which
+ * packages/ui/src/favicon.ts cycles for every browser that shows only the first
+ * frame; mark-strip.png, the masthead's frames at 2x its 40px; and
+ * apple-touch-icon.png, frame 0 at 180px, without which iOS draws a letter
+ * tile. Under prefers-reduced-motion both rest on frame 0.
+ */
+export const FAVICON = Object.freeze({
+  href: "/favicon.png",
+  strip: "favicon-strip.png",
+  mark: "mark-strip.png",
+  markPx: 96,
+  touch: "/apple-touch-icon.png",
+  touchPx: ICON_SIZES.appIcon,
+  px: 32,
+  frames: 36,
+  fps: 16,
+  glow: P.brand.fill,
+});
+
+export type FaviconArt = "rtu" | "truck";
+
+/** Which model a surface turns in its tab: the truck on the technician's surface, the rooftop unit everywhere else. */
+export const faviconArtFor = (surfaceId: string): FaviconArt => (surfaceId === "S5" ? "truck" : "rtu");
 
 /**
  * The bulletin's own errata, continued in code. Rev. B published six; two more
@@ -203,7 +237,7 @@ export const BULLETIN_ERRATA = Object.freeze([
   {
     code: "E-11", subject: "color.action-pressed", status: "closed",
     finding: "It is color.action-text by value, and :active repainted the fill without the ink. A variant carrying its own resting colour kept it: a quiet button pressed its own label to 1.00:1 and danger to 1.24:1 — every secondary route on a RefusalCard.",
-    resolution: "The ink moves with the fill. Danger inverts onto color.page (6.23:1 light, 16.34:1 plate) rather than borrowing the primary's fill. ON_FILL measures both pairs; the test fails any :active that moves a background and not a colour.",
+    resolution: "The ink moves with the fill. Danger inverts onto color.page (6.18:1 light since Rev C, 16.34:1 plate) rather than borrowing the primary's fill. ON_FILL measures both pairs; the test fails any :active that moves a background and not a colour.",
   },
   {
     code: "E-12", subject: "the type scale", status: "closed",
@@ -218,7 +252,7 @@ export const BULLETIN_ERRATA = Object.freeze([
   {
     code: "E-14", subject: "the degraded banner on the plate ground", status: "closed",
     finding: "SEMANTIC_DARK maps color.status-breached to cream — the same ink as body copy, correctly, because Plate 4 moves state into FORM. The banner drew its mark and its rule in that role and carried no fill, so on the one surface read in sunlight the alarm rendered in body-copy cream. Form R-4 decomposed into three channels and the banner used two of them, both collapsed.",
-    resolution: "The mark carries the oxide fill, the way the breached chip does: transparent on the light stock where a fault is an outline, 6.63:1 on the plate.",
+    resolution: "The mark carries the fault fill (oxide then, garnet since Rev C), the way the breached chip does: transparent on the light stock where a fault is an outline, solid on the plate.",
   },
   {
     code: "E-15", subject: "admitAccent", status: "closed",

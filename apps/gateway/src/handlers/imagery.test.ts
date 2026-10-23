@@ -1,8 +1,9 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
-import { siteImagery, coordinatesOf, renderTemplate, imageryConfigFromEnv, clearImageryCache, type Fetcher } from "./imagery.ts";
-import { InputRefused } from "../refusals.ts";
+import { siteImagery, coordinatesOf, renderTemplate, imageryConfigFromEnv, clearImageryCache, siteMapTile, mapTileConfigFromEnv, clearMapTileCache, type Fetcher } from "./imagery.ts";
+import { tileOf } from "../../../../packages/contracts/src/operations.ts";
+import { InputRefused, BadInput } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 
 /**
@@ -26,7 +27,7 @@ const okFetch = (calls: string[]): Fetcher => async (url) => { calls.push(url); 
 const configured = { urlTemplate: "https://tiles.example/static?c={lat},{lng}&z={zoom}&s={w}x{h}&key=K", attribution: "© Provider" };
 const withCoords = [{ id: SITE, tier: "site", address: { line1: "1 Main", lat: 30.2672, lng: -97.7431 } }];
 
-beforeEach(clearImageryCache);
+beforeEach(() => { clearImageryCache(); clearMapTileCache(); });
 
 test("coordinates are read off the address and validated; the template names lat, lng, zoom and size", () => {
   assert.deepEqual(coordinatesOf({ lat: 30.5, lng: -97.1 }), { lat: 30.5, lng: -97.1 });
@@ -73,4 +74,35 @@ test("a provider that errors, times out, or answers with something that is not a
 test("an invisible site is unknown_site; a location is not_a_site", async () => {
   await assert.rejects(siteImagery(await uowFor(scripted([])), { siteId: SITE }, configured, okFetch([])), (e: InputRefused) => e.code === "unknown_site");
   await assert.rejects(siteImagery(await uowFor(scripted([{ id: SITE, tier: "location", address: null }])), { siteId: SITE }, configured, okFetch([])), (e: InputRefused) => e.code === "not_a_site");
+});
+
+// ---- S2's home map: one tile at a time, only near the site ----
+const tiles = { urlTemplate: "https://tiles.example/{z}/{x}/{y}.png?key=K", attribution: "© Tiles" };
+const homeTile = (z: number) => { const t = tileOf(30.2672, -97.7431, z); return { x: Math.floor(t.x), y: Math.floor(t.y) }; };
+
+test("map tile: the home's own tile is fetched by the gateway from the {z}/{x}/{y} template, once, and served inline with its credit", async () => {
+  assert.deepEqual(mapTileConfigFromEnv({}), { urlTemplate: null, attribution: null });
+  assert.equal(mapTileConfigFromEnv({ AC_MAPTILER_KEY: "k" }).urlTemplate, "https://api.maptiler.com/maps/hybrid/256/{z}/{x}/{y}.jpg?key=k", "one key fills the tiles");
+  assert.equal(mapTileConfigFromEnv({ AC_MAPTILER_KEY: "k", AC_MAP_TILE_URL: "https://other/{z}/{x}/{y}" }).urlTemplate, "https://other/{z}/{x}/{y}");
+  const calls: string[] = [];
+  const { x, y } = homeTile(16);
+  const a = await siteMapTile(await uowFor(scripted(withCoords)), { siteId: SITE, z: 16, x, y }, tiles, okFetch(calls));
+  assert.equal(a.unavailable, null);
+  assert.match(a.image!, /^data:image\/png;base64,/);
+  assert.equal(a.attribution, "© Tiles");
+  assert.equal(calls[0], `https://tiles.example/16/${x}/${y}.png?key=K`);
+  // Query-carried input arrives as strings.
+  await siteMapTile(await uowFor(scripted(withCoords)), { siteId: SITE, z: "16", x: String(x), y: String(y) } as never, tiles, okFetch(calls));
+  assert.equal(calls.length, 1, "cached by tile");
+});
+
+test("map tile: unconfigured and uncoordinated are answers; a tile far from the home, or a zoom out of range, is refused", async () => {
+  const calls: string[] = [];
+  const { x, y } = homeTile(16);
+  assert.equal((await siteMapTile(await uowFor(scripted(withCoords)), { siteId: SITE, z: 16, x, y }, { urlTemplate: null, attribution: null }, okFetch(calls))).unavailable, "not_configured");
+  assert.equal((await siteMapTile(await uowFor(scripted([{ id: SITE, tier: "site", address: { line1: "1 Main" } }])), { siteId: SITE, z: 16, x, y }, tiles, okFetch(calls))).unavailable, "no_coordinates");
+  await assert.rejects(siteMapTile(await uowFor(scripted(withCoords)), { siteId: SITE, z: 16, x: x + 5, y }, tiles, okFetch(calls)), (e: InputRefused) => e.code === "tile_out_of_reach");
+  await assert.rejects(siteMapTile(await uowFor(scripted(withCoords)), { siteId: SITE, z: 3, x: 1, y: 1 }, tiles, okFetch(calls)), BadInput);
+  await assert.rejects(siteMapTile(await uowFor(scripted([{ id: SITE, tier: "location", address: null }])), { siteId: SITE, z: 16, x, y }, tiles, okFetch(calls)), (e: InputRefused) => e.code === "not_a_site");
+  assert.equal(calls.length, 0);
 });

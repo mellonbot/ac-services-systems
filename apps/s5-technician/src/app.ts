@@ -1,10 +1,10 @@
-import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalNotice, pageHead, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalNotice, pageHead, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
 import { createStore, type Store } from "./state.ts";
-import { createOfflineQueue, type OfflineQueue } from "./offline.ts";
+import { createOfflineQueue, type OfflineQueue, type QueueStore } from "./offline.ts";
 import type { Screen, ScreenContext } from "./screens/common.ts";
 import { jobList } from "./screens/job-list.ts";
 import { jobDetail } from "./screens/job-detail.ts";
@@ -41,7 +41,7 @@ type Phase =
   | { kind: "login"; refusal: Refusal | null; busy: boolean }
   | { kind: "ready"; shell: ConnectedShell; store: Store; queue: OfflineQueue; crew: { id: string; label: string }; clock: Signal<Readonly<Record<string, string>>> };
 
-export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window; newId?: () => string }) => {
+export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window; newId?: () => string; store?: QueueStore | null }) => {
   const now = opts.now ?? (() => Date.now());
   const newId = opts.newId ?? (() => (globalThis.crypto?.randomUUID?.() ?? `${now()}-${Math.random()}`));
   const phase = signal<Phase>({ kind: "login", refusal: null, busy: false });
@@ -54,7 +54,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       const shell = await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { hardwareId, email, password } });
       if (!shell.deviceCrew) throw new Error("auth.deviceLogin answered with no crew — the shell's own contract was not honored");
       const store = createStore(shell, now);
-      const queue = createOfflineQueue({ deviceId: shell.principal.deviceId ?? hardwareId, newId, now });
+      const queue = createOfflineQueue({ deviceId: shell.principal.deviceId ?? hardwareId, newId, now, store: opts.store ?? null });
       const clock = signal<Readonly<Record<string, string>>>({});
       phase.value = { kind: "ready", shell, store, queue, crew: shell.deviceCrew, clock };
       router.navigate("jobs", {});
@@ -73,6 +73,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     try { await p.shell.logout(); } finally { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("login", {}); }
   };
 
+  // Retry pacing: every tick while answers come back, then doubling to a
+  // minute while they do not — a dead zone is not a reason to send a request a second.
+  let retryAt = 0;
+  let retryDelay = 1000;
   const tick = () => {
     const p = phase.value;
     if (p.kind !== "ready") return;
@@ -80,9 +84,20 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     // Offline-first: a queue with something in it is retried on every tick
     // while the gateway is reachable, not only when a tech taps a button —
     // reconnecting after a dead zone should not need a second tap to notice.
-    if (p.queue.pending.value.length > 0) {
+    if (p.queue.pending.value.length > 0 && now() >= retryAt && !p.queue.flushing.value) {
       void p.queue.flush((mutations) => p.shell.gateway.replaySync({ orgId: p.shell.principal.orgId, regionId: p.shell.principal.regionId, mutations }))
-        .then((answered) => { if (answered) p.store.invalidate("jobs.mine"); });
+        .then((answered) => {
+          if (answered) { retryDelay = 1000; retryAt = 0; p.store.invalidate("jobs.mine"); return; }
+          const refusal = refusalOf(p.queue.failure.value);
+          if (refusal.kind === "token") {
+            // The shift's token is over. The work is on this device; signing in again replays it.
+            phase.value = { kind: "login", refusal: { ...refusal, message: `${refusal.message} — ${p.queue.pending.value.length} change(s) are saved on this device and will be sent after you sign in.` }, busy: false };
+            router.navigate("login", {});
+            return;
+          }
+          retryAt = now() + retryDelay;
+          retryDelay = Math.min(retryDelay * 2, 60_000);
+        });
     }
   };
 
@@ -138,11 +153,14 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   style.textContent = S5_CSS;
   document.head.appendChild(style);
 
-  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window });
+  let store: QueueStore | null = null;
+  try { store = window.localStorage; } catch { /* site data blocked: the queue lives in memory */ }
+  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window, store });
   const el = document.getElementById("mount")!;
   const slot = document.querySelector("ac-degraded") as (HTMLElement | null);
   const Root = () => app.view();
   mount(html`<${Root} />`, el);
+  spinFavicon(document);
   effect(() => {
     if (!slot) return;
     const p = app.phase.value;

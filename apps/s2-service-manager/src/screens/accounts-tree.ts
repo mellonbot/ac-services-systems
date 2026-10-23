@@ -2,6 +2,7 @@ import { html, pageHead, panel, DataGrid, signal, CustomerCard, PLAN_WORD, KIND_
 import type { AccountWire, OrganizationWire, RegionWire, CustomerSegment } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, linkTo, type Screen, type ScreenContext } from "./common.ts";
+import { homeCard } from "./home-card.ts";
 
 /**
  * C1 — the tree. Left: every customer parent we serve, with how many of our
@@ -47,24 +48,25 @@ export const showCustomerCard = (orgId: string | null) => { hover.value = orgId 
 
 const shortDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
-const customerCard = (ctx: ScreenContext, org: OrganizationWire): VNode => {
+/** The card for one customer. `id` tells the hover card from the selected homeowner's card, which can be on screen together. `selected` adds the map and the service history. */
+const customerCard = (ctx: ScreenContext, org: OrganizationWire, id = "customer-card", selected = false): VNode => {
   const { store, shell } = ctx;
   const nodes = store.read(keyOf("accounts.list", { orgId: org.id }), () => shell.gateway.listAccounts({ orgId: org.id }));
   const contracts = store.read(keyOf("contracts.list", { orgId: org.id }), () => shell.gateway.listContracts({ orgId: org.id }));
   if (nodes.value.state !== "ready" || contracts.value.state !== "ready") {
     const refused = nodes.value.state === "refused" ? nodes.value : contracts.value.state === "refused" ? contracts.value : null;
-    return html`<article class="ac-customer-card" id="customer-card"><h3 class="ac-customer-card__name">${org.name}</h3>
+    return html`<article class="ac-customer-card" id=${id}><h3 class="ac-customer-card__name">${org.name}</h3>
       <p class="ac-customer-card__muted" role="status">${refused ? "This customer's card could not be read — open the customer to see why." : "Loading…"}</p></article>`;
   }
   return whenReady(ctx, nodes.value, (n) => whenReady(ctx, contracts.value, (c) => {
     const active = c.contracts.filter((x) => x.state === "active");
     const sites = n.nodes.filter((x) => x.tier === "site");
-    const base = { id: "customer-card", density: ctx.density, name: org.name, segment: org.segment, sites: sites.length, locations: n.nodes.filter((x) => x.tier === "location").length, plans: [...new Set(active.map((x) => PLAN_WORD[x.billingPath]))] };
+    const base = { id, density: ctx.density, name: org.name, segment: org.segment, sites: sites.length, locations: n.nodes.filter((x) => x.tier === "location").length, plans: [...new Set(active.map((x) => PLAN_WORD[x.billingPath]))] };
     if (org.segment !== "residential") return CustomerCard(base) ?? html``;
     const site = sites[0] ?? null;
     const equipment = site ? store.read(keyOf("equipment.list", { siteId: site.id }), () => shell.gateway.listEquipment({ siteId: site.id })).value : null;
     const member = active.find((x) => x.billingPath === "residential_membership") ?? null;
-    return CustomerCard({
+    const card = CustomerCard({
       ...base,
       home: {
         address: addressLines(site?.address ?? null),
@@ -78,6 +80,7 @@ const customerCard = (ctx: ScreenContext, org: OrganizationWire): VNode => {
         membership: member ? { name: PLAN_WORD[member.billingPath], since: shortDay(member.effectiveFrom), through: member.effectiveTo ? shortDay(member.effectiveTo) : null } : null,
       },
     }) ?? html``;
+    return selected ? homeCard(ctx, card, site) : card;
   }));
 };
 
@@ -149,6 +152,8 @@ export const accountsTree: Screen = (ctx, params) => {
     }), org?.name ?? "Customer", undefined, linkTo(ctx, "accounts.new", { orgId: orgId!, tier: "region" }, "+ Region node", "ac-action s2-link--action"), "account-tree");
   };
 
+  const selected = orgId && orgs.value.state === "ready" ? orgs.value.value.organizations.find((o) => o.id === orgId) : undefined;
+  const selectedHome = selected?.segment === "residential" ? selected : undefined;
   const hovered = hover.value && orgs.value.state === "ready" ? orgs.value.value.organizations.find((o) => o.id === hover.value!.orgId) : undefined;
   return html`${hovered ? html`<div class="s2-hovercard" role="tooltip" style=${`left:${hover.value!.left}px;top:${hover.value!.top}px`}>${customerCard(ctx, hovered)}</div>` : null}${pageHead("Accounts", "Every customer and its tree of regions, locations and sites, against the regions we serve them from. Pick a customer to see its tree.", linkTo(ctx, "organizations.new", {}, "+ New customer", "ac-action s2-link--action"))}<div class="s2-two-col s2-two-col--wide-side">
     <aside class="s2-col s2-col--orgs">
@@ -158,6 +163,7 @@ export const accountsTree: Screen = (ctx, params) => {
         </div>`, "customers")}
     </aside>
     <div class="s2-col s2-col--tree">
+      ${selectedHome ? panel(customerCard(ctx, selectedHome, "home-customer-card", true), "Home", "Where it is, and every visit we have finished there.", undefined, "home") : null}
       ${orgId
         ? whenReady(ctx, store.read(keyOf("accounts.list", { orgId }), () => shell.gateway.listAccounts({ orgId })).value,
             (t) => whenReady(ctx, regions.value, (r) => treeGrid(t.nodes, r.regions, orgs.value.state === "ready" ? orgs.value.value.organizations.find((o) => o.id === orgId) : undefined)),

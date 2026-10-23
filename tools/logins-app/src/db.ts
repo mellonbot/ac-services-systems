@@ -1,4 +1,4 @@
-import { createPool, beginTx, type Pool } from "../../../apps/gateway/src/pg-tx.ts";
+import { createPool, beginTx, bindSystem, type Pool } from "../../../apps/gateway/src/pg-tx.ts";
 import type { ScopeBinding, Role } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import type { CustomerSegment } from "../../../packages/contracts/src/operations.ts";
@@ -10,6 +10,7 @@ import { hashPassword } from "../../../apps/gateway/src/auth.ts";
 import { summarizeDocuments } from "../../../apps/gateway/src/handlers/network.ts";
 import type { CredentialWire } from "../../../packages/contracts/src/operations.ts";
 import { randomUUID } from "node:crypto";
+import { isTopic, type Topic } from "../../../packages/contracts/src/events.ts";
 import { buildCrewRow, buildFirmRows, documentsLabel, normaliseName } from "./companies.ts";
 import type { NewCompany } from "./companies.ts";
 
@@ -18,6 +19,13 @@ export const INTERNAL_READ_BINDING: Readonly<Record<string, string>> = {
   "ac.namespace": "internal", "ac.org_id": INTERNAL_ORG_ID, "ac.scope_tier": "parent", "ac.scope_id": INTERNAL_ORG_ID,
   "ac.region_id": "", "ac.firm_id": "", "ac.device_id": "", "ac.actor_id": "", "ac.surface_id": "logins-app",
 };
+
+/**
+ * The app's actor in audit_log and outbox. Like the worker (WORKER_ACTOR), it
+ * has no principal; its surface is "logins-app". Writing both rows in the same
+ * transaction is what lets the relay push the change to every open page.
+ */
+export const LOGINS_APP_ACTOR = "00000000-0000-0000-0000-00000000aa02";
 
 export class LoginsDbError extends Error {}
 
@@ -103,7 +111,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
   };
 
   const read = <T>(sql: string, params: readonly unknown[] = []): Promise<readonly T[]> => attempt(async () => {
-    const tx = await beginTx(pool, "ac_gateway");
+    const tx = await beginTx(pool, "ac_logins");
     try {
       await tx.setLocal(INTERNAL_READ_BINDING as ScopeBinding);
       return await tx.query<T>(sql, params);
@@ -113,8 +121,9 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
   });
 
   const write = <T>(f: (q: <R>(sql: string, params?: readonly unknown[]) => Promise<readonly R[]>) => Promise<T>): Promise<T> => attempt(async () => {
-    const tx = await beginTx(pool, "ac_gateway");
+    const tx = await beginTx(pool, "ac_logins");
     try {
+      await bindSystem(tx);
       const out = await f((sql, params) => tx.query(sql, params));
       await tx.commit();
       return out;
@@ -126,9 +135,32 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
 
   type Q = <R>(sql: string, params?: readonly unknown[]) => Promise<readonly R[]>;
 
+  type Change = { topic: Topic; action: string; entity: string; entityId: string; orgId: string; regionId: string; after: unknown };
+  const emit = async (q: Q, c: Change): Promise<void> => {
+    if (!isTopic(c.topic)) throw new LoginsDbError(`"${c.topic}" is not in the event catalogue`);
+    const eventId = randomUUID();
+    await q(
+      `INSERT INTO audit_log (event_id, actor_id, surface_id, action, entity, entity_id, after, region_id, org_id)
+       VALUES ($1,$2,'logins-app',$3,$4,$5,$6::jsonb,$7,$8)`,
+      [eventId, LOGINS_APP_ACTOR, c.action, c.entity, c.entityId, JSON.stringify(c.after), c.regionId, c.orgId]);
+    await q(
+      `INSERT INTO outbox (event_id, topic, entity, entity_id, payload, actor_id, surface_id, region_id, org_id)
+       VALUES ($1,$2,$3,$4,'{}'::jsonb,$5,'logins-app',$6,$7)`,
+      [eventId, c.topic, c.entity, c.entityId, LOGINS_APP_ACTOR, c.regionId, c.orgId]);
+  };
+  /** Every user write ends here: one event, so S3's team list refetches. */
+  const userChanged = async (q: Q, userId: string, topic: "user.created" | "user.updated", action: string): Promise<void> => {
+    const [u] = await q<{ org_id: string; region_id: string; active: boolean }>(`SELECT org_id, region_id, active FROM users WHERE id = $1`, [userId]);
+    await emit(q, { topic, action, entity: "user", entityId: userId, orgId: u!.org_id, regionId: u!.region_id, after: { active: u!.active } });
+  };
+  const crewChanged = async (q: Q, crewId: string, topic: "crew.created" | "crew.updated", action: string): Promise<void> => {
+    const [c] = await q<{ org_id: string; region_id: string; label: string; active: boolean }>(`SELECT org_id, region_id, label, active FROM crews WHERE id = $1`, [crewId]);
+    await emit(q, { topic, action, entity: "crew", entityId: crewId, orgId: c!.org_id, regionId: c!.region_id, after: { label: c!.label, active: c!.active } });
+  };
+
   /** Company writes — and technician writes, which must share a transaction with the company-row lock — run as the office: internal, bound, one commit. */
   const writeAsOffice = <T>(f: (q: Q) => Promise<T>): Promise<T> => attempt(async () => {
-    const tx = await beginTx(pool, "ac_gateway");
+    const tx = await beginTx(pool, "ac_logins");
     try {
       await tx.setLocal(INTERNAL_READ_BINDING as ScopeBinding);
       const out = await f((sql, params) => tx.query(sql, params));
@@ -232,6 +264,10 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       const name = normaliseName(n.name);
       if (name === "") throw new LoginInputError("The name cannot be empty.");
       return writeAsOffice(async (q) => {
+        // The duplicate checks below read, then insert. Two saves at once (a
+        // double-click, two operators) would both read nothing; company
+        // creation is serialised so the second reads the first's row.
+        await q("SELECT pg_advisory_xact_lock(hashtext('ac-logins:add-company'))");
         let crew;
         if (n.type === "ours") {
           await requireRegion(q, n.regionId);
@@ -260,10 +296,12 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
             `INSERT INTO subcontractor_firms (id, org_id, region_id, legal_name, status, settlement_terms_days, msa_signed_at, diagnostic_data_rights_reserved)
              VALUES ($1, $1, $2, $3, 'onboarding', $4, $5::date, $6)`,
             [f.id, f.region_id, f.legal_name, f.settlement_terms_days, f.msa_signed_at, f.diagnostic_data_rights_reserved]);
+          await emit(q, { topic: "firm.created", action: "firm.create", entity: "firm", entityId: f.id, orgId: f.id, regionId: f.region_id, after: { legalName: f.legal_name, status: "onboarding" } });
         }
         const [made] = await q<{ id: string }>(
           `INSERT INTO crews (org_id, region_id, label, employment_type, firm_id, home_region_id, active) VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING id`,
           [crew.org_id, crew.region_id, crew.label, crew.employment_type, crew.firm_id, crew.home_region_id]);
+        await crewChanged(q, made!.id, "crew.created", "crew.create");
         return { id: made!.id, firmId: crew.firm_id };
       });
     },
@@ -276,6 +314,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       const [{ n: jobs }] = await q<{ n: number }>(`SELECT count(*)::int AS n FROM assignments WHERE crew_id = $1 AND released_at IS NULL`, [id]) as [{ n: number }];
       if (jobs > 0) throw new LoginInputError(`It has ${plural(jobs, "job", "jobs")} assigned — release them in Dispatch first`);
       await q(`UPDATE crews SET active = false WHERE id = $1`, [id]);
+      await crewChanged(q, id, "crew.updated", "crew.retire");
     }),
 
     reactivateCompany: (id) => writeAsOffice(async (q) => {
@@ -287,6 +326,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
         throw new LoginInputError(`A company named ${normaliseName(c.label)} already exists`);
       }
       await q(`UPDATE crews SET active = true WHERE id = $1`, [id]);
+      await crewChanged(q, id, "crew.updated", "crew.reactivate");
     }),
 
     listCustomerOrgs: () => read<CustomerOrg>(`SELECT id, name, segment FROM organizations WHERE kind = 'customer' AND active ORDER BY name`),
@@ -305,6 +345,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
             `INSERT INTO users (org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, firm_id, crew_id, password_hash)
              VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11) RETURNING id`,
             [row.org_id, row.region_id, row.namespace, row.email, row.display_name, JSON.stringify(row.roles), row.scope_tier, row.scope_id, row.firm_id, row.crew_id, row.password_hash]);
+          await userChanged(q, made!.id, "user.created", "user.create");
           return { id: made!.id };
         } catch (e) {
           if ((e as { code?: string }).code === "23505") throw new LoginInputError("A login with that email already exists");
@@ -337,6 +378,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
         await q(
           `UPDATE users SET display_name = $2, roles = $3::jsonb, region_id = $4, scope_tier = $5, scope_id = $6, crew_id = $7 WHERE id = $1`,
           [userId, edit.displayName, JSON.stringify(after.roles), after.regionId, after.scopeTier, after.scopeId, after.crewId]);
+        await userChanged(q, userId, "user.updated", "user.edit");
         return { revokedSessions: accessChanged(before, after) ? await revoke(q, userId) : 0 };
       });
     },
@@ -344,6 +386,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
     deactivate: (userId) => write(async (q) => {
       const hit = await q(`UPDATE users SET active = false WHERE id = $1 RETURNING id`, [userId]);
       if (hit.length === 0) throw new LoginInputError(GONE);
+      await userChanged(q, userId, "user.updated", "user.deactivate");
       return { revokedSessions: await revoke(q, userId) };
     }),
 
@@ -355,6 +398,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
         if (crewId) await requireActiveCompany(q, crewId);
         const hit = await q(`UPDATE users SET active = true WHERE id = $1 RETURNING id`, [userId]);
         if (hit.length === 0) throw new LoginInputError(GONE);
+        await userChanged(q, userId, "user.updated", "user.reactivate");
       });
     },
 

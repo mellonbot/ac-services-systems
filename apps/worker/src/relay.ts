@@ -29,11 +29,14 @@ type Row = {
   actor_id: string; surface_id: string; region_id: string; org_id: string; occurred_at: string; attempts: number;
 };
 
+/** attempts at or past this are parked: kept for an operator, never read again (a parked row at the head of every batch would starve the rest). */
+export const PARKED = 1000;
+
 export const relayOnce = async (tx: RelayTx, publisher: EventPublisher, batchSize = 200, regionId?: string): Promise<{ published: number; refused: number }> => {
   const rows = await tx.query<Row>(
     `SELECT id, event_id, topic, entity, entity_id, payload, actor_id, surface_id, region_id, org_id, occurred_at, attempts
        FROM outbox
-      WHERE published_at IS NULL AND ($2::uuid IS NULL OR region_id = $2)
+      WHERE published_at IS NULL AND attempts < ${PARKED} AND ($2::uuid IS NULL OR region_id = $2)
       ORDER BY occurred_at, id
       LIMIT $1
       FOR UPDATE SKIP LOCKED`,
@@ -58,10 +61,15 @@ export const relayOnce = async (tx: RelayTx, publisher: EventPublisher, batchSiz
     });
   }
 
+  // The publish runs under a savepoint: a NOTIFY that fails aborts what it
+  // touched, and without one the attempts bump below would fail too (25P02),
+  // hiding both the count an operator watches and the original error.
+  await tx.query("SAVEPOINT publish");
   try {
     if (good.length) await publisher.publish(good);
   } catch (e) {
     // Nothing is marked; the whole batch is retried. attempts is the signal an operator watches.
+    await tx.query("ROLLBACK TO SAVEPOINT publish");
     await tx.query(`UPDATE outbox SET attempts = attempts + 1 WHERE id = ANY($1::uuid[])`, [rows.map((r) => r.id)]);
     await tx.commit();
     throw e;
@@ -70,7 +78,7 @@ export const relayOnce = async (tx: RelayTx, publisher: EventPublisher, batchSiz
   if (good.length) await tx.query(`UPDATE outbox SET published_at = now() WHERE event_id = ANY($1::uuid[])`, [good.map((g) => g.eventId)]);
   // An unknown topic is a row that should never have been written — the unit of work refuses them.
   // If one exists, something wrote to the outbox around the gateway. Park it and count it; do not lose it.
-  if (bad.length) await tx.query(`UPDATE outbox SET attempts = attempts + 1000 WHERE id = ANY($1::uuid[])`, [bad.map((b) => b.id)]);
+  if (bad.length) await tx.query(`UPDATE outbox SET attempts = attempts + ${PARKED} WHERE id = ANY($1::uuid[])`, [bad.map((b) => b.id)]);
   await tx.commit();
   return { published: good.length, refused: bad.length };
 };

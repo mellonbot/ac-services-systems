@@ -1,4 +1,5 @@
 import type { BillableEvent, InvoiceLine } from "../path.ts";
+import { lineAmount } from "../../money/allocate.ts";
 
 /**
  * Admitted to shared/ because it serves all four paths identically and needs no
@@ -12,7 +13,7 @@ export const lineFromEvent = (e: BillableEvent, description: string): InvoiceLin
     description,
     quantityMilli: e.quantityMilli,
     unitPriceMinor: e.unitPriceMinor,
-    amountMinor: (e.quantityMilli * e.unitPriceMinor) / 1000n,
+    amountMinor: lineAmount(e.quantityMilli, e.unitPriceMinor),
   });
 
 export const totalOf = (lines: readonly InvoiceLine[]): bigint =>

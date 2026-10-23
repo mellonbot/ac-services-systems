@@ -48,17 +48,17 @@ const sceneRef = (canvas: HTMLCanvasElement | null): void => {
  * sentence will be read back in a contract dispute, because the one about
  * response times would be.
  *
- * It also does not name a metro the hierarchy does not. The list below is
- * `regions`, through `ac_public_coverage()`, and if the gateway does not
- * answer the page says so rather than falling back to a list in the bundle.
+ * It also does not name a metro the hierarchy does not. The coverage page's
+ * list is `regions`, through `ac_public_coverage()`, and if the gateway does
+ * not answer the page says so rather than falling back to a list in the bundle.
  * A hard-coded coverage map is the exact failure D14 exists to prevent: a map
  * that says we serve a metro, and no crew density behind it.
  */
 export const home: Screen = (ctx: ScreenContext): VNode => {
-  const cov = coverage(ctx);
   const portals = SURFACE_IDS.filter((id) => id !== "S1" && SURFACES[id].enabled);
   return html`<section class="s1-home">
-    <h1 class="s1-h1">${SITE_TITLE}</h1>
+    <h1 class="s1-h1 s1-sr-only">${SITE_TITLE}</h1>
+    <h2 class="s1-h2 s1-welcome">Welcome to the shop</h2>
     <p class="s1-lede">Sign in to the workspace for your role.</p>
 
     <section class="s1-surface-access" id="surface-logins" aria-labelledby="surface-logins-title">
@@ -76,19 +76,7 @@ export const home: Screen = (ctx: ScreenContext): VNode => {
       </div>
     </section>
 
-    <section class="s1-public" aria-labelledby="public-title">
-      <h2 class="s1-label" id="public-title">Not a customer yet</h2>
-      <p class="s1-public__line">
-        Commercial HVAC service, run as one network through local firms that keep their own names.
-      </p>
-      <p><a class="s1-cta" href=${ctx.router.href("enquire", {})}
-            onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate("enquire", {}); }}
-            id="ask-us">Ask us to call</a></p>
-      ${whenReady<CoverageOutput>(ctx, cov, (v) => v.metros.length
-        ? html`<p class="s1-public__where">Where we work: <span id="metros">${v.metros.map((m) => m.name).join(" · ")}</span> — ${linkTo(ctx, "coverage", {}, "the full list")}</p>`
-        : html`<p class="s1-empty" id="metros-empty">Our coverage list is being updated. Send us a note and we will tell you whether we reach you.</p>`,
-        () => ctx.store.invalidate("coverage.list"))}
-    </section>
+    <p class="s1-callout">${linkTo(ctx, "enquire", {}, "Just blow into town, partner?", "ac-action s1-callout__action")}</p>
   </section>`;
 };
 

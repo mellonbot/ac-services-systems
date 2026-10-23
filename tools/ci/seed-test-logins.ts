@@ -16,11 +16,11 @@
  * customer organization's name or id; customer-test sees that org's whole tree
  * on S6, bound to the same region as the others.
  *
- * Runs unbound as ac_gateway, exactly as the gateway's own login does: `users`
- * admits an unbound writer and nothing broader is needed.
+ * Runs as ac_gateway under the system binding, exactly as the gateway's own
+ * login does: `users` admits the system writer and nothing broader is needed.
  */
 import { fileURLToPath } from "node:url";
-import { createPool, beginTx, type Pool } from "../../apps/gateway/src/pg-tx.ts";
+import { createPool, beginTx, bindSystem, type Pool } from "../../apps/gateway/src/pg-tx.ts";
 import { hashPassword } from "../../apps/gateway/src/auth.ts";
 import { UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 import { TEST_LOGINS, CUSTOMER_TEST_LOGIN, testLoginRow, MIN_TEST_LOGIN_PASSWORD } from "./test-logins.ts";
@@ -30,6 +30,7 @@ export type SeededLogin = { readonly id: string; readonly email: string; readonl
 /** A region id from its code, or the only real region when no code is given. */
 export const resolveRegion = async (pool: Pool, code?: string): Promise<{ id: string; code: string }> => {
   const tx = await beginTx(pool, "ac_gateway");
+  await bindSystem(tx);
   try {
     const rows = await tx.query<{ id: string; code: string }>(
       "SELECT id, code FROM regions WHERE active AND id <> $1 ORDER BY code", [UNASSIGNED_REGION_ID]);
@@ -50,6 +51,7 @@ export const resolveRegion = async (pool: Pool, code?: string): Promise<{ id: st
 /** An active customer org from its name (case-insensitive) or id. */
 export const resolveCustomerOrg = async (pool: Pool, ref: string): Promise<{ id: string; name: string }> => {
   const tx = await beginTx(pool, "ac_gateway");
+  await bindSystem(tx);
   try {
     const rows = await tx.query<{ id: string; name: string }>(
       "SELECT id, name FROM organizations WHERE active AND kind = 'customer' AND (id::text = $1 OR lower(name) = lower($1))", [ref.trim()]);
@@ -64,6 +66,7 @@ export const seedTestLogins = async (pool: Pool, opts: { readonly password: stri
   if (opts.password.length < MIN_TEST_LOGIN_PASSWORD) throw new Error(`the test-login password must be at least ${MIN_TEST_LOGIN_PASSWORD} characters`);
   const hash = hashPassword(opts.password);
   const tx = await beginTx(pool, "ac_gateway");
+  await bindSystem(tx);
   try {
     const out: SeededLogin[] = [];
     for (const t of opts.customerOrgId ? [...TEST_LOGINS, CUSTOMER_TEST_LOGIN] : TEST_LOGINS) {

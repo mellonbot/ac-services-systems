@@ -77,6 +77,12 @@ export const JOB_SELECT = `
     LEFT JOIN sla_timers st ON st.job_id = j.id
     LEFT JOIN LATERAL (SELECT body, created_at FROM job_notes WHERE job_id = j.id AND kind = 'note' ORDER BY created_at DESC, id DESC LIMIT 1) n ON true`;
 
+/** YYYY-MM-DD of an instant in an IANA zone. A zone the runtime does not know falls back to UTC rather than refusing the job. */
+export const localDate = (at: Date, timeZone: string): string => {
+  try { return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(at); }
+  catch { return at.toISOString().slice(0, 10); }
+};
+
 export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: () => string, now: Date): Promise<CreateJobOutput> => {
   const siteId = requireUuid(input.siteId, "siteId");
   const serviceCode = requireText(input.serviceCode, "serviceCode");
@@ -95,6 +101,17 @@ export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: (
   ))[0];
   if (!site) throw new InputRefused(`no node ${siteId} visible in this scope`, "unknown_site");
   if (site.tier !== "site") throw new InputRefused(`"${siteId}" is a ${site.tier}, not a site — work happens at a site, the tier with no descendants`, "not_a_site");
+  // The agreement and project a job cites are the site's customer's — never another org's.
+  if (contractId) {
+    const c = (await uow.tx.query<{ org_id: string }>(`SELECT org_id FROM contracts WHERE id = $1`, [contractId]))[0];
+    if (!c) throw new InputRefused(`no agreement ${contractId} visible in this scope`, "unknown_contract");
+    if (c.org_id !== site.org_id) throw new InputRefused(`agreement ${contractId} is not this site's customer's`, "tenancy_mismatch");
+  }
+  if (projectId) {
+    const pr = (await uow.tx.query<{ org_id: string }>(`SELECT org_id FROM projects WHERE id = $1`, [projectId]))[0];
+    if (!pr) throw new InputRefused(`no project ${projectId} visible in this scope`, "unknown_project");
+    if (pr.org_id !== site.org_id) throw new InputRefused(`project ${projectId} is not this site's customer's`, "tenancy_mismatch");
+  }
 
   // Item 9: the units this job is about must be units at THIS site. The
   // trigger on job_equipment (0009) holds the same sentence for every other
@@ -113,7 +130,11 @@ export const createJob = async (uow: UnitOfWork, input: CreateJobInput, newId: (
   // Derived, never typed in. A resolution refusal (no value anywhere on the
   // path, an authoring-tier or ratchet violation) surfaces as its own 422 —
   // `resolvedTermsAt` never throws for one bad key, so it is read out of `refused`.
-  const asOf = now.toISOString().slice(0, 10);
+  // The day the job is opened is the day where the site is, not in UTC: an
+  // evening job in Dallas the night before an amendment starts is under the
+  // terms in force that evening.
+  const tz = (await uow.tx.query<{ timezone: string | null }>(`SELECT timezone FROM regions WHERE id = $1`, [site.region_id]))[0]?.timezone ?? "UTC";
+  const asOf = localDate(now, tz);
   const r = await resolvedTermsAt(uow, site.org_id, "site", site.id, asOf, ["sla_response"]);
   const refusedSla = r.refused.sla_response;
   if (refusedSla) throw new InputRefused(`cannot open a job at this site: ${refusedSla.message}`, refusedSla.code);

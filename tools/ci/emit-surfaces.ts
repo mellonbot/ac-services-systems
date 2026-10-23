@@ -22,7 +22,7 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SURFACES, SURFACE_IDS, type Surface, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import {
-  DENSITY, tokenCss, BRAND, faviconDataUri, semanticFor, badgeSvg,
+  DENSITY, tokenCss, BRAND, FAVICON, semanticFor,
   SEMANTIC, FACES, ACCENT_GATE, BULLETIN_ERRATA, WORDMARK_FLOOR, FONT_FILES,
 } from "../../packages/tokens/src/index.ts";
 // Not via index.ts: figures.ts is the table of every number the system states
@@ -226,22 +226,39 @@ const GENERATED_STATUS_APPS: readonly SurfaceId[] = SURFACE_IDS.filter((id) => !
  * the same flag `tokenCss` used to resolve the brand roles, carried into the
  * markup so a reviewer can see which layer a frame is on without reading CSS.
  *
- * The badge is inline SVG rather than a linked file: it is the mark a surface
- * shows before its stylesheet has loaded, and a masthead that depends on a
- * second request is a masthead that flashes empty on the tablet.
+ * The mark is the yard model turning in the livery-red glow — the same art as
+ * the tab (FAVICON in packages/tokens/src/brand.ts). The strip is the one
+ * request the masthead waits for; until it lands the slot holds its space
+ * empty. The °R badge keeps the app icon and the patch.
  */
-export const renderMasthead = (s: Surface): string =>
-  `<header class="ac-mast" data-brand-layer="${s.stateRamp ? "false" : "true"}">
+export const renderMasthead = (s: Surface): string => {
+  const brandLayer = s.stateRamp ? "false" : "true";
+  const badge = `<span class="ac-mast__mark" aria-hidden="true"></span>`;
+  const wordmark = `<span class="ac-wordmark">${escapeHtml(BRAND.name)}</span>`;
+  const co = `<span class="ac-wordmark__co">${escapeHtml(BRAND.descriptor)}</span>`;
+  // A titled masthead (S1) runs the rule the full width under the wordmark,
+  // sets the company line beneath it, and the site's name under that.
+  if (s.id === "S1") return `<header class="ac-mast ac-mast--titled" data-brand-layer="${brandLayer}">
 <a class="ac-mast__lockup" href="/" aria-label="${escapeHtml(BRAND.legalName)}">
-<span class="ac-badge-mark" aria-hidden="true">${badgeInline()}</span>
-<span class="ac-wordmark">${escapeHtml(BRAND.name)}</span>
-<span class="ac-wordmark__co">${escapeHtml(BRAND.descriptor)}</span>
+${badge}
+${wordmark}
+</a>
+<div class="ac-mast__rule"></div>
+${co}
+<p class="ac-mast__title">${escapeHtml(S1_SITE_TITLE)}</p>
+</header>`;
+  return `<header class="ac-mast" data-brand-layer="${brandLayer}">
+<a class="ac-mast__lockup" href="/" aria-label="${escapeHtml(BRAND.legalName)}">
+${badge}
+${wordmark}
+${co}
 </a>
 <div class="ac-mast__rule"></div>
 </header>`;
+};
 
-/** The badge at masthead size — no optical correction, because nothing here is 16px. */
-const badgeInline = (): string => badgeSvg(64).replace(/^<svg /, '<svg class="ac-badge-mark__svg" width="40" height="40" ');
+/** S1's name for itself — its tab title and its masthead title. */
+const S1_SITE_TITLE = `${BRAND.works.firm} — Service System`;
 
 export const renderFrame = (s: Surface): string => `<!doctype html>
 <!-- GENERATED from packages/contracts/src/surfaces.ts by tools/ci/emit-surfaces.ts. Do not edit. -->
@@ -251,9 +268,10 @@ export const renderFrame = (s: Surface): string => `<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="same-origin">
 <meta name="ac-gateway" content="">
-<title>${escapeHtml(s.id === "S1" ? `${BRAND.works.firm} — Service System` : `${s.name} — ${BRAND.legalName}`)}</title>
+<title>${escapeHtml(s.id === "S1" ? S1_SITE_TITLE : `${s.name} — ${BRAND.legalName}`)}</title>
 <meta name="theme-color" content="${semanticFor(s.density)["color.surface"]}">
-<link rel="icon" href="${faviconDataUri(16)}">
+<link rel="icon" type="image/png" sizes="${FAVICON.px}x${FAVICON.px}" href="${FAVICON.href}">
+<link rel="apple-touch-icon" sizes="${FAVICON.touchPx}x${FAVICON.touchPx}" href="${FAVICON.touch}">
 <style>${tokenCss(s.density, { brandLayer: !s.stateRamp })}</style>
 ${FONT_FILES.filter((f) => f.preload).map((f) => `<link rel="preload" href="/fonts/${f.file}" as="font" type="font/woff2" crossorigin>`).join("\n")}
 <link rel="stylesheet" href="/ui.css">${s.whiteLabel ? `
@@ -374,22 +392,21 @@ Theme: **Arc Foundry** — the electric arc furnace. Industrial-revolution in
 origin, electric in the present. The theme names the palette and the type
 schedule; the company is ${BRAND.legalName}.
 
-## Two accent layers
+## Red is the accent — Rev C
 
-The load-bearing decision. Red measures ${FIGURES.redFromFault.measured.toFixed(2)}° from the fault ink, and there is no
-bright red that clears the accent gate's ${ACCENT_GATE.minHueSeparation}°: the band between the fault
-and the warning is ${FIGURES.faultToWarning.measured.toFixed(2)}° wide. So red is admitted exactly where a colliding
-tenant accent is admitted, and barred everywhere a state ramp renders.
+The fault ink is garnet, not red. Bulletin 2 as issued drew the fault in oxide,
+0.55° from the house red, which barred red from every surface that shows state.
+Rev C moved the fault instead: red now measures ${FIGURES.redFromFault.measured.toFixed(2)}° from the fault and
+${FIGURES.redFromNearestState.measured.toFixed(2)}° from its nearest state hue, the warning amber, so it clears the accent
+gate's ${ACCENT_GATE.minHueSeparation}° and is the instrument accent on every surface.
 
 | Layer | Where | Resolved by |
 |---|---|---|
+| Instrument — red \`${SEMANTIC["color.action"]}\` | every control and highlight, S1–S8 | the default |
 | Brand — red \`${SEMANTIC["color.brand"]}\` | wordmark, livery, badge, S1 marketing | \`stateRamp: false\` in the surface registry |
-| Instrument — arc \`${SEMANTIC["color.action"]}\` | every surface that shows state | the default |
 
-A surface that forgets to declare renders in the neutral: the unsafe direction
-requires an explicit opt-in. The arc is held to the same gate and clears it at
-${FIGURES.arcFromNearestState.measured.toFixed(2)}° from the nearest state hue — the house instrument accent passes the
-test the house brand red fails, which is what lets us hold a tenant to it.
+The brand roles keep their surface fence: it is the mechanism a tenant accent
+that fails the gate still falls behind, and the house is held to it.
 
 ## Light stock
 
@@ -401,8 +418,8 @@ ${(Object.keys(light) as (keyof typeof light)[]).map((k) => `| \`${k}\` | \`${li
 
 Not a dark theme — a second substrate. The tablet is read on a roof at 2pm in
 July, so this ground does not follow the viewer's preference. State is carried
-by form first — outline, outline, solid — and the oxide fill is the system's
-only solid chip, with the frost word on it at ${FIGURES.frostOnOxide.measured.toFixed(2)}:1.
+by form first — outline, outline, solid — and the garnet fill is the system's
+only solid chip, with the frost word on it at ${FIGURES.frostOnGarnet.measured.toFixed(2)}:1.
 
 | Role | Value |
 |---|---|

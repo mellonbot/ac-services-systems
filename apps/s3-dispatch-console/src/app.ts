@@ -1,4 +1,4 @@
-import { html, mount, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, pageHead, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalCard, pageHead, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { admits, densityOf, seesManagerOverview, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -263,6 +263,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       "job.update_published", "job.message_posted",
       "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",
       "crew.compliance_refused", "credential.verified", "credential.expiring", "credential.expired",
+      // a login or a company changed in AC Logins (the Manager Dashboard's team and crews)
+      "user.created", "user.updated", "crew.created", "crew.updated",
     ] });
   };
 
@@ -398,6 +400,7 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   const slot = document.querySelector("ac-degraded") as (HTMLElement | null);
   const Root = () => app.view();
   mount(html`<${Root} />`, el);
+  spinFavicon(document);
   effect(() => {
     if (!slot) return;
     const p = app.phase.value;

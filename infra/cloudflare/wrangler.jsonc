@@ -7,7 +7,9 @@
 //   npx wrangler@4 tail -c infra/cloudflare/wrangler.jsonc
 //
 // Secrets (never in this file): DATABASE_URL, AC_SIGNING_KEY_PEM; optional
-// AC_IMAGERY_URL, AC_IMAGERY_ATTRIBUTION (OPEN-S6-IMAGERY).
+// AC_IMAGERY_URL, AC_IMAGERY_ATTRIBUTION (OPEN-S6-IMAGERY); AC_MAPTILER_KEY, which
+// gives S2's home map both its tiles and its address lookup (AC_MAP_TILE_URL and
+// AC_GEOCODE_URL override either, for another style or provider) — docs/CLOUDFLARE_PAGES.md.
 // Requires the Workers Paid plan (Containers).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
@@ -22,7 +24,9 @@
   "vars": {
     // Production posture: Secure cookies; browser origins derived from SURFACES under this site.
     "AC_SITE": "acservice.systems",
-    "AC_SIGNING_KID": "k1"
+    "AC_SIGNING_KID": "k1",
+    // The credit MapTiler's terms require under its tiles. Not a secret; shown only when a tile is.
+    "AC_MAP_ATTRIBUTION": "© MapTiler © OpenStreetMap contributors"
   },
   // Keeps the container's inactivity timer from elapsing — see worker.mjs.
   "triggers": { "crons": ["*/5 * * * *"] },

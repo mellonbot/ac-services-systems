@@ -10,7 +10,7 @@
 | Namespace | `internal` |
 | Auth scope | org-wide READ only |
 | Scope binding | `org` |
-| Density | `console` — 36px controls, 13px body, hover affordances allowed |
+| Density | `console` — 36px controls, 14px body, hover affordances allowed |
 | Realtime | no |
 | State ramp | yes — the brand accent is barred here and resolves to Ink Black |
 | Offline writes | no |

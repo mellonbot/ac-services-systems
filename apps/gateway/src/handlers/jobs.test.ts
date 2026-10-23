@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
-import { createJob, listJobs, listMyJobs } from "./jobs.ts";
+import { createJob, listJobs, listMyJobs, localDate } from "./jobs.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
@@ -136,4 +136,11 @@ test("listMyJobs resolves the crew from the live shift grant, not a claim on the
 test("createJob is a BadInput, not a 500, on a missing field", async () => {
   const uow = await uowFor(scripted(baseAnswers([overrideRow("4_hour")])).tx);
   await assert.rejects(createJob(uow, { serviceCode: "x" } as never, newId, now), BadInput);
+});
+
+test("localDate: the day where the site is — 02:00 UTC is still yesterday evening in Chicago; an unknown zone is UTC", () => {
+  const at = new Date("2026-12-01T02:00:00Z");
+  assert.equal(localDate(at, "America/Chicago"), "2026-11-30");
+  assert.equal(localDate(at, "UTC"), "2026-12-01");
+  assert.equal(localDate(at, "Not/AZone"), "2026-12-01");
 });

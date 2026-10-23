@@ -1,15 +1,16 @@
-name: grant-gateway-role
+name: grant-logins-role
 
-# Manual only. Lets another PlanetScale login act as ac_gateway (and nothing
-# else) — e.g. the AC Logins desktop app's own login, so it never needs the
-# Worker's password. Runs as the production DATABASE_URL login, which created
-# ac_gateway and so holds its ADMIN OPTION; the PlanetScale console's login
-# does not. Prints no secret.
+# Manual only. Lets another PlanetScale login act as ac_logins (and nothing
+# else) — the AC Logins desktop app's own login, so it never needs the
+# Worker's password. ac_logins (0021) holds the tables the app's screens touch
+# and no others; it used to be ac_gateway, which is every table. Runs as the
+# production DATABASE_URL login, which created the role and so holds its ADMIN
+# OPTION; the PlanetScale console's login does not. Prints no secret.
 on:
   workflow_dispatch:
     inputs:
       login:
-        description: "PlanetScale login to grant ac_gateway to (e.g. pscale_api_…)"
+        description: "PlanetScale login to grant ac_logins to (e.g. pscale_api_…)"
         required: true
 
 permissions:
@@ -21,11 +22,11 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
       - uses: actions/setup-node@v7
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile --prod
-      - name: grant ac_gateway
+      - name: grant ac_logins
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           LOGIN: ${{ inputs.login }}
@@ -35,15 +36,15 @@ jobs:
             import { forNodePg } from "./apps/gateway/src/pg-url.ts";
             const login = process.env.LOGIN.trim();
             if (!/^[a-z0-9_.]+$/.test(login)) throw new Error(`not a login name: ${login}`);
-            const c = new pg.Client({ connectionString: forNodePg(process.env.DATABASE_URL), application_name: "ac-grant-gateway-role" });
+            const c = new pg.Client({ connectionString: forNodePg(process.env.DATABASE_URL), application_name: "ac-grant-logins-role" });
             await c.connect();
             try {
               const exists = (await c.query("select 1 from pg_roles where rolname = $1", [login])).rowCount === 1;
               if (!exists) throw new Error(`no such login: ${login}`);
               const ident = (await c.query("select quote_ident($1) as q", [login])).rows[0].q;
-              await c.query(`GRANT ac_gateway TO ${ident}`);
-              const ok = (await c.query("select pg_has_role($1, $2, $3) as m", [login, "ac_gateway", "MEMBER"])).rows[0].m;
-              console.log("granted ac_gateway to", login, "| member now:", ok);
+              await c.query(`GRANT ac_logins TO ${ident}`);
+              const ok = (await c.query("select pg_has_role($1, $2, $3) as m", [login, "ac_logins", "MEMBER"])).rows[0].m;
+              console.log("granted ac_logins to", login, "| member now:", ok);
               if (!ok) process.exit(1);
             } finally { await c.end(); }
           '

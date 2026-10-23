@@ -57,7 +57,7 @@ test("a control's edge carries shape, so it clears 3:1 on every ground in both s
 
 test("Form R-4: the word is measured against its own fill, and the fill is free", () => {
   const field = semanticFor("field");
-  // The oxide fault fill is 1.84:1 against the plate ground and that is correct:
+  // The garnet fault fill is 1.95:1 against the plate ground and that is correct:
   // it carries neither the word nor the shape.
   assert.ok(contrastRatio(field["color.status-breached-fill"], field["color.surface"]) < 3);
   // The word on it is what has to clear AA.
@@ -73,7 +73,7 @@ test("Form R-4: the word is measured against its own fill, and the fill is free"
 
 test("the light stock renders a fault as an outline; the plate ground is the only place a chip is solid", () => {
   assert.equal(SEMANTIC["color.status-breached-fill"], "transparent");
-  assert.equal(SEMANTIC_DARK["color.status-breached-fill"], "#7A2A2E");
+  assert.equal(SEMANTIC_DARK["color.status-breached-fill"], "#7A2A5E");
 });
 
 test("a role is a CSS variable by mechanical renaming, for every semantic token", () => {
@@ -95,7 +95,7 @@ test("the field surface is the plate ground and the other two are light; the rol
 
 test("density structure travels as variables the component stylesheet reads", () => {
   assert.match(tokenCss("field"), /--control-height:56px/);
-  assert.match(tokenCss("console"), /--control-height:36px;--row-height:28px;--body-text:13px/);
+  assert.match(tokenCss("console"), /--control-height:36px;--row-height:32px;--body-text:14px/);
 });
 
 test("all four faces reach every density, and none of them is fetched from a third party", () => {
@@ -134,7 +134,7 @@ test("a brand stylesheet is validated before it is a string, and scoped to the s
   // Re-pointing a FILL obliges the tenant to supply an ink that clears it.
   assert.equal(brandCss({ "color.action": "#1b56cc", "color.action-ink": "#FFFFFF" }),
     `${TENANT_SCOPE}{--color-action:#1b56cc;--color-action-ink:#FFFFFF}`);
-  assert.throws(() => brandCss({ "color.action": "#1b56cc" }), /the word on the action fill/);
+  assert.throws(() => brandCss({ "color.action": "#7FD4FF" }), /the word on the action fill/);
   // The hole an unscoped :root{} block is: every pair in validateBrandTheme is
   // measured against the LIGHT stock, and the field frame is <html
   // data-density="field"> with frost for --color-text. A tenant ground admitted
@@ -180,11 +180,11 @@ test("the frame carries the width schedule at every density: four measures in ch
   assert.doesNotMatch(tokenCss("console"), /--breakpoint/, "a media query cannot read a variable");
 });
 
-test("the frame carries its own density's scale, Rev A's three radii and its elevation, and no artwork radius", () => {
+test("the frame carries its own density's scale, Rev B's three radii and its elevation, and no artwork radius", () => {
   for (const d of DENSITIES) {
     const css = tokenCss(d);
     for (const [step, v] of Object.entries(TYPE_SCALE[d])) assert.ok(css.includes(`--text-${step}:${v}`), `${d} lacks --text-${step}:${v}`);
-    for (const r of ["--radius-none:0px", "--radius-control:8px", "--radius-card:12px", "--radius-pill:999px"]) assert.ok(css.includes(r), `${d} lacks ${r}`);
+    for (const r of ["--radius-none:0px", "--radius-control:4px", "--radius-card:6px", "--radius-pill:999px"]) assert.ok(css.includes(r), `${d} lacks ${r}`);
     assert.doesNotMatch(css, /--radius-(icon|app)/, "an icon and a patch are artwork with their own substrate rules");
     assert.match(css, /--elevation-card:[^;]*color-mix\(in srgb,var\(--color-(text|surface-sunken)\)/, "a shadow is an existing role, mixed — never a new ink");
     assert.doesNotMatch(css.match(/--elevation-card:[^;]+/)![0], /#|\brgba?\(/i);

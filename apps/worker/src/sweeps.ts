@@ -60,6 +60,10 @@ const emit = async (tx: RelayTx, e: { topic: string; entity: string; entityId: s
  */
 export const sweepCredentialExpiry = async (tx: RelayTx, today: Date): Promise<number> => {
   const iso = today.toISOString().slice(0, 10);
+  // The dedupe below reads the outbox. Two workers (the unregioned one and a
+  // Tier 3 regional one, or two replicas) running this at once would each
+  // read no row and each warn; the lock makes the second wait and see the first's.
+  await tx.query("SELECT pg_advisory_xact_lock(hashtext('ac-worker:credential-expiry'))");
   const rows = await tx.query<{ id: string; crew_id: string; kind: string; valid_to: string; org_id: string; region_id: string; days_left: number; assigned_jobs: number }>(
     `SELECT c.id, c.crew_id, c.kind, to_char(c.valid_to,'YYYY-MM-DD') AS valid_to, c.org_id, c.region_id,
             (c.valid_to - $1::date) AS days_left,
@@ -101,8 +105,16 @@ export const sweepCredentialExpiry = async (tx: RelayTx, today: Date): Promise<n
  */
 export const sweepSlaCascade = async (tx: RelayTx, now: Date): Promise<number> => {
   const rows = await tx.query<{ id: string; job_id: string; response_term: string; opened_at: string; due_at: string; satisfied_at: string | null; breached_at: string | null; escalation_stage: number; shadow_mode: boolean; org_id: string; region_id: string }>(
-    `SELECT id, job_id, response_term, opened_at, due_at, satisfied_at, breached_at, escalation_stage, shadow_mode, org_id, region_id
-       FROM sla_timers WHERE satisfied_at IS NULL AND escalation_stage < 3 FOR UPDATE SKIP LOCKED`,
+    // A job that ended before anyone was sent (cancelled, or closed some other
+    // way) owes no response: its timer is not escalated, and not paged on.
+    // Oldest due first, a minute's worth at a time.
+    `SELECT t.id, t.job_id, t.response_term, t.opened_at, t.due_at, t.satisfied_at, t.breached_at, t.escalation_stage, t.shadow_mode, t.org_id, t.region_id
+       FROM sla_timers t JOIN jobs j ON j.id = t.job_id
+      WHERE t.satisfied_at IS NULL AND t.escalation_stage < 3
+        AND j.state NOT IN ('cancelled', 'aborted', 'complete', 'invoiced')
+      ORDER BY t.due_at
+      LIMIT 500
+      FOR UPDATE OF t SKIP LOCKED`,
   );
   let actions = 0;
   for (const r of rows) {

@@ -181,6 +181,16 @@ export const OPERATIONS = {
     surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "siteImagery",
     summary: "Overhead imagery of a site, fetched by the GATEWAY from the configured provider (AC_IMAGERY_URL) and returned inline — the customer's browser never reaches a third party with the customer's address, and there is no key in a bundle. Unavailable is an answer, not an error: not configured, no coordinates, provider unreachable.",
   },
+  "sites.mapTile": {
+    id: "sites.mapTile", method: "GET", path: "/s2/sites/map-tile", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "query", sdkMethod: "siteMapTile",
+    summary: "One web-mercator basemap tile near a site, fetched by the GATEWAY from the configured tile provider (AC_MAP_TILE_URL) and returned inline — the same reasons as sites.imagery: no key in a bundle, no customer's coordinates sent to a third party from a browser. Only tiles within MAP_TILE_REACH of the site's own tile, at MAP_ZOOM_MIN–MAP_ZOOM_MAX, are served: a pan around a home, not a free tile proxy. Unavailable is an answer: not configured, no coordinates, provider unreachable.",
+  },
+  "sites.locate": {
+    id: "sites.locate", method: "POST", path: "/s2/sites/locate", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "locateSite",
+    summary: "Place a site on the map: when its address carries no lat/lng, the GATEWAY asks the configured geocoder (AC_GEOCODE_URL) for that address and writes the coordinates onto the address through accounts.update — audited, account.updated. A site that already has coordinates is answered as recorded and not touched. Only a match at the address itself (a house number or a named place) is written; a street, town or postcode centroid is 'not_found', because a pin in the wrong yard is worse than none.",
+  },
   // ---- C2: the agreements and term overrides S2 authors (09 §3.6) ----
   "contracts.list": {
     id: "contracts.list", method: "GET", path: "/s2/contracts", kind: "query", auth: "bearer",
@@ -252,17 +262,17 @@ export const OPERATIONS = {
   "technicians.list": {
     id: "technicians.list", method: "GET", path: "/network/technicians", kind: "query", auth: "bearer",
     surfaces: ["S2"], carrier: "query", sdkMethod: "listTechnicians",
-    summary: "The technician roster — name, phone, specialties, crew, and the home address for an account owner (restricted for every other role). Optionally one firm's.",
+    summary: "The technician roster — name, phone, specialties, crew, and the home address for an account owner or principal (restricted for every other role). Optionally one firm's.",
   },
   "technicians.record": {
     id: "technicians.record", method: "POST", path: "/s2/network/technicians", kind: "mutation", auth: "bearer",
     surfaces: ["S2"], carrier: "body", sdkMethod: "recordTechnician",
-    summary: "Add a technician: ours (no firm) or a firm's. A crew named belongs to the same employer. Only an account owner may record a home address.",
+    summary: "Add a technician: ours (no firm) or a firm's. A crew named belongs to the same employer. Only an account owner or principal may record a home address.",
   },
   "technicians.update": {
     id: "technicians.update", method: "POST", path: "/s2/network/technicians/update", kind: "mutation", auth: "bearer",
     surfaces: ["S2"], carrier: "body", sdkMethod: "updateTechnician",
-    summary: "Name, phone, specialties, crew, active — and the home address, by an account owner only. Never the employer: a technician who changes firm is a new row.",
+    summary: "Name, phone, specialties, crew, active — and the home address, by an account owner or principal only. Never the employer: a technician who changes firm is a new row.",
   },
   "credentials.list": {
     id: "credentials.list", method: "GET", path: "/network/credentials", kind: "query", auth: "bearer",
@@ -947,6 +957,29 @@ export type SiteImageryOutput = {
   readonly attribution: string | null;
   readonly unavailable: "not_configured" | "no_coordinates" | "provider_unreachable" | null;
 };
+/** The zooms sites.mapTile serves, and how many tiles either side of the site's own tile it will reach at each. The surface clamps its pan to the same box. */
+export const MAP_ZOOM_MIN = 10, MAP_ZOOM_MAX = 19, MAP_TILE_REACH = 4;
+/** Web-mercator tile coordinates of a point at zoom z, fractional — floor them for the tile, keep the fraction for where in it. */
+export const tileOf = (lat: number, lng: number, z: number): { readonly x: number; readonly y: number } => {
+  const n = 2 ** z, r = (lat * Math.PI) / 180;
+  return { x: ((lng + 180) / 360) * n, y: ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n };
+};
+export type LocateSiteInput = { readonly siteId: string };
+export type LocateSiteOutput = {
+  readonly siteId: string;
+  readonly lat: number | null; readonly lng: number | null;
+  /** recorded: it already had coordinates; located: the geocoder found it and they were written. Otherwise why there is no pin. */
+  readonly outcome: "recorded" | "located" | "not_configured" | "no_address" | "not_found" | "provider_unreachable";
+  readonly eventId: string | null;
+};
+export type SiteMapTileInput = { readonly siteId: string; readonly z: number; readonly x: number; readonly y: number };
+export type SiteMapTileOutput = {
+  readonly z: number; readonly x: number; readonly y: number;
+  /** A data: URL of the tile, or null with `unavailable` saying why. */
+  readonly image: string | null;
+  readonly attribution: string | null;
+  readonly unavailable: "not_configured" | "no_coordinates" | "provider_unreachable" | null;
+};
 
 // ---- C2 wire shapes ----
 export type ContractKind = "msa" | "amendment" | "location_agreement" | "project_sow" | "residential_membership" | "one_time";
@@ -1097,6 +1130,10 @@ export type CreateCrewOutput = { readonly id: string; readonly regionId: string;
 export type UpdateCrewInput = { readonly crewId: string; readonly label?: string; readonly active?: boolean };
 export type UpdateCrewOutput = { readonly id: string; readonly eventId: string };
 
+/** 0020: the office roles that read and write a technician's home address. Every other role reads it as restricted. One list, read by the gateway, S2 and the demo. */
+export const TECHNICIAN_ADDRESS_ROLES = ["account_owner", "principal"] as const;
+export const mayReadTechnicianAddress = (roles: readonly string[]): boolean => roles.some((r) => (TECHNICIAN_ADDRESS_ROLES as readonly string[]).includes(r));
+
 /** 0020. Mirrors TECHNICIAN_SPECIALTIES in packages/schema (the column's CHECK); a test holds them equal. */
 export const TECHNICIAN_SPECIALTIES = ["residential_hvac", "light_commercial", "commercial_rtu", "refrigeration", "chillers_boilers", "controls_bas", "install", "ductwork"] as const;
 export type TechnicianSpecialty = (typeof TECHNICIAN_SPECIALTIES)[number];
@@ -1109,7 +1146,7 @@ export type TechnicianWire = {
   readonly phone: string | null;
   /** Null when none is recorded OR when this principal may not read it — `addressRestricted` says which. */
   readonly homeAddress: AddressWire | null;
-  /** True for every role but account_owner: the address exists or not, and this reader is not told. */
+  /** True for every role outside TECHNICIAN_ADDRESS_ROLES: the address exists or not, and this reader is not told. */
   readonly addressRestricted: boolean;
   readonly specialties: readonly TechnicianSpecialty[];
   readonly homeRegionId: string;
@@ -1123,7 +1160,7 @@ export type RecordTechnicianInput = {
   readonly firmId?: string;
   readonly crewId?: string;
   readonly phone?: string;
-  /** Account owners only. */
+  /** Account owners and principals only. */
   readonly homeAddress?: AddressWire;
   readonly specialties: readonly TechnicianSpecialty[];
   /** OUR region they work from; the row's tenancy region. */
@@ -1135,7 +1172,7 @@ export type UpdateTechnicianInput = {
   readonly name?: string;
   /** Empty string clears it. */
   readonly phone?: string;
-  /** Account owners only. Null clears it. */
+  /** Account owners and principals only. Null clears it. */
   readonly homeAddress?: AddressWire | null;
   readonly specialties?: readonly TechnicianSpecialty[];
   /** Null takes them off their crew. */
@@ -1833,6 +1870,8 @@ export type OperationIO = {
   "contacts.set": { input: SetContactInput; output: SetContactOutput };
   "invoices.list": { input: ListInvoicesInput; output: ListInvoicesOutput };
   "sites.imagery": { input: SiteImageryInput; output: SiteImageryOutput };
+  "sites.mapTile": { input: SiteMapTileInput; output: SiteMapTileOutput };
+  "sites.locate": { input: LocateSiteInput; output: LocateSiteOutput };
   "contracts.list": { input: ListContractsInput; output: ListContractsOutput };
   "contracts.create": { input: CreateContractInput; output: CreateContractOutput };
   "contracts.transition": { input: TransitionContractInput; output: TransitionContractOutput };

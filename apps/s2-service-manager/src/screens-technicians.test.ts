@@ -20,7 +20,7 @@ const SOUTH = U(2), FIRM = U(10), CREW = U(12), TECH = U(20), OURS = U(21);
 const HOME = { line1: "905 Hemphill St", city: "Fort Worth", state: "TX", postal: "76104" };
 
 const fakeGateway = (roles: string[]) => {
-  const owner = roles.includes("account_owner");
+  const owner = roles.includes("account_owner") || roles.includes("principal");
   const principal: Principal = {
     namespace: "internal", subjectId: "u-1", orgId: "org-internal", regionId: SOUTH, scopeTier: "parent", scopeId: "org-internal",
     roles, firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "sess-1",
@@ -84,6 +84,8 @@ test("any other office role reads the address as Restricted, and the form offers
   const form = await screenAt(["office_manager"], "network.technician.new", { firmId: FIRM });
   assert.doesNotMatch(form, /name="line1"/);
   assert.match(form, /recorded by an account owner/);
+  const principalForm = await screenAt(["principal"], "network.technician.new", { firmId: FIRM });
+  assert.match(principalForm, /name="line1"/, "a principal records the address as an account owner does");
   const ownerForm = await screenAt(["account_owner"], "network.technician.new", { firmId: FIRM });
   assert.match(ownerForm, /name="line1"/);
   assert.match(ownerForm, /name="specialties" value="commercial_rtu"/);

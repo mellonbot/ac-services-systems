@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { allocate, sumsExactly } from "./allocate.ts";
+import { allocate, sumsExactly, lineAmount } from "./allocate.ts";
 
 test("the cent that starts the invoice dispute never exists", () => {
   const lines = allocate(100_000n, [1n, 1n, 1n]);
@@ -37,4 +37,18 @@ test("allocation is deterministic — the same invoice allocates the same way tw
   assert.deepEqual(a, b);
   // 1,000,003 / 7 leaves a remainder of 4 — the first four lines take one unit each.
   assert.deepEqual(a, [142858n, 142858n, 142858n, 142858n, 142857n, 142857n, 142857n]);
+});
+
+test("a credit allocates exactly, mirrored: -100 across three is -34, -33, -33", () => {
+  const out = allocate(-100n, [1n, 1n, 1n]);
+  assert.deepEqual(out, [-34n, -33n, -33n]);
+  assert.ok(sumsExactly(-100n, out));
+  assert.ok(sumsExactly(-1000n, allocate(-1000n, [3n, 3n, 3n, 1n])));
+});
+
+test("lineAmount: half away from zero, the same for a charge and its credit", () => {
+  assert.equal(lineAmount(1500n, 333n), 500n); // 499.5 → 500
+  assert.equal(lineAmount(1500n, -333n), -500n);
+  assert.equal(lineAmount(1000n, 1999n), 1999n);
+  assert.equal(lineAmount(1n, 499n), 0n);
 });

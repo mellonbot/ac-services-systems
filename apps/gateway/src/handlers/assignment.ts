@@ -5,20 +5,33 @@ import type { Refusal } from "../../../../packages/domain/src/compliance/clearan
 import { InputRefused } from "../refusals.ts";
 import type { CandidateCrewsInput, CandidateCrewsOutput, CandidateCrewWire, ReleaseAssignmentInput, ReleaseAssignmentOutput } from "../../../../packages/contracts/src/operations.ts";
 
-/** Shared by `assignCrew` and `candidateCrews` — one query shape, one mapping, so a dry run reads exactly what the gated door reads. */
-const credentialsOf = async (uow: UnitOfWork, crewId: string): Promise<Credential[]> => {
-  const creds = await uow.tx.query<{ id: string; kind: string; valid_from: string; valid_to: string; verified_at: string | null }>(
-    `SELECT id, kind, to_char(valid_from,'YYYY-MM-DD') AS valid_from, to_char(valid_to,'YYYY-MM-DD') AS valid_to, verified_at FROM crew_credentials WHERE crew_id = $1`,
-    [crewId],
+/** Shared by `assignCrew` and `candidateCrews` — one query shape, one mapping, so a dry run reads exactly what the gated door reads. One query for any number of crews. */
+const credentialsOf = async (uow: UnitOfWork, crewIds: readonly string[]): Promise<Map<string, Credential[]>> => {
+  const creds = await uow.tx.query<{ crew_id: string; id: string; kind: string; valid_from: string; valid_to: string; verified_at: string | null }>(
+    `SELECT crew_id, id, kind, to_char(valid_from,'YYYY-MM-DD') AS valid_from, to_char(valid_to,'YYYY-MM-DD') AS valid_to, verified_at FROM crew_credentials WHERE crew_id = ANY($1::uuid[])`,
+    [crewIds],
   );
-  return creds.map((c) => ({
-    id: c.id, kind: c.kind,
-    validFrom: Date.parse(`${c.valid_from}T00:00:00Z`),
-    // valid_to is inclusive on the certificate; cover through the end of that day.
-    validTo: Date.parse(`${c.valid_to}T23:59:59.999Z`),
-    verifiedAt: c.verified_at ? Date.parse(c.verified_at) : null,
-  }));
+  const byCrew = new Map<string, Credential[]>(crewIds.map((id) => [id, []]));
+  for (const c of creds) {
+    byCrew.get(c.crew_id)!.push({
+      id: c.id, kind: c.kind,
+      validFrom: Date.parse(`${c.valid_from}T00:00:00Z`),
+      // valid_to is inclusive on the certificate; cover through the end of that day.
+      validTo: Date.parse(`${c.valid_to}T23:59:59.999Z`),
+      verifiedAt: c.verified_at ? Date.parse(c.verified_at) : null,
+    });
+  }
+  return byCrew;
 };
+
+/** The crew as the gate reads it — with its firm's status, so a suspended firm's crew is refused at the same door. */
+const CREW_SELECT = `SELECT c.id, c.label, c.active, c.employment_type, f.status AS firm_status
+  FROM crews c LEFT JOIN subcontractor_firms f ON f.id = c.firm_id`;
+type CrewRow = { id: string; label: string; active: boolean; employment_type: Crew["employmentType"]; firm_status: string | null };
+const crewOf = (r: CrewRow): Crew => ({ id: r.id, active: r.active, employmentType: r.employment_type, firmStatus: r.firm_status });
+
+/** The states a job may be dispatched from. Anything else — on site, done, cancelled, waiting on a quote — is not a dispatch. */
+const DISPATCHABLE = ["created", "reassigned"];
 
 /**
  * S3 → gateway: assign a crew to a job. THE ONE GATED DOOR.
@@ -46,18 +59,21 @@ export type AssignResult =
   | { readonly ok: false; readonly refusal: Refusal; readonly eventId: string };
 
 export const assignCrew = async (uow: UnitOfWork, actorId: string, input: AssignInput, evaluatedAt: Date): Promise<AssignResult> => {
+  // FOR UPDATE: two dispatchers (or one double-click) on the same job queue
+  // here, and the second reads the state the first left behind.
   const job = (await uow.tx.query<{ id: string; ws: string; we: string; state: string; region_id: string; org_id: string }>(
-    `SELECT id, lower(service_window) AS ws, upper(service_window) AS we, state, region_id, org_id FROM jobs WHERE id = $1`, [input.jobId],
+    `SELECT id, lower(service_window) AS ws, upper(service_window) AS we, state, region_id, org_id FROM jobs WHERE id = $1 FOR UPDATE`, [input.jobId],
   ))[0];
   if (!job) throw new InputRefused(`job ${input.jobId} not found in scope`, "unknown_job");
   if (job.region_id !== input.regionId || job.org_id !== input.orgId) throw new InputRefused(`job ${input.jobId} tenancy does not match input`, "tenancy_mismatch");
+  if (!DISPATCHABLE.includes(job.state)) {
+    throw new InputRefused(`job ${input.jobId} is "${job.state}" — only a job waiting for a crew can be dispatched`, "job_not_dispatchable");
+  }
 
-  const crewRow = (await uow.tx.query<{ id: string; active: boolean; employment_type: Crew["employmentType"] }>(
-    `SELECT id, active, employment_type FROM crews WHERE id = $1`, [input.crewId],
-  ))[0];
+  const crewRow = (await uow.tx.query<CrewRow>(`${CREW_SELECT} WHERE c.id = $1`, [input.crewId]))[0];
   if (!crewRow) throw new InputRefused(`crew ${input.crewId} not found in scope`, "unknown_crew");
-  const crew: Crew = { id: crewRow.id, active: crewRow.active, employmentType: crewRow.employment_type };
-  const credentials = await credentialsOf(uow, input.crewId);
+  const crew = crewOf(crewRow);
+  const credentials = (await credentialsOf(uow, [input.crewId])).get(input.crewId)!;
   const window = { start: Date.parse(job.ws), end: Date.parse(job.we) };
   const verdict = evaluate(crew, credentials, window, evaluatedAt.getTime());
 
@@ -94,6 +110,9 @@ export const assignCrew = async (uow: UnitOfWork, actorId: string, input: Assign
          JSON.stringify(verdict.credentialIds), evaluatedAt.toISOString(), actorId],
       );
       clearanceId = c[0]!.id;
+      // A job the field handed back (reassigned) still holds the crew that
+      // handed it back. One live crew per job (0022): that one comes off first.
+      await tx.query(`UPDATE assignments SET released_at = $2, release_reason = 'reassigned' WHERE job_id = $1 AND released_at IS NULL`, [input.jobId, evaluatedAt.toISOString()]);
       const a = await tx.query<{ id: string }>(
         `INSERT INTO assignments (org_id, region_id, job_id, crew_id, clearance_id, assigned_by)
          VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
@@ -129,18 +148,17 @@ export const candidateCrews = async (uow: UnitOfWork, input: CandidateCrewsInput
   if (job.region_id !== input.regionId || job.org_id !== input.orgId) throw new InputRefused(`job ${input.jobId} tenancy does not match input`, "tenancy_mismatch");
   const window = { start: Date.parse(job.ws), end: Date.parse(job.we) };
 
-  const crews = await uow.tx.query<{ id: string; label: string; active: boolean; employment_type: Crew["employmentType"] }>(
+  const crews = await uow.tx.query<CrewRow>(
     // The job's own region, not the caller's — RLS narrows further for a
     // region-locked principal; an org-scoped one may legitimately be looking
     // at a job outside their home region.
-    `SELECT id, label, active, employment_type FROM crews WHERE home_region_id = $1 AND active ORDER BY label`, [job.region_id],
+    `${CREW_SELECT} WHERE c.home_region_id = $1 AND c.active ORDER BY c.label`, [job.region_id],
   );
+  const credentials = await credentialsOf(uow, crews.map((c) => c.id));
 
   const candidates: CandidateCrewWire[] = [];
   for (const c of crews) {
-    const crew: Crew = { id: c.id, active: c.active, employmentType: c.employment_type };
-    const credentials = await credentialsOf(uow, c.id);
-    const verdict = evaluate(crew, credentials, window, evaluatedAt.getTime());
+    const verdict = evaluate(crewOf(c), credentials.get(c.id)!, window, evaluatedAt.getTime());
     candidates.push(
       isRefusal(verdict)
         ? { crewId: c.id, label: c.label, employmentType: c.employment_type, cleared: false, refusal: { reason: verdict.reason, credentialKind: verdict.credentialKind, detail: verdict.detail } }

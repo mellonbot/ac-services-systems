@@ -11,7 +11,7 @@ const cred = (kind: string, toDay: number, verified = true): Credential => ({
   verifiedAt: verified ? T0 - 30 * day : null,
 });
 
-const sub: Crew = { id: "crew-1", active: true, employmentType: "subcontracted" };
+const sub: Crew = { id: "crew-1", active: true, employmentType: "subcontracted", firmStatus: "active" };
 const emp: Crew = { id: "crew-2", active: true, employmentType: "employed" };
 const full = [cred("insurance", 400), cred("license", 400), cred("background_check", 400)];
 
@@ -45,6 +45,14 @@ test("subcontracted crews need insurance; employed crews are covered by ours", (
   const noIns = [cred("license", 400), cred("background_check", 400)];
   assert.equal(isRefusal(evaluate(sub, noIns, { start: T0, end: T0 + day }, T0)), true);
   assert.equal(isRefusal(evaluate(emp, noIns, { start: T0, end: T0 + day }, T0)), false);
+});
+
+test("a crew whose firm is not active is not sent, whatever its documents say", () => {
+  for (const firmStatus of ["onboarding", "suspended", "terminated", null]) {
+    const r = evaluate({ ...sub, firmStatus }, full, { start: T0, end: T0 + day }, T0);
+    assert.equal((r as { reason: string }).reason, "crew_inactive");
+    assert.match((r as { detail: string }).detail, /firm is/);
+  }
 });
 
 test("a clearance minted for one crew cannot be spent on another", () => {

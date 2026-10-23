@@ -19,7 +19,7 @@ import { connectShell, type ConnectedShell } from "../../packages/shell/src/inde
 import { GatewayRefusal, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
-import { openDb, attachIdleErrorHandler, failure, LoginsDbError, type LoginsDb } from "../../tools/logins-app/src/db.ts";
+import { openDb, attachIdleErrorHandler, failure, LoginsDbError, LOGINS_APP_ACTOR, type LoginsDb } from "../../tools/logins-app/src/db.ts";
 import { kindsOf } from "../../tools/logins-app/src/kinds.ts";
 import { LoginInputError } from "../../tools/logins-app/src/rows.ts";
 
@@ -335,6 +335,34 @@ test("reactivateCompany refuses a label an active company now holds", { skip }, 
   assert.equal((await crewRows(a.id))[0].active, false);
 });
 
+test("every write emits its event in the same transaction, so open pages refetch", { skip }, async () => {
+  const events = async (entityId: string) => (await admin(
+    `SELECT o.topic, o.entity, o.org_id, o.region_id, o.actor_id, o.surface_id, a.action
+       FROM outbox o JOIN audit_log a ON a.event_id = o.event_id
+      WHERE o.entity_id = $1 ORDER BY o.occurred_at, o.created_at`, [entityId]));
+  const ACTOR = LOGINS_APP_ACTOR;
+
+  const c = await db.addCompany({ type: "contractor", name: `Evented ${RUN}`, firm: newFirm(`Evented Firm ${RUN} LLC`) });
+  assert.deepEqual(await events(c.firmId!), [{ topic: "firm.created", entity: "firm", org_id: c.firmId, region_id: REGION_SOUTH, actor_id: ACTOR, surface_id: "logins-app", action: "firm.create" }]);
+  await db.removeCompany(c.id);
+  await db.reactivateCompany(c.id);
+  assert.deepEqual((await events(c.id)).map((e) => [e.topic, e.action, e.org_id]),
+    [["crew.created", "crew.create", c.firmId], ["crew.updated", "crew.retire", c.firmId], ["crew.updated", "crew.reactivate", c.firmId]]);
+
+  const u = await db.addLogin({ kind: "internal", email: email("evented"), displayName: "Evented", password: PASSWORD, roles: ["dispatcher"], scope: "region", regionId: REGION_SOUTH });
+  await db.editLogin(u.id, { displayName: "Evented Again" });
+  await db.deactivate(u.id);
+  await db.reactivate(u.id);
+  await db.resetPassword(u.id, `${PASSWORD} two`);
+  assert.deepEqual((await events(u.id)).map((e) => [e.topic, e.action, e.region_id]),
+    [["user.created", "user.create", REGION_SOUTH], ["user.updated", "user.edit", REGION_SOUTH], ["user.updated", "user.deactivate", REGION_SOUTH], ["user.updated", "user.reactivate", REGION_SOUTH]]);
+
+  // A refused write rolls its event back with it.
+  const before = (await admin(`SELECT count(*)::int AS n FROM outbox WHERE actor_id = $1`, [ACTOR]))[0].n;
+  await assert.rejects(db.addCompany({ type: "ours", name: `Evented ${RUN}`, regionId: REGION_SOUTH }), refusedWith(/already exists/));
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM outbox WHERE actor_id = $1`, [ACTOR]))[0].n, before);
+});
+
 test("addCompany rejects (not throws) on an empty name", { skip }, async () => {
   await assert.rejects(db.addCompany({ type: "ours", name: "", regionId: REGION_SOUTH }), refusedWith(/name/));
 });
@@ -377,9 +405,10 @@ test("a contractor technician signs in on S5", { skip }, async () => {
 test("a dropped idle connection is swallowed, and the next query still works", { skip }, async () => {
   const p = createPool(URL_!, "ac-logins-app-idle-test");
   try {
-    assert.equal(p.listenerCount("error"), 0);
-    attachIdleErrorHandler(p);
+    // createPool already listens (pg-tx.ts); the app's own handler is a second, harmless one.
     assert.equal(p.listenerCount("error"), 1);
+    attachIdleErrorHandler(p);
+    assert.equal(p.listenerCount("error"), 2);
     assert.doesNotThrow(() => p.emit("error", new Error("idle drop")));
   } finally { await p.end(); }
   await db.ping();
