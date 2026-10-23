@@ -1,5 +1,5 @@
 import { html, signal, shortRef, StatusPill, pageHead, statStrip, panel, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
-import { WORK_DONE_STATES, type JobWire } from "../../../../packages/contracts/src/index.ts";
+import { WORK_DONE_STATES, JOB_WORK_CLASS_LABEL, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, submitAction, linkTo, type Screen } from "./common.ts";
 
@@ -90,7 +90,7 @@ const truckModel = (id: string): VNode => html`<svg class="s3-truck-model" viewB
 const jobRow = (ctx: Parameters<Screen>[0], job: JobWire, now: number): VNode => html`<li class="s3-map-job" data-state=${job.state}>
   <div class="s3-map-job__main">
     <span class="s3-map-job__site">${job.siteName ?? "Site name unavailable"}</span>${homeMark(job.customerSegment)}
-    <span class="s3-map-job__service">${job.serviceCode.replace(/_/g, " ")} · ${job.priority}</span>
+    <span class="s3-map-job__service">${JOB_WORK_CLASS_LABEL[job.workClass]} · ${job.serviceCode.replace(/_/g, " ")} · ${job.priority}</span>
   </div>
   <div class="s3-map-job__assignment">
     ${job.currentCrewId && job.currentCrewLabel

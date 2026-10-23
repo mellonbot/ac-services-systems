@@ -11,6 +11,7 @@ import { accountsMove } from "./screens/accounts-move.ts";
 import { organizationsNew } from "./screens/organizations-new.ts";
 import { leads } from "./screens/leads.ts";
 import { contractsList } from "./screens/contracts-list.ts";
+import { projects } from "./screens/projects.ts";
 import { contractsNew } from "./screens/contracts-new.ts";
 import { termsOverride } from "./screens/terms-override.ts";
 import { termsResolved } from "./screens/terms-resolved.ts";
@@ -53,6 +54,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "organizations.new": organizationsNew,
   "leads": leads,
   "contracts.list": contractsList,
+  "projects": projects,
   "contracts.new": contractsNew,
   "terms.override": termsOverride,
   "terms.resolved": termsResolved,
@@ -69,7 +71,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
 };
 
 const NAV_GROUPS = [
-  { label: "Customer records", screens: ["accounts.tree", "contracts.list", "leads"] as const },
+  { label: "Customer records", screens: ["accounts.tree", "contracts.list", "projects", "leads"] as const },
   { label: "Technician Network", screens: ["network"] as const },
   { label: "Purchasing", screens: ["purchasing"] as const },
 ] as const;
@@ -98,6 +100,7 @@ const ROUTE_LABELS: Readonly<Record<Exclude<ScreenId, "login">, string>> = {
   "organizations.new": "New customer",
   "leads": "Leads",
   "contracts.list": "Agreements",
+  "projects": "Projects",
   "contracts.new": "New agreement",
   "terms.override": "Term overrides",
   "terms.resolved": "Resolved terms",

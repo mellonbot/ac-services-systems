@@ -131,6 +131,12 @@ const contracts: (Mutable<W.ContractWire> & { orgId: string })[] = [
   { id: BOULDER_WARRANTY, orgId: AMPED, scopeTier: "site", scopeId: N.boulderRoof, kind: "location_agreement", parentContractId: null, billingPath: "enterprise_sla", regionId: REGION_MOUNTAIN, signedAt: "2026-02-10", effectiveFrom: "2026-02-15", effectiveTo: null, diagnosticDataRightsReserved: false, documentKey: "contracts/amped/boulder-carrier-warranty.pdf", state: "active" },
   { id: CEDAR_MSA, orgId: CEDAR, scopeTier: "parent", scopeId: CEDAR, kind: "msa", parentContractId: null, billingPath: "enterprise_sla", regionId: REGION_SOUTH, signedAt: "2026-04-02", effectiveFrom: "2026-05-01", effectiveTo: null, diagnosticDataRightsReserved: false, documentKey: null, state: "active" },
 ];
+/** 0024: what an install was sold under, and the foreman who sold it. Fictional people. */
+const foremen: W.ForemanWire[] = [{ id: "u0000000-0000-0000-0000-0000000000f1", name: "Blake Keating" }];
+const projects: Mutable<W.ProjectWire>[] = [
+  { id: "p0000000-0000-0000-0000-000000000001", orgId: AMPED, regionId: REGION_SOUTH, contractId: MSA, customer: "Amped", name: "Austin roof — RTU changeout",
+    foremanId: foremen[0]!.id, foremanName: foremen[0]!.name, serviceWindowStart: "2026-11-02T13:00:00.000Z", serviceWindowEnd: "2026-11-07T05:00:00.000Z", state: "planned", installJobs: 0 },
+];
 const overrides: (Override & { orgId: string; regionId: string })[] = [
   ...OVERRIDES.map((o) => ({ ...o, orgId: AMPED, regionId: REGION_SOUTH })),
   { id: "o-100", contractId: CEDAR_MSA, scopeTier: "parent", scopeId: CEDAR, termKey: "sla_response", termValue: "next_day", effectiveFrom: "2026-05-01", effectiveTo: null, orgId: CEDAR, regionId: REGION_SOUTH },
@@ -786,6 +792,24 @@ const H: Partial<Record<OperationId, Handler>> = {
   "sites.mapTile": (i: W.SiteMapTileInput) => {
     const a = accounts.find((x) => x.id === i.siteId);
     return { z: Number(i.z), x: Number(i.x), y: Number(i.y), image: null, attribution: null, unavailable: a?.address?.lat !== undefined ? "not_configured" : "no_coordinates" };
+  },
+
+  // ---- 0024: projects ----
+  "projects.list": (i: W.ListProjectsInput, { p }) => {
+    need(p.namespace === "internal", "projects are the office's", "namespace");
+    return { projects: projects.filter((x) => !i.orgId || x.orgId === i.orgId), foremen };
+  },
+  "projects.create": (i: W.CreateProjectInput, { surface }) => {
+    const c = contracts.find((x) => x.id === i.contractId);
+    need(c, `no agreement ${i.contractId} visible in this scope`, "unknown_contract");
+    if (c!.state !== "active") throw input422(`agreement ${c!.id} is ${c!.state} — nothing is sold under an agreement that is not in force`, "contract_not_in_force");
+    const f = foremen.find((x) => x.id === i.foremanId);
+    need(f, "a project is sold by a foreman, and they stay on it as the person who sold it", "not_a_foreman");
+    need(i.name?.trim(), "name is required", "empty_name");
+    const id = uid("p");
+    projects.unshift({ id, orgId: c!.orgId, regionId: c!.regionId, contractId: c!.id, customer: orgs.find((o) => o.id === c!.orgId)?.name ?? "", name: i.name.trim(),
+      foremanId: f!.id, foremanName: f!.name, serviceWindowStart: i.serviceWindowStart, serviceWindowEnd: i.serviceWindowEnd, state: "planned", installJobs: 0 });
+    return { id, orgId: c!.orgId, regionId: c!.regionId, eventId: publish(surface, "project.created", "project", id, c!.orgId, c!.regionId) };
   },
 
   // ---- agreements & terms ----

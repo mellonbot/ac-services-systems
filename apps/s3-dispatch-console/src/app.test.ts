@@ -205,6 +205,18 @@ test("dispatch: the dry run renders as ComplianceBadge with the gate's own reaso
   assert.doesNotMatch(out, new RegExp(`id="assign-${CREW_B}"`), "an uncleared crew has no Assign button — there is no override path here or at the gateway");
 });
 
+test("0024: dispatch says what kind of work the job is and that only that kind of crew is offered", async () => {
+  const install: JobWire = { ...jobCreated, workClass: "install", serviceCode: "rtu_changeout" };
+  const { app } = await ready({ [OPERATIONS["jobs.list"].path]: { status: 200, body: { jobs: [install, jobAssigned] } } });
+  app.router.navigate("dispatch", { jobId: JOB_CREATED });
+  render(app.view()); await settle(); await settle();
+  render(app.view()); await settle(); await settle();
+  const out = render(app.view());
+  assert.match(out, /<dt>Work<\/dt><dd>Install<\/dd>/);
+  assert.match(out, /Every active install crew in this job's region/);
+  assert.match(out, /Install work goes to an install crew\./);
+});
+
 test("assigning navigates back to the board with a notice and refetches the board", async () => {
   const { app, gateway } = await ready({
     [OPERATIONS["dispatch.assign"].path]: { status: 200, body: { ok: true, assignmentId: U(50), clearanceId: U(51), eventId: U(52) } },

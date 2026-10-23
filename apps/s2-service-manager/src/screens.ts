@@ -23,6 +23,8 @@ export const SCREENS = {
   "contracts.new":     { path: "/contracts/:orgId/new",                  uses: ["contracts.create", "contracts.list", "accounts.list", "regions.list"] },
   "terms.override":    { path: "/terms/:orgId/override",                 uses: ["terms.authorOverride", "terms.register", "terms.overrides.list", "contracts.list", "accounts.list"] },
   "terms.resolved":    { path: "/terms/:orgId/resolved/:nodeId?",        uses: ["terms.resolved", "terms.register", "accounts.list"] },
+  // 0024 — what an install was sold under, and who sold it.
+  "projects":          { path: "/projects/:orgId?",                      uses: ["organizations.list", "projects.list", "projects.create", "contracts.list"], title: "Projects" },
   "contracts.list":    { path: "/contracts/:orgId?",                     uses: ["organizations.list", "contracts.list", "contracts.transition", "accounts.list"], title: "Agreements" },
   "network.firm.new":  { path: "/network/firms/new",                     uses: ["firms.create", "regions.list"] },
   "network.crew.new":  { path: "/network/crews/new/:firmId?",            uses: ["crews.create", "firms.list", "regions.list"] },

@@ -1122,6 +1122,9 @@ export const JOB_WORK_CLASSES = ["service", "install", "commissioning"] as const
 export type JobWorkClass = (typeof JOB_WORK_CLASSES)[number];
 /** The one place the work decides the crew. Read by jobs.create, dispatch.candidates and dispatch.assign; 0024's trigger says the same in SQL. */
 export const crewKindFor = (work: JobWorkClass): CrewKind => (work === "install" ? "install" : "service");
+/** One set of words for the three, read by every surface that shows them. */
+export const CREW_KIND_LABEL: Readonly<Record<CrewKind, string>> = { service: "Technician's unit", install: "Install crew" };
+export const JOB_WORK_CLASS_LABEL: Readonly<Record<JobWorkClass, string>> = { service: "Service", install: "Install", commissioning: "Commissioning" };
 /** What the gate would say about this crew's documents today — not a clearance, a summary S2 reads. */
 export type CrewDocumentSummary = {
   /** The kinds the gate requires for this employment shape (domain/compliance/gate.ts REQUIRED). */
@@ -1176,6 +1179,7 @@ export const TECHNICIAN_ROLES = ["technician", "lead_installer", "installer", "h
 export type TechnicianRole = (typeof TECHNICIAN_ROLES)[number];
 /** The crew kind a role belongs on. */
 export const crewKindForRole = (role: TechnicianRole): CrewKind => (role === "technician" ? "service" : "install");
+export const TECHNICIAN_ROLE_LABEL: Readonly<Record<TechnicianRole, string>> = { technician: "Technician", lead_installer: "Lead installer", installer: "Installer", helper: "Helper" };
 export type TechnicianWire = {
   readonly id: string;
   /** Null: one of ours. */

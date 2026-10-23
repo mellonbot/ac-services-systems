@@ -1,7 +1,7 @@
 import { html, pageHead, panel, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
 import {
-  TECHNICIAN_SPECIALTIES, mayReadTechnicianAddress,
-  type AddressWire, type CrewWire, type FirmWire, type Refusal, type RegionWire, type TechnicianSpecialty, type TechnicianWire,
+  TECHNICIAN_SPECIALTIES, TECHNICIAN_ROLES, TECHNICIAN_ROLE_LABEL, mayReadTechnicianAddress, crewKindForRole,
+  type AddressWire, type CrewWire, type FirmWire, type Refusal, type RegionWire, type TechnicianRole, type TechnicianSpecialty, type TechnicianWire,
 } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, linkTo, submitAction, type Screen, type ScreenContext } from "./common.ts";
@@ -34,7 +34,8 @@ export const technicianPanel = (ctx: ScreenContext, firmId: string | null): VNod
     density: ctx.density,
     stack: true,
     columns: [
-      { key: "name", header: "Technician", cell: (x: TechnicianWire) => html`<span>${x.name}${x.active ? "" : html` <small class="s2-muted">inactive</small>`}</span>` },
+      { key: "name", header: "Name", cell: (x: TechnicianWire) => html`<span>${x.name}${x.active ? "" : html` <small class="s2-muted">inactive</small>`}</span>` },
+      { key: "role", header: "Role", cell: (x: TechnicianWire) => TECHNICIAN_ROLE_LABEL[x.role] },
       { key: "homeAddress", header: "Home address", cell: (x: TechnicianWire) => x.addressRestricted ? html`<span class="s2-muted">Restricted</span>` : (addressLine(x.homeAddress) || html`<span class="s2-muted">not on file</span>`) },
       { key: "phone", header: "Phone", cell: (x: TechnicianWire) => x.phone ? html`<a class="ac-link" href=${`tel:${x.phone.replace(/[^\d+]/g, "")}`}><span class="s2-num">${x.phone}</span></a>` : html`<span class="s2-muted">—</span>` },
       { key: "specialties", header: "Specialty", cell: (x: TechnicianWire) => x.specialties.length ? x.specialties.map((s) => SPECIALTY_WORD[s]).join(", ") : html`<span class="s2-muted">none recorded</span>` },
@@ -50,13 +51,13 @@ export const technicianPanel = (ctx: ScreenContext, firmId: string | null): VNod
   linkTo(ctx, "network.technician.new", firmId ? { firmId } : {}, "+ Technician", "ac-action s2-link--action"), "technicians");
 };
 
-type FormState = { readonly key: string; readonly refusal: Refusal | null; readonly busy: boolean };
-const form = signal<FormState>({ key: "", refusal: null, busy: false });
+type FormState = { readonly key: string; readonly role: TechnicianRole; readonly refusal: Refusal | null; readonly busy: boolean };
+const form = signal<FormState>({ key: "", role: "technician", refusal: null, busy: false });
 
 const technicianForm = (ctx: ScreenContext, mode: { readonly firmId: string | null; readonly existing: TechnicianWire | null }): VNode => {
   const { shell, store } = ctx;
   const key = mode.existing?.id ?? `new:${mode.firmId ?? ""}`;
-  if (form.value.key !== key) form.value = { key, refusal: null, busy: false };
+  if (form.value.key !== key) form.value = { key, role: mode.existing?.role ?? "technician", refusal: null, busy: false };
   const f = form.value;
   const t = mode.existing;
   const firmId = t ? t.firmId : mode.firmId;
@@ -81,12 +82,12 @@ const technicianForm = (ctx: ScreenContext, mode: { readonly firmId: string | nu
     try {
       if (t) {
         await shell.gateway.updateTechnician({
-          technicianId: t.id, name: v("name"), phone: v("phone"), specialties, crewId: v("crewId") || null, active: data.get("active") === "on",
+          technicianId: t.id, name: v("name"), phone: v("phone"), role: f.role, specialties, crewId: v("crewId") || null, active: data.get("active") === "on",
           ...(owner ? { homeAddress: hasAddress ? address : null } : {}),
         });
       } else {
         await shell.gateway.recordTechnician({
-          name: v("name"), specialties, homeRegionId: v("homeRegionId"),
+          name: v("name"), role: f.role, specialties, homeRegionId: v("homeRegionId"),
           ...(firmId ? { firmId } : {}), ...(v("crewId") ? { crewId: v("crewId") } : {}), ...(v("phone") ? { phone: v("phone") } : {}),
           ...(owner && hasAddress ? { homeAddress: address } : {}),
         });
@@ -100,12 +101,17 @@ const technicianForm = (ctx: ScreenContext, mode: { readonly firmId: string | nu
     }
   };
 
+  // 0024: only the kind of crew this role belongs on is offered — a
+  // technician's own unit, or an install crew. The gateway refuses the other.
   const crewField = (list: readonly CrewWire[]): VNode => html`<label class="ac-field">
-    <span>Crew</span>
+    <span>${f.role === "technician" ? "Unit" : "Install crew"}</span>
     <select name="crewId" class="ac-input">
-      <option value="">Not on a crew</option>
-      ${list.filter((c) => c.firmId === firmId && c.active).map((c) => html`<option value=${c.id} selected=${c.id === t?.crewId}>${c.label}</option>`)}
+      <option value="">${f.role === "technician" ? "No unit yet" : "Not on a crew"}</option>
+      ${list.filter((c) => c.firmId === firmId && c.active && c.kind === crewKindForRole(f.role)).map((c) => html`<option value=${c.id} selected=${c.id === t?.crewId}>${c.label}</option>`)}
     </select>
+    <small>${f.role === "technician"
+      ? "A technician is never on a crew. Their unit is theirs alone, and they are dispatched to service and commissioning work."
+      : "Installers work on an install crew, sent to install work."}</small>
   </label>`;
 
   return html`<section class="s2-form-screen">
@@ -113,6 +119,12 @@ const technicianForm = (ctx: ScreenContext, mode: { readonly firmId: string | nu
     <form class="ac-form" onSubmit=${submit} id="technician-form">
       <label class="ac-field"><span>Name</span><input class="ac-input" name="name" required value=${t?.name ?? ""} autocomplete="off" /></label>
       <label class="ac-field"><span>Phone</span><input class="ac-input" name="phone" type="tel" value=${t?.phone ?? ""} autocomplete="off" /></label>
+      <label class="ac-field">
+        <span>Role</span>
+        <select name="role" class="ac-input" onChange=${(e: Event) => { form.value = { ...form.value, role: (e.currentTarget as HTMLSelectElement).value as TechnicianRole }; }}>
+          ${TECHNICIAN_ROLES.map((r) => html`<option value=${r} selected=${f.role === r}>${TECHNICIAN_ROLE_LABEL[r]}</option>`)}
+        </select>
+      </label>
       <fieldset class="s2-fieldset">
         <legend>Specialty</legend>
         <div class="s2-chips">
