@@ -137,7 +137,12 @@ const REGISTRY = {
              "vendor", "receiving_point", "price_decision", "po_receipt", "rma_request",
              // 0024 (2026-10-23): what an install was sold under, and by whom.
              // Every install job sits under a project whose foreman sold it.
-             "project"],
+             "project",
+             // 0030 (2026-10-24): a payment received against an invoice.
+             "payment"],
+    // 0030: money settled is final, so only finance and the principals record
+    // a payment or void an invoice; the rest of S2 reads them.
+    writeRoles: { payment: ["principal", "ops_leadership", "finance"], invoice: ["principal", "ops_leadership", "finance"] },
     density: "console", realtime: false, offline: false,
     degraded: "Read-only from last server state. NO offline writes, ever — this is the only surface that authors hierarchy, contract and subcontractor-network truth, and a forked truth here is unrecoverable.",
     degradedNotice: "Offline — showing the records as last saved. Changes are paused until the connection returns; nothing is saved on this device.",

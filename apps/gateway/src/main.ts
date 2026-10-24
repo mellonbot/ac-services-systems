@@ -27,6 +27,7 @@ import { createResidential, listLeads, convertLead } from "./handlers/residentia
 import { storeFromEnv } from "../../../packages/storage/src/index.ts";
 import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
 import { listEquipment, registerEquipment, listContacts, setContact, listInvoices } from "./handlers/site-record.ts";
+import { listPayments, recordPayment, returnPayment, voidInvoice } from "./handlers/payments.ts";
 import { siteImageryRead, imageryConfigFromEnv, siteMapTileRead, mapTileConfigFromEnv, locateSiteRead, geocode, locateSiteWrite, geocodeConfigFromEnv, runPlan } from "./handlers/imagery.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
@@ -643,6 +644,11 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "contacts.list": (req, input) => withRead(req, "contacts.list", (uow) => listContacts(uow, input)),
   "contacts.set": (req, input) => withUow(req, "contacts.set", (uow) => setContact(uow, input, randomUUID)),
   "invoices.list": (req, input) => withRead(req, "invoices.list", (uow) => listInvoices(uow, input)),
+  // 0030: what was paid against an invoice. Written by finance and the principals (S2 writeRoles).
+  "invoices.void": (req, input) => withUow(req, "invoices.void", (uow) => voidInvoice(uow, input, new Date())),
+  "payments.list": (req, input) => withRead(req, "payments.list", (uow) => listPayments(uow, input)),
+  "payments.record": (req, input) => withUow(req, "payments.record", (uow, p) => recordPayment(uow, p.subjectId, input, randomUUID, new Date())),
+  "payments.return": (req, input) => withUow(req, "payments.return", (uow) => returnPayment(uow, input, new Date())),
   // The provider is asked after the read's transaction is released, never
   // inside it: a slow provider must not hold a pool connection per caller.
   "sites.imagery": async (req, input) => runPlan(await withRead(req, "sites.imagery", (uow) => siteImageryRead(uow, input, IMAGERY)), fetch),

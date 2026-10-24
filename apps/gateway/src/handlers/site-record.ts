@@ -6,7 +6,7 @@ import type {
   ListInvoicesInput, ListInvoicesOutput, InvoiceWire, InvoiceLineWire, BillingPath, AccountTierWire,
 } from "../../../../packages/contracts/src/operations.ts";
 import { EQUIPMENT_KINDS, CONTACT_ROLES } from "../../../../packages/schema/src/tables/hierarchy.ts";
-import { WORK_DONE_STATES } from "../../../../packages/contracts/src/operations.ts";
+import { WORK_DONE_STATES, invoiceStatusOf } from "../../../../packages/contracts/src/operations.ts";
 
 /**
  * ITEM 9 — THE SITE RECORD. What a site IS, as opposed to what is happening
@@ -250,6 +250,7 @@ export const setContact = async (uow: UnitOfWork, input: SetContactInput, newId:
 type InvoiceRow = {
   id: string; bill_to_tier: InvoiceWire["billToTier"]; bill_to_id: string; contract_id: string; billing_path: BillingPath;
   period_start: string | null; period_end: string | null; total_minor: string; currency: string; issued_at: string | null; due_at: string | null;
+  voided_at: string | null; void_reason: string | null; paid_minor: string;
 };
 type LineRow = { id: string; invoice_id: string; location_id: string; job_id: string | null; description: string; quantity_milli: string; unit_price_minor: string; amount_minor: string };
 
@@ -282,7 +283,10 @@ export const listInvoices = async (uow: UnitOfWork, input: ListInvoicesInput): P
   const rows = await uow.tx.query<InvoiceRow>(
     `SELECT id, bill_to_tier, bill_to_id, contract_id, billing_path,
             to_char(period_start, 'YYYY-MM-DD') AS period_start, to_char(period_end, 'YYYY-MM-DD') AS period_end,
-            total_minor::text, currency, ${TS("issued_at")} AS issued_at, ${TS("due_at")} AS due_at
+            total_minor::text, currency, ${TS("issued_at")} AS issued_at, ${TS("due_at")} AS due_at,
+            ${TS("voided_at")} AS voided_at, void_reason,
+            -- 0030: the status is derived from what was paid, never stored.
+            (SELECT COALESCE(sum(p.amount_minor), 0) FROM payments p WHERE p.invoice_id = invoices.id AND p.state = 'succeeded')::text AS paid_minor
        FROM invoices WHERE id = ANY($1::uuid[])
       ORDER BY issued_at DESC NULLS LAST, created_at DESC`,
     [invoiceIds],
@@ -299,6 +303,8 @@ export const listInvoices = async (uow: UnitOfWork, input: ListInvoicesInput): P
     return {
       id: r.id, billToTier: r.bill_to_tier, billToId: r.bill_to_id, contractId: r.contract_id, billingPath: r.billing_path,
       periodStart: r.period_start, periodEnd: r.period_end, totalMinor: r.total_minor, currency: r.currency, issuedAt: r.issued_at, dueAt: r.due_at,
+      status: invoiceStatusOf({ issuedAt: r.issued_at, voidedAt: r.voided_at, totalMinor: r.total_minor, paidMinor: r.paid_minor }),
+      paidMinor: r.paid_minor, voidedAt: r.voided_at, voidReason: r.void_reason,
       lines: mine, subtotalMinor: subtotal.toString(),
     };
   });

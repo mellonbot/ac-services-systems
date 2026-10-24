@@ -53,8 +53,8 @@ export const HQ_METRICS = {
   sla_escalated_30d: { area: "service", label: "Escalated", unit: "count", window: "30d", means: "Response clocks opened in the thirty days that reached any escalation stage." },
 
   // ---- revenue & money ----
-  invoiced_minor_30d: { area: "money", label: "Invoiced", unit: "minor", window: "30d", means: "Invoice totals issued in the thirty days." },
-  invoices_past_due_minor: { area: "money", label: "Past due date", unit: "minor", window: "now", means: "Issued invoices whose due date has passed. Payments are not recorded yet, so this is an upper bound on what is owed." },
+  invoiced_minor_30d: { area: "money", label: "Invoiced", unit: "minor", window: "30d", means: "Invoice totals issued in the thirty days, less any voided." },
+  invoices_past_due_minor: { area: "money", label: "Past due date", unit: "minor", window: "now", means: "What is still owed on issued invoices whose due date has passed: each total less the payments received against it. Voided invoices are not owed." },
   receivable_minor: { area: "money", label: "Receivable", unit: "minor", window: "now", means: "The latest working-capital position's receivable." },
   subcontractor_payable_minor: { area: "money", label: "Owed to firms", unit: "minor", window: "now", means: "The latest working-capital position's payable to subcontractor firms." },
   settlements_open_minor: { area: "money", label: "Statements unpaid", unit: "minor", window: "now", means: "Statements issued to firms and not yet paid, in any position." },

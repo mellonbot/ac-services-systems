@@ -12,6 +12,7 @@
  */
 import { OPERATIONS, OFFICE_JOB_TRANSITIONS, serviceOf, EMERGENCY_MULTIPLIER_DEFAULT, multiplierBp, multiplierOf, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, routeKey, mayReadTechnicianAddress, type OperationId } from "../../packages/contracts/src/operations.ts";
 import type * as W from "../../packages/contracts/src/operations.ts";
+import { invoiceStatusOf } from "../../packages/contracts/src/operations.ts";
 import { SURFACES, type SurfaceId } from "../../packages/contracts/src/surfaces.ts";
 import type { Principal } from "../../packages/contracts/src/scope.ts";
 import { ANONYMOUS_PRINCIPAL_IDS } from "../../packages/contracts/src/scope.ts";
@@ -330,6 +331,7 @@ const invoices: W.InvoiceWire[] = [
   {
     id: "i0000000-0000-0000-0000-000000000001", billToTier: "parent", billToId: AMPED, contractId: MSA, billingPath: "enterprise_sla",
     periodStart: month(-1).from, periodEnd: month(-1).to, totalMinor: "412600", currency: "USD", issuedAt: at(-3 * DAY), dueAt: at(42 * DAY),
+    status: "open", paidMinor: "0", voidedAt: null, voidReason: null,
     lines: [
       { id: uid("n"), locationId: N.austin, jobId: J.austinAugPm, description: "Preventive maintenance — 3 rooftop units", quantityMilli: "3000", unitPriceMinor: "29000", amountMinor: "87000" },
       { id: uid("n"), locationId: N.elPaso, jobId: J.elPasoAug, description: "Repair — main floor split, labor", quantityMilli: "3960", unitPriceMinor: "14500", amountMinor: "57420" },
@@ -339,15 +341,17 @@ const invoices: W.InvoiceWire[] = [
 ];
 
 // A month of billing across the regions, so leadership's money figures read like a working company.
-const bill = (id: string, orgId: string, contractId: string, issuedDaysAgo: number, dueInDays: number, lines: [string, string, number][]): W.InvoiceWire => {
+const bill = (id: string, orgId: string, contractId: string, issuedDaysAgo: number, dueInDays: number, lines: [string, string, number][], paid = 0): W.InvoiceWire => {
   const ls = lines.map(([locationId, description, amount]) => ({ id: uid("n"), locationId, jobId: null, description, quantityMilli: "1000", unitPriceMinor: String(amount), amountMinor: String(amount) }));
   const total = String(ls.reduce((t, l) => t + Number(l.amountMinor), 0));
-  return { id, billToTier: "parent", billToId: orgId, contractId, billingPath: "enterprise_sla", periodStart: month(-1).from, periodEnd: month(-1).to, totalMinor: total, currency: "USD", issuedAt: at(-issuedDaysAgo * DAY), dueAt: at((dueInDays - issuedDaysAgo) * DAY), lines: ls, subtotalMinor: total };
+  return { id, billToTier: "parent", billToId: orgId, contractId, billingPath: "enterprise_sla", periodStart: month(-1).from, periodEnd: month(-1).to, totalMinor: total, currency: "USD", issuedAt: at(-issuedDaysAgo * DAY), dueAt: at((dueInDays - issuedDaysAgo) * DAY),
+    status: invoiceStatusOf({ issuedAt: "issued", voidedAt: null, totalMinor: total, paidMinor: String(paid) }), paidMinor: String(paid), voidedAt: null, voidReason: null,
+    lines: ls, subtotalMinor: total };
 };
 invoices.push(
   bill("i0000000-0000-0000-0000-000000000002", AMPED, MSA, 6, 45, [[N.sanJose, "Enterprise SLA — San Jose, monthly", 1840000], [N.reno, "Enterprise SLA — Reno, monthly", 1215000], [N.sanJose, "Compressor replacement, RTU-North", 2960000]]),
-  bill("i0000000-0000-0000-0000-000000000003", AMPED, MSA, 12, 45, [[N.boulder, "Enterprise SLA — Boulder, monthly", 1390000], [N.boulder, "PM visit x2, roof units", 780000]]),
-  bill("i0000000-0000-0000-0000-000000000004", AMPED, MSA, 9, 45, [[N.austin, "Enterprise SLA — Austin, monthly", 2410000], [N.elPaso, "Enterprise SLA — El Paso, monthly", 1650000]]),
+  bill("i0000000-0000-0000-0000-000000000003", AMPED, MSA, 12, 45, [[N.boulder, "Enterprise SLA — Boulder, monthly", 1390000], [N.boulder, "PM visit x2, roof units", 780000]], 2170000),
+  bill("i0000000-0000-0000-0000-000000000004", AMPED, MSA, 9, 45, [[N.austin, "Enterprise SLA — Austin, monthly", 2410000], [N.elPaso, "Enterprise SLA — El Paso, monthly", 1650000]], 2000000),
   bill("i0000000-0000-0000-0000-000000000005", CEDAR, CEDAR_MSA, 38, 30, [[S.cedarHouston, "Clinic HVAC program, monthly", 985000], [S.cedarHouston, "Emergency call-out, after hours", 312000]]),
   bill("i0000000-0000-0000-0000-000000000006", CEDAR, CEDAR_MSA, 8, 30, [[S.cedarHouston, "Clinic HVAC program, monthly", 985000]]),
 );
@@ -611,8 +615,10 @@ const hqFigures = (regionId: string, now: number): Record<HqMetricKey, number> =
     sla_met_30d: met.length,
     sla_breached_30d: closed.length - met.length,
     sla_escalated_30d: clocks.filter((j) => (j.slaEscalationStage ?? 0) > 0).length,
-    invoiced_minor_30d: inv.filter((i) => in30(i.issuedAt)).reduce((s, i) => s + i.amount, 0),
-    invoices_past_due_minor: inv.filter((i) => i.issuedAt && i.dueAt && Date.parse(i.dueAt) < now).reduce((s, i) => s + i.amount, 0),
+    invoiced_minor_30d: inv.filter((i) => in30(i.issuedAt) && !i.voidedAt).reduce((s, i) => s + i.amount, 0),
+    // What is still owed on each past-due line: its share of the invoice's unpaid remainder.
+    invoices_past_due_minor: Math.round(inv.filter((i) => (i.status === "open" || i.status === "partially_paid") && i.dueAt && Date.parse(i.dueAt) < now)
+      .reduce((s, i) => s + i.amount * (1 - Number(i.paidMinor) / Number(i.totalMinor)), 0)),
     receivable_minor: wc?.receivable ?? 0,
     subcontractor_payable_minor: wc?.payable ?? 0,
     settlements_open_minor: rs.reduce((s, x) => s + Number(x.totalMinor), 0),

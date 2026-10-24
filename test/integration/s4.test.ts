@@ -46,6 +46,7 @@ const J = { met: U(20), late: U(21), open: U(22), assigned: U(23), cancelled: U(
 let maintenance: Pool;
 let pool: Pool;
 let gateway: ChildProcess;
+let partly = "";
 const admin = async (sql: string, params: unknown[] = []) => {
   const c = await pool.connect();
   try { return (await c.query(sql, params)).rows; } finally { c.release(); }
@@ -141,6 +142,12 @@ before(async () => {
     VALUES ($1,$2,$3,'parent',$2,'msa','enterprise_sla', now() - interval '200 days', daterange(current_date - 200, NULL), false, 'active')`, [U(30), ORG, REGION_SOUTH]);
   await admin(`INSERT INTO invoices (org_id, region_id, bill_to_tier, bill_to_id, contract_id, billing_path, total_minor, currency, issued_at, due_at)
     VALUES ($1,$2,'parent',$1,$3,'enterprise_sla', 250000, 'USD', now() - interval '10 days', now() - interval '1 day')`, [ORG, REGION_SOUTH, U(30)]);
+  // 0030: a second past-due invoice with 60000 of its 100000 paid, a bounced payment that no longer counts,
+  // and a voided one. Owed: 250000 + 40000. Billed: everything but the void.
+  partly = (await admin(`INSERT INTO invoices (org_id, region_id, bill_to_tier, bill_to_id, contract_id, billing_path, total_minor, currency, issued_at, due_at)
+    VALUES ($1,$2,'parent',$1,$3,'enterprise_sla', 100000, 'USD', now() - interval '10 days', now() - interval '3 days') RETURNING id`, [ORG, REGION_SOUTH, U(30)]))[0]!.id;
+  await admin(`INSERT INTO invoices (org_id, region_id, bill_to_tier, bill_to_id, contract_id, billing_path, total_minor, currency, issued_at, due_at, voided_at, void_reason)
+    VALUES ($1,$2,'parent',$1,$3,'enterprise_sla', 70000, 'USD', now() - interval '5 days', now() - interval '1 day', now() - interval '4 days', 'billed twice')`, [ORG, REGION_SOUTH, U(30)]);
   await admin(`INSERT INTO settlements (org_id, region_id, firm_id, period, total_minor, currency, state, issued_at, disputed_at, dispute_reason)
     VALUES ($1,$2,$1, daterange(current_date - 70, current_date - 40), 120000, 'USD', 'disputed', now() - interval '40 days', now() - interval '35 days', 'quantity')`, [FIRM, REGION_SOUTH]);
   // Growth: two leads from the web, one from the call button — they wait in UNASSIGNED.
@@ -152,6 +159,11 @@ before(async () => {
   await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
     VALUES ($1,$2,$3,'internal','exec.s4@ac.test','Principal','["principal"]','parent',$2,$4,true),
            ($5,$2,$3,'internal','disp.s4@ac.test','South Dispatcher','["dispatcher"]','region',$3,$4,true)`, [EXEC, INTERNAL_ORG_ID, REGION_SOUTH, hash, DISP]);
+  // 0030: recorded by the principal, once there is one to record it.
+  await admin(`INSERT INTO payments (org_id, region_id, invoice_id, amount_minor, currency, method, received_at, recorded_by)
+    VALUES ($1,$2,$3, 60000, 'USD', 'ach', now() - interval '2 days', $4)`, [ORG, REGION_SOUTH, partly, EXEC]);
+  await admin(`INSERT INTO payments (org_id, region_id, invoice_id, amount_minor, currency, method, state, received_at, returned_at, return_reason, recorded_by)
+    VALUES ($1,$2,$3, 40000, 'USD', 'check', 'returned', now() - interval '2 days', now() - interval '1 day', 'NSF', $4)`, [ORG, REGION_SOUTH, partly, EXEC]);
 
   gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
     env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test" }, stdio: ["ignore", "pipe", "pipe"],
@@ -206,8 +218,8 @@ test("bound as the worker, one refresh writes every figure for every region, and
   assert.equal(await figure("customers_total", UNASSIGNED_REGION_ID), 1, "distinct across the company, on the unplaced row");
   assert.equal(await figure("customers_total", REGION_SOUTH), 0);
   assert.equal(await figure("firms_active", REGION_SOUTH), 1);
-  assert.equal(await figure("invoiced_minor_30d", REGION_SOUTH), 250000);
-  assert.equal(await figure("invoices_past_due_minor", REGION_SOUTH), 250000);
+  assert.equal(await figure("invoiced_minor_30d", REGION_SOUTH), 350000, "the voided invoice was never billed");
+  assert.equal(await figure("invoices_past_due_minor", REGION_SOUTH), 290000, "what is still owed: the bounced check is not paid, the void is not owed");
   assert.equal(await figure("settlements_disputed", REGION_SOUTH), 1);
   assert.equal(await figure("settlements_overdue", REGION_SOUTH), 1, "issued forty days ago on thirty-day terms");
   assert.equal(await figure("leads_30d", UNASSIGNED_REGION_ID), 3);

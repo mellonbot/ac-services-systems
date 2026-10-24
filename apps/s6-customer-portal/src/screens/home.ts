@@ -110,7 +110,7 @@ export const home: Screen = (ctx) => {
     ${jobs.value.state === "refused" ? null : whenReady(ctx, requests.value, (out) => {
       const orders = ordersOf(out.requests, jobRows);
       const n = (k: number) => orders.filter((o) => stepOf(o) === k).length;
-      const due = invoiceRows.filter((i) => i.dueAt && Date.parse(i.dueAt) >= now).length;
+      const due = invoiceRows.filter((i) => (i.status === "open" || i.status === "partially_paid") && i.dueAt && Date.parse(i.dueAt) >= now).length;
       return statStrip([
         { n: n(0), label: "Open requests" },
         { n: n(1), label: "Scheduled" },

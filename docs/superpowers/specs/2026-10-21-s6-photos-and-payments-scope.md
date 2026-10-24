@@ -112,7 +112,7 @@ Roughly **1½ weeks** for one builder, most of it in the binary carrier.
 |---|---|---|
 | `invoices`, `invoice_lines`, money in integer minor units | Built, read-only | `migrations/0001`, `invoices.list` |
 | Invoice **issuance** | **No operation.** "Issuance is WS-E's (D13) and has no operation yet". Invoices exist only because tests seed them | `apps/gateway/src/handlers/site-record.ts` |
-| Invoice paid state | **None.** No state column, no payments table | OPEN-PAYMENTS |
+| Invoice paid state | **Built (0030, 2026-10-24)** in this spec's shape: a `payments` table, status derived (draft/open/partially_paid/paid/void), `paidMinor` and `status` on `invoices.list`. The office records what arrives (`payments.record`, `payments.return`, `invoices.void` — finance and the principals); no processor yet | `migrations/0030_payments.sql`, `apps/gateway/src/handlers/payments.ts` |
 | `payment` in S6's registered writes | Declared, no operation behind it | `packages/contracts/src/surfaces.ts` |
 | A processor, an AR ledger, an accounting system | **None chosen** | — |
 
@@ -181,11 +181,11 @@ the partners' sign-off (Y2 below).
 | Piece | Size |
 |---|---|
 | Invoice issuance (WS-E) — **prerequisite, not part of this scope** | separate |
-| Migration 0018: `payments`, RLS (read = `ac_invoice_visible`; insert/update = the webhook role only), derived paid status | S |
+| ~~Migration: `payments`, RLS, derived paid status~~ — **done as 0030.** Writers are the office (internal) and the system binding, not a webhook role alone: today finance records payments by hand. The webhook, when it comes, writes the same rows bound as the system | done |
 | Processor client (checkout session) + webhook verify, all `node:crypto`; secrets on the `PASSTHROUGH` list | M |
-| Operations `payments.checkout` (S6), `payments.webhook` (none), `paidMinor`/`paymentState` on `invoices.list` | S |
-| Outbox events `invoice.paid` / `payment.failed`; S6 + S4 subscribe | S |
-| S6 Pay button, return page, pending/paid/failed states; S2 payment history on the invoice | S |
+| Operations `payments.checkout` (S6), `payments.webhook` (none). (`paidMinor` and `status` on `invoices.list`: done in 0030) | S |
+| Outbox event `payment.failed` (`invoice.paid`, `payment.recorded`, `payment.returned`, `invoice.voided` exist since 0030; S6 subscribes, S4 reads payments in its rollup) | S |
+| S6 Pay button, return page, pending/failed states (paid, part paid and voided words: done in 0030); S2 payment history screen (`payments.list` exists) | S |
 | Tests: double-delivered webhook, out-of-order events, ACH return after "succeeded", a location manager refused on a parent invoice | M |
 
 Roughly **2–3 weeks** for one builder once the decisions are made and issuance exists.

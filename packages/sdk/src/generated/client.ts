@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 110 today. There is no
+ * One method per operation in the catalogue — 114 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -313,9 +313,16 @@ export const createGatewayClient = (transport: Transport) => ({
 
   /** `GET /invoices` · query · bearer · surfaces: S2, S6
    *
-   * Invoices with lines at a site or location this principal may see, with THOSE lines and their subtotal — a consolidated parent invoice read from one location shows that location's lines and nothing beside (0009). Issuance is WS-E's; this is the read. */
+   * Invoices with lines at a site or location this principal may see, with THOSE lines and their subtotal — a consolidated parent invoice read from one location shows that location's lines and nothing beside (0009). Issuance is WS-E's; this is the read. Each carries its status and what is paid against the whole invoice, derived from its payments (0030). */
   listInvoices(input: OperationIO["invoices.list"]["input"]): Promise<OperationIO["invoices.list"]["output"]> {
     return transport.request(OPERATIONS["invoices.list"], input) as Promise<OperationIO["invoices.list"]["output"]>;
+  },
+
+  /** `POST /s2/invoices/void` · mutation · bearer · surfaces: S2
+   *
+   * Void an issued invoice the office should not have issued, with the reason. Refused while any payment stands against it. Final (0030). Finance and the principals (S2 writeRoles.invoice). */
+  voidInvoice(input: OperationIO["invoices.void"]["input"]): Promise<OperationIO["invoices.void"]["output"]> {
+    return transport.request(OPERATIONS["invoices.void"], input) as Promise<OperationIO["invoices.void"]["output"]>;
   },
 
   /** `POST /s3/jobs/note` · mutation · bearer · surfaces: S3
@@ -442,6 +449,27 @@ export const createGatewayClient = (transport: Transport) => ({
    * Customer and subcontractor organizations — the parent tier — with how many of our regions each one meets. */
   listOrganizations(input: OperationIO["organizations.list"]["input"]): Promise<OperationIO["organizations.list"]["output"]> {
     return transport.request(OPERATIONS["organizations.list"], input) as Promise<OperationIO["organizations.list"]["output"]>;
+  },
+
+  /** `GET /s2/payments` · query · bearer · surfaces: S2
+   *
+   * Every payment recorded against an invoice, oldest first, in every state — the history the derived status is read from. */
+  listPayments(input: OperationIO["payments.list"]["input"]): Promise<OperationIO["payments.list"]["output"]> {
+    return transport.request(OPERATIONS["payments.list"], input) as Promise<OperationIO["payments.list"]["output"]>;
+  },
+
+  /** `POST /s2/payments` · mutation · bearer · surfaces: S2
+   *
+   * Record a payment received against an issued invoice: amount in the invoice's currency, method, reference, the day it arrived (today if not given; never ahead, never before issue). Part payments are rows like any other; the total is never exceeded (0030). Emits invoice.paid when it settles the invoice, payment.recorded otherwise. Finance and the principals (S2 writeRoles.payment). */
+  recordPayment(input: OperationIO["payments.record"]["input"]): Promise<OperationIO["payments.record"]["output"]> {
+    return transport.request(OPERATIONS["payments.record"], input) as Promise<OperationIO["payments.record"]["output"]>;
+  },
+
+  /** `POST /s2/payments/return` · mutation · bearer · surfaces: S2
+   *
+   * Mark a succeeded payment returned (a bounced check, an ACH return) or refunded, with the reason. The row stays; the invoice's status is re-derived without it. Finance and the principals. */
+  returnPayment(input: OperationIO["payments.return"]["input"]): Promise<OperationIO["payments.return"]["output"]> {
+    return transport.request(OPERATIONS["payments.return"], input) as Promise<OperationIO["payments.return"]["output"]>;
   },
 
   /** `POST /s7/procurement/pos/acknowledge` · mutation · bearer · surfaces: S7
@@ -784,4 +812,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "addJobNote", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "createOrganization", "listOrganizations", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);
+export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);

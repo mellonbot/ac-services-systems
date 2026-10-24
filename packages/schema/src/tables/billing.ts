@@ -17,8 +17,41 @@ export const invoices = operationalTable("invoices", {
     { name: "currency", type: "text", references: "currencies(code)" },
     { name: "issued_at", type: "timestamptz", nullable: true },
     { name: "due_at", type: "timestamptz", nullable: true },
+    { name: "voided_at", type: "timestamptz", nullable: true, comment: "0030: voided by the office (invoices.void) — never owed, never paid. Set once; refused while any payment stands." },
+    { name: "void_reason", type: "text", nullable: true, comment: "Why it was voided. Present exactly when voided_at is." },
   ],
   indexes: [["bill_to_tier", "bill_to_id"], ["contract_id"]],
+  constraints: [
+    { name: "invoices_void_has_reason", sql: "CHECK ((voided_at IS NULL) = (void_reason IS NULL) AND (void_reason IS NULL OR length(btrim(void_reason)) > 0))" },
+    { name: "invoices_void_once_issued", sql: "CHECK (voided_at IS NULL OR issued_at IS NOT NULL)" },
+  ],
+});
+
+/**
+ * 0030 — what was received against an invoice. The invoice's paid status is
+ * DERIVED from these rows (succeeded sum against the total), never a column
+ * someone sets: S6 payments spec, 2026-10-21, §2 item 4. Today the office
+ * records each payment as it arrives (payments.record); a processor's webhook
+ * adds rows the same way once Y1–Y3 are decided. A row is never deleted or
+ * re-priced: a bounced check or an ACH return is the same row marked returned.
+ */
+export const payments = operationalTable("payments", {
+  columns: [
+    { name: "invoice_id", type: "uuid", references: "invoices(id)" },
+    { name: "amount_minor", type: "bigint", check: "amount_minor > 0", comment: "Integer minor units, in the invoice's currency (0030 refuses another)." },
+    { name: "currency", type: "text", references: "currencies(code)" },
+    { name: "method", type: "text", check: "method IN ('ach','wire','check','card','cash','other')" },
+    { name: "reference", type: "text", nullable: true, comment: "The check number, the bank trace, the processor's id — what finance would search for." },
+    { name: "state", type: "text", default: "'succeeded'", check: "state IN ('pending','succeeded','failed','returned','refunded')", comment: "The spec's states. The office records a payment that has landed (succeeded); pending and failed are the processor's." },
+    { name: "received_at", type: "timestamptz", comment: "When the money arrived — not when someone typed it in." },
+    { name: "returned_at", type: "timestamptz", nullable: true, comment: "When a succeeded payment came back (state returned or refunded)." },
+    { name: "return_reason", type: "text", nullable: true },
+    { name: "recorded_by", type: "uuid", references: "users(id)" },
+  ],
+  indexes: [["invoice_id"]],
+  constraints: [
+    { name: "payments_returned_has_when", sql: "CHECK ((state IN ('returned','refunded')) = (returned_at IS NOT NULL) AND (returned_at IS NULL OR returned_at >= received_at))" },
+  ],
 });
 
 export const invoice_lines = operationalTable("invoice_lines", {

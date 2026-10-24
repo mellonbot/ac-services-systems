@@ -213,9 +213,14 @@ switches it on in the demo's bundles only (`DEMO_ONLY_ENABLED`); the product
 registry, gateway and database are unchanged. Enabling it for real is the one
 registry line, and the vendor-side wire tests then run as written.
 
-**OPEN-PAYMENTS.** "Matched" means ready to pay. Neither customer payments nor
-vendor payments are modelled, so S4's "Past due date" is an upper bound and a
-vendor's matched invoice has no paid state yet.
+**OPEN-PAYMENTS.** Customer half built by 0030, in the S6 payments spec's
+shape: a `payments` table, and an invoice's status derived from it (draft, open,
+partially paid, paid, void). The office records each payment as it arrives;
+S4's "Past due date" is now what is still owed. Still open: the spec's Y1–Y5
+(ledger of record, processor, who may pay a consolidated invoice, card fees,
+merchant of record), which decide whether a processor's webhook joins the
+office in writing those rows; and the vendor half — "matched" means ready to
+pay, and a vendor's matched invoice has no paid state yet.
 
 **OPEN-RLS-REMAINDER.** Three tables still have row security off entirely:
 `brand_themes`, `subscriptions`, `sync_conflicts` (`storage_objects` got its rule

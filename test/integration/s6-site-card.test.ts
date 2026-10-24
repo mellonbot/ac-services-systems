@@ -38,7 +38,7 @@ const PORT = 24080 + Math.floor(Math.random() * 1000);
 const TILE_PORT = PORT + 1000;
 const BASE = `http://127.0.0.1:${PORT}`;
 const U = (n: number) => `d9000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
-const USER_OWNER = U(1), USER_FM_AUSTIN = U(3), USER_FM_RENO = U(4), USER_EXEC = U(5), USER_OTHER = U(6);
+const USER_OWNER = U(1), USER_FINANCE = U(2), USER_FM_AUSTIN = U(3), USER_FM_RENO = U(4), USER_EXEC = U(5), USER_OTHER = U(6);
 const PASSWORD = "correct horse battery staple";
 const RUN = `d9-${Date.now().toString(36)}`;
 const PNG = Buffer.from("89504e470d0a1a0a0000000d494844520000000100000001080600000" + "01f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082", "hex");
@@ -73,8 +73,9 @@ before(async () => {
   await admin(`INSERT INTO regions (id, code, name) VALUES ($1,'WEST','West'), ($2,'SOUTH','South') ON CONFLICT (id) DO NOTHING`, [REGION_WEST, REGION_SOUTH]);
   const hash = hashPassword(PASSWORD);
   await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
-    VALUES ($1,$2,$3,'internal','owner.d9@ac.test','Account Owner','["account_owner"]','parent',$2,$4,true)
-    ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, active = true`, [USER_OWNER, INTERNAL_ORG_ID, REGION_SOUTH, hash]);
+    VALUES ($1,$2,$3,'internal','owner.d9@ac.test','Account Owner','["account_owner"]','parent',$2,$4,true),
+           ($5,$2,$3,'internal','finance.d9@ac.test','Finance','["finance"]','parent',$2,$4,true)
+    ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, active = true`, [USER_OWNER, INTERNAL_ORG_ID, REGION_SOUTH, hash, USER_FINANCE]);
 
   tiles = createServer((req, res) => {
     tileHits.push(req.url ?? "");
@@ -108,6 +109,7 @@ after(async () => {
 });
 
 const owner = () => connectShell({ surfaceId: "S2", baseUrl: BASE, fetch, credentials: { email: "owner.d9@ac.test", password: PASSWORD } });
+const finance = () => connectShell({ surfaceId: "S2", baseUrl: BASE, fetch, credentials: { email: "finance.d9@ac.test", password: PASSWORD } });
 const customer = (email: string) => connectShell({ surfaceId: "S6", baseUrl: BASE, fetch, credentials: { email, password: PASSWORD } });
 const code = (s: ConnectedShell, e: unknown): string | null => { const r = s.refusalOf(e); assert.ok(r, `not a refusal: ${String(e)}`); return "code" in r! ? r!.code : null; };
 const ids = (rows: readonly { id: string }[]) => rows.map((r) => r.id).sort();
@@ -264,6 +266,82 @@ test("INVOICES: one consolidated parent invoice, read from Austin, shows Austin'
   assert.deepEqual((await exec.gateway.listInvoices({ locationId: reno })).invoices[0]!.lines.map((l) => l.id), [lineReno]);
   assert.deepEqual((await otherFm.gateway.listInvoices({})).invoices, []);
   assert.deepEqual((await fmAustin.gateway.listInvoices({ siteId: austinAhu })).invoices, [], "the AHU site billed nothing — no header is shown for it");
+});
+
+test("PAYMENTS (0030): finance records payments against the invoice; its status is derived — part paid, then paid — and the customer reads it; an account owner may not record one", { skip }, async () => {
+  const header = async () => (await fmAustin.gateway.listInvoices({ siteId: austinRoof })).invoices[0]!;
+  assert.deepEqual([(await header()).status, (await header()).paidMinor], ["open", "0"]);
+  await assert.rejects(s2.gateway.recordPayment({ invoiceId: invoice, amountMinor: "1000", method: "check" }),
+    (e: unknown) => s2.refusalOf(e)?.kind === "scope", "an account owner does not record money (S2 writeRoles.payment)");
+  const fin = await finance();
+  const pay = (amountMinor: string, extra: Partial<{ receivedAt: string; reference: string }> = {}) =>
+    fin.gateway.recordPayment({ invoiceId: invoice, amountMinor, method: "check", ...extra });
+  await assert.rejects(pay("1000", { receivedAt: new Date(Date.now() + 3600_000).toISOString() }), (e: unknown) => code(fin, e) === "received_in_future");
+  await assert.rejects(pay("1000", { receivedAt: "2026-07-01T00:00:00Z" }), (e: unknown) => code(fin, e) === "received_before_issue");
+  await assert.rejects(pay("128451"), (e: unknown) => code(fin, e) === "overpayment", "never more than the total");
+  await assert.rejects(pay("12.50"), (e: unknown) => fin.refusalOf(e) !== null && code(fin, e) !== "overpayment", "minor units are whole");
+
+  const first = await pay("100000", { reference: "CHK 4471", receivedAt: "2026-08-10T16:00:00.000Z" });
+  assert.deepEqual([first.invoiceStatus, first.paidMinor, first.payment.state], ["partially_paid", "100000", "succeeded"]);
+  assert.equal((await admin(`SELECT topic FROM outbox WHERE event_id = $1`, [first.eventId]))[0]!.topic, "payment.recorded");
+  assert.deepEqual([(await header()).status, (await header()).paidMinor], ["partially_paid", "100000"], "the customer reads what was paid against the whole invoice");
+
+  const rest = await pay("28450");
+  assert.deepEqual([rest.invoiceStatus, rest.paidMinor], ["paid", "128450"]);
+  assert.equal((await admin(`SELECT topic FROM outbox WHERE event_id = $1`, [rest.eventId]))[0]!.topic, "invoice.paid", "the payment that settles it is the invoice paid");
+  assert.equal((await header()).status, "paid");
+  assert.deepEqual((await fin.gateway.listPayments({ invoiceId: invoice })).payments.map((p) => p.amountMinor), ["100000", "28450"]);
+  await assert.rejects(pay("1"), (e: unknown) => code(fin, e) === "overpayment");
+
+  // A paid invoice keeps its money at the table, and cannot be voided while payments stand.
+  await assert.rejects(admin(`UPDATE invoices SET total_minor = 1 WHERE id = $1`, [invoice]), /its total does not change/);
+  await assert.rejects(admin(`UPDATE invoice_lines SET amount_minor = 1 WHERE id = $1`, [lineAustin]), /lines do not change/);
+  await assert.rejects(admin(`UPDATE payments SET amount_minor = 1 WHERE id = $1`, [first.payment.id]), /does not change/);
+  await assert.rejects(admin(`DELETE FROM payments WHERE id = $1`, [first.payment.id]), "nobody deletes a payment");
+  await assert.rejects(fin.gateway.voidInvoice({ invoiceId: invoice, reason: "duplicate" }), (e: unknown) => code(fin, e) === "invoice_has_payments");
+
+  // The check bounces: the row stays, marked returned, and the invoice is part paid again.
+  const bounced = await fin.gateway.returnPayment({ paymentId: rest.payment.id, reason: "NSF" });
+  assert.deepEqual([bounced.payment.state, bounced.invoiceStatus, bounced.paidMinor], ["returned", "partially_paid", "100000"]);
+  assert.equal((await admin(`SELECT topic FROM outbox WHERE event_id = $1`, [bounced.eventId]))[0]!.topic, "payment.returned");
+  await assert.rejects(fin.gateway.returnPayment({ paymentId: rest.payment.id, reason: "again" }), (e: unknown) => code(fin, e) === "payment_not_succeeded");
+  await assert.rejects(admin(`UPDATE payments SET state = 'succeeded', returned_at = NULL, return_reason = NULL WHERE id = $1`, [rest.payment.id]), /cannot become/);
+  assert.equal((await header()).status, "partially_paid");
+  await fin.logout();
+});
+
+test("VOID (0030): an issued invoice with nothing paid is voided with its reason, is never paid, and is final; a draft has nothing to void", { skip }, async () => {
+  const draft = (await admin(`INSERT INTO invoices (org_id, region_id, bill_to_tier, bill_to_id, contract_id, billing_path, total_minor, currency)
+     VALUES ($1, $2, 'parent', $1, $3, 'enterprise_sla', 5000, 'USD') RETURNING id`, [amped, REGION_SOUTH, msa]))[0]!.id as string;
+  const fin = await finance();
+  await assert.rejects(fin.gateway.voidInvoice({ invoiceId: draft, reason: "never sent" }), (e: unknown) => code(fin, e) === "invoice_not_issued");
+  await assert.rejects(fin.gateway.recordPayment({ invoiceId: draft, amountMinor: "100", method: "cash" }), (e: unknown) => code(fin, e) === "invoice_not_issued");
+  await admin(`UPDATE invoices SET issued_at = now() - interval '1 day', due_at = now() + interval '29 days' WHERE id = $1`, [draft]);
+  await assert.rejects(fin.gateway.voidInvoice({ invoiceId: draft, reason: "   " }), /a void needs its reason/);
+  const v = await fin.gateway.voidInvoice({ invoiceId: draft, reason: "  billed twice  " });
+  assert.equal((await admin(`SELECT void_reason FROM invoices WHERE id = $1`, [draft]))[0]!.void_reason, "billed twice");
+  assert.equal((await admin(`SELECT topic FROM outbox WHERE event_id = $1`, [v.eventId]))[0]!.topic, "invoice.voided");
+  await assert.rejects(fin.gateway.recordPayment({ invoiceId: draft, amountMinor: "100", method: "cash" }), (e: unknown) => code(fin, e) === "invoice_void");
+  await assert.rejects(fin.gateway.voidInvoice({ invoiceId: draft, reason: "again" }), (e: unknown) => code(fin, e) === "invoice_void");
+  await assert.rejects(admin(`UPDATE invoices SET due_at = now() WHERE id = $1`, [draft]), /void invoice does not change/);
+  await fin.logout();
+});
+
+test("AT THE TABLE (0030): a customer reads its invoice's payments and writes none", { skip }, async () => {
+  const asCustomer = async (sql: string, params: unknown[]) => {
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN"); await c.query("SET LOCAL ROLE ac_gateway");
+      for (const [k, v] of Object.entries({ "ac.namespace": "customer", "ac.org_id": amped, "ac.region_id": REGION_SOUTH, "ac.scope_tier": "parent", "ac.scope_id": amped, "ac.actor_id": USER_EXEC, "ac.firm_id": "", "ac.device_id": "", "ac.surface_id": "S6" })) {
+        await c.query("SELECT set_config($1, $2, true)", [k, v]);
+      }
+      return (await c.query(sql, params)).rows;
+    } finally { await c.query("ROLLBACK"); c.release(); }
+  };
+  assert.equal((await asCustomer(`SELECT count(*)::int AS n FROM payments WHERE invoice_id = $1`, [invoice]))[0]!.n, 2);
+  await assert.rejects(asCustomer(`INSERT INTO payments (org_id, region_id, invoice_id, amount_minor, currency, method, received_at, recorded_by) VALUES ($1,$2,$3,1,'USD','cash',now(),$4)`,
+    [amped, REGION_SOUTH, invoice, USER_EXEC]), /row-level security|cannot see/, "refused by whichever reads first: the payment's trigger cannot lock the invoice, or row security");
+  assert.equal((await asCustomer(`SELECT count(*)::int AS n FROM payments`, []))[0]!.n, 2, "another customer's payments are not there");
 });
 
 test("IMAGERY: the GATEWAY fetches the roof from the configured provider and answers inline — once per site; no coordinates and an invisible site are answers, not errors", { skip }, async () => {

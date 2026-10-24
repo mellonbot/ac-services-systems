@@ -61,6 +61,18 @@ export const tons = (milli: string | null): string => {
 };
 
 
+/**
+ * 0030: where an invoice stands, in words. Paid, part paid and voided are
+ * facts about the bill and never a state colour; "Due" stays the reading it
+ * was. Part paid names what was received against the WHOLE invoice, beside
+ * the whole total — the location's own subtotal is the row's amount.
+ */
+export const invoiceWord = (inv: InvoiceWire): VNode | null =>
+  inv.status === "paid" ? html`<span class="s6-muted">Paid in full</span>`
+    : inv.status === "void" ? html`<span class="s6-muted">Voided${inv.voidReason ? ` — ${inv.voidReason}` : ""}</span>`
+    : inv.status === "partially_paid" ? html`<span class="s6-muted">Part paid — <span class="ac-num">${money(inv.paidMinor, inv.currency)}</span> of <span class="ac-num">${money(inv.totalMinor, inv.currency)}</span>${inv.dueAt ? `, rest due ${when(inv.dueAt)}` : ""}</span>`
+    : inv.dueAt ? html`<span class="s6-muted">Due ${when(inv.dueAt)}</span>` : null;
+
 /** One row of the ledger, whatever it came from. Newest first. */
 export type LedgerEntry = {
   readonly key: string; readonly at: string;
@@ -94,7 +106,7 @@ export const ledgerOf = (jobs: readonly JobWire[], requests: readonly ServiceReq
     title: inv.issuedAt ? `Invoice issued${inv.periodStart ? ` — ${inv.periodStart} to ${inv.periodEnd ?? "…"}` : ""}` : "Invoice drafted",
     detail: inv.lines.map((l) => l.description).join(" · "),
     amount: money(inv.subtotalMinor, inv.currency),
-    status: inv.dueAt ? html`<span class="s6-muted">Due ${when(inv.dueAt)}</span>` : null,
+    status: invoiceWord(inv),
   });
   return entries.sort((a, b) => b.at.localeCompare(a.at));
 };
