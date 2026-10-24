@@ -79,6 +79,9 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
   color:var(--color-livery);padding-right:0.08em}
 .ac-wordmark__co{font-family:var(--font-label);font-weight:600;font-size:var(--text-xs);
   letter-spacing:var(--track-widest);text-transform:uppercase;color:var(--color-text-muted)}
+/* The wordmark and the company line share one baseline: the caps stand on the
+   script's line, and the pair is centred on the mark as one name. */
+.ac-mast__name{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-1) var(--space-3)}
 .ac-mast__rule{height:4px;background:var(--color-livery);margin-top:var(--space-2)}
 /* A titled masthead (S1): the company line under the full-width rule, and the
    site's name under the company line. */
