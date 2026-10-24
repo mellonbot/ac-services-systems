@@ -59,6 +59,8 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
 type PreviewShell = ConnectedShell & {
   gateway: {
     listJobs: (input: Record<string, unknown>) => Promise<{ jobs: unknown[] }>;
+    listCrews: (input: Record<string, unknown>) => Promise<{ crews: unknown[] }>;
+    listTechnicians: (input: Record<string, unknown>) => Promise<{ technicians: unknown[] }>;
     listServiceRequests: (input: Record<string, unknown>) => Promise<{ requests: unknown[] }>;
     getMedia: (input: { id: string }) => Promise<{ id: string; contentType: string; image: string }>;
     openServiceRequestJob: (input: { requestId: string; serviceCode: string; priority?: string; serviceWindowStart: string; serviceWindowEnd: string }) => Promise<unknown>;
@@ -139,6 +141,26 @@ const PREVIEW_JOBS = [
   previewJob("32100190", "FirstKey Homes DFW", "repairs", "routine", "cancelled", null, 45, null),
 ];
 
+/** Local preview only — the roster behind the board: every preview crew as a technician's unit, an install crew, and the people with no job on the board. */
+const previewTech = (name: string, crewId: string | null, role = "technician") => ({
+  id: `tech-${name.toLowerCase().replace(/\s+/g, "-")}`, firmId: null, crewId, name, phone: null, homeAddress: null, addressRestricted: true,
+  role, specialties: [], homeRegionId: "region-preview", active: true,
+});
+const previewCrew = (id: string, label: string, kind: "service" | "install") => ({
+  id, label, employmentType: "employed", kind, firmId: null, homeRegionId: "region-preview", active: true,
+  documents: { required: [], satisfied: [], unverified: [], expired: [], missing: [], earliestExpiry: null },
+});
+const PREVIEW_UNITS = ["Blake Keating", "Brian Martinez", "Colton Dawson", "Dylan Lemons", "Herberto Vega", "Garrett Howard", "Johnny Fontez", "Marcus Reyes", "Tyler Okafor"];
+const PREVIEW_CREWS = [
+  ...PREVIEW_UNITS.map((n) => previewCrew(`crew-${n.toLowerCase().replace(/\s+/g, "-")}`, `${n} — unit`, "service")),
+  previewCrew("crew-install-1", "Install Crew 1", "install"),
+];
+const PREVIEW_TECHNICIANS = [
+  ...PREVIEW_UNITS.map((n) => previewTech(n, `crew-${n.toLowerCase().replace(/\s+/g, "-")}`)),
+  previewTech("Luis Ortega", "crew-install-1", "lead_installer"), previewTech("Sam Whitfield", "crew-install-1", "installer"),
+  previewTech("Ray Nguyen", null),
+];
+
 for (const job of PREVIEW_JOBS) {
   const n = PREVIEW_NOTES[job.id];
   if (n) Object.assign(job, { latestNote: { body: n.body, at: new Date(Date.now() - n.daysAgo * DAY).toISOString() }, returnTrip: n.returnTrip ?? false });
@@ -167,6 +189,8 @@ const createPreviewShell = (): PreviewShell => {
     context: { principal: { namespace: "internal", subjectId: "preview", orgId: "org-preview", regionId: "region-preview", scopeTier: "parent", scopeId: "org-preview", roles: ["dispatcher", "ops_leadership"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "preview-session" }, path: [{ tier: "parent", id: "org-preview", name: "AC Services" }], parent: { tier: "parent", id: "org-preview", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "region-preview" },
     gateway: {
       listJobs: async () => ({ jobs: PREVIEW_JOBS }),
+      listCrews: async () => ({ crews: PREVIEW_CREWS }),
+      listTechnicians: async () => ({ technicians: PREVIEW_TECHNICIANS }),
       listServiceRequests: async () => ({ requests: PREVIEW_REQUESTS }),
       getMedia: async (input: { id: string }) => ({ id: input.id, contentType: "image/png", image: PREVIEW_PHOTO }),
       openServiceRequestJob: async (input: { requestId: string; serviceCode: string; priority?: string; serviceWindowStart: string; serviceWindowEnd: string }) => {
@@ -245,6 +269,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const now = opts.now ?? (() => Date.now());
   const phase = signal<Phase>({ kind: "booting" });
   const degraded = signal(false);
+  /** The wall-clock minute: the board's now-line moves when it changes. */
+  const minute = signal(Math.floor(now() / 60_000));
   const router = createRouter(SCREENS, opts.window ? browserHistory(opts.window, SURFACE_PATHS.S3) : { path: () => "/", push: () => {}, onPop: () => () => {} });
 
   const become = (shell: ConnectedShell) => {
@@ -264,6 +290,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       store.invalidate("dispatch.candidates");
       store.invalidate("serviceRequests.list");
       store.invalidate("manager.overview");
+      store.invalidate("crews.list");
+      store.invalidate("technicians.list");
     }, { topics: [
       // a customer asked, or sent a photo with what they asked (Intake)
       "service_request.created", "service_request.photo_attached", "service_request.job_opened",
@@ -273,6 +301,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       "crew.compliance_refused", "credential.verified", "credential.expiring", "credential.expired",
       // a login or a company changed in AC Logins (the Manager Dashboard's team and crews)
       "user.created", "user.updated", "crew.created", "crew.updated",
+      // a technician added to or changed on the roster (the board draws every one)
+      "technician.recorded", "technician.updated",
     ] });
   };
 
@@ -306,6 +336,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
 
   /** Poll the flag the transport writes; while degraded, probe health so recovery is noticed without a click (09 §3.9). */
   const tick = () => {
+    minute.value = Math.floor(now() / 60_000);
     const p = phase.value;
     if (p.kind !== "ready") return;
     degraded.value = p.shell.isDegraded();
@@ -327,6 +358,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     if (p.kind === "login") return loginView(p, login);
     const ctx: ScreenContext = { shell: p.shell, store: p.store, router, density: DENSITY, degraded: degraded.value };
     void p.store.version.value; // subscribe: an invalidate re-renders the mounted screen, which re-reads its resources
+    void minute.value; // and a new minute re-renders it, so the board's now-line keeps time
     const loc = router.current.value;
     if (loc?.screen === "detail" && loc.params.jobId) lastDetail = loc.params.jobId;
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;

@@ -36,7 +36,7 @@ export const TOPICS = [
   // network and compliance
   "credential.recorded", "credential.verified", "credential.expiring", "credential.expired", "crew.compliance_refused",
   "crew.created", "crew.updated",
-  // 0020: the roster. S2 refetches; nothing else reads it.
+  // 0020: the roster. S2 and S3's board refetch.
   "technician.recorded", "technician.updated",
   // 0024: what an install was sold under, and by whom.
   "project.created",

@@ -11,7 +11,7 @@ export const SCREENS = {
   "login":    { path: "/login",             uses: ["auth.login"] },
   "dispatch": { path: "/job/:jobId",        uses: ["dispatch.candidates", "dispatch.assign", "jobs.list"] },
   "detail":   { path: "/jobs/:jobId",       uses: ["jobs.detail", "jobs.addNote", "jobs.saveUpdate", "jobs.publishUpdate", "jobs.postMessage"] },
-  "board":    { path: "/board",             uses: ["jobs.list", "dispatch.release"], title: "Board" },
+  "board":    { path: "/board",             uses: ["jobs.list", "crews.list", "technicians.list", "dispatch.release"], title: "Board" },
   "jobs":     { path: "/jobs",              uses: ["jobs.list", "jobs.transition", "jobs.addNote", "jobs.setReturnTrip"], title: "Job Dashboard" },
   "pick":     { path: "/detail",            uses: ["jobs.list"], title: "Job Detail" },
   "intake":   { path: "/intake",            uses: ["serviceRequests.list", "media.get", "serviceRequests.openJob"], title: "Intake" },

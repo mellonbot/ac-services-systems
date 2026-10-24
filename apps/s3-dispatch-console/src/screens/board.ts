@@ -1,5 +1,5 @@
 import { html, signal, shortRef, StatusPill, pageHead, statStrip, panel, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
-import { serviceLabel, WORK_DONE_STATES, JOB_WORK_CLASS_LABEL, type JobWire } from "../../../../packages/contracts/src/index.ts";
+import { serviceLabel, WORK_DONE_STATES, JOB_WORK_CLASS_LABEL, type JobWire, type CrewWire, type TechnicianWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, submitAction, linkTo, type Screen } from "./common.ts";
 
@@ -30,6 +30,17 @@ export const isDispatchable = (job: JobWire): boolean => job.currentCrewId === n
 
 const CLOSED: readonly string[] = [...WORK_DONE_STATES, "cancelled", "aborted"];
 type BoardFilter = "all" | "unassigned" | "assigned";
+/** How far the board steps from today, either way: three days back, three days ahead. */
+export const DAY_REACH = 3;
+const boardDays = new WeakMap<Store, Signal<number>>();
+const dayFor = (store: Store): Signal<number> => {
+  let day = boardDays.get(store);
+  if (!day) {
+    day = signal(0);
+    boardDays.set(store, day);
+  }
+  return day;
+};
 const boardFilters = new WeakMap<Store, Signal<BoardFilter>>();
 const filterFor = (store: Store): Signal<BoardFilter> => {
   let filter = boardFilters.get(store);
@@ -141,15 +152,26 @@ export const boardTone = (job: JobWire, now: number): "warn" | "waiting" | "comp
   return "scheduled";
 };
 
-type BoardRow = { readonly key: string; readonly initials: string; readonly name: string; readonly service: string; readonly jobs: readonly JobWire[] };
+type BoardRow = {
+  readonly key: string; readonly initials: string; readonly name: string; readonly service: string;
+  /** An install crew's members; empty for a technician's own unit. */
+  readonly members: string;
+  /** False for a technician on no crew: on the roster, but nothing can be dispatched to them. */
+  readonly dispatchable: boolean;
+  readonly jobs: readonly JobWire[];
+};
+export type BoardRoster = { readonly crews: readonly CrewWire[]; readonly technicians: readonly TechnicianWire[] };
 
 /**
- * Everything the board draws, read off `jobs.list`: one row per crew that
- * holds open work (S3 has no roster read, so a crew is known by the jobs it
- * holds), each row's bars the jobs whose service window touches the chosen
- * day, and the figures and legend counts from the same rows.
+ * Everything the board draws: one row per active crew on the roster (a
+ * technician's service unit is drawn under the technician's name), one per
+ * active technician on no crew, and one per crew still holding work that the
+ * roster no longer lists — so every person shows whether or not they hold a
+ * job, and no job loses its row. Each row's bars are the jobs whose service
+ * window touches the chosen day; the figures and legend counts come from the
+ * same rows.
  */
-export const boardModel = (jobs: readonly JobWire[], now: number, offset: number) => {
+export const boardModel = (jobs: readonly JobWire[], now: number, offset: number, roster: BoardRoster = { crews: [], technicians: [] }) => {
   const dayStart = startOfDay(now, offset);
   const from = dayStart + FIRST_HOUR * HOUR_MS;
   const to = dayStart + LAST_HOUR * HOUR_MS;
@@ -157,21 +179,32 @@ export const boardModel = (jobs: readonly JobWire[], now: number, offset: number
   const onDay = (j: JobWire) => Date.parse(j.serviceWindowStart) < dayStart + 24 * HOUR_MS && Date.parse(j.serviceWindowEnd) > dayStart;
   const today = jobs.filter((j) => j.state !== "cancelled" && j.state !== "aborted" && onDay(j));
 
-  const crews = new Map<string, { name: string; held: JobWire[]; today: JobWire[] }>();
+  const techs = roster.technicians.filter((t) => t.active);
+  const crews = new Map<string, { name: string; members: string; rostered: boolean; held: JobWire[]; today: JobWire[] }>();
+  for (const c of roster.crews) {
+    if (!c.active) continue;
+    const on = techs.filter((t) => t.crewId === c.id);
+    const name = c.kind === "service" && on.length === 1 ? on[0]!.name : c.label;
+    crews.set(c.id, { name, members: c.kind === "install" ? on.map((t) => t.name).join(", ") : "", rostered: true, held: [], today: [] });
+  }
   for (const j of jobs) {
     if (!j.currentCrewId) continue;
-    const crew = crews.get(j.currentCrewId) ?? { name: j.currentCrewLabel ?? "Crew", held: [], today: [] };
+    const crew = crews.get(j.currentCrewId) ?? { name: j.currentCrewLabel ?? "Crew", members: "", rostered: false, held: [], today: [] };
     if (!CLOSED.includes(j.state)) crew.held.push(j);
     if (today.includes(j)) crew.today.push(j);
     crews.set(j.currentCrewId, crew);
   }
-  const rows: BoardRow[] = [...crews.entries()]
-    .filter(([, c]) => c.held.length || c.today.length)
-    .map(([key, c]) => {
-      const sorted = [...c.today].sort((a, b) => Date.parse(a.serviceWindowStart) - Date.parse(b.serviceWindowStart));
-      return { key, initials: initialsOf(c.name), name: c.name, service: sorted.length ? describe(sorted[0]!) : "No jobs today", jobs: sorted };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const rows: BoardRow[] = [
+    ...[...crews.entries()]
+      .filter(([, c]) => c.rostered || c.held.length || c.today.length)
+      .map(([key, c]) => {
+        const sorted = [...c.today].sort((a, b) => Date.parse(a.serviceWindowStart) - Date.parse(b.serviceWindowStart));
+        return { key, initials: initialsOf(c.name), name: c.name, service: sorted.length ? describe(sorted[0]!) : "No jobs today", members: c.members, dispatchable: true, jobs: sorted };
+      }),
+    ...techs
+      .filter((t) => !t.crewId || !crews.has(t.crewId))
+      .map((t) => ({ key: `tech-${t.id}`, initials: initialsOf(t.name), name: t.name, service: "On no crew — not dispatchable", members: "", dispatchable: false, jobs: [] })),
+  ].sort((a, b) => a.name.localeCompare(b.name));
 
   const place = (j: JobWire) => {
     const left = Math.max(0, Math.min(1, (Date.parse(j.serviceWindowStart) - from) / (to - from)));
@@ -185,7 +218,7 @@ export const boardModel = (jobs: readonly JobWire[], now: number, offset: number
     { n: rows.filter((r) => r.jobs.length).length, label: "Crews out" },
     { n: attention, label: "Needs attention", ...(attention ? { tone: "breached" as const } : {}) },
     { n: unassigned.length, label: "Unscheduled" },
-    { n: rows.filter((r) => !r.jobs.length).length, label: "Tech available", tone: "ok" as const },
+    { n: rows.filter((r) => r.dispatchable && !r.jobs.length).length, label: "Tech available", tone: "ok" as const },
   ];
   const legend = [
     { label: "Scheduled (in progress)", tone: "scheduled" },
@@ -197,28 +230,41 @@ export const boardModel = (jobs: readonly JobWire[], now: number, offset: number
     { label: "Marked for follow-up", n: open.filter((j) => j.returnTrip).length, tone: "neutral" },
     { label: "Unscheduled", n: unassigned.length, tone: "neutral" },
   ];
-  return { rows, place, stats, legend, dayStart };
+  // The current time, as a share of the grid — null when the day shown is not today or the hour is off the grid.
+  const nowAt = now >= from && now <= to ? ((now - from) / (to - from)) * 100 : null;
+  return { rows, place, stats, legend, dayStart, nowAt };
 };
 
 export const board: Screen = (ctx) => {
   const jobsKey = keyOf("jobs.list", {});
   const jobs = ctx.store.read(jobsKey, () => ctx.shell.gateway.listJobs({}));
+  const crews = ctx.store.read(keyOf("crews.list", {}), () => ctx.shell.gateway.listCrews({}));
+  const technicians = ctx.store.read(keyOf("technicians.list", {}), () => ctx.shell.gateway.listTechnicians({}));
   const filter = filterFor(ctx.store);
+  const day = dayFor(ctx.store);
   const now = Date.now();
 
-  const shown = new Date(now);
+  const shown = new Date(startOfDay(now, day.value));
+  const step = (to: number) => { day.value = Math.max(-DAY_REACH, Math.min(DAY_REACH, to)); };
+  const withRoster = (view: (jobs: readonly JobWire[], roster: BoardRoster) => VNode): VNode =>
+    whenReady(ctx, jobs.value, (out) => whenReady(ctx, crews.value, (c) => whenReady(ctx, technicians.value, (t) => view(out.jobs, { crews: c.crews, technicians: t.technicians }))));
 
   return html`<section class="s3-board">
     ${pageHead("Dispatch Board", "One color per job status, crew grouping, and idle tech availability in one glance.", html`<div class="dispatch-dashboard__date-controls">
-      <span class="dispatch-dashboard__date is-active">${shown.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
-      <button type="button" class="dispatch-dashboard__date" id="board-today" onClick=${() => ctx.store.invalidate("jobs.list")}>Today</button>
+      <button type="button" class="dispatch-dashboard__date" id="board-prev" aria-label="Previous day" disabled=${day.value <= -DAY_REACH} onClick=${() => step(day.value - 1)}>‹ Prev</button>
+      <span class="dispatch-dashboard__date is-active" aria-live="polite">${shown.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+      <button type="button" class="dispatch-dashboard__date" id="board-next" aria-label="Next day" disabled=${day.value >= DAY_REACH} onClick=${() => step(day.value + 1)}>Next ›</button>
+      <button type="button" class="dispatch-dashboard__date" id="board-today" onClick=${() => { step(0); ctx.store.invalidate("jobs.list"); }}>Today</button>
     </div>`)}
 
-    ${whenReady(ctx, jobs.value, (out) => statStrip(boardModel(out.jobs, now, 0).stats))}
+    ${withRoster((list, roster) => statStrip(boardModel(list, now, day.value, roster).stats))}
 
-    ${whenReady(ctx, jobs.value, (out) => {
-      const m = boardModel(out.jobs, now, 0);
+    ${withRoster((list, roster) => {
+      const m = boardModel(list, now, day.value, roster);
       return panel(html`<div class="dispatch-dashboard__board">
+        ${m.nowAt === null ? null : html`<div class="dispatch-board__now-track" aria-hidden="true">
+          <div class="dispatch-board__now" style=${`left:${m.nowAt}%;`}><span class="dispatch-board__now-tag">${new Date(now).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span></div>
+        </div>`}
         <div class="dispatch-board__header">
           <div class="dispatch-board__label">Technician</div>
           <div class="dispatch-board__hours">
@@ -231,16 +277,17 @@ export const board: Screen = (ctx) => {
             <span class="dispatch-board__avatar" data-tone=${row.jobs.length ? boardTone(row.jobs[0]!, now) : "idle"} aria-hidden="true">${row.initials}</span>
             <div class="dispatch-board__meta">
               <strong>${row.name}</strong>
+              ${row.members ? html`<small>${row.members}</small>` : null}
               <small>${row.service}</small>
             </div>
           </div>
-          <div class="dispatch-board__calendar" role="group" aria-label=${row.jobs.length ? `${row.name}: ${row.jobs.map(describe).join("; ")}` : `${row.name}: no jobs today`}>
+          <div class="dispatch-board__calendar" role="group" aria-label=${row.jobs.length ? `${row.name}: ${row.jobs.map(describe).join("; ")}` : `${row.name}: ${row.service}`}>
             ${row.jobs.map((job) => {
               const at = m.place(job);
               return at.width > 0 ? html`<a class="dispatch-board__segment" key=${job.id} href=${`/jobs/${job.id}`} data-tone=${boardTone(job, now)} style=${`left:${at.left}%; width:${at.width}%;`} title=${describe(job)}>${shortRef(job.id)}<span>${job.siteName ?? "Site name unavailable"}</span></a>` : null;
             })}
           </div>
-        </div>`) : html`<p class="dispatch-board__empty">No crew holds open work.</p>`}
+        </div>`) : html`<p class="dispatch-board__empty">No crews or technicians on the roster.</p>`}
       </div>
 
       <div class="dispatch-dashboard__legend">
