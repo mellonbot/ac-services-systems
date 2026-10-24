@@ -9,7 +9,8 @@ import type {
   RateCardWire, ListRateCardsInput, ListRateCardsOutput, SetRateCardInput, SetRateCardOutput,
   SubmitCredentialInput, SubmitCredentialOutput, EnrollCrewInput, EnrollCrewOutput, RetireCrewInput, RetireCrewOutput, CrewKind,
 } from "../../../../packages/contracts/src/operations.ts";
-import { CREW_KINDS, SERVICE_CATALOG, serviceOf } from "../../../../packages/contracts/src/operations.ts";
+import { CREW_KINDS, SERVICE_CATALOG, serviceOf, EMERGENCY_MULTIPLIER_DEFAULT, multiplierBp, multiplierOf } from "../../../../packages/contracts/src/operations.ts";
+import { ratedAmount } from "../../../../packages/domain/src/money/allocate.ts";
 
 /**
  * C4 — THE SUBCONTRACTOR NETWORK S2 RECORDS: the firm, the crew, the document
@@ -522,12 +523,14 @@ export const verifyCredential = async (uow: UnitOfWork, input: VerifyCredentialI
 // ---------------------------------------------------------------------------
 // Rate cards
 // ---------------------------------------------------------------------------
-type RateRow = { id: string; org_id: string; region_id: string; firm_id: string; service_code: string; rate_minor: string; currency: string; eff_from: string; eff_to: string | null };
-const RATE_COLUMNS = `id, org_id, region_id, firm_id, service_code, rate_minor::text AS rate_minor, currency,
+type RateRow = { id: string; org_id: string; region_id: string; firm_id: string; service_code: string; rate_minor: string; currency: string; eff_from: string; eff_to: string | null; emergency_multiplier_bp: number };
+const RATE_COLUMNS = `id, org_id, region_id, firm_id, service_code, rate_minor::text AS rate_minor, currency, emergency_multiplier_bp,
         to_char(lower(effective), 'YYYY-MM-DD') AS eff_from,
         CASE WHEN upper_inf(effective) THEN NULL ELSE to_char(upper(effective), 'YYYY-MM-DD') END AS eff_to`;
 const rateToWire = (r: RateRow): RateCardWire => ({
   id: r.id, firmId: r.firm_id, serviceCode: r.service_code, rateMinor: r.rate_minor, currency: r.currency, effectiveFrom: r.eff_from, effectiveTo: r.eff_to,
+  emergencyMultiplier: multiplierOf(r.emergency_multiplier_bp),
+  emergencyRateMinor: ratedAmount(1000n, BigInt(r.rate_minor), BigInt(r.emergency_multiplier_bp)).toString(),
 });
 
 export const listRateCards = async (uow: UnitOfWork, input: ListRateCardsInput): Promise<ListRateCardsOutput> => {
@@ -555,6 +558,10 @@ export const setRateCard = async (uow: UnitOfWork, input: SetRateCardInput, newI
   const currency = requireText(input.currency, "currency").toUpperCase();
   const effectiveFrom = requireDate(input.effectiveFrom, "effectiveFrom");
   const effectiveTo = input.effectiveTo === undefined || input.effectiveTo === null ? null : requireDate(input.effectiveTo, "effectiveTo");
+  // 0027: an emergency job is settled at the rate × this. A person types "1.5"; the row holds basis points.
+  const emergencyMultiplier = input.emergencyMultiplier ?? EMERGENCY_MULTIPLIER_DEFAULT;
+  const emergencyBp = typeof emergencyMultiplier === "string" ? multiplierBp(emergencyMultiplier) : null;
+  if (emergencyBp === null) throw new BadInput(`emergencyMultiplier must be a decimal of at least 1 with at most two places, as a string — "1.5", "2"`);
   if (effectiveTo !== null && effectiveTo <= effectiveFrom) {
     throw new InputRefused(`the rate is effective from ${effectiveFrom} to ${effectiveTo} — a window that ends on or before it starts covers no day at all`, "empty_window");
   }
@@ -590,15 +597,15 @@ export const setRateCard = async (uow: UnitOfWork, input: SetRateCardInput, newI
   const eventId = await uow.apply(
     {
       entity: "rate_card", entityId: id, action: "rate_card.set", topic: "rate_card.changed",
-      before: null, after: { id, firmId: firm.id, serviceCode, rateMinor: rateMinor.toString(), currency, effectiveFrom, effectiveTo },
+      before: null, after: { id, firmId: firm.id, serviceCode, rateMinor: rateMinor.toString(), currency, effectiveFrom, effectiveTo, emergencyMultiplier: multiplierOf(emergencyBp) },
       orgId: firm.org_id, regionId: firm.region_id,
-      payload: { firmId: firm.id, serviceCode, rateMinor: rateMinor.toString(), currency, effectiveFrom, effectiveTo, closedId },
+      payload: { firmId: firm.id, serviceCode, rateMinor: rateMinor.toString(), currency, effectiveFrom, effectiveTo, emergencyMultiplier: multiplierOf(emergencyBp), closedId },
     },
     async (tx) => {
       // Whether this overlaps a FUTURE row is rate_cards_no_overlap's to say.
       await tx.query(
-        "INSERT INTO rate_cards (id, org_id, region_id, firm_id, service_code, rate_minor, currency, effective) VALUES ($1, $2, $3, $4, $5, $6::bigint, $7, daterange($8::date, $9::date, '[)'))",
-        [id, firm.org_id, firm.region_id, firm.id, serviceCode, rateMinor.toString(), currency, effectiveFrom, effectiveTo],
+        "INSERT INTO rate_cards (id, org_id, region_id, firm_id, service_code, rate_minor, currency, effective, emergency_multiplier_bp) VALUES ($1, $2, $3, $4, $5, $6::bigint, $7, daterange($8::date, $9::date, '[)'), $10)",
+        [id, firm.org_id, firm.region_id, firm.id, serviceCode, rateMinor.toString(), currency, effectiveFrom, effectiveTo, emergencyBp],
       );
     },
   );

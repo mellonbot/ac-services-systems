@@ -34,6 +34,13 @@ export const S1_CSS = `
 .s1-surface-access{margin-top:var(--space-6);scroll-margin-top:var(--space-4)}
 .s1-portal:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
 .s1-call{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);color:var(--color-action-text);text-decoration:none;font-weight:600}
+.s1-missing{max-width:var(--measure-text)}
+.s1-missing__path{margin:0 0 var(--space-4)}
+.s1-missing__path code{font-family:var(--font-instrument);font-size:var(--text-sm);padding:var(--space-1) var(--space-2);background:var(--color-surface-sunken);border-radius:var(--radius-control);color:var(--color-text);word-break:break-all}
+.s1-missing__portals{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--tile-min),1fr));gap:var(--space-2);margin:0 0 var(--space-6);padding:0;list-style:none}
+.s1-missing__portals .s1-portal{align-items:flex-start;text-align:left;white-space:normal}
+.s1-missing__portals .s1-portal span{font-family:var(--font-instrument)}
+.s1-missing__ways{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-4)}
 .s1-foot{margin-top:var(--space-6);padding-top:var(--space-3);border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size:var(--text-sm)}
 
 /* ---- The sign-in yard: the outdoor service yard in 3D (src/scene.ts), after the ERS recovery
@@ -58,6 +65,12 @@ export const S1_CSS = `
 .s1-portal span{color:var(--color-text-muted);font-size:var(--text-xs)}
 .s1-portal:hover{border-color:var(--color-border-hard);box-shadow:var(--elevation-raised)}
 .s1-portal:hover strong{text-decoration:underline}
+/* A stage wide enough to carry them takes the plates a step up; below it the side plates would leave the stage. */
+@container (min-width:56rem){
+  .s1-portal{padding:var(--space-2) var(--space-4)}
+  .s1-portal strong{font-size:var(--text-md)}
+  .s1-portal span{font-size:var(--text-sm)}
+}
 @container (max-width:45rem){
   .s1-scene__stage{aspect-ratio:4/3}
   .s1-scene__plates{position:static;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);padding:var(--space-3);pointer-events:auto}

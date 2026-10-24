@@ -10,7 +10,7 @@
  * (term resolution, override admission, the compliance gate, context
  * resolution) the real module is imported and run.
  */
-import { OPERATIONS, OFFICE_JOB_TRANSITIONS, serviceOf, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, routeKey, mayReadTechnicianAddress, type OperationId } from "../../packages/contracts/src/operations.ts";
+import { OPERATIONS, OFFICE_JOB_TRANSITIONS, serviceOf, EMERGENCY_MULTIPLIER_DEFAULT, multiplierBp, multiplierOf, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, routeKey, mayReadTechnicianAddress, type OperationId } from "../../packages/contracts/src/operations.ts";
 import type * as W from "../../packages/contracts/src/operations.ts";
 import { SURFACES, type SurfaceId } from "../../packages/contracts/src/surfaces.ts";
 import type { Principal } from "../../packages/contracts/src/scope.ts";
@@ -21,6 +21,7 @@ import { TERMS, TERM_KEYS } from "../../packages/contracts/src/terms.ts";
 import { resolveAll, type Override, type ScopePath } from "../../packages/domain/src/inheritance/resolve.ts";
 import { admitOverride, AdmissionRefused } from "../../packages/domain/src/inheritance/admit.ts";
 import { evaluate, REQUIRED, isRefusal } from "../../packages/domain/src/compliance/gate.ts";
+import { ratedAmount } from "../../packages/domain/src/money/allocate.ts";
 import { threeWayMatch } from "../../packages/domain/src/procurement/match.ts";
 import { buildContext, type HierarchyReader } from "../../apps/gateway/src/context.ts";
 import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
@@ -209,11 +210,11 @@ const credentials: Credential[] = [
 ];
 
 const rateCards: Mutable<W.RateCardWire>[] = [
-  { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-VISIT", rateMinor: "18500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: "2026-08-01" },
-  { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-VISIT", rateMinor: "19500", currency: "USD", effectiveFrom: "2026-08-01", effectiveTo: null },
-  { id: uid("r"), firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "12500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: null },
-  { id: uid("r"), firmId: FIRM_B, serviceCode: "PM-VISIT", rateMinor: "17200", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null },
-  { id: uid("r"), firmId: FIRM_B, serviceCode: "HVAC-REPAIR", rateMinor: "11800", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null },
+  { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-VISIT", rateMinor: "18500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: "2026-08-01", emergencyMultiplier: "1.5", emergencyRateMinor: "27750" },
+  { id: uid("r"), firmId: FIRM_A, serviceCode: "PM-VISIT", rateMinor: "19500", currency: "USD", effectiveFrom: "2026-08-01", effectiveTo: null, emergencyMultiplier: "1.5", emergencyRateMinor: "29250" },
+  { id: uid("r"), firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "12500", currency: "USD", effectiveFrom: "2026-03-01", effectiveTo: null, emergencyMultiplier: "1.5", emergencyRateMinor: "18750" },
+  { id: uid("r"), firmId: FIRM_B, serviceCode: "PM-VISIT", rateMinor: "17200", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null, emergencyMultiplier: "1.5", emergencyRateMinor: "25800" },
+  { id: uid("r"), firmId: FIRM_B, serviceCode: "HVAC-REPAIR", rateMinor: "11800", currency: "USD", effectiveFrom: "2026-05-20", effectiveTo: null, emergencyMultiplier: "1.5", emergencyRateMinor: "17700" },
 ];
 
 const job = (id: string, siteId: string, serviceCode: string, priority: W.JobPriority, state: W.JobStateWire, startMs: number, hours: number, sla: { dueMs: number; stage: number; satisfiedMs?: number } | null, equipmentIds: string[] = []): Job => {
@@ -975,7 +976,10 @@ const H: Partial<Record<OperationId, Handler>> = {
     if (later || (open && open.effectiveFrom === i.effectiveFrom)) throw new Refused(422, "OverlapRefused", `conflicting key value violates exclusion constraint "rate_cards_no_overlap" — ${i.serviceCode} already has a rate from ${(later ?? open)!.effectiveFrom}`, "rate_cards_no_overlap");
     if (open) open.effectiveTo = i.effectiveFrom;
     const id = uid("r");
-    rateCards.push({ id, firmId: i.firmId, serviceCode: i.serviceCode, rateMinor: i.rateMinor, currency: i.currency, effectiveFrom: i.effectiveFrom, effectiveTo: i.effectiveTo ?? null });
+    const bp = multiplierBp(i.emergencyMultiplier ?? EMERGENCY_MULTIPLIER_DEFAULT);
+    need(bp !== null, "emergencyMultiplier is a decimal of at least 1 with at most two places", "bad_multiplier");
+    rateCards.push({ id, firmId: i.firmId, serviceCode: i.serviceCode, rateMinor: i.rateMinor, currency: i.currency, effectiveFrom: i.effectiveFrom, effectiveTo: i.effectiveTo ?? null,
+      emergencyMultiplier: multiplierOf(bp!), emergencyRateMinor: ratedAmount(1000n, BigInt(i.rateMinor), BigInt(bp!)).toString() });
     return { id, closedId: open?.id ?? null, eventId: publish(surface, "rate_card.changed", "rate_card", id, i.firmId, firm!.regionId) };
   },
 

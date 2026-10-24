@@ -202,6 +202,7 @@ CREATE TABLE IF NOT EXISTS rate_cards (
   region_id uuid NOT NULL REFERENCES regions(id),
   firm_id uuid NOT NULL REFERENCES subcontractor_firms(id),
   service_code text NOT NULL REFERENCES service_codes(code),
+  emergency_multiplier_bp integer NOT NULL DEFAULT 15000 CHECK (emergency_multiplier_bp >= 10000),
   rate_minor bigint NOT NULL,
   currency text NOT NULL REFERENCES currencies(code),
   effective daterange NOT NULL,

@@ -5,7 +5,7 @@ import { createApp, SCREEN_VIEWS, gatewayOrigin } from "./app.ts";
 import { SCREENS } from "./screens.ts";
 import { slaStatus, isReleasable, isDispatchable, boardModel, boardTone } from "./screens/board.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import type { Principal, JobWire, HierarchyContext, CandidateCrewWire, ServiceRequestWire } from "../../../packages/contracts/src/index.ts";
+import type { Principal, JobWire, HierarchyContext, CandidateCrewWire, ServiceRequestWire, CrewWire, TechnicianWire } from "../../../packages/contracts/src/index.ts";
 import { intakeRows, age, defaultWindow } from "./screens/intake.ts";
 import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
 
@@ -48,6 +48,17 @@ const CANDIDATES: CandidateCrewWire[] = [
   { crewId: CREW_B, label: "Crew B1", employmentType: "subcontracted", cleared: false, refusal: { reason: "expired_in_window", credentialKind: "insurance", detail: "insurance covers through 2026-06-01, before the service window ends" } },
 ];
 
+const NO_DOCS = { required: [], satisfied: [], unverified: [], expired: [], missing: [], earliestExpiry: null };
+const CREWS: CrewWire[] = [
+  { id: CREW_A, label: "Crew A1", employmentType: "employed", kind: "install", firmId: null, homeRegionId: SOUTH, active: true, documents: NO_DOCS },
+  { id: CREW_B, label: "Unit B1", employmentType: "subcontracted", kind: "service", firmId: ORG, homeRegionId: SOUTH, active: true, documents: NO_DOCS },
+];
+const tech = (n: number, name: string, crewId: string | null, active = true): TechnicianWire => ({
+  id: U(100 + n), firmId: null, crewId, name, phone: null, homeAddress: null, addressRestricted: true,
+  role: crewId === CREW_A ? "installer" : "technician", specialties: [], homeRegionId: SOUTH, active,
+});
+const TECHNICIANS: TechnicianWire[] = [tech(1, "Ana Ruiz", CREW_A), tech(2, "Ben Cole", CREW_B), tech(3, "Cy Park", null), tech(4, "Dee Gone", null, false)];
+
 type Reply = { status: number; body: unknown };
 const fakeGateway = (overrides: Partial<Record<string, Reply | ((init: Parameters<FetchLike>[1]) => Reply)>> = {}) => {
   let session = false;
@@ -62,6 +73,8 @@ const fakeGateway = (overrides: Partial<Record<string, Reply | ((init: Parameter
     if (o) return typeof o === "function" ? reply(o(init).status, o(init).body) : reply(o.status, o.body);
     if (path === OPERATIONS["session.me"].path) return reply(200, context);
     if (path === OPERATIONS["jobs.list"].path) return reply(200, { jobs: [jobCreated, jobAssigned] });
+    if (path === OPERATIONS["crews.list"].path) return reply(200, { crews: CREWS });
+    if (path === OPERATIONS["technicians.list"].path) return reply(200, { technicians: TECHNICIANS });
     if (path === OPERATIONS["dispatch.candidates"].path) return reply(200, { jobId: JOB_CREATED, candidates: CANDIDATES });
     if (path === OPERATIONS["events.stream"].path) return { status: 200, ok: true, json: async () => ({}), text: async () => "", body: null };
     return reply(404, { error: "NoRoute", message: `no route ${path}` });
@@ -158,6 +171,47 @@ test("the board is read off jobs.list: a row per crew holding work, bars in each
   const tomorrow = boardModel([jobCreated, jobAssigned], now, 1);
   assert.equal(tomorrow.rows[0]!.service, "No jobs today", "a crew with no window on the day is the idle row");
   assert.equal(Object.fromEntries(tomorrow.stats.map((t) => [t.label, t.n]))["Tech available"], 1);
+});
+
+test("the board draws every rostered crew and active technician, whether or not they hold work", () => {
+  const now = Date.parse("2026-09-18T12:00:00.000Z");
+  const m = boardModel([jobCreated, jobAssigned], now, 0, { crews: CREWS, technicians: TECHNICIANS });
+  assert.deepEqual(m.rows.map((r) => r.name), ["Ben Cole", "Cy Park", "Crew A1"], "service technicians first — a unit under its technician's name, the uncrewed technician on their own — then the install crew under its label; the inactive one is gone");
+  assert.deepEqual(m.rows.map((r) => r.kind), ["service", "service", "install"]);
+  const byName = Object.fromEntries(m.rows.map((r) => [r.name, r]));
+  assert.equal(byName["Crew A1"]!.members, "Ana Ruiz");
+  assert.equal(byName["Ben Cole"]!.service, "No jobs today");
+  assert.equal(byName["Cy Park"]!.dispatchable, false);
+  assert.equal(Object.fromEntries(m.stats.map((t) => [t.label, t.n]))["Tech available"], 1, "only a dispatchable idle row counts as available");
+});
+
+test("the now-line sits at the current time on today's grid, and nowhere on another day or off the grid", () => {
+  const d = new Date(2026, 8, 18, 12, 0, 0, 0).getTime(); // local noon: 5 of the 10 grid hours gone
+  assert.equal(boardModel([], d, 0).nowAt, 50);
+  assert.equal(boardModel([], d, 1).nowAt, null);
+  assert.equal(boardModel([], d, -1).nowAt, null);
+  assert.equal(boardModel([], new Date(2026, 8, 18, 20, 0).getTime(), 0).nowAt, null, "after 5 PM the line is off the grid");
+});
+
+test("the board steps three days either way from today and no further, and draws the now-line on today only", async () => {
+  const { app } = await ready();
+  app.router.navigate("board", {});
+  render(app.view()); await settle(); await settle();
+  const find = (id: string) => nodesIn(app.view()).find((n) => n.props?.id === id)!;
+  const click = (id: string) => (find(id).props!.onClick as () => void)();
+  assert.equal(find("board-next").props!.disabled, false);
+  for (let i = 0; i < 5; i++) click("board-next");
+  assert.equal(find("board-next").props!.disabled, true, "three days ahead is the limit");
+  assert.equal(find("board-prev").props!.disabled, false);
+  for (let i = 0; i < 8; i++) click("board-prev");
+  assert.equal(find("board-prev").props!.disabled, true, "three days back is the limit");
+  click("board-today");
+  assert.equal(find("board-prev").props!.disabled, false);
+  assert.equal(find("board-next").props!.disabled, false);
+  const page = render(app.view());
+  assert.match(page, /Cy Park/, "an idle technician has a row");
+  assert.ok(page.indexOf('data-kind="service"') < page.indexOf('data-kind="install"'), "service technicians are banded above install crews");
+  assert.equal((page.match(/class="dispatch-board__group"/g) ?? []).length, 2, "one band per half");
 });
 
 test("board filters persist across renders and show only the selected assignment state", async () => {

@@ -87,6 +87,19 @@ test("the S1 home is the main entry and links every enabled portal to its own si
   assert.equal(page.includes(`${SURFACE_PATHS.S7}/`), false, "the disabled vendor portal is not advertised");
 });
 
+test("an address no screen answers names the address and routes on to every enabled portal, a call and the front page", () => {
+  const w = { location: { pathname: "/vendor/old-link" }, history: { pushState: () => {} }, addEventListener: () => {}, removeEventListener: () => {} };
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: fakeGateway().fetch, window: w as unknown as Window, session: "bearer" });
+  assert.equal(app.router.current.value, null);
+  const page = render(app.view());
+  assert.match(page, /Nothing at this address/);
+  assert.match(page, /<code>\/vendor\/old-link<\/code>/);
+  const enabledPortals = SURFACE_IDS.filter((id) => id !== "S1" && SURFACES[id].enabled);
+  for (const id of enabledPortals) assert.match(page, new RegExp(`href="${SURFACE_PATHS[id]}/"`), `${id} is offered`);
+  assert.match(page, /href="\/enquire"[^>]*>Ask us to call</);
+  assert.match(page, /href="\/"[^>]*>Back to the front page</);
+});
+
 test("THE PAGE RENDERS WITH NO GATEWAY AT ALL, and the form still takes a lead", async () => {
   const g = fakeGateway({ down: true });
   const store = memoryStore();

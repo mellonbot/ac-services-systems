@@ -346,7 +346,7 @@ test("AT THE TABLE — the statement is ours: a firm's binding cannot change the
   await assert.rejects(asBinding(b, `UPDATE settlements SET state = 'paid' WHERE id = $1`, [STMT_A]), /a firm may acknowledge an issued statement or dispute/);
   await assert.rejects(asBinding(b, `UPDATE settlements SET state = 'issued', disputed_at = NULL, dispute_reason = NULL WHERE id = $1`, [STMT_A]), /a firm may acknowledge an issued statement or dispute/, "a dispute is not withdrawn by the firm; the office answers it");
   await assert.rejects(asBinding(b, `INSERT INTO settlements (org_id, region_id, firm_id, period, total_minor, currency, state) VALUES ($1, $2, $1, daterange('2026-10-01','2026-11-01','[)'), 1, 'USD', 'issued')`, [A, REGION_SOUTH]), /row-level security/);
-  await assert.rejects(asBinding(b, `INSERT INTO settlement_lines (org_id, region_id, settlement_id, job_id, rate_card_id, quantity_milli, amount_minor) VALUES ($1, $2, $3, $4, $5, 1, 1)`, [A, REGION_SOUTH, STMT_A, jobA, rateA]), /row-level security/);
+  await assert.rejects(asBinding(b, `INSERT INTO settlement_lines (org_id, region_id, settlement_id, job_id, rate_card_id, quantity_milli, amount_minor) VALUES ($1, $2, $3, $4, $5, 1, 10)`, [A, REGION_SOUTH, STMT_A, jobA, rateA]), /row-level security/); // priced right (0.001 h × 95.00), so what refuses it is whose row it is
   // The other firm's statement is not there to update: zero rows, no error, nothing changed.
   await asBinding(b, `UPDATE settlements SET state = 'acknowledged', acknowledged_at = now() WHERE id = $1`, [STMT_B]);
   assert.equal((await admin(`SELECT state FROM settlements WHERE id = $1`, [STMT_B]))[0]!.state, "issued");
@@ -357,6 +357,18 @@ test("AT THE TABLE — the statement is ours: a firm's binding cannot change the
   await assert.rejects(asBinding(bB, `UPDATE settlements SET state = 'disputed' WHERE id = $1`, [STMT_B]), /a dispute says why/);
   await asBinding(bB, `UPDATE settlements SET state = 'disputed', disputed_at = now(), dispute_reason = 'rate' WHERE id = $1`, [STMT_B]);
   assert.equal((await admin(`SELECT state FROM settlements WHERE id = $1`, [STMT_B]))[0]!.state, "disputed");
+});
+
+test("0027 — an emergency is settled at the rate × its card's multiplier: the plain rate is refused on an emergency job, and accepted on any other", { skip }, async () => {
+  const emergency = (await s2.gateway.createJob({ siteId: austinDock, serviceCode: "HVAC-REPAIR", priority: "emergency", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;
+  const card = (await s2.gateway.listRateCards({ firmId: A })).rateCards.find((r) => r.id === rateA)!;
+  assert.deepEqual([card.emergencyMultiplier, card.emergencyRateMinor], ["1.5", "14250"], "no multiplier named is time and a half");
+  const line = (job: string, amount: number) => admin(`INSERT INTO settlement_lines (org_id, region_id, settlement_id, job_id, rate_card_id, quantity_milli, amount_minor)
+    VALUES ($1, $2, $3, $4, $5, 4500, $6)`, [A, REGION_SOUTH, STMT_A_DRAFT, job, rateA, amount]);
+  // 4.5 h × 95.00 = 427.50; on an emergency × 1.5 = 641.25.
+  await assert.rejects(line(emergency, 42750), /is not quantity x rate x the emergency multiplier \(15000 bp\)/);
+  await line(emergency, 64125);
+  await assert.rejects(line(jobB, 64125), /is not quantity x rate: 4\.5 x 9500 = 42750/);
 });
 
 test("WHAT A FIRM CANNOT DO, and who cannot read the firm's: authoring, dispatch and the customer's reads refused by scope; the dispatcher reads no firm, the customer no statement", { skip }, async () => {

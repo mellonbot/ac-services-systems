@@ -1,6 +1,6 @@
 import { html, localDay, pageHead, panel, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { RateCardWire, FirmWire, Refusal } from "../../../../packages/contracts/src/index.ts";
-import { JOB_WORK_CLASSES, JOB_WORK_CLASS_LABEL, SERVICE_CATALOG, serviceLabel } from "../../../../packages/contracts/src/index.ts";
+import { EMERGENCY_MULTIPLIER_DEFAULT, JOB_WORK_CLASSES, JOB_WORK_CLASS_LABEL, SERVICE_CATALOG, serviceLabel } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen } from "./common.ts";
 
@@ -55,6 +55,7 @@ export const networkRates: Screen = (ctx, params) => {
         currency: v.currency ?? "USD",
         effectiveFrom: v.effectiveFrom ?? "",
         ...(v.effectiveTo ? { effectiveTo: v.effectiveTo } : {}),
+        emergencyMultiplier: v.emergencyMultiplier || EMERGENCY_MULTIPLIER_DEFAULT,
       });
       store.invalidate(keyOf("rateCards.list", { firmId }));
       store.notice.value = [out.closedId ? "Rate set. The row that was in effect was closed at the new first day." : "Rate set."];
@@ -80,6 +81,10 @@ export const networkRates: Screen = (ctx, params) => {
       columns: [
         { key: "serviceCode", header: "Service", cell: (r: RateCardWire) => serviceLabel(r.serviceCode) },
         { key: "rateMinor", header: "Rate", align: "end", numeric: true, cell: (r: RateCardWire) => html`<span>${r.rateMinor} <small class="s2-muted">${readable(r.rateMinor, r.currency)}</small></span>` },
+        {
+          key: "emergencyRateMinor", header: "Emergency", align: "end", numeric: true,
+          cell: (r: RateCardWire) => html`<span>${r.emergencyRateMinor} <small class="s2-muted">${r.emergencyMultiplier}× · ${readable(r.emergencyRateMinor, r.currency)}</small></span>`,
+        },
         { key: "effectiveFrom", header: "In effect", cell: (r: RateCardWire) => `${r.effectiveFrom} → ${r.effectiveTo ?? "open"}` },
         { key: "now", header: "", cell: (r: RateCardWire) => inEffect(r, today) ? html`<span class="s2-state" data-tone="live">today</span>` : null },
       ],
@@ -109,6 +114,11 @@ export const networkRates: Screen = (ctx, params) => {
         <small>Integer minor units — 9500 is ninety-five dollars. Never a decimal: the money path carries no floats.</small>
       </label>
       <label class="ac-field"><span>Currency</span><input class="ac-input" name="currency" defaultValue="USD" required /></label>
+      <label class="ac-field">
+        <span>Emergency multiplier</span>
+        <input class="ac-input" name="emergencyMultiplier" defaultValue=${EMERGENCY_MULTIPLIER_DEFAULT} required inputmode="decimal" pattern="[0-9]{1,2}([.][0-9]{1,2})?" />
+        <small>An emergency job is settled at the rate times this. 1.5 is time and a half; at least 1, two places at most.</small>
+      </label>
       <label class="ac-field"><span>Effective from</span><input class="ac-input" type="date" name="effectiveFrom" required /><small>The row in effect that day is closed at it. Both are audited.</small></label>
       <label class="ac-field"><span>Effective to</span><input class="ac-input" type="date" name="effectiveTo" /><small>Leave empty for open-ended. A window that would sit on top of a later row is refused — two prices on one day is a settlement nobody can check.</small></label>
       <div class="s2-form__actions">

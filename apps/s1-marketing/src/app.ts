@@ -8,6 +8,7 @@ import { createLeadBuffer, type LeadBuffer, type BufferStore } from "./buffer.ts
 import type { Screen, ScreenContext } from "./screens/common.ts";
 import { home, coverageScreen } from "./screens/home.ts";
 import { enquire } from "./screens/enquire.ts";
+import { missing } from "./screens/missing.ts";
 import { S1_CSS } from "./styles.ts";
 
 /**
@@ -142,16 +143,13 @@ export const createApp = (opts: {
     void flush();
   };
 
-  const nav = (screen: ScreenId, label: string): VNode =>
-    html`<a class="ac-link" href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
-
   const view = (): VNode => {
     const ctx: ScreenContext = { shell, store, buffer, router, density: DENSITY, degraded: degraded.value, submit };
     void store.version.value;
     const loc = router.current.value;
     const screen = loc ? SCREEN_VIEWS[loc.screen] : null;
     return html`<div class="s1-app">
-      ${screen ? screen(ctx, loc!.params) : html`<p class="s1-empty">Nothing at this address. ${nav("home", "Start here")}</p>`}
+      ${screen ? screen(ctx, loc!.params) : missing(ctx, opts.window?.location.pathname ?? "/")}
     </div>`;
   };
 
