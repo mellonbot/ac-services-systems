@@ -1,5 +1,5 @@
 import { html, signal, shortRef, StatusPill, pageHead, statStrip, panel, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
-import { serviceLabel, WORK_DONE_STATES, JOB_WORK_CLASS_LABEL, type JobWire, type CrewWire, type TechnicianWire } from "../../../../packages/contracts/src/index.ts";
+import { serviceLabel, WORK_DONE_STATES, JOB_WORK_CLASS_LABEL, crewKindFor, crewKindForRole, type JobWire, type CrewWire, type CrewKind, type TechnicianWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, submitAction, linkTo, type Screen } from "./common.ts";
 
@@ -154,6 +154,8 @@ export const boardTone = (job: JobWire, now: number): "warn" | "waiting" | "comp
 
 type BoardRow = {
   readonly key: string; readonly initials: string; readonly name: string; readonly service: string;
+  /** Which half of the board the row sits in: service technicians above, install crews below. */
+  readonly kind: CrewKind;
   /** An install crew's members; empty for a technician's own unit. */
   readonly members: string;
   /** False for a technician on no crew: on the roster, but nothing can be dispatched to them. */
@@ -169,7 +171,7 @@ export type BoardRoster = { readonly crews: readonly CrewWire[]; readonly techni
  * roster no longer lists — so every person shows whether or not they hold a
  * job, and no job loses its row. Each row's bars are the jobs whose service
  * window touches the chosen day; the figures and legend counts come from the
- * same rows.
+ * same rows. Service technicians come first, install crews after them.
  */
 export const boardModel = (jobs: readonly JobWire[], now: number, offset: number, roster: BoardRoster = { crews: [], technicians: [] }) => {
   const dayStart = startOfDay(now, offset);
@@ -180,16 +182,16 @@ export const boardModel = (jobs: readonly JobWire[], now: number, offset: number
   const today = jobs.filter((j) => j.state !== "cancelled" && j.state !== "aborted" && onDay(j));
 
   const techs = roster.technicians.filter((t) => t.active);
-  const crews = new Map<string, { name: string; members: string; rostered: boolean; held: JobWire[]; today: JobWire[] }>();
+  const crews = new Map<string, { name: string; kind: CrewKind; members: string; rostered: boolean; held: JobWire[]; today: JobWire[] }>();
   for (const c of roster.crews) {
     if (!c.active) continue;
     const on = techs.filter((t) => t.crewId === c.id);
     const name = c.kind === "service" && on.length === 1 ? on[0]!.name : c.label;
-    crews.set(c.id, { name, members: c.kind === "install" ? on.map((t) => t.name).join(", ") : "", rostered: true, held: [], today: [] });
+    crews.set(c.id, { name, kind: c.kind, members: c.kind === "install" ? on.map((t) => t.name).join(", ") : "", rostered: true, held: [], today: [] });
   }
   for (const j of jobs) {
     if (!j.currentCrewId) continue;
-    const crew = crews.get(j.currentCrewId) ?? { name: j.currentCrewLabel ?? "Crew", members: "", rostered: false, held: [], today: [] };
+    const crew = crews.get(j.currentCrewId) ?? { name: j.currentCrewLabel ?? "Crew", kind: crewKindFor(j.workClass), members: "", rostered: false, held: [], today: [] };
     if (!CLOSED.includes(j.state)) crew.held.push(j);
     if (today.includes(j)) crew.today.push(j);
     crews.set(j.currentCrewId, crew);
@@ -199,12 +201,12 @@ export const boardModel = (jobs: readonly JobWire[], now: number, offset: number
       .filter(([, c]) => c.rostered || c.held.length || c.today.length)
       .map(([key, c]) => {
         const sorted = [...c.today].sort((a, b) => Date.parse(a.serviceWindowStart) - Date.parse(b.serviceWindowStart));
-        return { key, initials: initialsOf(c.name), name: c.name, service: sorted.length ? describe(sorted[0]!) : "No jobs today", members: c.members, dispatchable: true, jobs: sorted };
+        return { key, initials: initialsOf(c.name), name: c.name, kind: c.kind, service: sorted.length ? describe(sorted[0]!) : "No jobs today", members: c.members, dispatchable: true, jobs: sorted };
       }),
     ...techs
       .filter((t) => !t.crewId || !crews.has(t.crewId))
-      .map((t) => ({ key: `tech-${t.id}`, initials: initialsOf(t.name), name: t.name, service: "On no crew — not dispatchable", members: "", dispatchable: false, jobs: [] })),
-  ].sort((a, b) => a.name.localeCompare(b.name));
+      .map((t) => ({ key: `tech-${t.id}`, initials: initialsOf(t.name), name: t.name, kind: crewKindForRole(t.role), service: "On no crew — not dispatchable", members: "", dispatchable: false, jobs: [] })),
+  ].sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === "service" ? -1 : 1));
 
   const place = (j: JobWire) => {
     const left = Math.max(0, Math.min(1, (Date.parse(j.serviceWindowStart) - from) / (to - from)));
@@ -272,7 +274,9 @@ export const board: Screen = (ctx) => {
           </div>
         </div>
 
-        ${m.rows.length ? m.rows.map((row) => html`<div class="dispatch-board__row" key=${row.key}>
+        ${m.rows.length ? m.rows.map((row, i) => html`${i === 0 || m.rows[i - 1]!.kind !== row.kind ? html`<div class="dispatch-board__group" key=${`group-${row.kind}`} data-kind=${row.kind}>
+          ${row.kind === "service" ? "Service technicians" : "Install crews"} <span class="s3-num">${m.rows.filter((r) => r.kind === row.kind).length}</span>
+        </div>` : null}<div class="dispatch-board__row" key=${row.key}>
           <div class="dispatch-board__tech">
             <span class="dispatch-board__avatar" data-tone=${row.jobs.length ? boardTone(row.jobs[0]!, now) : "idle"} aria-hidden="true">${row.initials}</span>
             <div class="dispatch-board__meta">

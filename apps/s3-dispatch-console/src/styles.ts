@@ -70,6 +70,8 @@ export const S3_CSS = `
 .dispatch-board__label{padding-inline:var(--space-3);font-family:var(--font-label);font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
 .dispatch-board__hours{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:0;font-family:var(--font-instrument);font-variant-numeric:tabular-nums;font-size:var(--text-xs);color:var(--color-text-muted);text-transform:uppercase}
 .dispatch-board__hours span{padding:0 var(--space-1);text-align:left}
+.dispatch-board__group{padding:var(--space-1) var(--space-3);border-bottom:1px solid var(--color-border);background:var(--color-surface-sunken);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
+.dispatch-board__group[data-kind="install"]{border-top:3px solid var(--color-text)}
 .dispatch-board__row{display:grid;grid-template-columns:var(--column-rail) 1fr;border-bottom:1px solid var(--color-border);min-height:64px;background:color-mix(in srgb,var(--color-surface-sunken) 20%,var(--color-surface))}
 .dispatch-board__tech{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3);border-right:1px solid var(--color-border);background:color-mix(in srgb,var(--color-surface-sunken) 35%,var(--color-surface))}
 .dispatch-board__avatar{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:var(--radius-control);background:var(--color-surface-sunken);color:var(--color-text);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700}
