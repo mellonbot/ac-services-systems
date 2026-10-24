@@ -30,7 +30,7 @@
  * Needs `pnpm install` (esbuild is a native binary). That is the whole
  * dependency of the build path; the guard and the unit suite need nothing.
  */
-import { mkdirSync, writeFileSync, readFileSync, statSync, existsSync, cpSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, statSync, existsSync, cpSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
@@ -51,6 +51,17 @@ export type BuildReport = {
   readonly entry: string;
 };
 
+/** The first node: import in bundle.js or any chunk — a dynamic import() lands in chunks/, not in bundle.js. */
+export const leakedNodeImport = (outDir: string): string | null => {
+  const chunksDir = join(outDir, "chunks");
+  const chunks = existsSync(chunksDir) ? readdirSync(chunksDir).filter((f) => f.endsWith(".js")).map((f) => `chunks/${f}`) : [];
+  for (const file of ["bundle.js", ...chunks]) {
+    const leak = /from\s*["']node:|require\(\s*["']node:|import\(\s*["']node:/.exec(readFileSync(join(outDir, file), "utf8"));
+    if (leak) return `${file} imports a node: module (${leak[0]})`;
+  }
+  return null;
+};
+
 export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean; gateway?: string; basePath?: string } = {}): Promise<BuildReport> => {
   const s = SURFACES[id];
   const appDir = join(ROOT, "apps", s.app);
@@ -58,6 +69,8 @@ export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean; gate
   const entry = existsSync(join(appDir, "src/app.ts")) ? join(appDir, "src/app.ts") : join(appDir, "src/main.ts");
   const frame = join(appDir, "frame.html");
   if (!existsSync(frame)) throw new Error(`${id}: no frame.html — run \`node tools/ci/emit-surfaces.ts\``);
+  // From empty: a map or a chunk left by an earlier build would otherwise ride along into dist/pages.
+  rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
 
   const result = await build({
@@ -72,7 +85,8 @@ export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean; gate
     format: "esm",
     platform: "browser",
     target: "es2022",
-    sourcemap: true,
+    // Maps for development only: a production map published beside the bundle is the full source.
+    sourcemap: !opts.minify,
     minify: opts.minify ?? false,
     legalComments: "none",
     logLevel: "silent",
@@ -83,9 +97,9 @@ export const buildSurface = async (id: SurfaceId, opts: { minify?: boolean; gate
 
   // The bundle must be browser-only. A node: import that esbuild left in place
   // (platform: browser does not polyfill) would throw at module evaluation.
+  const leak = leakedNodeImport(outDir);
+  if (leak) throw new Error(`${id}: ${leak} — something below the shell reached for the platform`);
   const bundle = readFileSync(join(outDir, "bundle.js"), "utf8");
-  const leak = /from\s*["']node:|require\(\s*["']node:/.exec(bundle);
-  if (leak) throw new Error(`${id}: bundle imports a node: module (${leak[0]}) — something below the shell reached for the platform`);
 
   writeFileSync(join(outDir, "ui.css"), fontFaceCss() + UI_CSS);
   cpSync(join(ROOT, "packages/tokens/fonts"), join(outDir, "fonts"), { recursive: true, filter: (src) => !src.endsWith("README.md") });
