@@ -29,6 +29,8 @@ export type UserRecord = {
   readonly scopeTier: Tier; readonly scopeId: string; readonly scopeName: string | null;
   readonly firmId: string | null; readonly firmName: string | null;
   readonly crewId: string | null; readonly crewLabel: string | null; readonly crewEmployment: "employed" | "subcontracted" | null;
+  /** A technician's crew (0024): its kind, its contractor firm, and whether it is their own service unit — no other active login on it. */
+  readonly crewKind: "service" | "install" | null; readonly crewFirmName: string | null; readonly ownUnit: boolean;
   readonly active: boolean;
 };
 

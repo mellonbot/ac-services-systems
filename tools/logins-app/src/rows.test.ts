@@ -29,10 +29,13 @@ test("internal region", () => {
   assert.equal(r.scope_id, R);
 });
 
-test("technician", () => {
-  const r = buildUserRow({ ...base, kind: "technician", crewId: CREW, crewHomeRegionId: CREW_HOME });
-  assert.deepEqual(shape(r), ["internal", INTERNAL_ORG_ID, CREW_HOME, "region", CREW_HOME, null, CREW]);
-  assert.deepEqual(r.roles, ["technician"]);
+test("technician: placed by their own service unit, whoever employs them", () => {
+  for (const employer of [{ type: "ours", regionId: R }, { type: "contractor", firmId: FIRM }] as const) {
+    const r = buildUserRow({ ...base, kind: "technician", employer }, { id: CREW, homeRegionId: CREW_HOME });
+    assert.deepEqual(shape(r), ["internal", INTERNAL_ORG_ID, CREW_HOME, "region", CREW_HOME, null, CREW]);
+    assert.deepEqual(r.roles, ["technician"]);
+  }
+  assert.throws(() => buildUserRow({ ...base, kind: "technician", employer: { type: "ours", regionId: R } }), /made with its service unit/);
 });
 
 test("customer whole company and site", () => {

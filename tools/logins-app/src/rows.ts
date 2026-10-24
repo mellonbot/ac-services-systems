@@ -8,9 +8,15 @@ import { LoginInputError } from "./errors.ts";
 
 type Base = { readonly email: string; readonly displayName: string; readonly password: string };
 
+/** Who a technician works for (0024): us, in one region, or a contractor firm. Their service unit is made under it. */
+export type Employer = { readonly type: "ours"; readonly regionId: string } | { readonly type: "contractor"; readonly firmId: string };
+
+/** A technician's own service unit, made in the same transaction as the login. */
+export type Unit = { readonly id: string; readonly homeRegionId: string };
+
 export type NewLogin =
   | Base & { readonly kind: "internal"; readonly roles: readonly Role[]; readonly scope: "org" | "region"; readonly regionId: string }
-  | Base & { readonly kind: "technician"; readonly crewId: string; readonly crewHomeRegionId: string }
+  | Base & { readonly kind: "technician"; readonly employer: Employer }
   | Base & {
       readonly kind: "customer"; readonly orgId: string; readonly tier: Tier; readonly nodeId: string; readonly regionId: string;
       /** Who in the household or account pays and who asks (R6). Absent → both: one person on an account is both. */
@@ -59,7 +65,7 @@ export const checkRoles = (namespace: UsersRow["namespace"], roles: readonly str
 export const internalScope = (scope: "org" | "region", regionId: string): Pick<UsersRow, "scope_tier" | "scope_id"> =>
   ({ scope_tier: scope === "org" ? "parent" : "region", scope_id: scope === "org" ? INTERNAL_ORG_ID : regionId });
 
-const placement = (n: NewLogin): Placement => {
+const placement = (n: NewLogin, unit?: Unit): Placement => {
   switch (n.kind) {
     case "internal":
       checkRoles("internal", n.roles);
@@ -68,9 +74,10 @@ const placement = (n: NewLogin): Placement => {
         ...internalScope(n.scope, n.regionId), firm_id: null, crew_id: null,
       };
     case "technician":
+      if (!unit) throw new LoginInputError("A technician login is made with its service unit.");
       return {
-        org_id: INTERNAL_ORG_ID, region_id: n.crewHomeRegionId, namespace: "internal", roles: ["technician"],
-        scope_tier: "region", scope_id: n.crewHomeRegionId, firm_id: null, crew_id: n.crewId,
+        org_id: INTERNAL_ORG_ID, region_id: unit.homeRegionId, namespace: "internal", roles: ["technician"],
+        scope_tier: "region", scope_id: unit.homeRegionId, firm_id: null, crew_id: unit.id,
       };
     case "customer":
       if (n.roles) checkRoles("customer", n.roles);
@@ -86,11 +93,11 @@ const placement = (n: NewLogin): Placement => {
   }
 };
 
-export const buildUserRow = (n: NewLogin): UsersRow => {
+export const buildUserRow = (n: NewLogin, unit?: Unit): UsersRow => {
   checkPassword(n.password);
   const email = n.email.trim().toLowerCase();
   if (!EMAIL.test(email)) throw new LoginInputError("Enter a valid email address.");
-  return { ...placement(n), email, display_name: n.displayName, password_hash: hashPassword(n.password) };
+  return { ...placement(n, unit), email, display_name: n.displayName, password_hash: hashPassword(n.password) };
 };
 
 export type Access = Pick<UserRecord, "roles" | "regionId" | "scopeTier" | "scopeId" | "orgId" | "crewId">;

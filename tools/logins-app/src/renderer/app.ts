@@ -7,8 +7,8 @@ import type { CustomerSegment } from "../../../../packages/contracts/src/operati
 import type { Api } from "../preload.ts";
 import type { DbName } from "../connections.ts";
 import type { NewLogin } from "../rows.ts";
-import type { AccountNode, Company, Crew, LoginEdit } from "../db.ts";
-import { DEFAULT_COMPANY_NAME, DEFAULT_PAYMENT_TERMS_DAYS, sameName } from "../companies.ts";
+import type { AccountNode, Company, LoginEdit } from "../db.ts";
+import { DEFAULT_PAYMENT_TERMS_DAYS } from "../companies.ts";
 import type { NewCompany } from "../companies.ts";
 
 // Injected by build.mjs from connections.ts, which the browser bundle cannot import (node:fs).
@@ -73,7 +73,7 @@ const renderSidebar = (): void => {
       h("span", { class: "count" }, String(count))));
   $("kinds").replaceChildren(
     ...KINDS.map((k) => item(k.id, k.name, active.filter((u) => inKind(u, k.id)).length)),
-    item("companies", "Companies", state.companies.filter((c) => c.active).length, "companies"));
+    item("companies", "Crews & units", state.companies.filter((c) => c.active).length, "companies"));
 };
 
 const SEGMENT_WORD: Readonly<Record<CustomerSegment, string>> = { residential: "Residential", commercial: "Commercial" };
@@ -90,12 +90,18 @@ const renderSegment = (): void => {
 };
 
 const roles = (u: UserRecord): string => u.roles.join(", ") || "—";
-const companyType = (t: Crew["employmentType"]): string => (t === "employed" ? "Ours" : "Contractor");
+const KIND_WORD: Record<Company["kind"], string> = { service: "Service unit", install: "Install crew" };
+/** Who employs the people on a crew: us, or the contractor firm by name. */
+const employer = (type: Company["employmentType"] | null, firmName: string | null): string =>
+  type === null ? "—" : type === "employed" ? "Ours" : firmName ?? "Contractor";
+/** 0024: a technician's unit is their own; one shared or an install crew predates that and can be moved off in Edit. */
+const unitWord = (u: UserRecord): string =>
+  u.crewLabel === null ? "—" : u.ownUnit ? "Own unit" : `${u.crewKind === "install" ? "Install crew" : "Shared"} — ${u.crewLabel}`;
 const COLUMNS: Record<KindId, readonly [string, (u: UserRecord) => string][]> = {
   S2: [["Roles", roles], ["Scope", (u) => (u.scopeTier === "parent" ? "org-wide" : u.regionCode)]],
   S3: [["Roles", roles], ["Scope", (u) => (u.scopeTier === "parent" ? "org-wide" : u.regionCode)]],
   S4: [["Roles", roles], ["Scope", (u) => (u.scopeTier === "parent" ? "org-wide" : u.regionCode)]],
-  S5: [["Company (HVAC license)", (u) => u.crewLabel ?? "—"], ["Type", (u) => (u.crewEmployment ? companyType(u.crewEmployment) : "—")]],
+  S5: [["Employer", (u) => employer(u.crewEmployment, u.crewFirmName)], ["Service unit", unitWord]],
   S6: [["Customer", (u) => u.orgName], ["Type", (u) => (u.orgSegment ? SEGMENT_WORD[u.orgSegment] : "—")], ["Sees", (u) => (u.scopeTier === "parent" ? (u.orgSegment === "residential" ? "Whole household" : "Whole company") : u.scopeName ?? "—")]],
   S8: [["Firm", (u) => u.firmName ?? "—"]],
   S7: [],
@@ -103,8 +109,8 @@ const COLUMNS: Record<KindId, readonly [string, (u: UserRecord) => string][]> = 
 };
 
 const COMPANY_COLUMNS: readonly [string, (c: Company) => string, string?][] = [
-  ["Type", (c) => companyType(c.employmentType)],
-  ["Firm", (c) => c.firmName ?? ""],
+  ["Kind", (c) => KIND_WORD[c.kind]],
+  ["Employer", (c) => employer(c.employmentType, c.firmName)],
   ["Region", (c) => c.regionCode],
   ["Technicians", (c) => String(c.technicians), "num"],
   ["Documents", (c) => c.documents],
@@ -112,14 +118,14 @@ const COMPANY_COLUMNS: readonly [string, (c: Company) => string, string?][] = [
 ];
 
 const renderCompanies = (): void => {
-  $("title").textContent = "Companies";
+  $("title").textContent = "Crews & units";
   $("add").hidden = false;
-  $("add").textContent = "+ Add company";
+  $("add").textContent = "+ Add install crew";
   $("note").hidden = true;
-  $("thead").replaceChildren(...["Company", ...COMPANY_COLUMNS.map(([t]) => t), ""].map((t) => h("th", { scope: "col" }, t)));
+  $("thead").replaceChildren(...["Name", ...COMPANY_COLUMNS.map(([t]) => t), ""].map((t) => h("th", { scope: "col" }, t)));
   const rows = state.companies.filter((c) => state.showInactive || c.active);
   $("tbody").replaceChildren(...(rows.length === 0
-    ? [h("tr", {}, h("td", { colspan: COMPANY_COLUMNS.length + 2, class: "empty" }, "No companies."))]
+    ? [h("tr", {}, h("td", { colspan: COMPANY_COLUMNS.length + 2, class: "empty" }, "No crews or units."))]
     : rows.map((c) => h("tr", { class: c.active ? "" : "inactive" },
       h("td", {}, c.label, !c.active && h("span", { class: "tag" }, "inactive")),
       ...COMPANY_COLUMNS.map(([, f, cls]) => h("td", cls ? { class: cls } : {}, f(c))),
@@ -299,16 +305,6 @@ const indented = (nodes: readonly AccountNode[]): [string, string][] => {
   return out;
 };
 
-const COMPANY_FIELD = "Company (HVAC license)";
-
-/** Every active company, grouped Ours / Contractors. */
-const companyPicker = (crews: readonly Crew[]): HTMLSelectElement => h("select", { name: "crewId", required: true },
-  h("option", { value: "" }, "Choose…"),
-  ...([["Ours", "employed"], ["Contractors", "subcontracted"]] as const).map(([label, type]) => {
-    const xs = crews.filter((c) => c.employmentType === type);
-    return xs.length > 0 && h("optgroup", { label }, ...xs.map((c) => h("option", { value: c.id }, type === "employed" ? c.label : `${c.label} — ${c.firmName ?? ""}`)));
-  }));
-
 const radios = (name: string, legend: string, options: readonly [string, string][], checked: string | null): HTMLFieldSetElement =>
   h("fieldset", { class: "choice" }, h("legend", {}, legend),
     ...options.map(([v, t]) => h("label", { class: "check" }, h("input", { type: "radio", name, value: v, checked: v === checked }), t)));
@@ -324,7 +320,7 @@ const companyForm = async (db: DbName): Promise<void> => {
   if (stale(db)) return;
   const regionOptions = regions.map((r): [string, string] => [r.id, `${r.code} — ${r.name}`]);
 
-  const type = radios("type", "Type", [["ours", "Ours"], ["contractor", "Contractor"]], "ours");
+  const type = radios("type", "Employer", [["ours", "Ours"], ["contractor", "Contractor"]], "ours");
   const ours = branch(field("Name", input("name")), field("Region", select("regionId", regionOptions)));
 
   const firmMode = radios("firmMode", "Firm", [["new", "New firm"], ["existing", "Existing firm"]], "new");
@@ -346,7 +342,7 @@ const companyForm = async (db: DbName): Promise<void> => {
   const follow = (text: string): void => { if (!named) companyName.value = text; };
   legalName.addEventListener("input", () => follow(legalName.value));
   firm.addEventListener("change", () => follow(firms.find((x) => x.id === firm.value)?.legalName ?? ""));
-  const contractor = branch(firmMode, existing, fresh, field("Company name", companyName));
+  const contractor = branch(firmMode, existing, fresh, field("Crew name", companyName));
 
   const sync = (): void => {
     const isOurs = type.querySelector<HTMLInputElement>("[value=ours]")!.checked;
@@ -361,7 +357,7 @@ const companyForm = async (db: DbName): Promise<void> => {
   firmMode.addEventListener("change", sync);
   sync();
 
-  openForm("Add company", [type, ours, contractor], async (f) => {
+  openForm("Add install crew", [type, ours, contractor], async (f) => {
     let n: NewCompany;
     if (str(f, "type") === "ours") {
       n = { type: "ours", name: str(f, "name"), regionId: str(f, "regionId") };
@@ -440,14 +436,26 @@ const addForm = async (): Promise<void> => {
         return;
       }
       case "S5": {
-        const crews = await api.listCrews(db);
+        // 0024: the technician's own service unit is made with the login, under whoever employs them.
+        const [regions, firms] = await Promise.all([api.listRegions(db), api.listFirms(db)]);
         if (stale(db)) return;
-        const picker = companyPicker(crews);
-        picker.value = crews.find((c) => c.employmentType === "employed" && sameName(c.label, DEFAULT_COMPANY_NAME))?.id ?? "";
-        openForm("Add Technician login", [...head, field(COMPANY_FIELD, picker), ...passwordFields()],
+        const type = radios("employer", "Employer", [["ours", "Ours"], ["contractor", "Contractor"]], "ours");
+        type.querySelector<HTMLInputElement>("[value=contractor]")!.disabled = firms.length === 0;
+        const ours = branch(field("Region", select("regionId", regions.map((r) => [r.id, `${r.code} — ${r.name}`]))));
+        const contractor = branch(field("Firm", select("firmId", firms.map((x) => [x.id, x.status === "suspended" ? `${x.legalName} (suspended)` : x.legalName]))));
+        const sync = (): void => {
+          const isOurs = type.querySelector<HTMLInputElement>("[value=ours]")!.checked;
+          showBranch(ours, isOurs);
+          showBranch(contractor, !isOurs);
+        };
+        type.addEventListener("change", sync);
+        sync();
+        openForm("Add Technician login", [...head, type, ours, contractor, ...passwordFields()],
           async (f) => {
-            const crew = crews.find((c) => c.id === str(f, "crewId"))!;
-            await api.addLogin(db, { ...base(f), kind: "technician", crewId: crew.id, crewHomeRegionId: crew.homeRegionId });
+            const employer = str(f, "employer") === "ours"
+              ? { type: "ours" as const, regionId: str(f, "regionId") }
+              : { type: "contractor" as const, firmId: str(f, "firmId") };
+            await api.addLogin(db, { ...base(f), kind: "technician", employer });
           });
         return;
       }
@@ -526,16 +534,12 @@ const editForm = async (u: UserRecord): Promise<void> => {
   let build: (f: FormData) => LoginEdit = (f) => ({ displayName: str(f, "displayName") });
   try {
     if (u.namespace === "internal" && u.crewId !== null) {
-      const crews = await api.listCrews(db);
-      const crew = companyPicker(crews);
-      keepOption(crew, u.crewId, `${u.crewLabel ?? u.crewId} (removed)`);
-      body.push(roleBoxes(u.roles), field(COMPANY_FIELD, crew));
-      // `crew` is sent only when the picker moved: an unchanged company may have been removed, and naming it would refuse the edit.
-      build = (f) => {
-        const id = str(f, "crewId");
-        const c = crews.find((x) => x.id === id);
-        return { displayName: str(f, "displayName"), roles: f.getAll("roles") as Role[], ...(id !== u.crewId && c ? { crew: { id: c.id, homeRegionId: c.homeRegionId } } : {}) };
-      };
+      body.push(roleBoxes(u.roles), field("Employer", h("input", { value: employer(u.crewEmployment, u.crewFirmName), readonly: true, class: "readonly" })));
+      if (!u.ownUnit) {
+        body.push(h("label", { class: "check" }, h("input", { type: "checkbox", name: "ownUnit", value: "yes" }),
+          `Move to their own service unit (now on ${u.crewKind === "install" ? "install crew" : "shared unit"} ${u.crewLabel ?? ""})`));
+      }
+      build = (f) => ({ displayName: str(f, "displayName"), roles: f.getAll("roles") as Role[], ...(f.has("ownUnit") ? { ownUnit: true as const } : {}) });
     } else if (u.namespace === "internal") {
       const regions = await api.listRegions(db);
       const region = select("regionId", regions.map((r) => [r.id, `${r.code} — ${r.name}`]));

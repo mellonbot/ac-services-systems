@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DbName } from "./connections.ts";
 import type { UserRecord } from "./kinds.ts";
 import type { NewLogin } from "./rows.ts";
-import type { Region, Crew, Firm, Company, CustomerOrg, AccountNode, LoginEdit } from "./db.ts";
+import type { Region, Firm, Company, CustomerOrg, AccountNode, LoginEdit } from "./db.ts";
 import type { NewCompany } from "./companies.ts";
 
 export type Api = {
@@ -12,7 +12,6 @@ export type Api = {
   select(db: DbName): Promise<void>;
   listUsers(db: DbName, includeInactive: boolean): Promise<readonly UserRecord[]>;
   listRegions(db: DbName): Promise<readonly Region[]>;
-  listCrews(db: DbName): Promise<readonly Crew[]>;
   listFirms(db: DbName): Promise<readonly Firm[]>;
   listCompanies(db: DbName, includeInactive: boolean): Promise<readonly Company[]>;
   addCompany(db: DbName, n: NewCompany): Promise<{ id: string; firmId: string | null }>;
@@ -28,7 +27,7 @@ export type Api = {
 };
 
 const METHODS = [
-  "connections", "setConnection", "select", "listUsers", "listRegions", "listCrews", "listFirms",
+  "connections", "setConnection", "select", "listUsers", "listRegions", "listFirms",
   "listCompanies", "addCompany", "removeCompany", "reactivateCompany", "listCustomerOrgs",
   "listAccountTree", "addLogin", "resetPassword", "editLogin", "deactivate", "reactivate",
 ] as const satisfies readonly (keyof Api)[];

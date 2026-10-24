@@ -7,21 +7,26 @@ const R = "00000000-0000-0000-0000-0000000000a1";
 const firm = { legalName: "  Acme  HVAC ", regionId: R, paymentTermsDays: 30, dataRightsReserved: false, msaSignedAt: null };
 
 test("buildCrewRow ours: employed, internal org, normalised label", () => {
-  assert.deepEqual(buildCrewRow("  AC  Services DFW ", { type: "ours", regionId: R }), {
+  assert.deepEqual(buildCrewRow("  AC  Services DFW ", { type: "ours", regionId: R }, "service"), {
     org_id: INTERNAL_ORG_ID, region_id: R, home_region_id: R, label: "AC Services DFW",
-    employment_type: "employed", firm_id: null,
+    employment_type: "employed", firm_id: null, kind: "service",
   });
 });
 
 test("buildCrewRow contractor: firm org, firm id, firm region", () => {
-  const row = buildCrewRow("Crew A", { type: "contractor", firmId: "f1", firmOrgId: "o1", firmRegionId: R });
+  const row = buildCrewRow("Crew A", { type: "contractor", firmId: "f1", firmOrgId: "o1", firmRegionId: R }, "service");
   assert.deepEqual(row, {
-    org_id: "o1", region_id: R, home_region_id: R, label: "Crew A", employment_type: "subcontracted", firm_id: "f1",
+    org_id: "o1", region_id: R, home_region_id: R, label: "Crew A", employment_type: "subcontracted", firm_id: "f1", kind: "service",
   });
 });
 
+test("buildCrewRow carries the kind it is given (0024)", () => {
+  assert.equal(buildCrewRow("Crew B", { type: "ours", regionId: R }, "install").kind, "install");
+  assert.equal(buildCrewRow("Crew B", { type: "contractor", firmId: "f1", firmOrgId: "o1", firmRegionId: R }, "install").kind, "install");
+});
+
 test("buildCrewRow refuses an empty name", () => {
-  assert.throws(() => buildCrewRow("   ", { type: "ours", regionId: R }), /name/);
+  assert.throws(() => buildCrewRow("   ", { type: "ours", regionId: R }, "install"), /name/);
 });
 
 test("buildFirmRows writes the organization and the firm", () => {
