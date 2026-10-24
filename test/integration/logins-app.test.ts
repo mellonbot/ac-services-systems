@@ -44,7 +44,7 @@ test("failure: never an empty message", () => {
 
 const PORT = 25080 + Math.floor(Math.random() * 1000);
 const BASE = `http://127.0.0.1:${PORT}`;
-const PASSWORD = "correct horse battery staple";
+const PASSWORD = "correct horse battery staple!";
 const RUN = `la-${Date.now().toString(36)}`;
 const email = (who: string) => `${who}-${RUN}@logins-app.test`;
 
@@ -196,9 +196,10 @@ test("remove ends an open session over the wire", { skip }, async () => {
 });
 
 test("reset password", { skip }, async () => {
-  await assert.rejects(db.resetPassword(subId, "short"), /at least 12/);
+  await assert.rejects(db.resetPassword(subId, "sh!rt"), /at least 6/);
+  await assert.rejects(db.resetPassword(subId, "longenough"), /special character/);
   const s = await as("sub", "S8");
-  const next = "a different long password";
+  const next = "ab-cd1"; // the shortest the rule allows, and the gateway signs it in
   const r = await db.resetPassword(subId, next);
   assert.ok(r.revokedSessions >= 1);
   await assert.rejects(live(s), revoked);
