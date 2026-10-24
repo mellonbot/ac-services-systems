@@ -52,6 +52,8 @@ const requireInt = (v: unknown, field: string, min: number): number => {
 /** Money and quantities are strings of digits on the wire; a JSON number is a double. */
 const requireDigits = (v: unknown, field: string, positive = false): bigint => {
   if (typeof v !== "string" || !DIGITS.test(v)) throw new BadInput(`${field} must be a string of digits (integer minor units or thousandths)`);
+  // The columns are bigint; past eighteen digits the number does not fit and the database would refuse it as a 500.
+  if (v.length > 18) throw new BadInput(`${field} is too large`);
   const n = BigInt(v);
   if (positive && n === 0n) throw new BadInput(`${field} must be more than zero`);
   return n;

@@ -547,7 +547,8 @@ export const setRateCard = async (uow: UnitOfWork, input: SetRateCardInput, newI
   if (!serviceOf(serviceCode)) {
     throw new InputRefused(`"${serviceCode}" is not a service we open jobs for — price one of ${SERVICE_CATALOG.map((s) => s.code).join(", ")}`, "unknown_service_code");
   }
-  if (typeof input.rateMinor !== "string" || !DIGITS.test(input.rateMinor)) {
+  // At most eighteen digits: the column is bigint, and past that the number does not fit.
+  if (typeof input.rateMinor !== "string" || !DIGITS.test(input.rateMinor) || input.rateMinor.length > 18) {
     throw new BadInput("rateMinor must be a string of integer minor units — a JSON number is a double and is not money");
   }
   const rateMinor = BigInt(input.rateMinor);

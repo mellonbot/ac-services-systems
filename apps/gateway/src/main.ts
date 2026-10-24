@@ -17,7 +17,7 @@ import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, l
 import { listSettlements, listSettlementLines, acknowledgeSettlement, disputeSettlement } from "./handlers/settlements.ts";
 import { ingestSync } from "./handlers/sync.ts";
 import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
-import { createJob, listJobs, listMyJobs, transitionJob, addJobNote, setReturnTrip } from "./handlers/jobs.ts";
+import { createJob, listJobs, listMyJobs, transitionJob, addJobNote, setReturnTrip, requireUuid } from "./handlers/jobs.ts";
 import { createProject, listProjects } from "./handlers/projects.ts";
 import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "./handlers/job-detail.ts";
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
@@ -177,6 +177,8 @@ const describe = (e: unknown): { status: number; name: string; code?: string | u
   if (e instanceof InputRefused) return { status: 422, name: err.name, code: err.code, message: err.message, missingTerm: e.missingTerm };
   if (e instanceof AdmissionRefused || e instanceof ResolutionError) return { status: 422, name: err.name, code: err.code, message: err.message };
   const db = dbRefusal(e);
+  // The caller gets general words for these; what the database said is kept here.
+  if (db && (err.code === "23503" || err.code === "23505")) console.warn(`gateway: ${db.name} ${db.code} — ${err.message}${(e as { detail?: string }).detail ? ` — ${(e as { detail?: string }).detail}` : ""}`);
   if (db) return db;
   return { status: 500, name: "InternalError", message: "internal error" };
 };
@@ -478,7 +480,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
     // A customer resolves its own agreements. RLS (0006) already makes another
     // org's rows absent; naming the org from the token as well means the
     // answer for a customer never depends on what the query string said.
-    const orgId = p.namespace === "internal" ? (input.orgId ?? p.orgId) : p.orgId;
+    const orgId = p.namespace === "internal" && input.orgId !== undefined ? requireUuid(input.orgId, "orgId") : p.orgId;
     const r = await resolvedTermsAt(uow, orgId, input.tier ?? "site", input.nodeId ?? "", input.asOf ?? new Date().toISOString().slice(0, 10), keys);
     return { resolved: r.resolved, refused: Object.fromEntries(Object.entries(r.refused).map(([k, e]) => [k, { code: e.code, message: e.message }])) };
   }),

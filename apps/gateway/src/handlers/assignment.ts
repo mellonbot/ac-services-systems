@@ -3,6 +3,7 @@ import { evaluate, isRefusal, type Crew, type Credential } from "../../../../pac
 import { buildAssignment } from "../../../../packages/domain/src/compliance/assignment.ts";
 import type { Refusal } from "../../../../packages/domain/src/compliance/clearance.ts";
 import { InputRefused } from "../refusals.ts";
+import { requireUuid } from "./jobs.ts";
 import type { CandidateCrewsInput, CandidateCrewsOutput, CandidateCrewWire, CrewKind, JobWorkClass, ReleaseAssignmentInput, ReleaseAssignmentOutput } from "../../../../packages/contracts/src/operations.ts";
 import { crewKindFor } from "../../../../packages/contracts/src/operations.ts";
 
@@ -69,6 +70,8 @@ export type AssignResult =
   | { readonly ok: false; readonly refusal: Refusal; readonly eventId: string };
 
 export const assignCrew = async (uow: UnitOfWork, actorId: string, input: AssignInput, evaluatedAt: Date): Promise<AssignResult> => {
+  requireUuid(input.jobId, "jobId");
+  requireUuid(input.crewId, "crewId");
   // FOR UPDATE: two dispatchers (or one double-click) on the same job queue
   // here, and the second reads the state the first left behind.
   const job = (await uow.tx.query<{ id: string; ws: string; we: string; state: string; region_id: string; org_id: string; work_class: JobWorkClass }>(
@@ -160,6 +163,7 @@ export const assignCrew = async (uow: UnitOfWork, actorId: string, input: Assign
  * one gated door with the crew they picked.
  */
 export const candidateCrews = async (uow: UnitOfWork, input: CandidateCrewsInput, evaluatedAt: Date): Promise<CandidateCrewsOutput> => {
+  requireUuid(input.jobId, "jobId");
   const job = (await uow.tx.query<{ id: string; ws: string; we: string; region_id: string; org_id: string; work_class: JobWorkClass }>(
     `SELECT id, lower(service_window) AS ws, upper(service_window) AS we, region_id, org_id, work_class FROM jobs WHERE id = $1`, [input.jobId],
   ))[0];
@@ -198,6 +202,7 @@ export const candidateCrews = async (uow: UnitOfWork, input: CandidateCrewsInput
  * S3 does not have a screen for yet, not a release.
  */
 export const releaseAssignment = async (uow: UnitOfWork, actorId: string, input: ReleaseAssignmentInput, releasedAt: Date): Promise<ReleaseAssignmentOutput> => {
+  requireUuid(input.assignmentId, "assignmentId");
   const found = (await uow.tx.query<{ job_id: string }>(`SELECT job_id FROM assignments WHERE id = $1`, [input.assignmentId]))[0];
   if (!found) throw new InputRefused(`assignment ${input.assignmentId} not found in scope`, "unknown_assignment");
 

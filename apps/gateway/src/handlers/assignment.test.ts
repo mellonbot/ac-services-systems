@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
 import { assignCrew, candidateCrews, releaseAssignment } from "./assignment.ts";
-import { InputRefused } from "../refusals.ts";
+import { InputRefused, BadInput } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
 
@@ -177,4 +177,14 @@ test("releaseAssignment locks the job and the assignment, and refuses by name wh
   assert.ok(s.queries.some((q) => /FROM assignments WHERE id = \$1 FOR UPDATE/.test(q.sql)));
   assert.match(s.queries.find((q) => q.sql.startsWith("UPDATE assignments"))!.sql, /released_at IS NULL/);
   assert.equal(uow.pending().events.length, 0, "no job.reassigned for a release that did not happen");
+});
+
+test("an id that is not a uuid is the caller's 400 before any query — not the database's 22P02 as a 500", async () => {
+  const { tx, queries } = scripted([]);
+  const uow = await uowFor(tx);
+  await assert.rejects(assignCrew(uow, U(9), { jobId: "not-a-uuid", crewId: CREW, orgId: ORG, regionId: REGION }, now), BadInput);
+  await assert.rejects(assignCrew(uow, U(9), { jobId: JOB, crewId: "x", orgId: ORG, regionId: REGION }, now), BadInput);
+  await assert.rejects(candidateCrews(uow, { jobId: "1", orgId: ORG, regionId: REGION }, now), BadInput);
+  await assert.rejects(releaseAssignment(uow, U(9), { assignmentId: "1", orgId: ORG, regionId: REGION } as never, now), BadInput);
+  assert.equal(queries.length, 0);
 });

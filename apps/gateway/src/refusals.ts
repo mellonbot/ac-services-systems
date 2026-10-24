@@ -19,6 +19,15 @@ import type { MissingTerm } from "../../../packages/contracts/src/refusals.ts";
  * the shell can classify: the trigger function name, the constraint name, or
  * the handler's code.
  *
+ * Except a foreign-key or unique refusal: there the database's message and
+ * detail name the table and the key values ("Key (lead_id)=(…) is not present
+ * in table leads"), which tell a caller what exists. Those go out in general
+ * words with the constraint as the code; the detail stays in the server log.
+ *
+ * And a value the database could not read at all — not a uuid, a number out
+ * of range, a date that is not one (22xxx) — is the caller's request being
+ * malformed: a 400, never a 500.
+ *
  * What stays 500: anything else. A 500 is a bug, and the shell is right to
  * treat it as one.
  */
@@ -58,7 +67,7 @@ export type PgErrorLike = {
   readonly where?: string;
 };
 
-export type DbRefusal = { readonly status: 403 | 422; readonly name: string; readonly code: string; readonly message: string };
+export type DbRefusal = { readonly status: 400 | 403 | 422; readonly name: string; readonly code: string; readonly message: string };
 
 const functionFrom = (where: string | undefined): string | undefined =>
   where ? /function (ac_\w+)\(/.exec(where)?.[1] : undefined;
@@ -81,16 +90,19 @@ export const dbRefusal = (e: unknown): DbRefusal | null => {
       return { status: 422, name: "OverlapRefused", code: pg.constraint ?? "exclusion", message: `${pg.message}${pg.detail ? ` — ${pg.detail}` : ""}` };
     // foreign_key_violation: the row names something that does not exist.
     case code === "23503":
-      return { status: 422, name: "ReferenceRefused", code: pg.constraint ?? "foreign_key", message: `${pg.message}${pg.detail ? ` — ${pg.detail}` : ""}` };
+      return { status: 422, name: "ReferenceRefused", code: pg.constraint ?? "foreign_key", message: "this names a record that does not exist, or one that is still in use" };
     // unique_violation
     case code === "23505":
-      return { status: 422, name: "DuplicateRefused", code: pg.constraint ?? "unique", message: `${pg.message}${pg.detail ? ` — ${pg.detail}` : ""}` };
+      return { status: 422, name: "DuplicateRefused", code: pg.constraint ?? "unique", message: "this would duplicate a record that already exists" };
     // check_violation
     case code === "23514":
       return { status: 422, name: "CheckRefused", code: pg.constraint ?? "check", message: `${pg.message}${pg.detail ? ` — ${pg.detail}` : ""}` };
     // not_null_violation — a required position not stated (OQ5's boolean, for one).
     case code === "23502":
       return { status: 422, name: "RequiredRefused", code: pg.constraint ?? "not_null", message: `${pg.message}${pg.detail ? ` — ${pg.detail}` : ""}` };
+    // data exceptions: invalid text for a type (22P02), out of range (22003), bad datetime (22007/22008).
+    case code === "22P02" || code === "22003" || code === "22007" || code === "22008":
+      return { status: 400, name: "BadInput", code, message: `a value in the request could not be read: ${pg.message}` };
     default:
       return null;
   }
