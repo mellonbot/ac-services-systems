@@ -32,6 +32,9 @@ const PASSTHROUGH = ["AC_SIGNING_KID", "AC_IMAGERY_URL", "AC_IMAGERY_ATTRIBUTION
 
 export class Gateway extends DurableObject {
   #starting;
+  /** Healthy once; re-checked only when the container is not running or a forward fails. */
+  #ready = false;
+  #armedAt = 0;
 
   constructor(ctx, env) {
     super(ctx, env);
@@ -42,14 +45,32 @@ export class Gateway extends DurableObject {
   }
 
   async fetch(request) {
-    this.#starting ??= this.#ensureReady().finally(() => { this.#starting = undefined; });
-    await this.#starting;
+    const c = this.ctx.container;
+    if (!this.#ready || !c?.running) {
+      // Every request used to wait on this — a timeout call and a /healthz round
+      // trip each — because the promise was cleared as soon as it settled.
+      this.#ready = false;
+      this.#starting ??= this.#ensureReady().then(() => { this.#ready = true; this.#armedAt = Date.now(); }).finally(() => { this.#starting = undefined; });
+      await this.#starting;
+    } else if (Date.now() - this.#armedAt > 60_000) {
+      // Re-arm the inactivity timer, at most once a minute — what the cron's request is for.
+      this.#armedAt = Date.now();
+      await c.setInactivityTimeout(INACTIVITY_MS);
+    }
     const url = new URL(request.url);
+    const host = url.host;
     url.protocol = "http:";
     url.host = "container";
     const forwarded = new Request(url, request);
     forwarded.headers.delete("host");
-    return this.ctx.container.getTcpPort(PORT).fetch(forwarded);
+    // The host the browser asked for — a white-label portal's theme is found by it. Set here, so never the client's.
+    forwarded.headers.set("x-ac-forwarded-host", host);
+    try {
+      return await this.ctx.container.getTcpPort(PORT).fetch(forwarded);
+    } catch (e) {
+      this.#ready = false;
+      throw e;
+    }
   }
 
   async #ensureReady() {

@@ -752,7 +752,11 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
     const url = new URL(req.url ?? "/", "http://localhost");
     // The query wins so a surface can ask on behalf of the host it is served
     // from; the Host header is the fallback for a portal on its own domain.
-    const host = url.searchParams.get("host") ?? req.headers.host;
+    // Behind Cloudflare the Worker rewrites Host to the container's and passes
+    // the one the browser asked for as x-ac-forwarded-host (set by the Worker,
+    // so trusted under the same flag as CF-Connecting-IP and no other time).
+    const forwarded = req.headers["x-ac-forwarded-host"];
+    const host = url.searchParams.get("host") ?? (BEHIND_CLOUDFLARE ? (typeof forwarded === "string" ? forwarded : undefined) : req.headers.host);
     const tx = await beginTx(pool, "ac_gateway");
     try { await bindSystem(tx); return await brandStylesheetFor(tx, host ?? undefined); } finally { await tx.rollback().catch(() => {}); }
   },

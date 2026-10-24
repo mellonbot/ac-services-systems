@@ -61,6 +61,8 @@ before(async () => {
   await admin(`INSERT INTO regions (id, code, name) VALUES ($1,'SOUTH','South') ON CONFLICT (id) DO NOTHING`, [REGION_SOUTH]);
   await user(1, "lockout.h24@ac.test", ["finance"]);
   await user(2, "csrf.h24@ac.test", ["finance"]);
+  await admin(`INSERT INTO brand_themes (org_id, region_id, host, accent, overrides, accent_admission, authored_by)
+    VALUES ($1,$2,'portal.h24.example','#0e6a46','{}','{}',$3) ON CONFLICT (host) DO NOTHING`, [INTERNAL_ORG_ID, REGION_SOUTH, U(1)]);
   await spawnGateway(PORT, {});
   await spawnGateway(PORT + 1, { AC_BEHIND_CLOUDFLARE: "1" });
 });
@@ -146,4 +148,10 @@ test("the anonymous mint does not replace a signed-in browser's live session; an
   assert.equal((await anonymous(EDGE, { ...at("203.0.113.90"), cookie: cookieOf(visitor.headers.get("set-cookie")) })).status, 200);
   await fetch(`${EDGE}/auth/logout`, { method: "POST", headers: { cookie: signedIn, "x-ac-surface": "S2" } });
   assert.equal((await anonymous(EDGE, { ...at("203.0.113.91"), cookie: signedIn })).status, 200, "a session that has ended is no session to keep");
+});
+
+test("behind Cloudflare a portal's theme is found by the host the Worker forwards; off it, that header is nobody's word", { skip }, async () => {
+  const theme = async (base: string, headers: Record<string, string>) => ((await (await fetch(`${base}/brand/theme`, { headers })).json()) as { tenant: boolean }).tenant;
+  assert.equal(await theme(EDGE, { "x-ac-forwarded-host": "portal.h24.example" }), true);
+  assert.equal(await theme(LAPTOP, { "x-ac-forwarded-host": "portal.h24.example" }), false);
 });
