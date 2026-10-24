@@ -37,6 +37,8 @@ const U = (n: number) => `e7000000-0000-0000-0000-0000000000${String(n).padStart
 const ORG = U(10), SITE_NODE = U(11), SITE = U(12), JOB = U(13), TIMER = U(14), CREW = U(15), CRED = U(16), CRED_FAR = U(17);
 /** Its own credential, so the timezone test counts its own rows and not the idempotency test's. */
 const CRED_TZ = U(19);
+/** A job waiting on the customer's answer to a quote, its timer as far past due as JOB's. */
+const JOB_QUOTE = U(20), TIMER_QUOTE = U(21);
 
 let pool: Pool;
 const admin = async (sql: string, params: unknown[] = []) => {
@@ -70,6 +72,11 @@ before(async () => {
   await admin(`INSERT INTO sla_timers (id, org_id, region_id, job_id, response_term, opened_at, due_at, resolution_trace, escalation_stage, shadow_mode)
     VALUES ($1, $2, $3, $4, '4_hour', now() - interval '6 hours', now() - interval '2 hours', '[]'::jsonb, 0, false)
     ON CONFLICT (id) DO UPDATE SET escalation_stage = 0, breached_at = NULL, satisfied_at = NULL`, [TIMER, ORG, REGION_SOUTH, JOB]);
+  await admin(`INSERT INTO jobs (id, org_id, region_id, site_id, service_code, priority, service_window, state)
+    VALUES ($1, $2, $3, $4, 'HVAC-REPAIR', 'urgent', tstzrange(now() - interval '3 hours', now() + interval '1 hour', '[)'), 'quote_submitted') ON CONFLICT (id) DO NOTHING`, [JOB_QUOTE, ORG, REGION_SOUTH, SITE]);
+  await admin(`INSERT INTO sla_timers (id, org_id, region_id, job_id, response_term, opened_at, due_at, resolution_trace, escalation_stage, shadow_mode)
+    VALUES ($1, $2, $3, $4, '4_hour', now() - interval '6 hours', now() - interval '2 hours', '[]'::jsonb, 0, false)
+    ON CONFLICT (id) DO NOTHING`, [TIMER_QUOTE, ORG, REGION_SOUTH, JOB_QUOTE]);
   // A crew with a licence that expires in ten days, and one that expires in a year.
   await admin(`INSERT INTO crews (id, org_id, region_id, label, employment_type, firm_id, home_region_id, active)
     VALUES ($1, $2, $3, $4, 'employed', NULL, $3, true) ON CONFLICT (id) DO NOTHING`, [CREW, INTERNAL_ORG_ID, REGION_SOUTH, `Worker Crew ${RUN}`]);
@@ -118,6 +125,16 @@ test("bound as the worker, the SLA cascade escalates the timer that is two hours
   assert.equal(out[0]!.surface_id, "worker");
   const audit = await admin(`SELECT action FROM audit_log WHERE entity_id = $1 AND surface_id = 'worker'`, [TIMER]);
   assert.ok(audit.length >= 1, "the audit row landed in the same transaction");
+});
+
+test("a job waiting on the customer's answer to a quote is not escalated, however far past due its timer is", { skip }, async () => {
+  const tx = await beginTx(pool, "ac_worker");
+  await tx.setLocal(workerScope());
+  await sweepSlaCascade(tx, new Date());
+  const t = (await admin(`SELECT escalation_stage, breached_at FROM sla_timers WHERE id = $1`, [TIMER_QUOTE]))[0]!;
+  assert.equal(Number(t.escalation_stage), 0);
+  assert.equal(t.breached_at, null);
+  assert.equal((await admin(`SELECT count(*)::text AS n FROM outbox WHERE entity_id = $1`, [TIMER_QUOTE]))[0]!.n, "0");
 });
 
 test("bound as the worker, the credential-expiry sweep warns of the licence ten days out and not of the insurance a year out", { skip }, async () => {

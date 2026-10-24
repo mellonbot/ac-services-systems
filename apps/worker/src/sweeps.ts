@@ -1,5 +1,5 @@
 import type { RelayTx } from "./relay.ts";
-import { evaluateCascade, type TimerState, type SlaTerms } from "../../../packages/domain/src/sla/index.ts";
+import { evaluateCascade, SLA_NOT_OWED_STATES, type TimerState, type SlaTerms } from "../../../packages/domain/src/sla/index.ts";
 import { randomUUID } from "node:crypto";
 import { isTopic } from "../../../packages/contracts/src/events.ts";
 import type { ScopeBinding } from "../../../packages/contracts/src/scope.ts";
@@ -105,16 +105,18 @@ export const sweepCredentialExpiry = async (tx: RelayTx, today: Date): Promise<n
  */
 export const sweepSlaCascade = async (tx: RelayTx, now: Date): Promise<number> => {
   const rows = await tx.query<{ id: string; job_id: string; response_term: string; opened_at: string; due_at: string; satisfied_at: string | null; breached_at: string | null; escalation_stage: number; shadow_mode: boolean; org_id: string; region_id: string }>(
-    // A job that ended before anyone was sent (cancelled, or closed some other
-    // way) owes no response: its timer is not escalated, and not paged on.
-    // Oldest due first, a minute's worth at a time.
+    // A job that ended before anyone was sent, is done, or is waiting on the
+    // customer's answer to a quote owes no response (SLA_NOT_OWED_STATES): its
+    // timer is not escalated, and not paged on. Oldest due first, a minute's
+    // worth at a time.
     `SELECT t.id, t.job_id, t.response_term, t.opened_at, t.due_at, t.satisfied_at, t.breached_at, t.escalation_stage, t.shadow_mode, t.org_id, t.region_id
        FROM sla_timers t JOIN jobs j ON j.id = t.job_id
       WHERE t.satisfied_at IS NULL AND t.escalation_stage < 3
-        AND j.state NOT IN ('cancelled', 'aborted', 'complete', 'invoiced')
+        AND j.state <> ALL($1::text[])
       ORDER BY t.due_at
       LIMIT 500
       FOR UPDATE OF t SKIP LOCKED`,
+    [SLA_NOT_OWED_STATES],
   );
   let actions = 0;
   for (const r of rows) {
