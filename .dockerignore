@@ -12,3 +12,13 @@ Claude outputs
 .env
 .env.*
 .dev.vars*
+# Secrets and local state never go into the image: README tells people to keep
+# key.pem in the repo root, and COPY . . would take it.
+*.pem
+*.key
+**/*.pem
+**/*.key
+**/*.tfstate*
+**/.terraform
+.claude
+.impeccable

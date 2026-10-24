@@ -11,6 +11,10 @@ coverage/
 infra/**/.terraform/
 infra/**/*.tfstate*
 
+# Signing keys (README runs the image with key.pem in the repo root)
+*.pem
+*.key
+
 # Desktop-app download folder — never part of the repository
 Claude outputs/
 
