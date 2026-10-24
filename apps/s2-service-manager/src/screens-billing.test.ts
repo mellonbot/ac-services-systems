@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToString as render } from "../../../packages/ui/src/testing.ts";
 import { createApp } from "./app.ts";
-import { owedMinor, INVOICE_STATE } from "./screens/billing.ts";
+import { owedMinor, INVOICE_STATE, maySettle, receivedAtFor } from "./screens/billing.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { HierarchyContext, Principal, InvoiceWire, PaymentWire } from "../../../packages/contracts/src/index.ts";
 import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
@@ -30,6 +30,7 @@ const payments: PaymentWire[] = [
   { id: U(11), invoiceId: INVOICE, amountMinor: "28450", currency: "USD", method: "ach", reference: null, state: "returned", receivedAt: "2026-10-12T16:00:00.000Z", returnedAt: "2026-10-15T16:00:00.000Z", returnReason: "R01 insufficient funds" },
 ];
 
+let signedIn: Principal = finance;
 const gateway = () => {
   const calls: string[] = [];
   const reply = (status: number, body: unknown) => ({ status, ok: status < 300, json: async () => body, text: async () => JSON.stringify(body), body: null });
@@ -37,7 +38,7 @@ const gateway = () => {
     const u = new URL(url);
     calls.push(`${u.pathname}${u.search}`);
     if (u.pathname === OPERATIONS["auth.login"].path) return reply(200, { token: "t", expiresAt: "2026-10-28T00:00:00Z", context: {} });
-    if (u.pathname === OPERATIONS["session.me"].path) return reply(200, context);
+    if (u.pathname === OPERATIONS["session.me"].path) return reply(200, { ...context, principal: signedIn });
     if (u.pathname === OPERATIONS["invoices.list"].path) return reply(200, { invoices });
     if (u.pathname === OPERATIONS["payments.list"].path) return reply(200, { payments: u.searchParams.get("invoiceId") === INVOICE ? payments : [] });
     if (u.pathname === OPERATIONS["organizations.list"].path) return reply(200, { organizations: [{ id: ORG, name: "Amped Fitness", kind: "customer", segment: "commercial", externalRef: null, active: true, regionNodeCount: 1 }] });
@@ -100,4 +101,60 @@ test("an invoice that is not there says so, with the way back", async () => {
   app.router.navigate("billing.invoice", { invoiceId: U(77) });
   render(app.view()); await settle();
   assert.match(render(app.view()), /Invoice not found/);
+});
+
+test("who may write money is S2's writeRoles list: finance and the principals, not an account owner", () => {
+  assert.equal(maySettle(["finance"]), true);
+  assert.equal(maySettle(["principal"]), true);
+  assert.equal(maySettle(["ops_leadership"]), true);
+  assert.equal(maySettle(["account_owner", "office_manager"]), false);
+});
+
+test("the day a payment arrived: today is sent as no date (the gateway's now); a past day is that day at local noon; a future day is refused", () => {
+  assert.equal(receivedAtFor("2026-10-24", "2026-10-24"), undefined, "today: never earlier than an invoice issued this morning");
+  assert.equal(receivedAtFor("2026-10-20", "2026-10-24"), new Date("2026-10-20T12:00:00").toISOString());
+  assert.throws(() => receivedAtFor("2026-10-25", "2026-10-24"), /not before/);
+  assert.throws(() => receivedAtFor("", "2026-10-24"), /day the payment arrived/);
+});
+
+test("finance sees the three writes where they apply: record against what is owed, return a payment that landed — no void while one stands", async () => {
+  signedIn = finance;
+  const { app } = await ready();
+  app.router.navigate("billing.invoice", { invoiceId: INVOICE });
+  render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, /id="record-payment-form"/);
+  assert.ok(out.includes("284.50"), "the form says what is still owed");
+  assert.match(out, /id="return-payment-form"/);
+  assert.match(out, /CHK 4471/, "the payment that landed is offered to return");
+  const returnForm = /id="return-payment-form"(.*?)<\/form>/s.exec(out)![1]!;
+  assert.equal(returnForm.match(/<option /g)?.length, 1, "a payment already returned is not offered again");
+  assert.doesNotMatch(out, /id="void-invoice-form"/, "a payment stands, so the invoice cannot be voided");
+});
+
+test("a paid invoice offers no payment form; an open one with nothing paid offers void", async () => {
+  signedIn = finance;
+  const { app } = await ready();
+  app.router.navigate("billing.invoice", { invoiceId: PAID });
+  render(app.view()); await settle();
+  assert.doesNotMatch(render(app.view()), /id="record-payment-form"/);
+  invoices.push({ ...base, id: U(60), status: "open", paidMinor: "0" });
+  app.router.navigate("billing.invoice", { invoiceId: U(60) });
+  render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, /id="void-invoice-form"/);
+  assert.match(out, /id="record-payment-form"/);
+  invoices.pop();
+});
+
+test("an account owner reads the history and is told whose the writes are — no forms", async () => {
+  signedIn = { ...finance, roles: ["account_owner"] };
+  const { app } = await ready();
+  app.router.navigate("billing.invoice", { invoiceId: INVOICE });
+  render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, /id="payment-history"/);
+  assert.match(out, /id="billing-writes-note"/);
+  assert.doesNotMatch(out, /id="record-payment-form"|id="return-payment-form"|id="void-invoice-form"/);
+  signedIn = finance;
 });
