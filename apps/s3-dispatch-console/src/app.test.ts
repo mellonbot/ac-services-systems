@@ -149,8 +149,10 @@ test("the board is read off jobs.list: a row per crew holding work, bars in each
   const m = boardModel([jobCreated, jobAssigned], now, 0);
   assert.deepEqual(m.rows.map((r) => r.name), ["Crew A1"], "only crews holding work have a row");
   assert.equal(m.rows[0]!.service, "Austin — Roof — Repair");
-  assert.equal(boardTone(jobCreated, now), "warn", "a late SLA is drawn as needs attention");
+  assert.equal(boardTone(jobCreated, now), "breached", "a late SLA is drawn as the breach it is");
+  assert.equal(boardTone({ ...jobCreated, slaDueAt: "2026-09-18T16:00:00.000Z" }, now), "at_risk", "an escalated SLA not yet due is at risk — not drawn the same as a breach");
   assert.equal(boardTone(jobAssigned, now), "scheduled");
+  assert.equal(boardTone({ ...jobAssigned, state: "awaiting_parts" }, now), "waiting");
   const stats = Object.fromEntries(m.stats.map((t) => [t.label, t.n]));
   assert.deepEqual(stats, { "Jobs today": 2, "Crews out": 1, "Needs attention": 1, "Unscheduled": 1, "Tech available": 0 });
   const tomorrow = boardModel([jobCreated, jobAssigned], now, 1);
@@ -560,4 +562,27 @@ test("INTAKE: Open job on a waiting request opens the form beside the list, prio
   assert.match(out, /derived when the job opens, not chosen here/);
   (nodesIn(app.view()).find((n) => n.type === "button" && n.props?.id === "intake-open-cancel")!.props!.onClick as () => void)();
   assert.doesNotMatch(render(app.view()), /id="intake-open-form"/);
+});
+
+test("a board bar is a link inside S3 — under /dispatch, through the router — and carries its SLA state as a mark and a word, not hue alone", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-18T12:00:00.000Z") });
+  const pushed: string[] = [];
+  const win = {
+    location: { pathname: "/dispatch/board" },
+    history: { pushState: (_s: unknown, _t: string, u: string) => { pushed.push(u); win.location.pathname = u; } },
+    addEventListener: () => {}, removeEventListener: () => {},
+  };
+  const late = { ...jobAssigned, slaSatisfiedAt: null, slaDueAt: "2026-09-18T10:00:00.000Z", slaEscalationStage: 1 };
+  const g = fakeGateway({ [OPERATIONS["jobs.list"].path]: { status: 200, body: { jobs: [late] } } });
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000, window: win as unknown as Window });
+  await app.login("dispatcher@ac.test", "pw");
+  app.router.navigate("board", {});
+  render(app.view()); await settle(); await settle();
+  const out = render(app.view());
+  assert.match(out, new RegExp(`class="dispatch-board__segment" href="/dispatch/jobs/${JOB_ASSIGNED}"`));
+  assert.match(out, /data-tone="breached"[^>]*><b class="dispatch-board__state"><span aria-hidden="true">■<\/span> Breached<\/b>/);
+  const bar = nodesIn(app.view()).find((n) => n.props?.class === "dispatch-board__segment");
+  (bar!.props!.onClick as (e: Event) => void)(new Event("click"));
+  assert.equal(app.router.current.value?.screen, "detail");
+  assert.equal(pushed.at(-1), `/dispatch/jobs/${JOB_ASSIGNED}`);
 });

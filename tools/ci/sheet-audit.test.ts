@@ -18,14 +18,11 @@ const surfaceSheet = async (app: string): Promise<string> => {
 };
 
 /**
- * Named exemptions, each an open question and not a ruling. The S3 Dispatch
- * Board keeps the partners' reference layout, whose legend keys job stages
- * (scheduled, completed, waiting) to the status inks — a Rule 1 conflict the
- * bulletin's owners have not yet decided. Listed here so it stays visible.
+ * Named exemptions, each an open question and not a ruling. None is open: the
+ * S3 board's job stages, once keyed to the status inks, are drawn in ink and
+ * line form now.
  */
-const EXEMPT: readonly { readonly app: string; readonly rule: string; readonly selector: RegExp }[] = [
-  { app: "s3-dispatch-console", rule: "state-as-category", selector: /^\.dispatch-(?:board__segment|legend__item)\[data-tone=/ },
-];
+const EXEMPT: readonly { readonly app: string; readonly rule: string; readonly selector: RegExp }[] = [];
 
 test("no surface stylesheet paints a fill as a word, draws a fill as a rule, sets type below its floor, keys a category to a status ink, or leaves a control unsized", async () => {
   const failures: string[] = [];
