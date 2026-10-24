@@ -135,6 +135,8 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   ac_job_work_is_its_services: "structural",
   jobs_service_code_fkey: "structural",
   rate_cards_service_code_fkey: "structural",
+  // 0027: a line not priced as its rate card says, and a multiplier that is not one.
+  ac_settlement_line_is_priced: "structural",
 });
 
 export const admissionAxis = (code: string | undefined): AdmissionAxis =>

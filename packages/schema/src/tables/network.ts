@@ -99,6 +99,7 @@ export const rate_cards = operationalTable("rate_cards", {
   columns: [
     { name: "firm_id", type: "uuid", references: "subcontractor_firms(id)" },
     { name: "service_code", type: "text", references: "service_codes(code)", comment: "0026: a code in the service catalogue, as a job's is." },
+    { name: "emergency_multiplier_bp", type: "integer", default: "15000", check: "emergency_multiplier_bp >= 10000", comment: "0027: an emergency job is settled at the rate x this, in basis points (15000 = 1.5x)." },
     { name: "rate_minor", type: "bigint", comment: "Integer minor units. No float in the money path, enforced by lint." },
     { name: "currency", type: "text", references: "currencies(code)" },
     { name: "effective", type: "daterange" },
