@@ -208,9 +208,13 @@ caption, body and a panel title never read as one size. `TYPE_SCALE` in
 
 | Tier | xs | sm | md (body) | lg | xl | display | mast |
 |---|---|---|---|---|---|---|---|
-| Console | 11 | 12 | 14 | 16 | 20 | 26 | 34 |
+| Console | 11 | 12 | 14 | 16 | 20 | 26 | 36 |
 | Comfort | 11 | 13 | 15 | 18 | 22 | 28 | 40 |
-| Field | 15 | 17 | 18 | 23 | 28 | 36 | 48 |
+| Field | 15 | 17 | 18 | 23 | 28 | 36 | 50 |
+
+The mast step is sized against the company line, not the ramp: the wordmark's lowercase
+body (Yellowtail x-height 0.375 em) stands at least **1.75×** the company line's caps (Plex
+Sans 600, 0.698 em), so mast ≥ 3.26 × xs on every tier. `css.test.ts` holds it.
 
 Console xs and sm stay 1px apart because xs is set in caps at `--track-wide`: form separates
 them where size cannot.
