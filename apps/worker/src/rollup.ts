@@ -3,6 +3,7 @@ import { HQ_METRIC_KEYS, type HqMetricKey } from "../../../packages/contracts/sr
 import { WORK_DONE_STATES } from "../../../packages/contracts/src/operations.ts";
 import { REQUIRED } from "../../../packages/domain/src/compliance/gate.ts";
 import { SLA_NOT_OWED_STATES } from "../../../packages/domain/src/sla/index.ts";
+import { SUPERSEDED } from "./sweeps.ts";
 import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
 
 /**
@@ -78,7 +79,7 @@ export const HQ_ROLLUP_SQL: Readonly<Record<HqMetricKey, string>> = {
   firms_onboarding: count("subcontractor_firms f", `f.region_id = r.id AND f.status = 'onboarding'`),
   credentials_unverified: count("crew_credentials cc JOIN crews c ON c.id = cc.crew_id", `cc.region_id = r.id AND c.active AND cc.verified_at IS NULL`),
   credentials_expiring_30d: count("crew_credentials cc JOIN crews c ON c.id = cc.crew_id",
-    `cc.region_id = r.id AND c.active AND cc.verified_at IS NOT NULL AND cc.valid_to BETWEEN $2::date AND $2::date + 30`),
+    `cc.region_id = r.id AND c.active AND cc.verified_at IS NOT NULL AND cc.valid_to BETWEEN $2::date AND $2::date + 30 AND NOT ${SUPERSEDED("cc")}`),
 
   // ---- growth & web ----
   leads_30d: count("leads l", `l.region_id = r.id AND ${WINDOW("l.created_at")}`),

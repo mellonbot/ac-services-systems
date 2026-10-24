@@ -39,6 +39,11 @@ const ORG = U(10), SITE_NODE = U(11), SITE = U(12), JOB = U(13), TIMER = U(14), 
 const CRED_TZ = U(19);
 /** A job waiting on the customer's answer to a quote, its timer as far past due as JOB's. */
 const JOB_QUOTE = U(20), TIMER_QUOTE = U(21);
+/** Expiry fixtures, each on its own crew so no credential renews another by accident. */
+const CREW_B = U(22), CREW_C = U(23), CREW_D = U(24);
+const CRED_LAST = U(25), CRED_THRESH = U(26), CRED_OLD = U(27), CRED_NEW = U(28), CRED_IDLE = U(29);
+const JOB_PM = U(30), JOB_NEXT = U(31);
+const DAY_MS = 86_400_000;
 
 let pool: Pool;
 const admin = async (sql: string, params: unknown[] = []) => {
@@ -89,6 +94,37 @@ before(async () => {
   await admin(`INSERT INTO crew_credentials (id, org_id, region_id, crew_id, kind, identifier, valid_from, valid_to)
     VALUES ($1, $2, $3, $4, 'background_check', $5, (now() AT TIME ZONE 'UTC')::date - 300, (now() AT TIME ZONE 'UTC')::date + 12)
     ON CONFLICT (id) DO NOTHING`, [CRED_TZ, INTERNAL_ORG_ID, REGION_SOUTH, CREW, `BGC-${RUN}`]);
+  // D is the UTC day the sweeps below run on.
+  const D = `(now() AT TIME ZONE 'UTC')::date`;
+  await admin(`INSERT INTO crews (id, org_id, region_id, label, employment_type, firm_id, home_region_id, active)
+    VALUES ($1, $4, $5, 'Crew B', 'employed', NULL, $5, true), ($2, $4, $5, 'Crew C', 'employed', NULL, $5, true), ($3, $4, $5, 'Crew D', 'employed', NULL, $5, false)
+    ON CONFLICT (id) DO NOTHING`, [CREW_B, CREW_C, CREW_D, INTERNAL_ORG_ID, REGION_SOUTH]);
+  // Crew B: a licence whose last valid day is today, and a background check ten days out.
+  // Crew C: insurance five days out, already renewed by a verified one. Crew D (inactive): a licence five days out.
+  await admin(`INSERT INTO crew_credentials (id, org_id, region_id, crew_id, kind, identifier, valid_from, valid_to) VALUES
+    ($1, $6, $7, $8, 'license', 'LIC-B', ${D} - 300, ${D}),
+    ($2, $6, $7, $8, 'background_check', 'BGC-B', ${D} - 300, ${D} + 10),
+    ($3, $6, $7, $9, 'insurance', 'INS-C-OLD', ${D} - 300, ${D} + 5),
+    ($4, $6, $7, $9, 'insurance', 'INS-C-NEW', ${D} - 1, ${D} + 365),
+    ($5, $6, $7, $10, 'license', 'LIC-D', ${D} - 300, ${D} + 5)
+    ON CONFLICT (id) DO NOTHING`, [CRED_LAST, CRED_THRESH, CRED_OLD, CRED_NEW, CRED_IDLE, INTERNAL_ORG_ID, REGION_SOUTH, CREW_B, CREW_C, CREW_D]);
+  // Fixtures the gate and S2 would refuse to write this way (an S2 verification, an assignment without the gate's
+  // clearance): written with triggers off, in one transaction, because the sweep is what is under test here.
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SET LOCAL session_replication_role = replica");
+    await c.query(`UPDATE crew_credentials SET verified_at = now(), verified_by = $2 WHERE id = $1`, [CRED_NEW, WORKER_ACTOR]);
+    // Crew B holds two jobs: one ends this afternoon (inside the licence's last day), one ends at 01:00 tomorrow.
+    await c.query(`INSERT INTO jobs (id, org_id, region_id, site_id, service_code, priority, service_window, state) VALUES
+      ($1, $3, $4, $5, 'HVAC-REPAIR', 'routine', tstzrange((${D}::timestamp + interval '13 hours') AT TIME ZONE 'UTC', (${D}::timestamp + interval '15 hours') AT TIME ZONE 'UTC', '[)'), 'assigned'),
+      ($2, $3, $4, $5, 'HVAC-REPAIR', 'routine', tstzrange((${D}::timestamp + interval '23 hours') AT TIME ZONE 'UTC', (${D}::timestamp + interval '25 hours') AT TIME ZONE 'UTC', '[)'), 'assigned')
+      ON CONFLICT (id) DO NOTHING`, [JOB_PM, JOB_NEXT, ORG, REGION_SOUTH, SITE]);
+    for (const job of [JOB_PM, JOB_NEXT]) {
+      await c.query(`INSERT INTO assignments (org_id, region_id, job_id, crew_id, clearance_id, assigned_by) VALUES ($1, $2, $3, $4, gen_random_uuid(), $5)`, [ORG, REGION_SOUTH, job, CREW_B, WORKER_ACTOR]);
+    }
+    await c.query("COMMIT");
+  } catch (e) { await c.query("ROLLBACK"); throw e; } finally { c.release(); }
   await admin(`DELETE FROM outbox WHERE entity_id IN ($1, $2) AND surface_id = 'worker'`, [TIMER, CRED]);
 });
 
@@ -193,4 +229,39 @@ test("a worker pinned to a region (AC_REGION_ID) sweeps that region and not anot
   const rows = await tx.query<{ n: string }>(`SELECT count(*)::text AS n FROM sla_timers WHERE id = $1`, [TIMER]);
   assert.equal(rows[0]!.n, "0", "a South timer is not a West worker's");
   await tx.rollback();
+});
+
+const sweepAt = async (at: Date) => {
+  const tx = await beginTx(pool, "ac_worker");
+  await tx.setLocal(workerScope());
+  return sweepCredentialExpiry(tx, at);
+};
+const events = (id: string) => admin(`SELECT topic, payload FROM outbox WHERE entity = 'crew_credential' AND entity_id = $1 ORDER BY occurred_at, created_at`, [id]);
+
+test("valid_to is the last valid day: on it the sweep warns, and counts only the job that ends after it; the day after, it is expired", { skip }, async () => {
+  const now = new Date();
+  await sweepAt(now);
+  const on = await events(CRED_LAST);
+  assert.deepEqual(on.map((e) => e.topic), ["credential.expiring"], "the last valid day is a warning, not an expiry");
+  assert.equal(on[0]!.payload.daysLeft, 0);
+  assert.equal(on[0]!.payload.assignedJobsAtRisk, 1, "the job ending this afternoon is covered; the one ending at 01:00 tomorrow is not");
+  await sweepAt(new Date(now.getTime() + DAY_MS));
+  assert.deepEqual((await events(CRED_LAST)).map((e) => e.topic), ["credential.expiring", "credential.expired"]);
+});
+
+test("a credential warns once at each of 30, 7 and 1 days — not every day for thirty days", { skip }, async () => {
+  const now = new Date();
+  const at = (days: number) => new Date(now.getTime() + days * DAY_MS);
+  for (const d of [0, 1, 2]) await sweepAt(at(d));
+  assert.deepEqual((await events(CRED_THRESH)).map((e) => e.payload.threshold), [30], "ten, nine and eight days out are all the thirty-day warning");
+  for (const d of [3, 4, 8]) await sweepAt(at(d));
+  assert.deepEqual((await events(CRED_THRESH)).map((e) => e.payload.threshold), [30, 7], "seven days out is the second, and the only one until the last day");
+  await sweepAt(at(9));
+  assert.deepEqual((await events(CRED_THRESH)).map((e) => e.payload.threshold), [30, 7, 1]);
+});
+
+test("a credential already renewed by a verified one, and a credential of an inactive crew, are not swept", { skip }, async () => {
+  await sweepAt(new Date());
+  assert.equal((await events(CRED_OLD)).length, 0, "the renewal carries on where it ends");
+  assert.equal((await events(CRED_IDLE)).length, 0, "an inactive crew is sent no work");
 });

@@ -127,7 +127,10 @@ before(async () => {
   // Documents go on file unverified — 0005 refuses verified_at on any path but S2's — and S2 verifies them.
   const docs = await admin(`INSERT INTO crew_credentials (org_id, region_id, crew_id, kind, identifier, valid_from, valid_to) VALUES
     ($1,$2,$3,'license','L-OK', current_date - 100, current_date + 20),
-    ($1,$2,$3,'background_check','B-OK', current_date - 100, current_date + 200) RETURNING id`, [INTERNAL_ORG_ID, REGION_SOUTH, CREW_OK]);
+    ($1,$2,$3,'background_check','B-OK', current_date - 100, current_date + 200),
+    -- A certification running out in fifteen days that its renewal already replaces: nothing is expiring.
+    ($1,$2,$3,'certification','C-OLD', current_date - 100, current_date + 15),
+    ($1,$2,$3,'certification','C-NEW', current_date, current_date + 400) RETURNING id`, [INTERNAL_ORG_ID, REGION_SOUTH, CREW_OK]);
   for (const d of docs) {
     await asBinding({ ...binding("internal", INTERNAL_ORG_ID, "S2"), "ac.actor_id": EXEC }, `UPDATE crew_credentials SET verified_at = now(), verified_by = $2 WHERE id = $1`, [d.id, EXEC]);
   }
@@ -196,7 +199,7 @@ test("bound as the worker, one refresh writes every figure for every region, and
   assert.equal(await figure("crews_active", REGION_SOUTH), 2);
   assert.equal(await figure("crews_cleared_now", REGION_SOUTH), 1, "the firm's crew has unverified insurance and no licence");
   assert.equal(await figure("credentials_unverified", REGION_SOUTH), 1);
-  assert.equal(await figure("credentials_expiring_30d", REGION_SOUTH), 1, "the licence runs out in twenty days");
+  assert.equal(await figure("credentials_expiring_30d", REGION_SOUTH), 1, "the licence runs out in twenty days; the renewed certification does not count");
   assert.equal(await figure("min_crew_density", REGION_SOUTH), 2);
   assert.equal(await figure("locations_active", REGION_SOUTH), 1);
   assert.equal(await figure("customers_active", REGION_SOUTH), 1);

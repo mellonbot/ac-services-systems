@@ -53,44 +53,62 @@ const emit = async (tx: RelayTx, e: { topic: string; entity: string; entityId: s
 };
 
 /**
- * CREDENTIAL EXPIRY (B5). Emits credential.expiring at 30 days and
- * credential.expired on the day. A credential expiring inside an already
- * assigned job's window is the one that matters: the gate cleared it when it
- * was true, and it is about to stop being true.
+ * CREDENTIAL EXPIRY (B5). Emits credential.expiring once at each of
+ * EXPIRY_WARN_DAYS before valid_to, and credential.expired the day after it.
+ * valid_to is inclusive — the gate clears a window through the end of that day
+ * (UTC, gateway/handlers/assignment.ts) — so its last day is a warning, not an
+ * expiry. A credential expiring inside an already assigned job's window is the
+ * one that matters: the gate cleared it when it was true, and it is about to
+ * stop being true.
+ *
+ * Not swept: a credential an active crew has already replaced (a verified
+ * document of the same kind that starts by the day after this one ends and
+ * runs past it), and any credential of an inactive crew. Neither is anything
+ * anyone needs to act on.
  */
+export const EXPIRY_WARN_DAYS: readonly number[] = Object.freeze([30, 7, 1]);
+
+/** A verified credential of the same kind, for the same crew, that carries on where `c` ends. Shared with the HQ rollup. */
+export const SUPERSEDED = (c: string) =>
+  `EXISTS (SELECT 1 FROM crew_credentials n WHERE n.crew_id = ${c}.crew_id AND n.kind = ${c}.kind AND n.id <> ${c}.id
+             AND n.verified_at IS NOT NULL AND n.valid_from <= ${c}.valid_to + 1 AND n.valid_to > ${c}.valid_to)`;
+
 export const sweepCredentialExpiry = async (tx: RelayTx, today: Date): Promise<number> => {
   const iso = today.toISOString().slice(0, 10);
   // The dedupe below reads the outbox. Two workers (the unregioned one and a
   // Tier 3 regional one, or two replicas) running this at once would each
   // read no row and each warn; the lock makes the second wait and see the first's.
   await tx.query("SELECT pg_advisory_xact_lock(hashtext('ac-worker:credential-expiry'))");
-  const rows = await tx.query<{ id: string; crew_id: string; kind: string; valid_to: string; org_id: string; region_id: string; days_left: number; assigned_jobs: number }>(
-    `SELECT c.id, c.crew_id, c.kind, to_char(c.valid_to,'YYYY-MM-DD') AS valid_to, c.org_id, c.region_id,
-            (c.valid_to - $1::date) AS days_left,
+  const rows = await tx.query<{ id: string; crew_id: string; kind: string; valid_to: string; org_id: string; region_id: string; days_left: number; threshold: number | null; assigned_jobs: number }>(
+    // $1 is a UTC date (toISOString), so every day here is a UTC day, as the
+    // gate's is. A job is at risk when its window ends after the credential's
+    // last instant: UTC midnight that starts the day after valid_to.
+    `WITH due AS (
+       SELECT c.id, c.crew_id, c.kind, c.valid_to, c.org_id, c.region_id, (c.valid_to - $1::date) AS days_left
+         FROM crew_credentials c JOIN crews cr ON cr.id = c.crew_id
+        WHERE cr.active AND c.valid_to BETWEEN $1::date - 1 AND $1::date + 30
+          AND NOT ${SUPERSEDED("c")}
+     ), marked AS (
+       -- The nearest warning mark at or above the days left; none once it has expired.
+       SELECT d.*, CASE WHEN d.days_left < 0 THEN NULL ELSE (SELECT min(w) FROM unnest($2::int[]) AS w WHERE w >= d.days_left) END AS threshold
+         FROM due d
+     )
+     SELECT m.id, m.crew_id, m.kind, to_char(m.valid_to,'YYYY-MM-DD') AS valid_to, m.org_id, m.region_id, m.days_left, m.threshold,
             (SELECT count(*) FROM assignments a JOIN jobs j ON j.id = a.job_id
-              WHERE a.crew_id = c.crew_id AND a.released_at IS NULL AND upper(j.service_window) > c.valid_to::timestamptz) AS assigned_jobs
-       FROM crew_credentials c
-      WHERE c.valid_to BETWEEN $1::date AND ($1::date + 30)
-        AND NOT EXISTS (SELECT 1 FROM outbox o WHERE o.entity = 'crew_credential' AND o.entity_id = c.id
-                          AND o.topic = CASE WHEN c.valid_to <= $1::date THEN 'credential.expired' ELSE 'credential.expiring' END
-                          -- AT TIME ZONE 'UTC' below is load-bearing. The
-                          -- parameter is today.toISOString() cut to ten
-                          -- characters, which is a UTC date, while a bare
-                          -- occurred_at::date casts in the SESSION's timezone.
-                          -- On a server set to anything west of UTC the two
-                          -- disagree for the whole local evening: the guard
-                          -- never matches and this sweep re-warns on every run
-                          -- until midnight. Found 2026-09-18 running
-                          -- worker.test.ts against a cluster on
-                          -- America/Chicago; green in CI because CI is UTC.
-                          AND (o.occurred_at AT TIME ZONE 'UTC')::date = $1::date)`,
-    [iso],
+              WHERE a.crew_id = m.crew_id AND a.released_at IS NULL
+                AND upper(j.service_window) >= ((m.valid_to + 1)::timestamp AT TIME ZONE 'UTC')) AS assigned_jobs
+       FROM marked m
+      -- Once per mark, and once on expiry — not once a day for thirty days.
+      WHERE NOT EXISTS (SELECT 1 FROM outbox o WHERE o.entity = 'crew_credential' AND o.entity_id = m.id
+                          AND o.topic = CASE WHEN m.threshold IS NULL THEN 'credential.expired' ELSE 'credential.expiring' END
+                          AND (m.threshold IS NULL OR o.payload->>'threshold' = m.threshold::text))`,
+    [iso, EXPIRY_WARN_DAYS],
   );
   for (const r of rows) {
-    const topic = r.days_left <= 0 ? "credential.expired" : "credential.expiring";
+    const topic = r.days_left < 0 ? "credential.expired" : "credential.expiring";
     await emit(tx, {
       topic, entity: "crew_credential", entityId: r.id, action: `credential.${topic.split(".")[1]}`,
-      payload: { crewId: r.crew_id, kind: r.kind, validTo: r.valid_to, daysLeft: r.days_left, assignedJobsAtRisk: Number(r.assigned_jobs) },
+      payload: { crewId: r.crew_id, kind: r.kind, validTo: r.valid_to, daysLeft: r.days_left, ...(r.threshold === null ? {} : { threshold: r.threshold }), assignedJobsAtRisk: Number(r.assigned_jobs) },
       orgId: r.org_id, regionId: r.region_id, after: { validTo: r.valid_to, daysLeft: r.days_left },
     }, today);
   }
