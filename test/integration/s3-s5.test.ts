@@ -464,6 +464,31 @@ test("job detail (0016): the job's visits are its assignments with the crew's lo
   await west.logout();
 });
 
+test("sync.replay after a release: a crew taken off a job cannot drive it — the job may be another crew's, so every intent goes to a person", { skip }, async () => {
+  const other = (await s2.gateway.createJob({ siteId: site, serviceCode: "HVAC-REPAIR", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;
+  const out = await s3.gateway.assignCrew({ jobId: other, crewId: crewCleared, orgId, regionId: REGION_SOUTH });
+  assert.equal(out.ok, true);
+  if (!out.ok) return;
+  await s3.gateway.releaseAssignment({ assignmentId: out.assignmentId, orgId, regionId: REGION_SOUTH, reason: "sent elsewhere" });
+  // Another crew holds it now. Its state is all the device's policy could see.
+  await admin(`UPDATE jobs SET state = 'assigned' WHERE id = $1`, [other]);
+  const version = (await admin(`SELECT version FROM jobs WHERE id = $1`, [other]))[0]!.version as number;
+
+  const s5 = await technician();
+  const at = new Date().toISOString();
+  const res = await s5.gateway.replaySync({ orgId, regionId: REGION_SOUTH, mutations: [
+    { mutationId: `${RUN}-r1`, deviceId, deviceSeq: 101, entityTable: "jobs", entityId: other, op: "transition", payload: { state: "en_route" }, clientObservedVersion: version, deviceAt: at },
+    { mutationId: `${RUN}-r2`, deviceId, deviceSeq: 102, entityTable: "time_entries", entityId: other, op: "insert", payload: { crew_id: crewCleared, start: at, end: at, kind: "labor" }, clientObservedVersion: null, deviceAt: at },
+  ] });
+  assert.deepEqual(res.outcomes.map((o) => o.outcome), ["queued_for_human", "queued_for_human"]);
+  const job = (await admin(`SELECT state, version FROM jobs WHERE id = $1`, [other]))[0]!;
+  assert.equal(job.state, "assigned", "the released crew's transition did not land");
+  assert.equal(job.version, version);
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM time_entries WHERE job_id = $1`, [other]))[0]!.n, 0);
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM sync_conflicts WHERE entity_id = $1`, [other]))[0]!.n, 2, "both are a person's to judge");
+  await s5.logout();
+});
+
 test("a revoked grant is a dead token: logout ends the session, and the next call is refused as revoked", { skip }, async () => {
   const s5 = await technician();
   const held = s5.token()!;

@@ -15,10 +15,16 @@ import type { Topic } from "../../../../packages/contracts/src/events.ts";
  *
  * Nothing about tenancy is taken from the request: every row a mutation
  * writes carries the JOB's own org and region, read here, and a device may
- * touch only a job its grant's crew has been assigned to (live or since
- * released — offline work done before a release is the conflict queue's to
- * judge, not a refusal). The intent record of a mutation that names any other
+ * touch only a job its grant's crew has been assigned to. A crew whose
+ * assignment has since been released is not refused — offline work done
+ * before a release is real — but nothing it sends is applied either: the job
+ * may already be another crew's, so every such mutation goes to the conflict
+ * queue for a person. The intent record of a mutation that names any other
  * job carries the grant's own tenancy.
+ *
+ * The job row is locked for the batch, and a transition writes only over the
+ * version it was decided against: an office transition or release that lands
+ * mid-replay is never silently overwritten.
  */
 export type SyncBatch = { readonly deviceId: string; readonly grantId: string; readonly orgId: string; readonly regionId: string; readonly mutations: readonly Mutation[] };
 
@@ -26,15 +32,18 @@ const TOPIC_FOR: Readonly<Record<string, Topic>> = {
   jobs: "job.transitioned", job_media: "job.transitioned", time_entries: "job.transitioned", parts_used: "job.transitioned", checklist_items: "job.transitioned",
 };
 
-type CrewJob = { readonly orgId: string; readonly regionId: string; readonly crewId: string; readonly server: ServerState };
+type CrewJob = { readonly orgId: string; readonly regionId: string; readonly crewId: string; readonly live: boolean; readonly server: ServerState };
 const crewJobOf = async (uow: UnitOfWork, grantId: string, jobId: string): Promise<CrewJob | null> => {
-  const r = (await uow.tx.query<{ org_id: string; region_id: string; crew_id: string; state: string; version: number }>(
-    `SELECT j.org_id, j.region_id, g.crew_id, j.state, j.version FROM jobs j, device_grants g
+  const r = (await uow.tx.query<{ org_id: string; region_id: string; crew_id: string; live: boolean; state: string; version: number }>(
+    `SELECT j.org_id, j.region_id, g.crew_id, j.state, j.version,
+            EXISTS (SELECT 1 FROM assignments a WHERE a.job_id = j.id AND a.crew_id = g.crew_id AND a.released_at IS NULL) AS live
+       FROM jobs j, device_grants g
       WHERE j.id = $2 AND g.id = $1
-        AND EXISTS (SELECT 1 FROM assignments a WHERE a.job_id = j.id AND a.crew_id = g.crew_id)`,
+        AND EXISTS (SELECT 1 FROM assignments a WHERE a.job_id = j.id AND a.crew_id = g.crew_id)
+        FOR UPDATE OF j`,
     [grantId, jobId],
   ))[0];
-  return r ? { orgId: r.org_id, regionId: r.region_id, crewId: r.crew_id, server: { version: r.version, state: r.state, fields: {} } } : null;
+  return r ? { orgId: r.org_id, regionId: r.region_id, crewId: r.crew_id, live: r.live, server: { version: r.version, state: r.state, fields: {} } } : null;
 };
 
 export const ingestSync = async (uow: UnitOfWork, actorId: string, batch: SyncBatch, receivedAt: Date): Promise<readonly SyncOutcome[]> => {
@@ -46,9 +55,13 @@ export const ingestSync = async (uow: UnitOfWork, actorId: string, batch: SyncBa
     // Every table a device writes hangs off a job, and entityId names it.
     const job = seen.has(m.mutationId) ? null : await crewJobOf(uow, batch.grantId, m.entityId);
     const server = m.entityTable === "jobs" ? job?.server ?? null : null;
-    const outcome: SyncOutcome = !seen.has(m.mutationId) && !job
-      ? { outcome: "rejected", mutationId: m.mutationId, note: `job ${m.entityId} is not one this crew has been sent to — a device writes only its own crew's work` }
-      : resolveMutation(m, server, seen);
+    const outcome: SyncOutcome = seen.has(m.mutationId)
+      ? resolveMutation(m, server, seen)
+      : !job
+        ? { outcome: "rejected", mutationId: m.mutationId, note: `job ${m.entityId} is not one this crew has been sent to — a device writes only its own crew's work` }
+        : !job.live
+          ? { outcome: "queued_for_human", mutationId: m.mutationId, serverState: job.server, note: `this crew was released from the job before the device synced; the job may now be another crew's. A person decides whether this work stands.` }
+          : resolveMutation(m, server, seen);
     const orgId = job?.orgId ?? batch.orgId;
     const regionId = job?.regionId ?? batch.regionId;
     seen.add(m.mutationId);
@@ -93,7 +106,8 @@ export const ingestSync = async (uow: UnitOfWork, actorId: string, batch: SyncBa
         switch (m.entityTable) {
           case "jobs": {
             const to = String(m.payload.state);
-            await tx.query("UPDATE jobs SET state = $2, version = version + 1 WHERE id = $1", [m.entityId, to]);
+            const moved = await tx.query("UPDATE jobs SET state = $2, version = version + 1 WHERE id = $1 AND version = $3 RETURNING id", [m.entityId, to, server!.version]);
+            if (moved.length !== 1) throw new Error(`sync: job ${m.entityId} changed under a locked replay — version ${server!.version} is no longer current`);
             await tx.insert("job_state_events", {
               org_id: orgId, region_id: regionId, job_id: m.entityId, from_state: server?.state ?? null, to_state: to,
               actor_id: actorId, surface_id: "S5", mutation_id: m.mutationId, occurred_at: m.deviceAt,
