@@ -189,7 +189,7 @@ test("Technician Network: AC Services DFW first, then a tab per firm that can st
   app.router.navigate("network", { firmId: U(60) });
   render(app.view());
   await settle();
-  const nav = render(app.view()).split('<nav class="s2-context"')[0]!;
+  const nav = render(app.view()).split('<nav class="s2-trail"')[0]!;
   const group = nav.split('aria-label="Technician Network"')[1]!.split('aria-label="Purchasing"')[0]!;
   const tabs = [...group.matchAll(/<a class="ac-seg__item"[^>]*>([^<]+)<\/a>/g)].map((m) => m[1]);
   assert.deepEqual(tabs, ["AC Services DFW", "Cool Air Partners LLC", "North Texas Mechanical"], "a terminated firm fields no crews, so it gets no tab");

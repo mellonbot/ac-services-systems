@@ -248,8 +248,7 @@ ${co}
   return `<header class="ac-mast" data-brand-layer="${brandLayer}">
 <a class="ac-mast__lockup" href="/" aria-label="${escapeHtml(BRAND.legalName)}">
 ${badge}
-${wordmark}
-${co}
+<span class="ac-mast__name">${wordmark}${co}</span>
 </a>
 <div class="ac-mast__rule"></div>
 </header>`;

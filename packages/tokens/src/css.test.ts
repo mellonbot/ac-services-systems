@@ -174,6 +174,23 @@ test("every step of the type scale moves with the density, and nothing is set be
   assert.deepEqual(TYPE_SCALE.comfort, P.text);
 });
 
+// The lockup sets the script wordmark beside the company line on one baseline.
+// Font size is the wrong measure there: Yellowtail's lowercase body is a little
+// over a third of its em, Plex Sans caps seven tenths of theirs, so a 3:1 size
+// ratio read as barely 1.6:1. Measured from the shipped faces in
+// packages/tokens/fonts: the bowl of Yellowtail's "a" stands 0.375 em (the
+// lowest of r-a-n-k-i-n-e's bodies), Plex Sans 600 caps 0.698 em.
+const YELLOWTAIL_X_HEIGHT = 0.375;
+const PLEX_SANS_CAP_HEIGHT = 0.698;
+
+test("the wordmark's lowercase stands at least 1.75x the company line's caps, at every density", () => {
+  for (const d of DENSITIES) {
+    const scale = TYPE_SCALE[d];
+    const ratio = (px(scale.mast) * YELLOWTAIL_X_HEIGHT) / (px(scale.xs) * PLEX_SANS_CAP_HEIGHT);
+    assert.ok(ratio >= 1.75, `${d}: Rankine's lowercase is ${ratio.toFixed(2)}x the company line's caps, under 1.75x`);
+  }
+});
+
 test("the frame carries the width schedule at every density: four measures in ch, the layout widths, no breakpoint", () => {
   for (const d of DENSITIES) {
     const css = tokenCss(d);

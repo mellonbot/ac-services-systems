@@ -282,32 +282,30 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         return tab(id, {}, "title" in spec ? spec.title : ROUTE_LABELS[id], open && navTargetFor(routeId!) === id);
       });
     };
+    // The trail says only what the tabs and the page head do not: the domain, the
+    // tab a sub-screen sits under, and the record open in it.
+    const target = routeId ? navTargetFor(routeId) : undefined;
+    const parentTab = routeId && target && routeId !== target && ROUTE_LABELS[target] !== group?.label ? ROUTE_LABELS[target] : null;
     return html`<div class="s2-app">
       <nav class="ac-nav ac-nav--grouped" aria-label="Workspace">
-        ${NAV_GROUPS.map((navGroup) => html`<div class="ac-nav__group" role="group" aria-label=${navGroup.label} data-current=${group?.label === navGroup.label ? "true" : "false"}>
-          <span class="ac-nav__group-label">${navGroup.label}</span>
-          <div class="ac-seg">${tabsFor(navGroup)}</div>
-        </div>`)}
         <div class="ac-nav__end">
-          <span class="ac-nav__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
+          <span class="ac-nav__group-label">Signed-in scope</span>
+          <span class="ac-nav__who"><span class="s2-scope">${path.map((node) => html`<span>${node.name ?? node.tier}</span>`)}</span> · ${p.shell.principal.roles.join(", ")}</span>
           <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
         </div>
-      </nav>
-      <nav class="s2-context" aria-label="Current location">
-        <div class="s2-context__scope">
-          <span class="s2-context__label">Signed-in scope</span>
-          <ol>${path.map((node) => html`<li><span>${node.name ?? node.tier}</span><small>${node.tier}</small></li>`)}</ol>
-        </div>
-        <div class="s2-context__current">
-          <span class="s2-context__label">Current location</span>
-          <ol>
-            ${group ? html`<li>${group.label}</li>` : null}
-            ${routeId === "network" ? null : html`<li>${routeId ? ROUTE_LABELS[routeId] : "Workspace"}</li>`}
-            ${entity ? html`<li aria-current="location">${entity}</li>` : null}
-          </ol>
+        <div class="ac-nav__groups">
+          ${NAV_GROUPS.map((navGroup) => html`<div class="ac-nav__group" role="group" aria-label=${navGroup.label} data-current=${group?.label === navGroup.label ? "true" : "false"}>
+            <span class="ac-nav__group-label">${navGroup.label}</span>
+            <div class="ac-seg">${tabsFor(navGroup)}</div>
+          </div>`)}
         </div>
       </nav>
       ${notice.length ? html`<div class="s2-notice" role="status">${notice.map((n) => html`<p>${n}</p>`)}<button type="button" class="s2-notice__dismiss" onClick=${() => { p.store.notice.value = []; }} aria-label="Dismiss">×</button></div>` : null}
+      ${group ? html`<nav class="s2-trail" aria-label="Current location"><ol>
+        <li>${group.label}</li>
+        ${parentTab ? html`<li>${parentTab}</li>` : null}
+        ${entity ? html`<li aria-current="location">${entity}</li>` : null}
+      </ol></nav>` : null}
       ${screen ? screen(ctx, loc!.params) : html`<p class="s2-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}
     </div>`;
   };

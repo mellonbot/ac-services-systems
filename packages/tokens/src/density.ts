@@ -65,9 +65,9 @@ export type TypeStep = keyof typeof P.text;
  * bulletin's plates are drawn at, and the other two are struck from it.
  */
 export const TYPE_SCALE = Object.freeze({
-  console: Object.freeze({ xs: "11px", sm: "12px", md: "14px", lg: "16px", xl: "20px", display: "26px", mast: "34px" }),
+  console: Object.freeze({ xs: "11px", sm: "12px", md: "14px", lg: "16px", xl: "20px", display: "26px", mast: "36px" }),
   comfort: P.text,
-  field: Object.freeze({ xs: "15px", sm: "17px", md: "18px", lg: "23px", xl: "28px", display: "36px", mast: "48px" }),
+  field: Object.freeze({ xs: "15px", sm: "17px", md: "18px", lg: "23px", xl: "28px", display: "36px", mast: "50px" }),
 } as const satisfies Record<Density, Readonly<Record<TypeStep, string>>>);
 
 /**
