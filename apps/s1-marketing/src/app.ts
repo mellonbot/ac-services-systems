@@ -92,6 +92,7 @@ export const createApp = (opts: {
     try {
       await shell.ensureSession();
     } catch {
+      buffer.unreachable();
       return; // no session, no writes; the queue is untouched and will try again
     }
     const outcomes = await buffer.flush((input: SubmitLeadInput) => shell.gateway.submitLead(input));
