@@ -44,6 +44,14 @@ jobs:
       # the branded StorageKey and the clearance symbol are mechanisms that
       # exist only in the type system — untypechecked, they are comments.
       - run: pnpm typecheck
+      # tsconfig.json leaves out the AC Logins app's Electron files (main,
+      # preload, renderer): they need electron's types, which live in the app's
+      # own npm install. Check them here, with the app's own tsconfig.
+      # --ignore-scripts: the types are enough; the Electron binary is not fetched.
+      - name: AC Logins typechecks
+        run: |
+          npm ci --ignore-scripts --prefix tools/logins-app
+          pnpm exec tsc -p tools/logins-app/tsconfig.json
       - run: pnpm guard:lint
       # The component set renders to a string under node --test; needs preact, so it lives here.
       - run: npm run test:ui
