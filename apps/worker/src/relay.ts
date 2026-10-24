@@ -29,7 +29,11 @@ type Row = {
   actor_id: string; surface_id: string; region_id: string; org_id: string; occurred_at: string; attempts: number;
 };
 
-/** attempts at or past this are parked: kept for an operator, never read again (a parked row at the head of every batch would starve the rest). */
+/**
+ * attempts at or past this are parked: kept for an operator, never read again (a parked row at the head of every batch would starve the rest).
+ * Only an unknown topic parks a row. A failed publish is the transport's fault, not the row's: it counts up to one short of
+ * PARKED and stops there, so an outage of any length leaves every row to be published when the transport is back.
+ */
 export const PARKED = 1000;
 
 export const relayOnce = async (tx: RelayTx, publisher: EventPublisher, batchSize = 200, regionId?: string): Promise<{ published: number; refused: number }> => {
@@ -70,7 +74,7 @@ export const relayOnce = async (tx: RelayTx, publisher: EventPublisher, batchSiz
   } catch (e) {
     // Nothing is marked; the whole batch is retried. attempts is the signal an operator watches.
     await tx.query("ROLLBACK TO SAVEPOINT publish");
-    await tx.query(`UPDATE outbox SET attempts = attempts + 1 WHERE id = ANY($1::uuid[])`, [rows.map((r) => r.id)]);
+    await tx.query(`UPDATE outbox SET attempts = LEAST(attempts + 1, ${PARKED - 1}) WHERE id = ANY($1::uuid[])`, [rows.map((r) => r.id)]);
     await tx.commit();
     throw e;
   }
