@@ -162,3 +162,14 @@ test("the levels in the database: rows in two regions — the org-wide logins re
     (e: unknown) => sa3.refusalOf(e)?.kind === "scope");
   for (const s of [sa, sm, d, sa3]) await s.logout();
 });
+
+test("superadmin: false leaves superadmin-test out and switches off the one an earlier seed made — the others are re-seeded", { skip }, async () => {
+  const region = await resolveRegion(pool, "south");
+  const out = await seedTestLogins(pool, { password: PASSWORD, regionId: region.id, superadmin: false });
+  assert.deepEqual(out.map((s) => s.email).sort(), ["dispatcher-test@ac.test", "service_manager-test@ac.test"]);
+  assert.equal((await admin(`SELECT active FROM users WHERE email = 'superadmin-test@ac.test'`))[0].active, false);
+  await assert.rejects(as(byLogin("superadmin-test"), "S2"));
+  // Put it back for anything that runs after.
+  await seedTestLogins(pool, { password: PASSWORD, regionId: region.id, customerOrgId: customerOrg });
+  assert.equal((await admin(`SELECT active FROM users WHERE email = 'superadmin-test@ac.test'`))[0].active, true);
+});

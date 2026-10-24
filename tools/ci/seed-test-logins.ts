@@ -5,7 +5,7 @@
  * surfaces each must open: ./test-logins.ts).
  *
  *   DATABASE_URL=postgres://… AC_TEST_LOGIN_PASSWORD=… [AC_TEST_LOGIN_REGION=SOUTH] \
- *     [AC_TEST_LOGIN_CUSTOMER_ORG="Amped"] node tools/ci/seed-test-logins.ts
+ *     [AC_TEST_LOGIN_CUSTOMER_ORG="Amped"] [AC_TEST_LOGIN_SUPERADMIN=0] node tools/ci/seed-test-logins.ts
  *
  * Idempotent: a second run re-applies roles, scope and password to the same
  * rows (matched by email) and reactivates them. The password is never a
@@ -62,14 +62,24 @@ export const resolveCustomerOrg = async (pool: Pool, ref: string): Promise<{ id:
   }
 };
 
-export const seedTestLogins = async (pool: Pool, opts: { readonly password: string; readonly regionId: string; readonly customerOrgId?: string | undefined }): Promise<readonly SeededLogin[]> => {
+/** The login a shared password must not put into production unless someone asked for it by name. */
+export const SUPERADMIN_TEST_EMAIL = TEST_LOGINS.find((t) => t.login === "superadmin-test")!.email;
+
+/**
+ * `superadmin: false` leaves superadmin-test out — and deactivates it if an earlier seed made it, since an
+ * org-wide principal behind a shared password is the one test login a production database should not keep.
+ */
+export const seedTestLogins = async (pool: Pool, opts: { readonly password: string; readonly regionId: string; readonly customerOrgId?: string | undefined; readonly superadmin?: boolean }): Promise<readonly SeededLogin[]> => {
   if (opts.password.length < MIN_TEST_LOGIN_PASSWORD) throw new Error(`the test-login password must be at least ${MIN_TEST_LOGIN_PASSWORD} characters`);
   const hash = hashPassword(opts.password);
   const tx = await beginTx(pool, "ac_gateway");
   await bindSystem(tx);
   try {
     const out: SeededLogin[] = [];
+    const superadmin = opts.superadmin ?? true;
+    if (!superadmin) await tx.query("UPDATE users SET active = false WHERE email = $1", [SUPERADMIN_TEST_EMAIL]);
     for (const t of opts.customerOrgId ? [...TEST_LOGINS, CUSTOMER_TEST_LOGIN] : TEST_LOGINS) {
+      if (!superadmin && t.email === SUPERADMIN_TEST_EMAIL) continue;
       const r = testLoginRow(t, opts.regionId, opts.customerOrgId);
       const row = (await tx.query<{ id: string }>(
         `INSERT INTO users (org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
@@ -103,11 +113,14 @@ if (isMain) {
     const region = await resolveRegion(pool, process.env.AC_TEST_LOGIN_REGION);
     const customerRef = process.env.AC_TEST_LOGIN_CUSTOMER_ORG;
     const customer = customerRef ? await resolveCustomerOrg(pool, customerRef) : undefined;
-    for (const s of await seedTestLogins(pool, { password, regionId: region.id, customerOrgId: customer?.id })) {
+    // AC_TEST_LOGIN_SUPERADMIN=0 (the seed-logins workflow's default) leaves superadmin-test out.
+    const superadmin = process.env.AC_TEST_LOGIN_SUPERADMIN !== "0";
+    for (const s of await seedTestLogins(pool, { password, regionId: region.id, customerOrgId: customer?.id, superadmin })) {
       const t = [...TEST_LOGINS, CUSTOMER_TEST_LOGIN].find((x) => x.email === s.email)!;
       const level = t.scope === "customer" ? `customer ${customer!.name}` : s.scopeTier === "parent" ? "org-wide" : `region ${region.code}`;
       console.log(`seed-test-logins: ${s.email}  roles [${s.roles.join(", ")}]  ${level}  → ${t.surfaces.join(", ")}`);
     }
+    if (!superadmin) console.log(`seed-test-logins: ${SUPERADMIN_TEST_EMAIL} not seeded (and deactivated if present) — AC_TEST_LOGIN_SUPERADMIN=0`);
     if (!customer) console.log(`seed-test-logins: ${CUSTOMER_TEST_LOGIN.email} not seeded — set AC_TEST_LOGIN_CUSTOMER_ORG to a customer org's name or id`);
   } catch (e) {
     console.error(`seed-test-logins: ${(e as Error).message}`);
