@@ -118,7 +118,7 @@ ${s.whiteLabel ? BRAND_ENTRYPOINT(s) : ""}`;
  * scope, phase gate, and gateway state explicit instead of shipping an empty
  * landmark. S2 owns its richer hand-written browser entry.
  */
-export const renderStatusApp = (): string => `import { html, mount, signal, effect, applyDegraded, type VNode } from "../../../packages/ui/src/index.ts";
+export const renderStatusApp = (): string => `import { html, mount, signal, driveDegraded, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 
@@ -177,10 +177,8 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   const slot = document.querySelector("ac-degraded") as HTMLElement | null;
   const Root = () => app.view();
   mount(html\`<\${Root} />\`, document.getElementById("mount")!);
-  effect(() => {
-    if (slot) applyDegraded(slot, { degraded: app.degraded.value, text: SURFACE.degraded, lastOkAt: app.lastOkAt(), now: Date.now() });
-  });
-  setInterval(() => app.tick(), 1_000);
+  const degradedTick = slot ? driveDegraded(slot, () => ({ degraded: app.degraded.value, text: SURFACE.degraded, lastOkAt: app.lastOkAt() }), Date.now) : () => {};
+  setInterval(() => { app.tick(); degradedTick(); }, 1_000);
   void app.boot();
 }
 `;
