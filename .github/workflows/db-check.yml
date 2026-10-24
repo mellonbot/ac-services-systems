@@ -45,7 +45,8 @@ jobs:
               const roles = await c.query("select rolname, pg_has_role(current_user, rolname, $1) as member from pg_roles where rolname like $2 order by 1", ["MEMBER", "ac_%"]);
               console.table(roles.rows);
               for (const r of ["ac_gateway", "ac_worker"]) {
-                try { await c.query("BEGIN"); await c.query(`SET LOCAL ROLE ${r}`); const t = await c.query("select count(*)::int as n from surfaces"); await c.query("ROLLBACK"); console.log(`SET LOCAL ROLE ${r}: ok; surfaces rows visible: ${t.rows[0].n}`); }
+                // regions: a table both roles are granted, read under the system binding the gateway and worker use.
+                try { await c.query("BEGIN"); await c.query(`SET LOCAL ROLE ${r}`); await c.query("select set_config($1, $2, true)", ["ac.namespace", "system"]); const t = await c.query("select count(*)::int as n from regions"); await c.query("ROLLBACK"); console.log(`SET LOCAL ROLE ${r}: ok; regions rows visible: ${t.rows[0].n}`); }
                 catch (e) { await c.query("ROLLBACK").catch(() => {}); console.error(`SET LOCAL ROLE ${r}: FAILED — ${e.message} ${e.code ?? ""}`); process.exitCode = 1; }
               }
               await c.query("LISTEN ac_db_check"); console.log("LISTEN ok");
