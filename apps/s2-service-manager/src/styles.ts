@@ -87,7 +87,6 @@ export const S2_CSS = `
   .s2-node[data-depth="2"]{padding-inline-start:var(--space-6)}
   .s2-col--orgs{position:static}
   .s2-form__actions{align-items:stretch;flex-direction:column}
-  .s2-context{grid-template-columns:minmax(0,1fr)}
   .s2-app .s2-trace-table{display:block;width:100%;max-width:100%;overflow-x:auto}
   .s2-app .s2-trace__step{grid-template-columns:minmax(0,1fr) max-content}
 }
@@ -95,16 +94,15 @@ export const S2_CSS = `
 /* Rev A: heads, panels and tiles are drawn by packages/ui (pageHead, panel, statStrip); this only arranges. */
 .s2-two-col>*{min-width:0}
 
-/* Persistent location: the operator's resolved scope stays separate from the
-   customer, firm, or order currently open in the workspace. */
-.s2-context__label{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
-.s2-context{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-3) var(--space-6);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
-.s2-context__scope,.s2-context__current{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
-.s2-context ol{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-2);list-style:none;margin:0;padding:0;min-width:0}
-.s2-context li{display:inline-flex;align-items:baseline;gap:var(--space-1);min-width:0}
-.s2-context li+li::before{content:"/";color:var(--color-text-muted);margin-inline-end:var(--space-1)}
-.s2-context li[aria-current="location"]{font-weight:700}
-.s2-context li small{color:var(--color-text-muted);font-size:var(--text-xs)}
+/* Where the operator is: one line above the page head naming the domain, the
+   tab a sub-screen sits under and the record open — never a repeat of the tab
+   or the title. Names are not set in caps: what is copied is what is read. */
+.s2-trail ol{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-1) var(--space-2);list-style:none;margin:0;padding:0;color:var(--color-text-muted);font-size:var(--text-sm)}
+.s2-trail li{min-width:0}
+.s2-trail li+li::before{content:"/";margin-inline-end:var(--space-2)}
+.s2-trail li[aria-current="location"]{color:var(--color-text);font-weight:600}
+.s2-scope{color:var(--color-text);font-weight:600}
+.s2-scope>span+span::before{content:" / ";color:var(--color-text-muted);font-weight:400}
 .s2-mutation{appearance:none;display:inline-flex;align-items:center;justify-content:center;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action-text);font:inherit;font-weight:600;cursor:pointer}
 .s2-mutation:hover:not(:disabled){background:var(--color-surface-sunken)}
 .s2-mutation:focus-visible,.s2-help summary:focus-visible{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}

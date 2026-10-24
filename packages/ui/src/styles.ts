@@ -79,11 +79,10 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
   color:var(--color-livery);padding-right:0.08em}
 .ac-wordmark__co{font-family:var(--font-label);font-weight:600;font-size:var(--text-xs);
   letter-spacing:var(--track-widest);text-transform:uppercase;color:var(--color-text-muted)}
-.ac-mast__rule{height:4px;background:var(--color-livery);max-width:320px;margin-top:var(--space-2)}
-/* A titled masthead (S1): the rule the full width under the wordmark, the company line
-   under the rule, and the site's name under the company line. */
+.ac-mast__rule{height:4px;background:var(--color-livery);margin-top:var(--space-2)}
+/* A titled masthead (S1): the company line under the full-width rule, and the
+   site's name under the company line. */
 .ac-mast__title{margin:var(--space-2) 0 0;font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);line-height:1.15;color:var(--color-text)}
-.ac-mast--titled .ac-mast__rule{max-width:none}
 .ac-mast--titled .ac-wordmark__co{display:block;margin-top:var(--space-2)}
 
 /* ---- Plate head: a titled section is numbered, like a plate ---- */
@@ -266,15 +265,21 @@ ac-degraded[hidden]{display:none}
    records, the technician network, purchasing) gives each domain its own
    segmented track, labelled, with page ground between. One shared track reads
    the domains as one list. The open domain carries the 3px top rule and a
-   full-strength label: form first, so it still reads in greyscale. */
-.ac-nav--grouped{flex-wrap:wrap;align-items:flex-end;gap:var(--space-3) var(--space-6);padding:0;background:none;border:0;border-radius:var(--radius-none)}
+   full-strength label: form first, so it still reads in greyscale. Who is
+   signed in takes a line of its own above the tracks, right-aligned and first
+   in reading order, so the tracks keep the full width and a wrapped track never
+   strands it mid-row. A hairline closes the chrome off from the work below. */
+.ac-nav--grouped{flex-direction:column;align-items:stretch;gap:var(--space-2);padding:0 0 var(--space-3);background:none;border:0;border-bottom:1px solid var(--color-border);border-radius:var(--radius-none)}
+.ac-nav__groups{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--space-3) var(--space-6);min-width:0}
+.ac-nav--grouped>.ac-nav__end{align-self:flex-end;flex-wrap:wrap;gap:var(--space-1) var(--space-3);margin-inline-start:0}
+.ac-nav--grouped .ac-nav__who{margin-inline-start:0;padding:0}
 .ac-nav__group{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
 .ac-nav__group-label{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
 .ac-nav__group>.ac-seg{border-top:3px solid transparent}
 .ac-nav__group[data-current="true"]>.ac-seg{border-top-color:var(--color-action-text)}
 .ac-nav__group[data-current="true"]>.ac-nav__group-label{color:var(--color-text)}
 .ac-nav__end{display:flex;align-items:center;gap:var(--space-2);margin-inline-start:auto}
-@media (max-width:760px){.ac-nav--grouped{flex-direction:column;align-items:stretch}.ac-nav__group>.ac-seg{display:flex}.ac-nav__end{margin-inline-start:0}.ac-nav__end .ac-nav__who{order:0;width:auto;flex:1 1 auto}}
+@media (max-width:760px){.ac-nav__groups{flex-direction:column;align-items:stretch}.ac-nav--grouped>.ac-nav__end{align-self:stretch}.ac-nav__group>.ac-seg{display:flex}.ac-nav__end{margin-inline-start:0}.ac-nav__end .ac-nav__who{order:0;width:auto;flex:1 1 auto}}
 /* A stacked grid on a phone: each row a block of label/value pairs, the header kept for screen readers. */
 @media (max-width:760px){
   .ac-grid[data-stack="narrow"]{display:block;width:100%;max-width:100%;overflow-x:auto}
