@@ -34,6 +34,13 @@ export const S1_CSS = `
 .s1-surface-access{margin-top:var(--space-6);scroll-margin-top:var(--space-4)}
 .s1-portal:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
 .s1-call{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-height);color:var(--color-action-text);text-decoration:none;font-weight:600}
+.s1-missing{max-width:var(--measure-text)}
+.s1-missing__path{margin:0 0 var(--space-4)}
+.s1-missing__path code{font-family:var(--font-instrument);font-size:var(--text-sm);padding:var(--space-1) var(--space-2);background:var(--color-surface-sunken);border-radius:var(--radius-control);color:var(--color-text);word-break:break-all}
+.s1-missing__portals{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--tile-min),1fr));gap:var(--space-2);margin:0 0 var(--space-6);padding:0;list-style:none}
+.s1-missing__portals .s1-portal{align-items:flex-start;text-align:left;white-space:normal}
+.s1-missing__portals .s1-portal span{font-family:var(--font-instrument)}
+.s1-missing__ways{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-4)}
 .s1-foot{margin-top:var(--space-6);padding-top:var(--space-3);border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size:var(--text-sm)}
 
 /* ---- The sign-in yard: the outdoor service yard in 3D (src/scene.ts), after the ERS recovery
