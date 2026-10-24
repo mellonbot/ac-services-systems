@@ -107,19 +107,30 @@ const ORIGINS = allowedOrigins(SESSION);
 if (!SESSION.site) console.warn(`gateway: AC_SITE not set — development posture: cookies are not Secure and browser origins are ${ORIGINS.size ? [...ORIGINS].join(", ") : "NONE (bearer only)"}`);
 
 /**
+ * Behind Cloudflare (infra/cloudflare/worker.mjs sets AC_BEHIND_CLOUDFLARE=1
+ * when it starts the container) every request arrives from the Worker, so the
+ * socket's address is the edge's, and the client's is CF-Connecting-IP, which
+ * Cloudflare sets and a client cannot. Anywhere else that header is whatever
+ * the caller typed — one per request defeats every per-address limit below —
+ * so it is read only when this is set.
+ */
+const BEHIND_CLOUDFLARE = process.env.AC_BEHIND_CLOUDFLARE === "1";
+
+/**
  * The doors anyone can knock on, throttled. Per address so one client cannot
  * saturate the event loop or the sessions table; failed attempts per email so
  * a password is not guessed from many addresses (a right password does not
- * count against it). Behind Cloudflare the client's address is
- * CF-Connecting-IP; on a laptop it is the socket's.
+ * count against it).
  */
 const LOGIN_BY_ADDRESS = createThrottle({ limit: 120, windowMs: 60_000 });
 const LOGIN_FAILURES_BY_EMAIL = createThrottle({ limit: 10, windowMs: 15 * 60_000 });
 const ANONYMOUS_BY_ADDRESS = createThrottle({ limit: 20, windowMs: 60_000 });
 const addressOf = (req: IncomingMessage): string => {
-  const cf = req.headers["cf-connecting-ip"];
+  const cf = BEHIND_CLOUDFLARE ? req.headers["cf-connecting-ip"] : undefined;
   return (typeof cf === "string" && cf) || req.socket.remoteAddress || "unknown";
 };
+// Ended windows are dropped each minute, so the tables hold only live ones.
+setInterval(() => { for (const t of [LOGIN_BY_ADDRESS, LOGIN_FAILURES_BY_EMAIL, ANONYMOUS_BY_ADDRESS]) t.sweep(); }, 60_000).unref();
 const throttled = (ok: boolean, what: string): void => {
   if (!ok) throw new HttpError(429, `too many ${what} — wait a minute and try again`);
 };

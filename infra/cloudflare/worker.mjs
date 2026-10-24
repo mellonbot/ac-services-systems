@@ -58,7 +58,8 @@ export class Gateway extends DurableObject {
     if (!c.running) {
       const missing = REQUIRED.filter((k) => !this.env[k]);
       if (missing.length) throw new Error(`gateway secrets not set: ${missing.join(", ")} — wrangler secret put <NAME> -c infra/cloudflare/wrangler.jsonc`);
-      const env = { PORT: String(PORT) };
+      // The gateway trusts CF-Connecting-IP (and the host header below) only when told it is behind this Worker.
+      const env = { PORT: String(PORT), AC_BEHIND_CLOUDFLARE: "1" };
       for (const k of [...REQUIRED, ...PASSTHROUGH]) if (this.env[k]) env[k] = String(this.env[k]);
       c.start({ enableInternet: true, env });
     }
