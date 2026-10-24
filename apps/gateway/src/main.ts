@@ -155,21 +155,34 @@ const throttled = (ok: boolean, what: string): void => {
 
 type Json = Record<string, unknown>;
 /**
- * The most any request body may be. A photo is the largest thing an operation
- * carries — PHOTO_MAX_BYTES as base64 plus its envelope — and nothing else
- * comes close; past this the body is refused before it is held in memory.
+ * The most a request body may be, by who can send it. A photo is the largest
+ * thing an operation carries — PHOTO_MAX_BYTES as base64 plus its envelope —
+ * and only the photo upload is given that. A signed-in request (a sync batch
+ * is the largest) gets a megabyte; a door anyone can knock on — sign-in, the
+ * anonymous mint, a lead — gets 64 KB, so a stranger cannot make the gateway
+ * hold fourteen megabytes per request.
  */
-const MAX_BODY_BYTES = Math.ceil(PHOTO_MAX_BYTES / 3) * 4 + 64 * 1024;
-const readJson = (req: IncomingMessage): Promise<Json> =>
+const PHOTO_BODY_BYTES = Math.ceil(PHOTO_MAX_BYTES / 3) * 4 + 64 * 1024;
+const SIGNED_IN_BODY_BYTES = 1024 * 1024;
+const OPEN_DOOR_BODY_BYTES = 64 * 1024;
+const bodyLimitOf = (opId: OperationId): number =>
+  opId === "serviceRequests.attachPhoto" ? PHOTO_BODY_BYTES
+    : OPERATIONS[opId].auth === "none" || OPERATIONS[opId].surfaces.every((s) => SURFACES[s].namespace === "anonymous") ? OPEN_DOOR_BODY_BYTES
+      : SIGNED_IN_BODY_BYTES;
+const readJson = (req: IncomingMessage, limit: number): Promise<Json> =>
   new Promise((resolve, reject) => {
+    const tooLarge = () => new HttpError(413, `request body over ${limit} bytes`);
+    // Declared too large: refused before a byte is read.
+    if (Number(req.headers["content-length"] ?? 0) > limit) { reject(tooLarge()); return; }
     const chunks: Buffer[] = [];
     let size = 0;
-    req.on("data", (c: Buffer) => {
+    const onData = (c: Buffer) => {
       size += c.length;
-      // Stop holding it, answer once; the rest drains and is dropped.
-      if (size > MAX_BODY_BYTES) { chunks.length = 0; reject(new HttpError(413, `request body over ${MAX_BODY_BYTES} bytes`)); return; }
+      // Stop reading and holding it; the server closes the connection after the 413 rather than drain the rest.
+      if (size > limit) { chunks.length = 0; req.off("data", onData); req.pause(); reject(tooLarge()); return; }
       chunks.push(c);
-    });
+    };
+    req.on("data", onData);
     req.on("end", () => {
       let body: unknown;
       try { body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {}; } catch { reject(new HttpError(400, "the request body is not JSON")); return; }
@@ -331,7 +344,8 @@ const login = async (req: IncomingMessage, body: Partial<OperationIO["auth.login
   const { email, password, surface } = body;
   if (!email || !password || !surface || !SURFACES[surface]) throw new HttpError(400, "email, password and surface are required");
   const who = String(email).toLowerCase();
-  throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)) && signInAllowed(req, who), "sign-in attempts");
+  // The per-address count was taken before the body was read (beforeBody).
+  throttled(signInAllowed(req, who), "sign-in attempts");
   // Login runs as the gateway itself (no principal yet), then binds the principal's own scope.
   const tx = await beginTx(pool, "ac_gateway");
   try {
@@ -390,7 +404,8 @@ const deviceLogin = async (req: IncomingMessage, body: Partial<OperationIO["auth
   const { hardwareId, email, password } = body;
   if (!hardwareId || !email || !password) throw new HttpError(400, "hardwareId, email and password are required");
   const who = String(email).toLowerCase();
-  throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)) && signInAllowed(req, who), "sign-in attempts");
+  // The per-address count was taken before the body was read (beforeBody).
+  throttled(signInAllowed(req, who), "sign-in attempts");
   const tx = await beginTx(pool, "ac_gateway");
   try {
     await bindSystem(tx);
@@ -451,7 +466,6 @@ const deviceLogin = async (req: IncomingMessage, body: Partial<OperationIO["auth
  * the bootstrap migration. This is the row that finally writes it.
  */
 const anonymousSession = async (req: IncomingMessage, res: ServerResponse): Promise<OperationIO["auth.anonymousSession"]["output"]> => {
-  throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "visits from this address");
   const claims: Omit<Claims, "iat" | "exp" | "sid"> = {
     sub: ANONYMOUS_ACTOR, ns: "anonymous", org: PROSPECT_ORG_ID, region: UNASSIGNED_REGION_ID,
     scope_tier: "parent", scope_id: PROSPECT_ORG_ID, roles: [],
@@ -726,8 +740,9 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
 
   // ---- item 8: S1's anonymous door ----
   "auth.anonymousSession": (req, _input, res) => anonymousSession(req, res),
-  "leads.submit": (req, input) => { throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"); return withUow(req, "leads.submit", (uow) => submitLead(uow, input, randomUUID)); },
-  "callRecords.record": (req, input) => { throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"); return withUow(req, "callRecords.record", (uow) => recordCall(uow, input, randomUUID, () => new Date())); },
+  // Throttled per address before the body is read (beforeBody).
+  "leads.submit": (req, input) => withUow(req, "leads.submit", (uow) => submitLead(uow, input, randomUUID)),
+  "callRecords.record": (req, input) => withUow(req, "callRecords.record", (uow) => recordCall(uow, input, randomUUID, () => new Date())),
 
   /**
    * The coverage map, with no session behind it — the same shape as
@@ -768,10 +783,24 @@ const STREAMING = Symbol("streaming");
 /** `METHOD /path` → operation id. Built from the catalogue; a route not in the catalogue does not exist. */
 const ROUTES: ReadonlyMap<string, OperationId> = new Map(OPERATION_IDS.map((id) => [routeKey(OPERATIONS[id]), id]));
 
+/**
+ * What is checked before a body is read: the per-address throttle on the doors
+ * anyone can knock on, and the token on the one route that takes megabytes.
+ * Read first, a body is held in memory by a request that was going to be refused.
+ */
+const beforeBody: Partial<Record<OperationId, (req: IncomingMessage) => void>> = {
+  "auth.login": (req) => throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)), "sign-in attempts"),
+  "auth.deviceLogin": (req) => throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)), "sign-in attempts"),
+  "auth.anonymousSession": (req) => throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "visits from this address"),
+  "leads.submit": (req) => throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"),
+  "callRecords.record": (req) => throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"),
+  "serviceRequests.attachPhoto": (req) => { callerOf(req); },
+};
+
 /** Read an operation's input from where the catalogue says it travels. */
 const inputOf = async (req: IncomingMessage, url: URL, opId: OperationId): Promise<unknown> => {
   switch (OPERATIONS[opId].carrier) {
-    case "body": return readJson(req);
+    case "body": return readJson(req, bodyLimitOf(opId));
     case "query": return Object.fromEntries(url.searchParams.entries());
     case "none": return undefined;
   }
@@ -810,12 +839,15 @@ const server = createServer(async (req, res) => {
   const opId = ROUTES.get(`${req.method} ${url.pathname}`);
   try {
     if (!opId) return send(res, 404, { error: "NoRoute", message: `no route ${req.method} ${url.pathname} — not in the operation catalogue` });
+    beforeBody[opId]?.(req);
     const input = await inputOf(req, url, opId);
     const out = await (handlers[opId] as Handler<OperationId>)(req, input as never, res);
     if (out !== STREAMING) send(res, 200, out);
   } catch (e) {
     const d = describe(e);
     if (d.status === 500) console.error(e);
+    // An oversized body is not drained: answer, then close the connection under it.
+    if (d.status === 413) { res.setHeader("connection", "close"); res.once("finish", () => req.destroy()); }
     send(res, d.status, { error: d.name, code: d.code, message: d.message, missingTerm: d.missingTerm });
   }
 });

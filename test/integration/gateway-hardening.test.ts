@@ -11,6 +11,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { request } from "node:http";
 import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
 import { hashPassword } from "../../apps/gateway/src/auth.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
@@ -91,4 +92,31 @@ test("ten wrong passwords shut the email from that address only: its owner, sign
   for (let i = 0; i < 10; i++) assert.equal((await attempt("wrong", "203.0.113.50")).status, 401);
   assert.equal((await attempt(PASSWORD, "203.0.113.50")).status, 429, "the guesser's address is shut, right password or not");
   assert.equal((await attempt(PASSWORD, "203.0.113.51")).status, 200, "the owner, elsewhere, signs in");
+});
+
+/** A POST that declares `declared` bytes and sends only a little: what is answered, and is the connection closed under it. */
+const declare = (base: string, path: string, declared: number, headers: Record<string, string> = {}) =>
+  new Promise<{ status: number; closed: boolean }>((resolve, reject) => {
+    const u = new URL(path, base);
+    const r = request({ host: u.hostname, port: u.port, path: u.pathname, method: "POST", headers: { "content-type": "application/json", "content-length": String(declared), ...headers } }, (res) => {
+      res.resume();
+      res.on("end", () => resolve({ status: res.statusCode!, closed: res.headers.connection === "close" }));
+    });
+    r.on("error", reject);
+    r.write("{");
+  });
+
+test("a door anyone can knock on takes 64 KB, not fourteen megabytes; an oversized body is refused before it is read and the connection closed", { skip }, async () => {
+  const big = await declare(LAPTOP, "/auth/login", 14 * 1024 * 1024);
+  assert.deepEqual(big, { status: 413, closed: true });
+  assert.equal((await declare(LAPTOP, "/auth/login", 100 * 1024)).status, 413);
+  // Sent, not just declared: the reader stops at the limit.
+  const sent = await fetch(`${LAPTOP}/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "x".repeat(70 * 1024) }) }).catch(() => null);
+  assert.ok(sent === null || sent.status === 413);
+});
+
+test("the throttle is taken before the body is read: a spent address is a 429, however large the body it declares", { skip }, async () => {
+  const ip = "203.0.113.77";
+  for (let i = 0; i < 20; i++) await anonymous(EDGE, { "cf-connecting-ip": ip });
+  assert.equal((await declare(EDGE, "/s1/leads", 14 * 1024 * 1024, { "cf-connecting-ip": ip })).status, 429);
 });
