@@ -58,8 +58,8 @@ const memoryHistory: Plugin = {
     b.onLoad({ filter: /packages[\\/]ui[\\/]src[\\/]router\.ts$/ }, (args) => {
       const src = readFileSync(args.path, "utf8");
       const out = src
-        .replace("path: () => w.location.pathname,", "path: () => ((globalThis as any).__acPath ?? \"/\"),")
-        .replace("push: (p) => w.history.pushState(null, \"\", p),", "push: (p) => { (globalThis as any).__acPath = p; (globalThis as any).__acNavigated?.(p); },");
+        .replace("const pathname = w.location.pathname;", "const pathname: string = ((globalThis as any).__acPath ?? \"/\");")
+        .replace("push: (path) => w.history.pushState(null, \"\", base ? `${base}${path === \"/\" ? \"/\" : path}` : path),", "push: (path) => { (globalThis as any).__acPath = path; (globalThis as any).__acNavigated?.(path); },");
       if (out === src || !out.includes("__acNavigated")) throw new Error("router.ts no longer matches the demo's history patch — update tools/demo/build.ts");
       return { contents: out, loader: "ts" };
     });

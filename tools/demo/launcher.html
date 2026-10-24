@@ -231,6 +231,8 @@ const makeFrame = (id) => {
   f.srcdoc = FRAMES[id];
   f.addEventListener("load", () => { if (id === "S5") setTimeout(() => f.contentWindow.postMessage({ ac: "demo", type: "fill", values: S5_FILL() }, "*"), 150); });
   paths[id] = "/";
+  // Each frame's stream hears what its own principal would at the real gateway (G.eventFor), not every event.
+  G.subscribe(id, (env) => f.contentWindow?.postMessage({ ac: "demo", type: "event", env }, "*"));
   if (id === "S5") { const w = document.createElement("div"); w.className = "tablet"; w.appendChild(f); $("frames").appendChild(w); iframes[id] = { el: w, frame: f }; }
   else { $("frames").appendChild(f); iframes[id] = { el: f, frame: f }; }
   return iframes[id];
@@ -292,6 +294,8 @@ $("reload").addEventListener("click", () => reloadFrame(current));
 addEventListener("message", async (ev) => {
   const m = ev.data;
   if (!m || m.ac !== "demo" || !byId[m.surface]) return;
+  // A frame speaks only for itself: S6 cannot ask the gateway as S2 by writing "S2" in the message.
+  if (ev.source !== iframes[m.surface]?.frame.contentWindow) return;
   if (m.type === "path") { paths[m.surface] = m.path; if (m.surface === current) $("path").textContent = m.path; return; }
   if (m.type === "error") { (window.__demoErrors ||= []).push(`${m.surface}: ${m.message}`); console.warn(`${m.surface}:`, m.message); return; }
   if (m.type !== "req") return;
@@ -299,7 +303,6 @@ addEventListener("message", async (ev) => {
   const r = await G.handle({ surface: m.surface, url: m.url, method: m.method, headers: m.headers, body: m.body });
   ev.source.postMessage(r === "offline" ? { ac: "demo", type: "res", id: m.id, offline: true } : { ac: "demo", type: "res", id: m.id, status: r.status, body: r.body }, "*");
 });
-G.subscribe("S2", (env) => { for (const f of Object.values(iframes)) f.frame.contentWindow?.postMessage({ ac: "demo", type: "event", env }, "*"); });
 
 // The log.
 const fmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
