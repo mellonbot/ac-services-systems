@@ -173,6 +173,47 @@ test("an assignment of the wrong kind of crew is refused ahead of the clearance 
   await assert.rejects(assign(installJob!.id, INSTALL), (e: unknown) => !/goes to an install crew|go to a technician/.test((e as Error).message));
 });
 
+test("0029: a job's work does not change under a live crew of the wrong kind — released, it may", { skip }, async () => {
+  const [serviceJob] = await job("service", null) as { id: string }[];
+  // The unit's assignment as the gate would have left it; the gate itself is backbone's to prove.
+  const c = await pool.connect();
+  let assignment = "";
+  try {
+    await c.query("SET session_replication_role = replica");
+    const clearance = (await c.query(`INSERT INTO compliance_clearances (org_id, region_id, crew_id, service_window, credential_ids, evaluated_at, evaluated_by)
+      SELECT org_id, region_id, $2, service_window, '[]'::jsonb, now(), $3 FROM jobs WHERE id = $1 RETURNING id`, [serviceJob!.id, UNIT, SELLER])).rows[0].id;
+    assignment = (await c.query(`INSERT INTO assignments (org_id, region_id, job_id, crew_id, clearance_id, assigned_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [ORG, REGION_SOUTH, serviceJob!.id, UNIT, clearance, SELLER])).rows[0].id;
+  } finally { await c.query("SET session_replication_role = DEFAULT"); c.release(); }
+  const toInstall = () => admin(`UPDATE jobs SET work_class = 'install', service_code = $2, project_id = $3 WHERE id = $1`, [serviceJob!.id, CODE_FOR.install, SOLD]);
+  await assert.rejects(toInstall(), refused(/cannot become install work while .* \(a service crew\) is on it/));
+  // Commissioning is still a technician's: the unit fits it.
+  await admin(`UPDATE jobs SET work_class = 'commissioning', service_code = $2 WHERE id = $1`, [serviceJob!.id, CODE_FOR.commissioning]);
+  await admin(`UPDATE assignments SET released_at = now(), release_reason = 'test' WHERE id = $1`, [assignment]);
+  await toInstall();
+});
+
+test("0029: two technicians put on one unit at once — the second waits for the first, then is refused", { skip }, async () => {
+  const unit = randomUUID();
+  await admin(`INSERT INTO crews (id, org_id, region_id, label, employment_type, home_region_id) VALUES ($1,$2,$3,$4,'employed',$3)`,
+    [unit, INTERNAL_ORG_ID, REGION_SOUTH, `Unit C ${RUN}`]);
+  const put = (c: { query: (s: string, p: unknown[]) => Promise<unknown> }, name: string) =>
+    c.query(`INSERT INTO technicians (org_id, region_id, crew_id, name, role) VALUES ($1,$2,$3,$4,'technician')`, [INTERNAL_ORG_ID, REGION_SOUTH, unit, name]);
+  const first = await pool.connect(), second = await pool.connect();
+  try {
+    await first.query("BEGIN"); await second.query("BEGIN");
+    await put(first, "Lee Moss");
+    const late = put(second, "Kit Vance").then(() => null, (e: unknown) => e);
+    await new Promise((r) => setTimeout(r, 200));
+    await first.query("COMMIT");
+    const e = await late;
+    assert.ok(e, "the second technician was admitted alongside the first");
+    refused(/a service unit is one technician/)(e);
+    await second.query("ROLLBACK");
+  } finally { first.release(); second.release(); }
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM technicians WHERE crew_id = $1 AND active`, [unit]))[0]!.n, 1);
+});
+
 test("0025: a job's code is the catalogue's and its work is the code's; a specialty is equipment, never work", { skip }, async () => {
   // A code the catalogue does not hold is refused on every path.
   await assert.rejects(job("service", null, "routine", "repairs"), refused(/jobs_service_code_fkey/, "23503"));

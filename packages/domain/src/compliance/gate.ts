@@ -4,8 +4,11 @@ export type Credential = {
   readonly id: string;
   readonly kind: string;
   readonly validFrom: number;
+  /** The last instant covered, inclusive: the end of the certificate's last day where the work is. */
   readonly validTo: number;
   readonly verifiedAt: number | null;
+  /** The certificate's last day as printed on it (YYYY-MM-DD), for the refusal's words. */
+  readonly lastDay?: string;
 };
 
 export type Crew = {
@@ -25,6 +28,7 @@ export type Crew = {
   readonly firmStatus?: string | null;
 };
 
+/** [start, end) — the end is exclusive, as the job's tstzrange is. */
 export type ServiceWindow = { readonly start: number; readonly end: number };
 
 /**
@@ -68,7 +72,8 @@ export const evaluate = (
     if (verified.length === 0) {
       return { ok: false, reason: "unverified", credentialKind: kind, detail: `${kind} on file for crew ${crew.id} has never been verified.` };
     }
-    const covering = verified.find((c) => c.validFrom <= window.start && c.validTo >= window.end);
+    // end is exclusive: a window ending at midnight does not need the next day.
+    const covering = verified.find((c) => c.validFrom <= window.start && c.validTo >= window.end - 1);
     if (!covering) {
       const best = verified.reduce((a, b) => (a.validTo > b.validTo ? a : b));
       return {
@@ -76,7 +81,7 @@ export const evaluate = (
         reason: "expired_in_window",
         credentialKind: kind,
         detail:
-          `Crew ${crew.id} ${kind} expires ${new Date(best.validTo).toISOString().slice(0, 10)}, ` +
+          `Crew ${crew.id} ${kind} expires ${best.lastDay ?? new Date(best.validTo).toISOString().slice(0, 10)}, ` +
           `inside the service window ending ${new Date(window.end).toISOString().slice(0, 10)}.`,
       };
     }

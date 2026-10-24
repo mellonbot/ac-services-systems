@@ -2,6 +2,8 @@ import type { RelayTx } from "./relay.ts";
 import { HQ_METRIC_KEYS, type HqMetricKey } from "../../../packages/contracts/src/hq.ts";
 import { WORK_DONE_STATES } from "../../../packages/contracts/src/operations.ts";
 import { REQUIRED } from "../../../packages/domain/src/compliance/gate.ts";
+import { SLA_NOT_OWED_STATES } from "../../../packages/domain/src/sla/index.ts";
+import { SUPERSEDED } from "./sweeps.ts";
 import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
 
 /**
@@ -34,22 +36,27 @@ const onUnassigned = (sql: string) => `SELECT CASE WHEN r.id = '${UNASSIGNED_REG
 
 const SLA_CLOSED = `(t.satisfied_at IS NOT NULL OR t.due_at < $1::timestamptz)`;
 const SLA_MET = `(t.satisfied_at IS NOT NULL AND t.satisfied_at <= t.due_at)`;
+/** An unanswered timer on a job the cascade does not escalate (cancelled before dispatch, waiting on a quote) owed nothing: not closed, not breached. */
+const SLA_OWED = `(t.satisfied_at IS NOT NULL OR (SELECT j.state FROM jobs j WHERE j.id = t.job_id) NOT IN (${SLA_NOT_OWED_STATES.map((s) => `'${s}'`).join(",")}))`;
 
 export const HQ_ROLLUP_SQL: Readonly<Record<HqMetricKey, string>> = {
   // ---- service & SLA ----
   jobs_opened_30d: count("jobs j", `j.region_id = r.id AND ${WINDOW("j.opened_at")}`),
-  jobs_completed_30d: count("jobs j", `j.region_id = r.id AND ${WINDOW("j.opened_at")} AND j.state IN (${WORK_DONE_SQL})`),
+  // Windowed on the completion, not the opening: a job opened in August and finished yesterday was finished in this window.
+  jobs_completed_30d: count("jobs j", `j.region_id = r.id AND j.state IN (${WORK_DONE_SQL})
+    AND EXISTS (SELECT 1 FROM job_state_events e WHERE e.job_id = j.id AND e.to_state = 'complete' AND ${WINDOW("e.occurred_at")})`),
   jobs_open_now: count("jobs j", `j.region_id = r.id AND ${OPEN_JOB}`),
   jobs_unassigned_now: count("jobs j", `j.region_id = r.id AND ${OPEN_JOB} AND NOT EXISTS (SELECT 1 FROM assignments a WHERE a.job_id = j.id AND a.released_at IS NULL)`),
   jobs_at_risk_now: count("sla_timers t JOIN jobs j ON j.id = t.job_id",
     `t.region_id = r.id AND ${OPEN_JOB} AND t.satisfied_at IS NULL AND (t.escalation_stage > 0 OR t.due_at <= $1::timestamptz + interval '1 hour')`),
-  sla_closed_30d: count("sla_timers t", `t.region_id = r.id AND ${WINDOW("t.opened_at")} AND ${SLA_CLOSED}`),
+  sla_closed_30d: count("sla_timers t", `t.region_id = r.id AND ${WINDOW("t.opened_at")} AND ${SLA_CLOSED} AND ${SLA_OWED}`),
   sla_met_30d: count("sla_timers t", `t.region_id = r.id AND ${WINDOW("t.opened_at")} AND ${SLA_MET}`),
-  sla_breached_30d: count("sla_timers t", `t.region_id = r.id AND ${WINDOW("t.opened_at")} AND ${SLA_CLOSED} AND NOT ${SLA_MET}`),
+  sla_breached_30d: count("sla_timers t", `t.region_id = r.id AND ${WINDOW("t.opened_at")} AND ${SLA_CLOSED} AND NOT ${SLA_MET} AND ${SLA_OWED}`),
   sla_escalated_30d: count("sla_timers t", `t.region_id = r.id AND ${WINDOW("t.opened_at")} AND t.escalation_stage > 0`),
 
   // ---- revenue & money ----
   invoiced_minor_30d: sum("i.total_minor", "invoices i", `i.region_id = r.id AND i.issued_at IS NOT NULL AND ${WINDOW("i.issued_at")}`),
+  // An upper bound: invoices carry no paid or void state yet (OPEN-PAYMENTS), so nothing here can take a paid one out.
   invoices_past_due_minor: sum("i.total_minor", "invoices i", `i.region_id = r.id AND i.issued_at IS NOT NULL AND i.due_at < $1::timestamptz`),
   receivable_minor: latestPosition("receivable_minor"),
   subcontractor_payable_minor: latestPosition("subcontractor_payable_minor"),
@@ -72,7 +79,7 @@ export const HQ_ROLLUP_SQL: Readonly<Record<HqMetricKey, string>> = {
   firms_onboarding: count("subcontractor_firms f", `f.region_id = r.id AND f.status = 'onboarding'`),
   credentials_unverified: count("crew_credentials cc JOIN crews c ON c.id = cc.crew_id", `cc.region_id = r.id AND c.active AND cc.verified_at IS NULL`),
   credentials_expiring_30d: count("crew_credentials cc JOIN crews c ON c.id = cc.crew_id",
-    `cc.region_id = r.id AND c.active AND cc.verified_at IS NOT NULL AND cc.valid_to BETWEEN $2::date AND $2::date + 30`),
+    `cc.region_id = r.id AND c.active AND cc.verified_at IS NOT NULL AND cc.valid_to BETWEEN $2::date AND $2::date + 30 AND NOT ${SUPERSEDED("cc")}`),
 
   // ---- growth & web ----
   leads_30d: count("leads l", `l.region_id = r.id AND ${WINDOW("l.created_at")}`),

@@ -39,6 +39,8 @@ export const refusalHeading = (r: Refusal): string => {
     case "phase_disabled": return "Not available in this phase";
     case "no_route": return "Unknown request";
     case "bad_request": return "Refused — the request did not parse";
+    case "throttled": return "Too many requests — wait a minute";
+    case "too_large": return "Refused — the request is too large";
     case "transport": return "Gateway unreachable";
   }
 };

@@ -19,12 +19,15 @@ try {
   await cdp.send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false });
   await cdp.navigate(`file://${PAGE}`);
   await cdp.waitFor(`typeof ACDemo !== "undefined"`, "launcher");
-  for (const id of (process.argv[2] ?? "S1,S2,S3,S5,S6,S8").split(",")) {
+  for (const id of (process.argv[2] ?? "S1,S2,S3,S4,S5,S6,S7,S8").split(",")) {
     await cdp.eval(`document.querySelector('.tab[data-id="${id}"]').click()`);
     await new Promise((r) => setTimeout(r, 2500));
     const text = await cdp.eval<string>(frameText(id));
     console.log(`=== ${id}\n${text.slice(0, 700)}\n`);
     await shot(id);
   }
-  console.log("errors:", await cdp.eval(`JSON.stringify(window.__demoErrors || [])`));
+  const errors = JSON.parse(await cdp.eval<string>(`JSON.stringify(window.__demoErrors || [])`)) as string[];
+  console.log("errors:", errors);
+  // A frame error is a broken demo, not a line to skim past.
+  if (errors.length > 0) process.exitCode = 1;
 } finally { await cdp.close(); }

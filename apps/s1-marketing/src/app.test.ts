@@ -118,6 +118,25 @@ test("THE PAGE RENDERS WITH NO GATEWAY AT ALL, and the form still takes a lead",
   assert.ok(store.dump()?.includes("Dana Reyes"), "and it survives the tab");
 });
 
+test("while the first send is still in flight the page says sending — not that it could not reach us", async () => {
+  let answer!: () => void;
+  const g = fakeGateway({ overrides: { [OPERATIONS["leads.submit"].path]: () => ({ status: 200, body: { id: U(1), eventId: U(2) } }) } });
+  const slow: FetchLike = async (url, init) => {
+    if (new URL(url).pathname === OPERATIONS["leads.submit"].path) await new Promise<void>((r) => { answer = r; });
+    return g.fetch(url, init);
+  };
+  const app = appWith({ fetch: slow });
+  app.router.navigate("enquire", {});
+  app.submit(form);
+  await settle();
+  const inFlight = render(app.view());
+  assert.match(inFlight, /Sending your message…/);
+  assert.equal(/could not reach/i.test(inFlight), false, "nothing has failed yet");
+  answer();
+  await settle();
+  assert.equal(app.buffer.pending.value.length, 0);
+});
+
 test("a queued lead replays under the SAME submission id, and lands once", async () => {
   const store = memoryStore();
   const down = appWith(fakeGateway({ down: true }), store);

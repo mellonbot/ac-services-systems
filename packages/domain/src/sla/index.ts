@@ -19,6 +19,8 @@
  *    be asked to.
  */
 
+import { WORK_DONE_STATES } from "../../../contracts/src/operations.ts";
+
 export type Stage = 0 | 1 | 2 | 3;
 export const STAGE_NAMES: Record<Stage, string> = {
   0: "none", 1: "regional_dispatch", 2: "account_owner", 3: "ops_leadership",
@@ -49,6 +51,19 @@ export function deriveDueAt(openedAt: Date, terms: SlaTerms): Date {
       `would invent a commitment nobody signed.`);
   return new Date(openedAt.getTime() + ms);
 }
+
+/**
+ * Job states in which an unanswered response timer owes nothing: the job ended
+ * before anyone was sent (cancelled, aborted), the work is done, or it is
+ * waiting on the customer's answer to a quote before it may be dispatched (the
+ * quote states — S3 draws them "Waiting on customer"). The cascade does not
+ * escalate these and the HQ rollup does not count them as closed or breached.
+ * `awaiting_customer` is not here: it is reached only from on_site or
+ * in_progress, after assignment has already satisfied the timer.
+ */
+export const SLA_NOT_OWED_STATES: readonly string[] = Object.freeze([
+  "cancelled", "aborted", "quote_requested", "quote_submitted", ...WORK_DONE_STATES,
+]);
 
 export type TimerState = {
   opened_at: Date; due_at: Date;

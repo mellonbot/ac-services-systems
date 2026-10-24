@@ -34,8 +34,10 @@ export type UserRecord = {
 
 const REGISTRY_KINDS = ["S2", "S3", "S4", "S6", "S7", "S8"] as const;
 
-export const kindsOf = (u: Pick<UserRecord, "namespace" | "roles" | "crewId">): readonly KindId[] => {
-  const ids: KindId[] = REGISTRY_KINDS.filter((id) => admits(id, u));
+export const kindsOf = (u: Pick<UserRecord, "namespace" | "roles" | "crewId"> & { readonly scopeTier?: Tier }): readonly KindId[] => {
+  // The gateway refuses an org-wide surface (S2, S4) to a login scoped below the company, so it is not listed there.
+  const scoped = (id: (typeof REGISTRY_KINDS)[number]) => SURFACES[id].scopeBinding !== "org" || u.scopeTier === undefined || u.scopeTier === "parent";
+  const ids: KindId[] = REGISTRY_KINDS.filter((id) => admits(id, u) && scoped(id));
   if (u.crewId !== null) ids.push("S5");
   return ids.length > 0 ? ids : ["other"];
 };

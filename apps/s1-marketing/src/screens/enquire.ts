@@ -32,6 +32,8 @@ import { coverage, submitAction, linkTo, type Screen, type ScreenContext } from 
 export const enquire: Screen = (ctx: ScreenContext): VNode => {
   const cov = coverage(ctx);
   const queued = ctx.buffer.pending.value;
+  // "Could not reach" only once a send has actually failed — this session, or a previous one that left it queued.
+  const unreached = ctx.buffer.failed.value || queued.some((q) => q.attempts > 0);
   const attention = ctx.buffer.attention.value;
   const sent = ctx.store.notice.value;
 
@@ -61,7 +63,11 @@ export const enquire: Screen = (ctx: ScreenContext): VNode => {
       <p>${sent[sent.length - 1]}</p>
     </section>` : null}
 
-    ${queued.length ? html`<section class="ac-notice" data-tone="at_risk" role="status" id="queued">
+    ${queued.length && !unreached ? html`<section class="ac-notice" role="status" id="queued">
+      <p><strong>${queued.length === 1 ? "Sending your message…" : `Sending ${queued.length} messages…`}</strong></p>
+    </section>` : null}
+
+    ${queued.length && unreached ? html`<section class="ac-notice" data-tone="at_risk" role="status" id="queued">
       <p><strong>${queued.length === 1 ? "Your message is waiting to send." : `${queued.length} messages are waiting to send.`}</strong></p>
       <p>
         We could not reach our system just now, so it is being held on this

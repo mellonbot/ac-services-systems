@@ -1,4 +1,4 @@
-import { html, mount, spinFavicon, signal, effect, createRouter, browserHistory, applyDegraded, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, type VNode } from "../../../packages/ui/src/index.ts";
 import type { AnonymousShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type SubmitLeadInput } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, open } from "./main.ts";
@@ -93,6 +93,7 @@ export const createApp = (opts: {
     try {
       await shell.ensureSession();
     } catch {
+      buffer.unreachable();
       return; // no session, no writes; the queue is untouched and will try again
     }
     const outcomes = await buffer.flush((input: SubmitLeadInput) => shell.gateway.submitLead(input));
@@ -180,16 +181,10 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   const Root = () => app.view();
   mount(html`<${Root} />`, el);
   spinFavicon(document);
-  effect(() => {
-    if (!slot) return;
-    applyDegraded(slot, {
-      degraded: app.degraded.value, text: SURFACE.degradedNotice,
-      lastOkAt: app.store.lastOkAt.value, now: Date.now(),
-    });
-  });
+  const degradedTick = slot ? driveDegraded(slot, () => ({ degraded: app.degraded.value, text: SURFACE.degradedNotice, lastOkAt: app.store.lastOkAt.value }), Date.now) : () => {};
   app.router.start();
   window.addEventListener("online", () => { void app.flush(); });
-  setInterval(() => { app.tick(); app.retry(); }, 1000);
+  setInterval(() => { app.tick(); app.retry(); degradedTick(); }, 1000);
   // The queue outlives the tab, so a visitor who comes back with a connection
   // sends what they wrote without pressing anything.
   void app.flush();

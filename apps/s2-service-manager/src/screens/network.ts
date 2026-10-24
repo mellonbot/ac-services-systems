@@ -1,4 +1,4 @@
-import { html, pageHead, panel, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, localDay, pageHead, panel, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { FirmWire, FirmStatus, CrewWire, CrewDocumentSummary, RegionWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { CREW_KIND_LABEL } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
@@ -59,7 +59,7 @@ const outcome = signal<{ readonly refusal: Refusal | null; readonly busy: string
 export const network: Screen = (ctx, params) => {
   const { store, shell } = ctx;
   const firmId = params.firmId;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDay();
   const firms = store.read(keyOf("firms.list"), () => shell.gateway.listFirms({}));
   const regions = store.read(keyOf("regions.list"), () => shell.gateway.listRegions());
 

@@ -20,6 +20,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      # Production secrets run only the code on main: a dispatch from any other
+      # branch would run that branch's code with them. (The production
+      # environment's deployment-branch rule should say the same.)
+      - name: dispatched from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::this workflow runs against production and only from main, not $GITHUB_REF"
+          exit 1
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with: { node-version: 22 }

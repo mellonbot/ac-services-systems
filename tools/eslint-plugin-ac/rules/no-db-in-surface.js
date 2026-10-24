@@ -6,7 +6,13 @@
  * the dependency deliberately, at which point the failure should be a review
  * comment rather than a working feature.
  */
+import { dirname, resolve } from "node:path";
+
 const BANNED = [/^pg$/, /^pg-/, /^postgres$/, /^mysql/, /^drizzle-orm/, /^knex$/, /^typeorm$/, /^prisma/, /^@prisma/, /^@ac\/schema$/];
+
+/** The repo imports by relative .ts path, so `@ac/schema` alone never matches: a relative path that lands in packages/schema is the same import. */
+const intoSchema = (filename, name) =>
+  name.startsWith(".") && /(^|\/)packages\/schema(\/|$)/.test(resolve(dirname(filename), name).replace(/\\/g, "/"));
 
 export default {
   meta: {
@@ -20,13 +26,20 @@ export default {
     },
   },
   create(context) {
+    const check = (node, source) => {
+      // A dynamic import with a computed specifier is not a name this rule can read.
+      if (!source || source.type !== "Literal" || typeof source.value !== "string") return;
+      const name = source.value;
+      if (BANNED.some((re) => re.test(name)) || intoSchema(context.filename, name)) {
+        context.report({ node, messageId: "banned", data: { name } });
+      }
+    };
     return {
-      ImportDeclaration(node) {
-        const name = node.source.value;
-        if (BANNED.some((re) => re.test(name))) {
-          context.report({ node, messageId: "banned", data: { name } });
-        }
-      },
+      ImportDeclaration(node) { check(node, node.source); },
+      ExportNamedDeclaration(node) { check(node, node.source); },
+      ExportAllDeclaration(node) { check(node, node.source); },
+      // await import("pg") is the same credential, loaded later.
+      ImportExpression(node) { check(node, node.source); },
     };
   },
 };

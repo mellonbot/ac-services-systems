@@ -24,7 +24,12 @@ export type ScreenSpec = {
 
 export type Params = Readonly<Record<string, string>>;
 
-/** Pattern → path. `null` when it does not match. Segments are exact; params are decoded. */
+/**
+ * Pattern → path. `null` when it does not match. Segments are exact; params
+ * are decoded — and a segment that does not decode (`/jobs/%E0`) does not
+ * match: the router resolves at construction, so a throw here would stop the
+ * surface mounting at all over a typo in its address bar.
+ */
 export const matchPath = (pattern: string, path: string): Params | null => {
   const pat = pattern.split("/").filter(Boolean);
   const seg = path.split("?")[0]!.split("/").filter(Boolean);
@@ -37,7 +42,7 @@ export const matchPath = (pattern: string, path: string): Params | null => {
       const optional = p.endsWith("?");
       const name = p.slice(1, optional ? -1 : undefined);
       if (s === undefined) { if (optional) continue; return null; }
-      out[name] = decodeURIComponent(s);
+      try { out[name] = decodeURIComponent(s); } catch { return null; }
     } else if (s !== p) return null;
   }
   return seg.length > pat.length ? null : out;

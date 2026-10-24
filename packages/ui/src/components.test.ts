@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { render } from "preact-render-to-string";
-import { html, admits } from "./render.ts";
+import { html, admits, signal } from "./render.ts";
 import { StatusPill } from "./components/status-pill.ts";
 import { PrimaryAction } from "./components/primary-action.ts";
 import { DataGrid } from "./components/data-grid.ts";
@@ -11,7 +11,7 @@ import { RefusalCard, refusalHeading, AXIS_SENTENCE } from "./components/refusal
 import { plainHeading, plainMessage, retryable } from "./components/refusal-notice.ts";
 import { RefusalNotice } from "./components/refusal-notice.ts";
 import { CustomerCard, addressLines } from "./components/customer-card.ts";
-import { DegradedBanner, applyDegraded, ageOf } from "./components/degraded-banner.ts";
+import { DegradedBanner, applyDegraded, driveDegraded, ageOf } from "./components/degraded-banner.ts";
 import { COMPONENT_SPECS, ComplianceBadgeSpec, DataGridSpec } from "./component.ts";
 import { STATUS_GLYPH, MARK_GLYPHS } from "../../tokens/src/index.ts";
 import { SURFACES, densityOf } from "../../contracts/src/index.ts";
@@ -175,6 +175,19 @@ test("the frame's <ac-degraded> slot is driven by the same facts", () => {
   assert.equal(slot.hidden, false);
   assert.equal(slot.textContent, `${MARK_GLYPHS.fault} Read-only. Last connected 1 min ago.`, "the no-tree path carries the mark too");
   applyDegraded(slot, { degraded: false, text: "Read-only.", lastOkAt: 0, now: 90_000 });
+  assert.equal(slot.hidden, true);
+});
+
+test("a driven slot's age keeps counting while the surface stays degraded, and follows the flag when it changes", () => {
+  const slot = { hidden: true, textContent: null as string | null };
+  const degraded = signal(true);
+  let clock = 30_000;
+  const tick = driveDegraded(slot, () => ({ degraded: degraded.value, text: "Offline.", lastOkAt: 0 }), () => clock);
+  assert.match(slot.textContent!, /Last connected 30 s ago\./);
+  clock = 5 * 60_000;
+  tick();
+  assert.match(slot.textContent!, /Last connected 5 min ago\./, "nothing but time changed, and the line moved with it");
+  degraded.value = false;
   assert.equal(slot.hidden, true);
 });
 

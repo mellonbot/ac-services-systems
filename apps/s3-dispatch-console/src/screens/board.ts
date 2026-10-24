@@ -1,5 +1,6 @@
 import { html, signal, shortRef, StatusPill, pageHead, statStrip, panel, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
 import { serviceLabel, WORK_DONE_STATES, JOB_WORK_CLASS_LABEL, crewKindFor, crewKindForRole, type JobWire, type CrewWire, type CrewKind, type TechnicianWire } from "../../../../packages/contracts/src/index.ts";
+import { STATUS_GLYPH } from "../../../../packages/tokens/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, submitAction, linkTo, type Screen } from "./common.ts";
 
@@ -144,13 +145,26 @@ const describe = (job: JobWire): string => `${job.siteName ?? "Site name unavail
 
 const WAITING: readonly string[] = ["awaiting_customer", "awaiting_parts", "quote_requested", "quote_submitted", "awaiting_po", "awaiting_pictures"];
 const DONE: readonly string[] = [...WORK_DONE_STATES];
-/** Which legend entry a job's bar is drawn in. A late or escalated SLA wins over the job's stage. */
-export const boardTone = (job: JobWire, now: number): "warn" | "waiting" | "completed" | "scheduled" => {
+/**
+ * Which legend entry a job's bar is drawn in. A late or escalated SLA wins
+ * over the job's stage, and is drawn as the state it is — at risk and
+ * breached apart, each in its own ink AND with its mark and word on the bar.
+ * A stage is not a state (Arc Foundry rule 1), so stages are drawn in ink
+ * and told apart by line form: solid scheduled, dashed waiting, dotted done.
+ */
+export type BoardTone = "breached" | "at_risk" | "waiting" | "completed" | "scheduled";
+export const boardTone = (job: JobWire, now: number): BoardTone => {
   if (DONE.includes(job.state)) return "completed";
-  if (slaStatus(job, now) !== "ok") return "warn";
+  const sla = slaStatus(job, now);
+  if (sla === "breached" || sla === "at_risk") return sla;
   if (WAITING.includes(job.state)) return "waiting";
   return "scheduled";
 };
+const TONE_WORD: Readonly<Record<BoardTone, string>> = { breached: STATUS_GLYPH.breached.word, at_risk: STATUS_GLYPH.at_risk.word, waiting: "Waiting", completed: "Completed", scheduled: "Scheduled" };
+const stateMark = (tone: BoardTone): VNode | null =>
+  tone === "breached" || tone === "at_risk"
+    ? html`<b class="dispatch-board__state"><span aria-hidden="true">${STATUS_GLYPH[tone].glyph}</span> ${STATUS_GLYPH[tone].word}</b>`
+    : null;
 
 type BoardRow = {
   readonly key: string; readonly initials: string; readonly name: string; readonly service: string;
@@ -225,10 +239,10 @@ export const boardModel = (jobs: readonly JobWire[], now: number, offset: number
   const legend = [
     { label: "Scheduled (in progress)", tone: "scheduled" },
     { label: "Completed", tone: "completed" },
-    { label: "Needs attention", tone: "warn" },
     { label: "Waiting on customer/parts", tone: "waiting" },
+    { label: "At risk today", n: today.filter((j) => !DONE.includes(j.state) && slaStatus(j, now) === "at_risk").length, tone: "at_risk" },
+    { label: "Breached today", n: today.filter((j) => !DONE.includes(j.state) && slaStatus(j, now) === "breached").length, tone: "breached" },
     { label: "Unassigned", n: unassigned.filter(onDay).length, tone: "neutral" },
-    { label: "Needs attention today", n: today.filter((j) => !DONE.includes(j.state) && slaStatus(j, now) !== "ok").length, tone: "warn" },
     { label: "Marked for follow-up", n: open.filter((j) => j.returnTrip).length, tone: "neutral" },
     { label: "Unscheduled", n: unassigned.length, tone: "neutral" },
   ];
@@ -252,7 +266,7 @@ export const board: Screen = (ctx) => {
     whenReady(ctx, jobs.value, (out) => whenReady(ctx, crews.value, (c) => whenReady(ctx, technicians.value, (t) => view(out.jobs, { crews: c.crews, technicians: t.technicians }))));
 
   return html`<section class="s3-board">
-    ${pageHead("Dispatch Board", "One color per job status, crew grouping, and idle tech availability in one glance.", html`<div class="dispatch-dashboard__date-controls">
+    ${pageHead("Dispatch Board", "Each job's stage and SLA state, crew grouping, and idle tech availability in one glance.", html`<div class="dispatch-dashboard__date-controls">
       <button type="button" class="dispatch-dashboard__date" id="board-prev" aria-label="Previous day" disabled=${day.value <= -DAY_REACH} onClick=${() => step(day.value - 1)}>‹ Prev</button>
       <span class="dispatch-dashboard__date is-active" aria-live="polite">${shown.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
       <button type="button" class="dispatch-dashboard__date" id="board-next" aria-label="Next day" disabled=${day.value >= DAY_REACH} onClick=${() => step(day.value + 1)}>Next ›</button>
@@ -288,14 +302,16 @@ export const board: Screen = (ctx) => {
           <div class="dispatch-board__calendar" role="group" aria-label=${row.jobs.length ? `${row.name}: ${row.jobs.map(describe).join("; ")}` : `${row.name}: ${row.service}`}>
             ${row.jobs.map((job) => {
               const at = m.place(job);
-              return at.width > 0 ? html`<a class="dispatch-board__segment" key=${job.id} href=${`/jobs/${job.id}`} data-tone=${boardTone(job, now)} style=${`left:${at.left}%; width:${at.width}%;`} title=${describe(job)}>${shortRef(job.id)}<span>${job.siteName ?? "Site name unavailable"}</span></a>` : null;
+              if (at.width <= 0) return null;
+              const tone = boardTone(job, now);
+              return html`<a class="dispatch-board__segment" key=${job.id} href=${ctx.router.href("detail", { jobId: job.id })} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate("detail", { jobId: job.id }); }} data-tone=${tone} style=${`left:${at.left}%; width:${at.width}%;`} title=${`${TONE_WORD[tone]} — ${describe(job)}`}>${stateMark(tone)}${shortRef(job.id)}<span>${job.siteName ?? "Site name unavailable"}</span></a>`;
             })}
           </div>
         </div>`) : html`<p class="dispatch-board__empty">No crews or technicians on the roster.</p>`}
       </div>
 
       <div class="dispatch-dashboard__legend">
-        ${m.legend.map((item) => html`<span class="dispatch-legend__item" data-tone=${item.tone}>${item.label}${"n" in item ? html` <span class="s3-num">${item.n}</span>` : null}</span>`)}
+        ${m.legend.map((item) => html`<span class="dispatch-legend__item" data-tone=${item.tone}>${item.tone === "at_risk" || item.tone === "breached" ? html`<span class="dispatch-legend__mark" aria-hidden="true">${STATUS_GLYPH[item.tone].glyph}</span>` : null}${item.label}${"n" in item ? html` <span class="s3-num">${item.n}</span>` : null}</span>`)}
       </div>`);
     })}
 

@@ -1,5 +1,5 @@
 import { hashPassword } from "../../../apps/gateway/src/auth.ts";
-import { CUSTOMER_ROLES, type Role, type CustomerRole } from "../../../packages/contracts/src/scope.ts";
+import { ROLES, CUSTOMER_ROLES, type Role, type CustomerRole } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
 import { MIN_TEST_LOGIN_PASSWORD } from "../../ci/test-logins.ts";
@@ -37,14 +37,35 @@ const EMAIL = /^[^@\s]+@[^@\s]+$/;
 
 type Placement = Pick<UsersRow, "org_id" | "region_id" | "namespace" | "roles" | "scope_tier" | "scope_id" | "firm_id" | "crew_id">;
 
+/**
+ * The roles a login of this namespace may hold — checked at runtime, because the window sends them and a type is
+ * no guard against what arrives over IPC. Staff hold staff roles, customers customer roles, a firm's login none.
+ */
+export const checkRoles = (namespace: UsersRow["namespace"], roles: readonly string[]): void => {
+  if (namespace === "subcontractor") {
+    if (roles.length > 0) throw new LoginInputError("A subcontractor login has no roles — its firm decides what it sees.");
+    return;
+  }
+  if (namespace === "customer") {
+    if (roles.length === 0) throw new LoginInputError("A customer login pays the balance, requests service, or both — tick at least one.");
+    if (!roles.every((r) => (CUSTOMER_ROLES as readonly string[]).includes(r))) throw new LoginInputError("A customer login can only pay or request service.");
+    return;
+  }
+  if (roles.length === 0) throw new LoginInputError("An internal login needs at least one role.");
+  if (!roles.every((r) => (ROLES as readonly string[]).includes(r))) throw new LoginInputError("That is not a staff role.");
+};
+
+/** An internal login's scope from org-wide/region: the scope node is never chosen separately from the region. */
+export const internalScope = (scope: "org" | "region", regionId: string): Pick<UsersRow, "scope_tier" | "scope_id"> =>
+  ({ scope_tier: scope === "org" ? "parent" : "region", scope_id: scope === "org" ? INTERNAL_ORG_ID : regionId });
+
 const placement = (n: NewLogin): Placement => {
   switch (n.kind) {
     case "internal":
-      if (n.roles.length === 0) throw new LoginInputError("An internal login needs at least one role.");
+      checkRoles("internal", n.roles);
       return {
         org_id: INTERNAL_ORG_ID, region_id: n.regionId, namespace: "internal", roles: n.roles,
-        scope_tier: n.scope === "org" ? "parent" : "region", scope_id: n.scope === "org" ? INTERNAL_ORG_ID : n.regionId,
-        firm_id: null, crew_id: null,
+        ...internalScope(n.scope, n.regionId), firm_id: null, crew_id: null,
       };
     case "technician":
       return {
@@ -52,7 +73,7 @@ const placement = (n: NewLogin): Placement => {
         scope_tier: "region", scope_id: n.crewHomeRegionId, firm_id: null, crew_id: n.crewId,
       };
     case "customer":
-      if (n.roles && n.roles.length === 0) throw new LoginInputError("A customer login pays the balance, requests service, or both — tick at least one.");
+      if (n.roles) checkRoles("customer", n.roles);
       return {
         org_id: n.orgId, region_id: n.regionId, namespace: "customer", roles: n.roles ?? CUSTOMER_ROLES,
         scope_tier: n.tier, scope_id: n.nodeId, firm_id: null, crew_id: null,

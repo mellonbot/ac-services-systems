@@ -81,21 +81,25 @@ export const S3_CSS = `
 .dispatch-board__calendar{position:relative;min-height:64px;background-image:linear-gradient(to right,var(--color-border) 1px,transparent 1px);background-size:10% 100%}
 .dispatch-board__segment{position:absolute;top:var(--space-3);bottom:var(--space-3);display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);padding:var(--space-1) var(--space-2);border-radius:var(--radius-control);overflow:hidden;border:1px solid transparent;color:var(--color-text);font-family:var(--font-instrument);font-variant-numeric:tabular-nums;font-size:var(--text-sm);font-weight:700;background:color-mix(in srgb,var(--color-surface-sunken) 40%,transparent)}
 .dispatch-board__segment span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-label);font-size:var(--text-xs);font-weight:500;color:var(--color-text-muted)}
-.dispatch-board__segment[data-tone="breached"]{background:color-mix(in srgb,var(--color-status-breached) 18%,var(--color-surface));border-color:var(--color-status-breached)}
-.dispatch-board__segment[data-tone="idle"]{background:color-mix(in srgb,var(--color-status-blocked) 10%,transparent)}
 .dispatch-dashboard__legend{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);padding:var(--space-3) 0 0;margin-top:var(--space-4);border-top:1px solid var(--color-border);font-family:var(--font-label);font-size:var(--text-xs);color:var(--color-text-muted)}
 .dispatch-legend__item{display:inline-flex;align-items:center;gap:var(--space-2);padding:var(--space-1) 0}
-.dispatch-legend__item::before{content:"";display:inline-block;width:10px;height:10px;border-radius:var(--radius-none);background:var(--color-status-blocked)}
-.dispatch-legend__item[data-tone="scheduled"]::before{background:var(--color-status-ok)}
-.dispatch-legend__item[data-tone="completed"]::before{background:var(--color-status-blocked)}
-.dispatch-legend__item[data-tone="warn"]::before{background:var(--color-status-breached)}
-.dispatch-legend__item[data-tone="waiting"]::before{background:var(--color-status-at-risk)}
-.dispatch-legend__item[data-tone="neutral"]::before{background:var(--color-border-hard)}
+.dispatch-legend__item::before{content:"";display:inline-block;width:10px;height:10px;box-sizing:border-box;border-radius:var(--radius-none);border:2px solid var(--color-text)}
+.dispatch-legend__item[data-tone="waiting"]::before{border-style:dashed}
+.dispatch-legend__item[data-tone="completed"]::before{border-style:dotted;border-color:var(--color-text-muted)}
+.dispatch-legend__item[data-tone="neutral"]::before{border-color:var(--color-border-hard);background:var(--color-surface-sunken)}
+.dispatch-legend__item[data-tone="at_risk"]::before,.dispatch-legend__item[data-tone="breached"]::before{content:none}
+.dispatch-legend__mark{font-family:var(--font-instrument)}
+.dispatch-legend__item[data-tone="at_risk"] .dispatch-legend__mark{color:var(--color-status-at-risk)}
+.dispatch-legend__item[data-tone="breached"] .dispatch-legend__mark{color:var(--color-status-breached)}
 .dispatch-board__segment{text-decoration:none}
-.dispatch-board__segment[data-tone="warn"]{background:color-mix(in srgb,var(--color-status-breached) 18%,var(--color-surface));border-color:var(--color-status-breached)}
-.dispatch-board__segment[data-tone="scheduled"]{background:color-mix(in srgb,var(--color-status-ok) 14%,var(--color-surface));border-color:var(--color-status-ok)}
-.dispatch-board__segment[data-tone="waiting"]{background:color-mix(in srgb,var(--color-status-at-risk) 16%,var(--color-surface));border-color:var(--color-status-at-risk)}
-.dispatch-board__segment[data-tone="completed"]{background:color-mix(in srgb,var(--color-status-blocked) 10%,var(--color-surface));border-color:var(--color-status-blocked)}
+.dispatch-board__segment[data-tone="scheduled"]{background:var(--color-surface);border-color:var(--color-text)}
+.dispatch-board__segment[data-tone="waiting"]{background:var(--color-surface);border-color:var(--color-text);border-style:dashed}
+.dispatch-board__segment[data-tone="completed"]{background:color-mix(in srgb,var(--color-surface-sunken) 40%,transparent);border-color:var(--color-text-muted);border-style:dotted;color:var(--color-text-muted)}
+.dispatch-board__segment[data-tone="at_risk"]{background:color-mix(in srgb,var(--color-status-at-risk) 11%,var(--color-surface));border-color:var(--color-status-at-risk)}
+.dispatch-board__segment[data-tone="breached"]{background:color-mix(in srgb,var(--color-status-breached) 15%,var(--color-surface));border:2px solid var(--color-status-breached)}
+.dispatch-board__state{flex:none;font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;white-space:nowrap}
+.dispatch-board__segment[data-tone="at_risk"] .dispatch-board__state{color:var(--color-status-at-risk)}
+.dispatch-board__segment[data-tone="breached"] .dispatch-board__state{color:var(--color-status-breached)}
 .dispatch-board__empty{margin:0;padding:var(--space-4);color:var(--color-text-muted)}
 
 /* ---- Job Dashboard: four action buckets and the stalled-jobs table ---- */

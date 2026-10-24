@@ -65,3 +65,12 @@ test("the refusal says what a dispatcher needs to hear, not a code", () => {
   const r = evaluate(sub, creds, { start: T0 + 5 * day, end: T0 + 6 * day }, T0);
   assert.match((r as { detail: string }).detail, /insurance expires 2026-09-17/);
 });
+
+test("the window's end is exclusive: a certificate through day N covers a window ending at the midnight that closes it, and not a millisecond after", () => {
+  // validTo is the last instant covered — the end of the certificate's last day.
+  const creds = [cred("license", 400), cred("background_check", 400)].map((c) => ({ ...c, validTo: T0 + day - 1, lastDay: "2026-09-14" }));
+  assert.equal(isRefusal(evaluate(emp, creds, { start: T0 + 20 * 3600_000, end: T0 + day }, T0)), false);
+  const r = evaluate(emp, creds, { start: T0 + 20 * 3600_000, end: T0 + day + 1 }, T0);
+  assert.equal((r as { reason: string }).reason, "expired_in_window");
+  assert.match((r as { detail: string }).detail, /expires 2026-09-14/, "the refusal names the day printed on the certificate");
+});

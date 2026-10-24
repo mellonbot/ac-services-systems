@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isBranchDerived, isTruncated, needsTitle, titleFrom, bodyFrom, stripTruncatedTail, retitle } from "./pr-title.ts";
+import { branchTitle, isBranchDerived, isTruncated, needsTitle, titleFrom, bodyFrom, stripTruncatedTail, retitle } from "./pr-title.ts";
 
 const c = (subject: string, body = "", parents = 1) => ({ subject, body, parents });
 
@@ -55,9 +55,27 @@ test("THE ONE IT MUST NOT TOUCH — a demo whose innocuous commit subject IS the
 test("a title a person typed is never rewritten, however close to its branch it reads", () => {
   assert.equal(needsTitle("Brand: implement Identity Standards Bulletin No. 1, Rev. B", "claude/site-design-branding-rksmnj"), false);
   assert.equal(needsTitle("Step 3 item 4: C1 — hierarchy operations, handlers, S2 screens", "step3/c1"), false);
-  // Punctuation and case are not what makes a title branch-derived.
-  assert.equal(isBranchDerived("Claude/Site-Design Branding rksmnj", "claude/site-design-branding-rksmnj"), true);
   assert.equal(isBranchDerived("Rework the billing paths", "claude/site-design-branding-rksmnj"), false);
+});
+
+test("branch-derived means what GitHub writes, exactly: separators as spaces, first letter up — or the branch itself", () => {
+  assert.equal(branchTitle("claude/site-design-branding-rksmnj"), "Claude/site design branding rksmnj");
+  assert.equal(branchTitle("fix_login-redirect"), "Fix login redirect");
+  assert.equal(isBranchDerived("Claude/site design branding rksmnj", "claude/site-design-branding-rksmnj"), true);
+  assert.equal(isBranchDerived("claude/site-design-branding-rksmnj", "claude/site-design-branding-rksmnj"), true);
+  // Case or punctuation of a person's own: theirs, not GitHub's.
+  assert.equal(isBranchDerived("Claude/Site-Design Branding rksmnj", "claude/site-design-branding-rksmnj"), false);
+  assert.equal(isBranchDerived("Fix Login Redirect", "fix-login-redirect"), false);
+  assert.equal(isBranchDerived("Fix login redirect.", "fix-login-redirect"), false);
+});
+
+test("a human title on its own branch is not replaced by a commit called 'wip'", () => {
+  // One commit: GitHub would have titled it "wip". A title that reads like the branch was typed.
+  assert.deepEqual(retitle({ title: "Fix login redirect", body: "", branch: "fix-login-redirect" }, [c("wip")]), {});
+  assert.deepEqual(retitle({ title: "Fix Login Redirect", body: "", branch: "fix-login-redirect" }, [c("wip"), c("more")]), {});
+  // Two commits and GitHub's exact form: that one GitHub wrote.
+  assert.equal(retitle({ title: "Fix login redirect", body: "", branch: "fix-login-redirect" }, [c("Auth: the login redirect keeps its query"), c("wip")]).title,
+    "Auth: the login redirect keeps its query");
 });
 
 test("an empty title is named, and a merge commit is never the headline", () => {

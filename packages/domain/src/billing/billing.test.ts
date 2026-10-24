@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { BILLING_PATHS } from "./index.ts";
 import { sumsExactly } from "../money/allocate.ts";
 import type { BillableEvent } from "./path.ts";
+import { ResolutionError } from "../inheritance/resolve.ts";
 
 const ev = (account: string, qty: bigint, price: bigint): BillableEvent => ({
   jobId: `job-${account}-${qty}`, accountId: account, serviceCode: "PM-QTR",
@@ -43,4 +44,45 @@ test("project retainage nets out of the same invoice, in integers", () => {
     billToAccountId: "site-a", billToTier: "location", resolvedTerms: { retainage_bps: "1000" },
   });
   assert.equal(inv.totalMinor, 900_000n);
+});
+
+test("an absent term is a refusal, never zero — on every path that reads one", () => {
+  const events = [ev("site-a", 1000n, 10_000n)];
+  const refused = (key: string) => (e: unknown) => e instanceof ResolutionError && e.code === "no_value" && e.termKey === key;
+  assert.throws(() => BILLING_PATHS.enterprise_sla.build(events, { billToAccountId: "amped", billToTier: "parent", resolvedTerms: {} }), refused("platform_fee_minor"));
+  assert.throws(() => BILLING_PATHS.project.build(events, { billToAccountId: "site-a", billToTier: "location", resolvedTerms: {} }), refused("retainage_bps"));
+  assert.throws(() => BILLING_PATHS.residential_membership.build(events, { billToAccountId: "home", billToTier: "site", resolvedTerms: { included_visits: "2" } }), refused("membership_fee_minor"));
+  assert.throws(() => BILLING_PATHS.residential_membership.build(events, { billToAccountId: "home", billToTier: "site", resolvedTerms: { membership_fee_minor: "1500" } }), refused("included_visits"));
+  // Zero, said out loud, is a value.
+  assert.equal(BILLING_PATHS.project.build(events, { billToAccountId: "site-a", billToTier: "location", resolvedTerms: { retainage_bps: "0" } }).totalMinor, 10_000n);
+});
+
+test("included visits is a whole, non-negative number of visits", () => {
+  const events = [ev("home", 1000n, 10_000n), ev("home", 2000n, 10_000n), ev("home", 3000n, 10_000n)];
+  const build = (included_visits: unknown) => BILLING_PATHS.residential_membership.build(events, {
+    billToAccountId: "home", billToTier: "site", resolvedTerms: { membership_fee_minor: "1500", included_visits },
+  });
+  assert.equal(build("2").lines.length, 2, "the fee and the one visit beyond two");
+  for (const bad of ["-1", "1.5", "two", -1]) {
+    assert.throws(() => build(bad), (e: unknown) => e instanceof ResolutionError && e.code === "bad_value", `refused: ${bad}`);
+  }
+});
+
+test("enterprise: a site whose credits outweigh its work carries none of the fee, and the invoice still builds", () => {
+  const events = [ev("phx-04", 2000n, 45_000n), ev("tus-01", 1000n, 45_000n), { ...ev("tus-01", -3000n, 45_000n), jobId: "credit" }];
+  const inv = BILLING_PATHS.enterprise_sla.build(events, {
+    billToAccountId: "amped", billToTier: "parent", resolvedTerms: { platform_fee_minor: "100000" },
+  });
+  const fee = (site: string) => inv.lines.filter((l) => l.jobId === null && l.accountId === site).reduce((a, l) => a + l.amountMinor, 0n);
+  assert.equal(fee("phx-04"), 100_000n);
+  assert.equal(fee("tus-01"), 0n);
+  assert.ok(sumsExactly(inv.totalMinor, inv.lines.map((l) => l.amountMinor)));
+});
+
+test("project: a credit-only invoice holds no retainage", () => {
+  const inv = BILLING_PATHS.project.build([ev("site-a", -1000n, 1_000_000n)], {
+    billToAccountId: "site-a", billToTier: "location", resolvedTerms: { retainage_bps: "1000" },
+  });
+  assert.equal(inv.lines.length, 1, "no \"Retainage held\" line");
+  assert.equal(inv.totalMinor, -1_000_000n);
 });

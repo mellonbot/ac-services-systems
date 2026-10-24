@@ -55,7 +55,8 @@ export const buildPages = async (gateway = gatewayOrigin(process.env.AC_GATEWAY)
     const basePath = SURFACE_PATHS[id];
     const built = await buildSurface(id, { minify: true, gateway, basePath });
     const target = basePath === "/" ? OUTPUT : join(OUTPUT, basePath.slice(1));
-    cpSync(built.outDir, target, { recursive: true, force: true });
+    // Never a source map: published, it is the surface's whole source.
+    cpSync(built.outDir, target, { recursive: true, force: true, filter: (src) => !src.endsWith(".map") });
     console.log(`build-pages: ${id} → ${target.replace(ROOT, "")}`);
   }
 

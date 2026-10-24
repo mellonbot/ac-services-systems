@@ -17,6 +17,14 @@ test("the table does not grow without bound: expired windows are swept, live one
   assert.ok(t.size() <= 2);
 });
 
+test("sweep drops ended windows and keeps live ones", () => {
+  const t = createThrottle({ limit: 1, windowMs: 1000 });
+  t.hit("old", 0); t.hit("new", 900);
+  t.sweep(1500);
+  assert.equal(t.size(), 1);
+  assert.equal(t.spent("new", 1500), true);
+});
+
 test("spent looks without counting: a key that has failed its limit is spent until the window turns", () => {
   const t = createThrottle({ limit: 2, windowMs: 1000 });
   assert.equal(t.spent("a", 0), false);

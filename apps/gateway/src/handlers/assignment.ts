@@ -3,23 +3,33 @@ import { evaluate, isRefusal, type Crew, type Credential } from "../../../../pac
 import { buildAssignment } from "../../../../packages/domain/src/compliance/assignment.ts";
 import type { Refusal } from "../../../../packages/domain/src/compliance/clearance.ts";
 import { InputRefused } from "../refusals.ts";
+import { requireUuid } from "./jobs.ts";
 import type { CandidateCrewsInput, CandidateCrewsOutput, CandidateCrewWire, CrewKind, JobWorkClass, ReleaseAssignmentInput, ReleaseAssignmentOutput } from "../../../../packages/contracts/src/operations.ts";
 import { crewKindFor } from "../../../../packages/contracts/src/operations.ts";
 
-/** Shared by `assignCrew` and `candidateCrews` — one query shape, one mapping, so a dry run reads exactly what the gated door reads. One query for any number of crews. */
-const credentialsOf = async (uow: UnitOfWork, crewIds: readonly string[]): Promise<Map<string, Credential[]>> => {
-  const creds = await uow.tx.query<{ crew_id: string; id: string; kind: string; valid_from: string; valid_to: string; verified_at: string | null }>(
-    `SELECT crew_id, id, kind, to_char(valid_from,'YYYY-MM-DD') AS valid_from, to_char(valid_to,'YYYY-MM-DD') AS valid_to, verified_at FROM crew_credentials WHERE crew_id = ANY($1::uuid[])`,
-    [crewIds],
+/**
+ * Shared by `assignCrew` and `candidateCrews` — one query shape, one mapping, so a dry run reads exactly what the gated door reads. One query for any number of crews.
+ * A certificate's dates are days where the work is: they run from midnight
+ * of valid_from to the end of valid_to in the job's region's timezone — the
+ * same days 0029's clearance trigger reads.
+ */
+const credentialsOf = async (uow: UnitOfWork, crewIds: readonly string[], regionId: string): Promise<Map<string, Credential[]>> => {
+  const creds = await uow.tx.query<{ crew_id: string; id: string; kind: string; valid_to: string; from_ms: string; to_ms: string; verified_at: string | null }>(
+    `SELECT c.crew_id, c.id, c.kind, to_char(c.valid_to,'YYYY-MM-DD') AS valid_to,
+            (extract(epoch FROM c.valid_from::timestamp AT TIME ZONE r.timezone) * 1000)::bigint::text AS from_ms,
+            (extract(epoch FROM (c.valid_to + 1)::timestamp AT TIME ZONE r.timezone) * 1000 - 1)::bigint::text AS to_ms,
+            c.verified_at
+       FROM crew_credentials c, regions r WHERE c.crew_id = ANY($1::uuid[]) AND r.id = $2`,
+    [crewIds, regionId],
   );
   const byCrew = new Map<string, Credential[]>(crewIds.map((id) => [id, []]));
   for (const c of creds) {
     byCrew.get(c.crew_id)!.push({
       id: c.id, kind: c.kind,
-      validFrom: Date.parse(`${c.valid_from}T00:00:00Z`),
-      // valid_to is inclusive on the certificate; cover through the end of that day.
-      validTo: Date.parse(`${c.valid_to}T23:59:59.999Z`),
+      validFrom: Number(c.from_ms),
+      validTo: Number(c.to_ms),
       verifiedAt: c.verified_at ? Date.parse(c.verified_at) : null,
+      lastDay: c.valid_to,
     });
   }
   return byCrew;
@@ -60,6 +70,8 @@ export type AssignResult =
   | { readonly ok: false; readonly refusal: Refusal; readonly eventId: string };
 
 export const assignCrew = async (uow: UnitOfWork, actorId: string, input: AssignInput, evaluatedAt: Date): Promise<AssignResult> => {
+  requireUuid(input.jobId, "jobId");
+  requireUuid(input.crewId, "crewId");
   // FOR UPDATE: two dispatchers (or one double-click) on the same job queue
   // here, and the second reads the state the first left behind.
   const job = (await uow.tx.query<{ id: string; ws: string; we: string; state: string; region_id: string; org_id: string; work_class: JobWorkClass }>(
@@ -83,7 +95,7 @@ export const assignCrew = async (uow: UnitOfWork, actorId: string, input: Assign
     );
   }
   const crew = crewOf(crewRow);
-  const credentials = (await credentialsOf(uow, [input.crewId])).get(input.crewId)!;
+  const credentials = (await credentialsOf(uow, [input.crewId], job.region_id)).get(input.crewId)!;
   const window = { start: Date.parse(job.ws), end: Date.parse(job.we) };
   const verdict = evaluate(crew, credentials, window, evaluatedAt.getTime());
 
@@ -151,6 +163,7 @@ export const assignCrew = async (uow: UnitOfWork, actorId: string, input: Assign
  * one gated door with the crew they picked.
  */
 export const candidateCrews = async (uow: UnitOfWork, input: CandidateCrewsInput, evaluatedAt: Date): Promise<CandidateCrewsOutput> => {
+  requireUuid(input.jobId, "jobId");
   const job = (await uow.tx.query<{ id: string; ws: string; we: string; region_id: string; org_id: string; work_class: JobWorkClass }>(
     `SELECT id, lower(service_window) AS ws, upper(service_window) AS we, region_id, org_id, work_class FROM jobs WHERE id = $1`, [input.jobId],
   ))[0];
@@ -164,7 +177,7 @@ export const candidateCrews = async (uow: UnitOfWork, input: CandidateCrewsInput
     // at a job outside their home region. Only the kind the work needs (0024).
     `${CREW_SELECT} WHERE c.home_region_id = $1 AND c.active AND c.kind = $2 ORDER BY c.label`, [job.region_id, crewKindFor(job.work_class)],
   );
-  const credentials = await credentialsOf(uow, crews.map((c) => c.id));
+  const credentials = await credentialsOf(uow, crews.map((c) => c.id), job.region_id);
 
   const candidates: CandidateCrewWire[] = [];
   for (const c of crews) {
@@ -189,15 +202,21 @@ export const candidateCrews = async (uow: UnitOfWork, input: CandidateCrewsInput
  * S3 does not have a screen for yet, not a release.
  */
 export const releaseAssignment = async (uow: UnitOfWork, actorId: string, input: ReleaseAssignmentInput, releasedAt: Date): Promise<ReleaseAssignmentOutput> => {
+  requireUuid(input.assignmentId, "assignmentId");
+  const found = (await uow.tx.query<{ job_id: string }>(`SELECT job_id FROM assignments WHERE id = $1`, [input.assignmentId]))[0];
+  if (!found) throw new InputRefused(`assignment ${input.assignmentId} not found in scope`, "unknown_assignment");
+
+  // FOR UPDATE, job first and then the assignment — the order assignCrew and
+  // sync take them in — so two releases (or a release racing the field's
+  // en_route) queue here and the second reads what the first left behind.
+  const job = (await uow.tx.query<{ state: string }>(`SELECT state FROM jobs WHERE id = $1 FOR UPDATE`, [found.job_id]))[0];
+  if (!job) throw new InputRefused(`job ${found.job_id} not found in scope`, "unknown_job");
   const a = (await uow.tx.query<{ id: string; job_id: string; crew_id: string; org_id: string; region_id: string; released_at: string | null }>(
-    `SELECT id, job_id, crew_id, org_id, region_id, released_at FROM assignments WHERE id = $1`, [input.assignmentId],
+    `SELECT id, job_id, crew_id, org_id, region_id, released_at FROM assignments WHERE id = $1 FOR UPDATE`, [input.assignmentId],
   ))[0];
   if (!a) throw new InputRefused(`assignment ${input.assignmentId} not found in scope`, "unknown_assignment");
   if (a.org_id !== input.orgId || a.region_id !== input.regionId) throw new InputRefused(`assignment ${input.assignmentId} tenancy does not match input`, "tenancy_mismatch");
   if (a.released_at) throw new InputRefused(`assignment ${input.assignmentId} was already released at ${a.released_at}`, "already_released");
-
-  const job = (await uow.tx.query<{ state: string }>(`SELECT state FROM jobs WHERE id = $1`, [a.job_id]))[0];
-  if (!job) throw new InputRefused(`job ${a.job_id} not found in scope`, "unknown_job");
   if (job.state !== "assigned") {
     throw new InputRefused(
       `job ${a.job_id} is "${job.state}" — past assignment, so release is not the right door. A job a technician has already acted on needs a cancellation or a reassignment conversation, not a release.`,
@@ -213,8 +232,12 @@ export const releaseAssignment = async (uow: UnitOfWork, actorId: string, input:
       payload: { jobId: a.job_id, crewId: a.crew_id, reason: input.reason ?? null },
     },
     async (tx) => {
-      await tx.query(`UPDATE assignments SET released_at = $2, release_reason = $3 WHERE id = $1`, [a.id, releasedAt.toISOString(), input.reason ?? null]);
-      await tx.query(`UPDATE jobs SET state = 'created', version = version + 1 WHERE id = $1 AND state = 'assigned'`, [a.job_id]);
+      // Both guarded, both counted: a guard that misses is a refusal, never a
+      // half-release with an event claiming the job went back to 'created'.
+      const released = await tx.query(`UPDATE assignments SET released_at = $2, release_reason = $3 WHERE id = $1 AND released_at IS NULL RETURNING id`, [a.id, releasedAt.toISOString(), input.reason ?? null]);
+      if (released.length === 0) throw new InputRefused(`assignment ${a.id} was already released`, "already_released");
+      const reopened = await tx.query(`UPDATE jobs SET state = 'created', version = version + 1 WHERE id = $1 AND state = 'assigned' RETURNING id`, [a.job_id]);
+      if (reopened.length === 0) throw new InputRefused(`job ${a.job_id} is no longer "assigned" — release is not the right door`, "job_in_progress");
       await tx.insert("job_state_events", {
         org_id: input.orgId, region_id: input.regionId, job_id: a.job_id, from_state: "assigned", to_state: "created",
         actor_id: actorId, surface_id: "S3", mutation_id: `release:${a.id}`, occurred_at: releasedAt.toISOString(),

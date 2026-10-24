@@ -4,7 +4,7 @@ import { admitOverride, type Candidate } from "../../../../packages/domain/src/i
 import { resolveAll, type Override, type ScopePath } from "../../../../packages/domain/src/inheritance/resolve.ts";
 import { TERM_KEYS } from "../../../../packages/contracts/src/terms.ts";
 import type { Tier } from "../../../../packages/contracts/src/tiers.ts";
-import { InputRefused } from "../refusals.ts";
+import { InputRefused, BadInput } from "../refusals.ts";
 
 /**
  * S2 → gateway: author a term override. The one door through which a
@@ -66,7 +66,11 @@ export const pathLoader = async (uow: UnitOfWork, orgId: string) => {
 
 export type AuthorOverrideInput = Candidate & { readonly orgId: string; readonly regionId: string };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const authorTermOverride = async (uow: UnitOfWork, ctx: HierarchyContext, input: AuthorOverrideInput): Promise<{ id: string; eventId: string }> => {
+  // Read before the database sees it: a malformed id is the caller's request, not a 500.
+  for (const f of ["contractId", "orgId", "scopeId"] as const) if (typeof input[f] !== "string" || !UUID.test(input[f])) throw new BadInput(`${f} must be a uuid`);
   // Admission reads every row for this (org, term) and decides against them;
   // two authors at once would each decide against a set missing the other's
   // row. One at a time per (org, term).

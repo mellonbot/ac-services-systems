@@ -272,6 +272,11 @@ test("a rate that begins on the same day as the row in effect is refused by name
     (e: unknown) => e instanceof BadInput && /not money/.test(String(e)),
   );
   await assert.rejects(
+    // Nineteen digits does not fit the bigint column; it is the caller's 400, not the database's 500.
+    setRateCard(uow, { firmId: FIRM, serviceCode: "HVAC-REPAIR", rateMinor: "9".repeat(19), currency: "USD", effectiveFrom: "2026-11-01" }, newId),
+    BadInput,
+  );
+  await assert.rejects(
     setRateCard(uow, { firmId: FIRM, serviceCode: "HVAC-REPAIR", rateMinor: "9900", currency: "USD", effectiveFrom: "2026-11-01", effectiveTo: "2026-11-01" }, newId),
     (e: unknown) => e instanceof InputRefused && e.code === "empty_window",
   );

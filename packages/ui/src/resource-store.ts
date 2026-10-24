@@ -27,6 +27,10 @@ export const createResourceStore = (
   // working for a transport error. A refusal the gateway actually gave
   // (forbidden, not found) still replaces it: that is new information.
   const last = new Map<string, unknown>();
+  // Bumped per key by `invalidate`. A fetch that was in flight when its key
+  // was invalidated may resolve after the refetch; its answer is older, so it
+  // must not become the held value.
+  const generation = new Map<string, number>();
   const lastOkAt = signal<number | null>(null);
   const notice = signal<readonly string[]>([]);
   const version = signal(0);
@@ -37,11 +41,13 @@ export const createResourceStore = (
     const held = last.has(key);
     const resource = signal<Resource<T>>(held ? { state: "ready", value: last.get(key) as T } : { state: "loading" });
     cache.set(key, resource as Signal<Resource<unknown>>);
+    const gen = generation.get(key) ?? 0;
+    const current = () => (generation.get(key) ?? 0) === gen;
     fetcher().then(
-      (value) => { lastOkAt.value = now(); last.set(key, value); resource.value = { state: "ready", value }; },
+      (value) => { lastOkAt.value = now(); if (current()) last.set(key, value); resource.value = { state: "ready", value }; },
       (error: unknown) => {
         const refusal = shell.refusalOf(error) ?? { kind: "transport", status: null, message: String(error) } as const;
-        if (refusal.kind !== "transport") { lastOkAt.value = now(); last.delete(key); }
+        if (refusal.kind !== "transport") { lastOkAt.value = now(); if (current()) last.delete(key); }
         else if (held) return;
         resource.value = { state: "refused", refusal };
       },
@@ -53,7 +59,7 @@ export const createResourceStore = (
     cache.get(key)?.value as Resource<T> | undefined ?? null;
 
   const invalidate = (prefix: string): void => {
-    for (const key of [...cache.keys()]) if (key.startsWith(prefix)) cache.delete(key);
+    for (const key of [...cache.keys()]) if (key.startsWith(prefix)) { cache.delete(key); generation.set(key, (generation.get(key) ?? 0) + 1); }
     version.value++;
   };
 

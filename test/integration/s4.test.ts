@@ -41,7 +41,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const PASSWORD = "correct horse battery staple";
 const U = (n: number) => `d4000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 const ORG = U(1), RNODE = U(2), LOC = U(3), SITE = U(4), FIRM = U(5), CREW_OK = U(6), CREW_SUB = U(7), EXEC = U(8), DISP = U(9);
-const J = { met: U(20), late: U(21), open: U(22), assigned: U(23) };
+const J = { met: U(20), late: U(21), open: U(22), assigned: U(23), cancelled: U(24), finishedOld: U(25) };
 
 let maintenance: Pool;
 let pool: Pool;
@@ -108,6 +108,17 @@ before(async () => {
   await timer(J.met, "now() - interval '4 hours'", "now() - interval '1 hour'");
   await timer(J.late, "now() - interval '30 minutes'", "now() - interval '1 hour'");
   await timer(J.open, null, "now() + interval '20 minutes'");
+  // Cancelled before anyone was sent, its clock long past due: it owed no response, so it is neither closed nor breached.
+  await admin(`INSERT INTO jobs (id, org_id, region_id, site_id, service_code, priority, service_window, state, opened_at)
+    VALUES ($1,$2,$3,$4,'HVAC-REPAIR','urgent', tstzrange(now() - interval '2 hours', now() + interval '2 hours', '[)'), 'cancelled', now() - interval '5 hours')`, [J.cancelled, ORG, REGION_SOUTH, SITE]);
+  await timer(J.cancelled, null, "now() - interval '1 hour'");
+  // Opened forty days ago, finished yesterday: completed in this window. The met and late jobs finished today.
+  await admin(`INSERT INTO jobs (id, org_id, region_id, site_id, service_code, priority, service_window, state, opened_at)
+    VALUES ($1,$2,$3,$4,'HVAC-REPAIR','routine', tstzrange(now() - interval '2 days', now() - interval '1 day', '[)'), 'complete', now() - interval '40 days')`, [J.finishedOld, ORG, REGION_SOUTH, SITE]);
+  for (const [job, at] of [[J.met, "now() - interval '1 hour'"], [J.late, "now() - interval '1 hour'"], [J.finishedOld, "now() - interval '1 day'"]] as const) {
+    await admin(`INSERT INTO job_state_events (org_id, region_id, job_id, from_state, to_state, actor_id, surface_id, mutation_id, occurred_at)
+      VALUES ($1,$2,$3,'in_progress','complete',$4,'S5', gen_random_uuid()::text, ${at})`, [ORG, REGION_SOUTH, job, EXEC]);
+  }
   // Crews: an employed crew with every document, a firm's crew with its insurance unverified.
   await admin(`INSERT INTO subcontractor_firms (id, org_id, region_id, legal_name, status, settlement_terms_days, msa_signed_at, diagnostic_data_rights_reserved)
     VALUES ($1,$1,$2,'S4 Firm LLC','active',30, now() - interval '100 days', true)`, [FIRM, REGION_SOUTH]);
@@ -116,7 +127,10 @@ before(async () => {
   // Documents go on file unverified — 0005 refuses verified_at on any path but S2's — and S2 verifies them.
   const docs = await admin(`INSERT INTO crew_credentials (org_id, region_id, crew_id, kind, identifier, valid_from, valid_to) VALUES
     ($1,$2,$3,'license','L-OK', current_date - 100, current_date + 20),
-    ($1,$2,$3,'background_check','B-OK', current_date - 100, current_date + 200) RETURNING id`, [INTERNAL_ORG_ID, REGION_SOUTH, CREW_OK]);
+    ($1,$2,$3,'background_check','B-OK', current_date - 100, current_date + 200),
+    -- A certification running out in fifteen days that its renewal already replaces: nothing is expiring.
+    ($1,$2,$3,'certification','C-OLD', current_date - 100, current_date + 15),
+    ($1,$2,$3,'certification','C-NEW', current_date, current_date + 400) RETURNING id`, [INTERNAL_ORG_ID, REGION_SOUTH, CREW_OK]);
   for (const d of docs) {
     await asBinding({ ...binding("internal", INTERNAL_ORG_ID, "S2"), "ac.actor_id": EXEC }, `UPDATE crew_credentials SET verified_at = now(), verified_by = $2 WHERE id = $1`, [d.id, EXEC]);
   }
@@ -175,16 +189,17 @@ test("before the first refresh the gateway answers with no day and no values —
 test("bound as the worker, one refresh writes every figure for every region, and the counts are the seeded rows", { skip }, async () => {
   const regions = Number((await admin("SELECT count(*)::int AS n FROM regions"))[0]!.n);
   assert.equal(await refresh(), HQ_METRIC_KEYS.length * regions);
-  assert.equal(await figure("sla_closed_30d", REGION_SOUTH), 2, "met and late are closed; the open clock is not due yet");
+  assert.equal(await figure("sla_closed_30d", REGION_SOUTH), 2, "met and late are closed; the open clock is not due yet, the cancelled one owed nothing");
   assert.equal(await figure("sla_met_30d", REGION_SOUTH), 1);
-  assert.equal(await figure("sla_breached_30d", REGION_SOUTH), 1, "answered late is a breach");
+  assert.equal(await figure("sla_breached_30d", REGION_SOUTH), 1, "answered late is a breach; a job cancelled before dispatch is not");
+  assert.equal(await figure("jobs_completed_30d", REGION_SOUTH), 3, "counted on the completion, not the opening");
   assert.equal(await figure("jobs_open_now", REGION_SOUTH), 2);
   assert.equal(await figure("jobs_unassigned_now", REGION_SOUTH), 2);
   assert.equal(await figure("jobs_at_risk_now", REGION_SOUTH), 1, "due within the hour");
   assert.equal(await figure("crews_active", REGION_SOUTH), 2);
   assert.equal(await figure("crews_cleared_now", REGION_SOUTH), 1, "the firm's crew has unverified insurance and no licence");
   assert.equal(await figure("credentials_unverified", REGION_SOUTH), 1);
-  assert.equal(await figure("credentials_expiring_30d", REGION_SOUTH), 1, "the licence runs out in twenty days");
+  assert.equal(await figure("credentials_expiring_30d", REGION_SOUTH), 1, "the licence runs out in twenty days; the renewed certification does not count");
   assert.equal(await figure("min_crew_density", REGION_SOUTH), 2);
   assert.equal(await figure("locations_active", REGION_SOUTH), 1);
   assert.equal(await figure("customers_active", REGION_SOUTH), 1);

@@ -1,7 +1,7 @@
 import { html, pageHead, panel, PrimaryAction, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { FieldJobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { nextDeviceStates } from "../offline.ts";
+import { nextDeviceStates, projectedJob } from "../offline.ts";
 import { whenReady, type Screen } from "./common.ts";
 
 /**
@@ -28,11 +28,12 @@ const PART_SOURCES = ["truck", "location_stock", "regional_hub", "national"] as 
  * `sync.replay`, and if it cannot reach the gateway right now the mutation
  * simply stays queued for the next tick or the next screen open.
  *
- * What this screen does NOT do: show the job as already transitioned the
- * moment a button is tapped. The displayed state is always the last thing
- * `jobs.mine` actually returned — "device holds intent, server holds truth"
- * means this screen does not invent a truth of its own to display while
- * waiting, only a queued-count so the tech knows the tap was taken.
+ * The state the buttons work from is the server's state with this job's
+ * queued transitions applied (`projectedJob`): in a dead zone a tech taps
+ * "en route", then "on site", then "in progress", and each is queued against
+ * the version the one before it will leave. The screen says which part is
+ * queued — the server's last answer stays on it — so it never passes off an
+ * intent as the truth.
  */
 export const jobDetail: Screen = (ctx, params) => {
   const jobId = params.jobId!;
@@ -49,7 +50,8 @@ export const jobDetail: Screen = (ctx, params) => {
     const job = out.jobs.find((j) => j.id === jobId);
     if (!job) return html`<p class="s5-empty">Job ${jobId} is not on this shift's board.</p>`;
 
-    const transition = (to: string) => { ctx.queue.enqueue("jobs", job.id, "transition", { state: to }, job.version); flush(); };
+    const projected = projectedJob(job, ctx.queue.pending.value);
+    const transition = (to: string) => { ctx.queue.enqueue("jobs", job.id, "transition", { state: to }, projected.version); flush(); };
     const markDone = (key: string) => { ctx.queue.enqueue("checklist_items", job.id, "insert", { item_key: key, response: { done: true, at: new Date().toISOString() } }, null); flush(); };
 
     const runningSince = ctx.clock.value[job.id];
@@ -82,7 +84,7 @@ export const jobDetail: Screen = (ctx, params) => {
 
     return html`<section class="s5-job">
       ${pageHead(job.serviceCode, "Move the job on, work the checklist, run the time clock and log the parts used — every tap is saved on this device first.")}
-      ${panel(html`<p class="s5-job__state">State: <strong>${job.state.replace(/_/g, " ")}</strong> · Priority: ${job.priority}</p>
+      ${panel(html`<p class="s5-job__state">State: <strong>${projected.state.replace(/_/g, " ")}</strong>${projected.queued > 0 ? html` (queued — last synced: ${job.state.replace(/_/g, " ")})` : null} · Priority: ${job.priority}</p>
         <p class="s5-job__window"><span class="ac-num">${new Date(job.serviceWindowStart).toLocaleString()}</span> → <span class="ac-num">${new Date(job.serviceWindowEnd).toLocaleString()}</span></p>`)}
       ${jobPending > 0 ? html`<p class="ac-notice" data-tone="at_risk" role="status"><span class="ac-num">${jobPending}</span> change${jobPending === 1 ? "" : "s"} waiting to sync${ctx.degraded ? " — offline" : ""}.</p>` : null}
       ${jobAttention.map((a) => html`<div class="s5-attention" role="alert" key=${a.mutationId}>
@@ -92,8 +94,8 @@ export const jobDetail: Screen = (ctx, params) => {
       </div>`)}
 
       ${panel(html`<div class="s5-actions">
-        ${nextDeviceStates(job.state).map((to) => PrimaryAction({ density: ctx.density, label: to.replace(/_/g, " "), id: `to-${to}`, onClick: () => transition(to) }))}
-        ${nextDeviceStates(job.state).length === 0 ? html`<p class="s5-muted">No further state change is this shift's to make from here.</p>` : null}
+        ${nextDeviceStates(projected.state).map((to) => PrimaryAction({ density: ctx.density, label: to.replace(/_/g, " "), id: `to-${to}`, onClick: () => transition(to) }))}
+        ${nextDeviceStates(projected.state).length === 0 ? html`<p class="s5-muted">No further state change is this shift's to make from here.</p>` : null}
       </div>`, "Move job to")}
 
       ${panel(html`<ul class="s5-checklist">

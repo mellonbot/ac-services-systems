@@ -1,25 +1,35 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, safeStorage } from "electron";
 import os from "node:os";
 import path from "node:path";
 import { writeFileSync } from "node:fs";
 import { openDb } from "./db.ts";
 import type { LoginsDb } from "./db.ts";
 import { loadConnections, saveConnections, LOCAL_DEFAULT } from "./connections.ts";
-import type { Connections, DbName } from "./connections.ts";
+import type { Cipher, Connections, DbName } from "./connections.ts";
 import type { Api } from "./preload.ts";
 
 const CONFIG_DIR = path.join(os.homedir(), ".config", "ac-logins");
 const WRONG_DB = "The window is showing a different database — reload.";
 
-let conns: Connections;
+let conns: Connections = { local: LOCAL_DEFAULT };
 let connectionsError: string | null = null;
-try {
-  conns = loadConnections(CONFIG_DIR);
-} catch {
-  // Never forward the parse error: V8 quotes the source around the bad token, which can be part of a connection string.
-  conns = { local: LOCAL_DEFAULT };
-  connectionsError = "connections.json could not be read — enter the connection strings again.";
-}
+// The OS keychain (safeStorage) seals the production string on disk. Asked after `ready`: on Linux it is not known before.
+let cipher: Cipher | undefined;
+
+const loadConfig = (): void => {
+  cipher = safeStorage.isEncryptionAvailable() ? safeStorage : undefined;
+  if (!cipher) console.warn("ac-logins: no OS keychain — the production connection string is kept in connections.json in the clear (mode 0600).");
+  try {
+    const loaded = loadConnections(CONFIG_DIR, cipher);
+    conns = { local: loaded.local, ...(loaded.production === undefined ? {} : { production: loaded.production }) };
+    // A string written before the keychain was used is sealed now.
+    if (loaded.plaintext && cipher) saveConnections(CONFIG_DIR, conns, cipher);
+  } catch {
+    // Never forward the parse error: V8 quotes the source around the bad token, which can be part of a connection string.
+    conns = { local: LOCAL_DEFAULT };
+    connectionsError = "connections.json could not be read — enter the connection strings again.";
+  }
+};
 
 const openFor = async (name: DbName): Promise<LoginsDb> => {
   const url = conns[name];
@@ -32,9 +42,9 @@ const openFor = async (name: DbName): Promise<LoginsDb> => {
 };
 
 // `current` holds the open database, or the rejection that says why it is not open.
-// Production when it is configured — it is the database the live site reads; Local otherwise.
-let selected: DbName = conns.production ? "production" : "local";
-let current: Promise<LoginsDb> = openFor(selected);
+// Always Local at start: production is the live site's database, and is opened only when someone picks it.
+let selected: DbName = "local";
+let current: Promise<LoginsDb> = Promise.reject(new Error("Not connected yet."));
 current.catch(() => {});
 
 const use = (name: DbName): Promise<LoginsDb> => {
@@ -59,7 +69,7 @@ const handlers: Handlers = {
     const probe = await openDb(url.trim());
     await probe.close();
     conns = { ...conns, [name]: url.trim() };
-    saveConnections(CONFIG_DIR, conns);
+    saveConnections(CONFIG_DIR, conns, cipher);
     connectionsError = null;
   },
   select,
@@ -104,6 +114,9 @@ const smoke = async (win: BrowserWindow, file: string): Promise<void> => {
 };
 
 app.whenReady().then(() => {
+  loadConfig();
+  current = openFor(selected);
+  current.catch(() => {});
   const win = new BrowserWindow({
     width: 1200, height: 800, title: "AC Logins",
     webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false },

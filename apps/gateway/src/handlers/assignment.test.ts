@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
 import { assignCrew, candidateCrews, releaseAssignment } from "./assignment.ts";
-import { InputRefused } from "../refusals.ts";
+import { InputRefused, BadInput } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
 
@@ -40,8 +40,10 @@ const now = new Date("2026-09-17T12:00:00Z");
 
 const job = { id: JOB, ws: "2026-09-18T09:00:00.000Z", we: "2026-09-18T17:00:00.000Z", state: "created", region_id: REGION, org_id: ORG, work_class: "service" };
 const clearedCrew = { id: CREW, label: "Crew A1", active: true, employment_type: "employed", kind: "service" };
-const clearedCreds = [{ crew_id: CREW, id: U(10), kind: "license", valid_from: "2026-01-01", valid_to: "2026-12-31", verified_at: "2026-01-02T00:00:00Z" },
-  { crew_id: CREW, id: U(11), kind: "background_check", valid_from: "2026-01-01", valid_to: "2026-12-31", verified_at: "2026-01-02T00:00:00Z" }];
+// As credentialsOf's SQL answers: the days' bounds in the region's timezone, already in epoch ms.
+const yearOf2026 = { valid_to: "2026-12-31", from_ms: String(Date.parse("2026-01-01T06:00:00Z")), to_ms: String(Date.parse("2027-01-01T06:00:00Z") - 1), verified_at: "2026-01-02T00:00:00Z" };
+const clearedCreds = [{ crew_id: CREW, id: U(10), kind: "license", ...yearOf2026 },
+  { crew_id: CREW, id: U(11), kind: "background_check", ...yearOf2026 }];
 
 test("assignCrew satisfies the job's open SLA timer on success — the response the cascade is timing", async () => {
   const s = scripted([
@@ -129,6 +131,7 @@ test("releaseAssignment returns the job to 'created' and refuses a second releas
   const s = scripted([
     ["FROM assignments WHERE id", [openAssignment]],
     ["FROM jobs WHERE id = $1", [{ state: "assigned" }]],
+    ["RETURNING id", [{ id: openAssignment.id }]],
   ]);
   const uow = await uowFor(s.tx);
   const out = await releaseAssignment(uow, U(9), { assignmentId: openAssignment.id, orgId: ORG, regionId: REGION, reason: "customer rescheduled" }, now);
@@ -136,7 +139,10 @@ test("releaseAssignment returns the job to 'created' and refuses a second releas
   assert.ok(s.queries.some((q) => /UPDATE assignments SET released_at/.test(q.sql)));
   assert.ok(s.queries.some((q) => /UPDATE jobs SET state = 'created'/.test(q.sql)));
 
-  const already = await uowFor(scripted([["FROM assignments WHERE id", [{ ...openAssignment, released_at: "2026-09-17T00:00:00Z" }]]]).tx);
+  const already = await uowFor(scripted([
+    ["FROM assignments WHERE id", [{ ...openAssignment, released_at: "2026-09-17T00:00:00Z" }]],
+    ["FROM jobs WHERE id = $1", [{ state: "created" }]],
+  ]).tx);
   await assert.rejects(
     releaseAssignment(already, U(9), { assignmentId: openAssignment.id, orgId: ORG, regionId: REGION }, now),
     (e: unknown) => e instanceof InputRefused && e.code === "already_released",
@@ -154,4 +160,31 @@ test("releaseAssignment refuses a job that has already moved past assignment —
     (e: unknown) => e instanceof InputRefused && e.code === "job_in_progress",
   );
   assert.equal(s.queries.filter((q) => q.sql.startsWith("UPDATE")).length, 0, "nothing was written for the refused release");
+});
+
+test("releaseAssignment locks the job and the assignment, and refuses by name when a guarded write misses", async () => {
+  const s = scripted([
+    ["FROM assignments WHERE id", [openAssignment]],
+    ["FROM jobs WHERE id = $1", [{ state: "assigned" }]],
+  ]);
+  const uow = await uowFor(s.tx);
+  // Every guarded UPDATE comes back empty: someone else got there first.
+  await assert.rejects(
+    releaseAssignment(uow, U(9), { assignmentId: openAssignment.id, orgId: ORG, regionId: REGION }, now),
+    (e: unknown) => e instanceof InputRefused && e.code === "already_released",
+  );
+  assert.match(s.queries.find((q) => q.sql.includes("FROM jobs"))!.sql, /FOR UPDATE/);
+  assert.ok(s.queries.some((q) => /FROM assignments WHERE id = \$1 FOR UPDATE/.test(q.sql)));
+  assert.match(s.queries.find((q) => q.sql.startsWith("UPDATE assignments"))!.sql, /released_at IS NULL/);
+  assert.equal(uow.pending().events.length, 0, "no job.reassigned for a release that did not happen");
+});
+
+test("an id that is not a uuid is the caller's 400 before any query — not the database's 22P02 as a 500", async () => {
+  const { tx, queries } = scripted([]);
+  const uow = await uowFor(tx);
+  await assert.rejects(assignCrew(uow, U(9), { jobId: "not-a-uuid", crewId: CREW, orgId: ORG, regionId: REGION }, now), BadInput);
+  await assert.rejects(assignCrew(uow, U(9), { jobId: JOB, crewId: "x", orgId: ORG, regionId: REGION }, now), BadInput);
+  await assert.rejects(candidateCrews(uow, { jobId: "1", orgId: ORG, regionId: REGION }, now), BadInput);
+  await assert.rejects(releaseAssignment(uow, U(9), { assignmentId: "1", orgId: ORG, regionId: REGION } as never, now), BadInput);
+  assert.equal(queries.length, 0);
 });

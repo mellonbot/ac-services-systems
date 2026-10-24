@@ -1,4 +1,4 @@
-import { html, pageHead, panel, signal, DataGrid, ComplianceBadge, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, localDay, pageHead, panel, signal, DataGrid, ComplianceBadge, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { CredentialWire, CredentialKind, CrewWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { readableKinds } from "./network.ts";
 import { keyOf } from "../state.ts";
@@ -34,7 +34,7 @@ export const coversToday = (c: CredentialWire, today: string): boolean => c.veri
 export const networkCrewDocuments: Screen = (ctx, params) => {
   const { shell, store } = ctx;
   const crewId = params.crewId!;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDay();
   const crews = store.read(keyOf("crews.list"), () => shell.gateway.listCrews({}));
   const docs = store.read(keyOf("credentials.list", { crewId }), () => shell.gateway.listCredentials({ crewId }));
 

@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
-import { createPurchaseOrder } from "./procurement.ts";
+import { createPurchaseOrder, proposePrice } from "./procurement.ts";
+import { BadInput } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
 
@@ -64,4 +65,14 @@ test("purchase order item and price reads and line inserts are batched", async (
   assert.deepEqual(lineInserts[0]!.params[4], [U(41), U(40)], "price references keep input line order");
   assert.deepEqual(lineInserts[0]!.params[5], ["2000", "1000"]);
   assert.deepEqual(lineInserts[0]!.params[6], ["4000", "2500"]);
+});
+
+test("money past eighteen digits is the caller's 400 — the bigint column would refuse it as 22003, a 500", async () => {
+  const tx: Tx = {
+    async setLocal() {},
+    async query(sql) { return (sql.includes("FROM vendor_catalog_items") ? [{ id: ITEM_A, vendor_id: VENDOR, vendor_sku: "A", description: "Item A", uom: "each", active: true, org_id: VENDOR, region_id: REGION }] : []) as never; },
+    async insert() {}, async commit() {}, async rollback() {},
+  };
+  const uow = await createUnitOfWork({ surfaceId: "S2", principal: ops, requestId: "r", now: () => new Date(), newId: () => U(99) }, tx);
+  await assert.rejects(proposePrice(uow, { itemId: ITEM_A, priceMinor: "1".repeat(19), currency: "USD", effectiveFrom: "2099-01-01" }, () => U(98)), BadInput);
 });

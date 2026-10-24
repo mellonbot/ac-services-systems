@@ -27,6 +27,12 @@ import type { SubmitLeadInput } from "../../../packages/contracts/src/index.ts";
  *      we'll be in touch" over a form that is still sitting in localStorage
  *      has converted an outage into a lost customer, quietly.
  *
+ *   4. IT FORGETS. A queued lead is a stranger's name, email, phone and note
+ *      sitting in this browser's storage. One older than QUEUE_MAX_AGE_MS is
+ *      dropped at the next read rather than replayed: a call-back request a
+ *      week old is not one the office can honour as asked, and the visitor's
+ *      details should not outlive it on a shared or public device.
+ *
  * Storage is injected rather than reached for. `localStorage` is absent under
  * node and THROWS in a browser with site data blocked — not returns null,
  * throws — so every access here is guarded and a failure degrades to an
@@ -40,6 +46,9 @@ export type BufferStore = {
 };
 
 export const BUFFER_KEY = "ac.s1.pending";
+
+/** How long a lead may wait on this device before it is dropped: 7 days. No doc or registry entry sets one; this is the bound chosen here. */
+export const QUEUE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type QueuedLead = {
   readonly input: SubmitLeadInput;
@@ -67,6 +76,10 @@ export type LeadBuffer = {
   readonly flushing: Signal<boolean>;
   /** The refusals a flush produced that a person has to read. Cleared by `dismiss`. */
   readonly attention: Signal<readonly { readonly submissionId: string; readonly message: string }[]>;
+  /** The last attempt to send got no answer — what lets the page say it could not reach us, rather than while a first send is still in flight. */
+  readonly failed: Signal<boolean>;
+  /** The caller could not even start a flush (no session): nobody answered, the same as a flush that got none. */
+  unreachable(): void;
   enqueue(input: SubmitLeadInput): void;
   dismiss(submissionId: string): void;
   /** Walk the queue oldest first, stopping at the first one nobody answers. Returns what happened. */
@@ -118,7 +131,9 @@ export const createLeadBuffer = (opts: { store?: BufferStore | null; now: () => 
       return parsed.filter((e): e is QueuedLead =>
         !!e && typeof e === "object"
         && typeof (e as QueuedLead).input?.submissionId === "string"
-        && typeof (e as QueuedLead).input?.source === "string");
+        && typeof (e as QueuedLead).input?.source === "string"
+        && typeof (e as QueuedLead).queuedAt === "number"
+        && opts.now() - (e as QueuedLead).queuedAt <= QUEUE_MAX_AGE_MS);
     } catch {
       return [];
     }
@@ -127,6 +142,7 @@ export const createLeadBuffer = (opts: { store?: BufferStore | null; now: () => 
   const pending = signal<readonly QueuedLead[]>(load());
   const flushing = signal(false);
   const attention = signal<readonly { submissionId: string; message: string }[]>([]);
+  const failed = signal(false);
 
   /**
    * Written as a merge, not an overwrite: another tab of this page may have
@@ -143,6 +159,9 @@ export const createLeadBuffer = (opts: { store?: BufferStore | null; now: () => 
     if (!store) return;
     try { store.setItem(BUFFER_KEY, JSON.stringify(merged)); } catch { /* blocked site data: the queue is this session's */ }
   };
+
+  // Write the read-back list straight away, so an expired lead leaves storage now, not at the next enqueue.
+  if (store) persist(pending.value);
 
   const drop = (submissionId: string) => persist(pending.value.filter((q) => q.input.submissionId !== submissionId), submissionId);
 
@@ -199,8 +218,9 @@ export const createLeadBuffer = (opts: { store?: BufferStore | null; now: () => 
     } finally {
       flushing.value = false;
     }
+    failed.value = outcomes.some((o) => o.kind === "waiting" || o.kind === "stale");
     return outcomes;
   };
 
-  return { pending, flushing, attention, enqueue, dismiss, flush };
+  return { pending, flushing, attention, failed, unreachable: () => { failed.value = true; }, enqueue, dismiss, flush };
 };

@@ -5,7 +5,7 @@ import { createApp, SCREEN_VIEWS } from "./app.ts";
 import { SCREENS } from "./screens.ts";
 import { priorityStatus } from "./screens/job-list.ts";
 import { CHECKLIST, PART_SOURCES } from "./screens/job-detail.ts";
-import { nextDeviceStates, JOB_TRANSITIONS, DEVICE_TRANSITIONS } from "./offline.ts";
+import { nextDeviceStates, JOB_TRANSITIONS, DEVICE_TRANSITIONS, queueKey, type QueueStore } from "./offline.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { HierarchyContext, FieldJobWire, SyncMutationWire, SyncOutcomeWire } from "../../../packages/contracts/src/index.ts";
 import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
@@ -64,10 +64,27 @@ const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJob
 };
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
+type TestNode = { type?: unknown; props?: Record<string, unknown> };
+const nodesIn = (node: unknown): TestNode[] => {
+  if (Array.isArray(node)) return node.flatMap(nodesIn);
+  if (!node || typeof node !== "object") return [];
+  const current = node as TestNode;
+  return [current, ...nodesIn(current.props?.children)];
+};
+const click = (tree: unknown, id: string) => {
+  const hit = nodesIn(tree).find((n) => n.props?.id === id);
+  if (!hit) assert.fail(`no #${id} on screen`);
+  (hit.props!.onClick as (e: Event) => void)(new Event("click"));
+};
+/** localStorage's shape, enumeration included, over a Map. */
+const memory = (): QueueStore & { map: Map<string, string> } => {
+  const map = new Map<string, string>();
+  return { map, getItem: (k) => map.get(k) ?? null, setItem: (k, v) => { map.set(k, v); }, get length() { return map.size; }, key: (i) => [...map.keys()][i] ?? null };
+};
 let seq = 0;
-const ready = async (opts?: Parameters<typeof fakeGateway>[0]) => {
+const ready = async (opts?: Parameters<typeof fakeGateway>[0] & { store?: QueueStore }) => {
   const g = fakeGateway(opts);
-  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000, newId: () => `mut-${++seq}` });
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000, newId: () => `mut-${++seq}`, store: opts?.store ?? null });
   await app.login("hw-001", "tech@ac.test", "pw");
   return { app, gateway: g };
 };
@@ -149,7 +166,7 @@ test("a bad password renders the gateway's message, not an internal error, and n
   void app;
 });
 
-test("a state transition is an instant local enqueue; the displayed state does not change until the gateway answers and the list refetches", async () => {
+test("the job detail shows the last synced state and the transition a device may make from it", async () => {
   const { app } = await ready();
   app.router.navigate("job", { jobId: JOB });
   render(app.view()); await settle(); await settle();
@@ -274,14 +291,14 @@ test("losing the network after the job loaded keeps the job on screen with its q
   assert.equal(answered, false, "an unreachable gateway answered nothing");
   for (let i = 0; i < 3; i++) { app.tick(); render(app.view()); await settle(); }
   const out = render(app.view());
-  assert.match(out, /id="to-en_route"/, "the job's actions are still on screen");
+  assert.match(out, /id="to-on_site"/, "the job's actions are still on screen, moved on by the queued transition");
   assert.match(out, /<span class="ac-num">1<\/span> change waiting to sync/);
   assert.doesNotMatch(out, /Failed to fetch|Gateway unreachable<\/h2>/);
 
   // A refetch the gateway does answer still replaces the held value.
   p.store.invalidate("jobs.mine");
   render(app.view()); await settle();
-  assert.match(render(app.view()), /id="to-en_route"/, "while the refetch is in flight the held job stays, not a loading line");
+  assert.match(render(app.view()), /id="to-on_site"/, "while the refetch is in flight the held job stays, not a loading line");
 });
 
 test("a rejected mutation is surfaced as attention, not silently retried, and can be dismissed", async () => {
@@ -303,4 +320,83 @@ test("a rejected mutation is surfaced as attention, not silently retried, and ca
   p.queue.dismissAttention(p.queue.attention.value[0]!.mutationId);
   out = render(app.view());
   assert.doesNotMatch(out, /belongs to dispatch/);
+});
+
+test("offline, each tapped transition moves the screen on: the next is queued against the version the last one leaves, and the same one cannot be queued twice", async () => {
+  const { app } = await ready({ syncHandler: () => { throw new Error("unreachable"); } });
+  app.router.navigate("job", { jobId: JOB });
+  render(app.view()); await settle(); await settle();
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  const offline = async () => { await settle(); await settle(); };
+
+  click(app.view(), "to-en_route"); await offline();
+  let out = render(app.view());
+  assert.match(out, /State: <strong>en route<\/strong> \(queued — last synced: assigned\)/);
+  assert.doesNotMatch(out, /id="to-en_route"/, "a second tap cannot queue the same transition again");
+  click(app.view(), "to-on_site"); await offline();
+  click(app.view(), "to-in_progress"); await offline();
+  out = render(app.view());
+  assert.match(out, /State: <strong>in progress<\/strong>/);
+  assert.match(out, /id="to-complete"/);
+
+  const queued = p.queue.pending.value.map((e) => [e.mutation.payload.state, e.mutation.clientObservedVersion]);
+  assert.deepEqual(queued, [["en_route", 3], ["on_site", 4], ["in_progress", 5]], "each observes the version the server will hold once the one before it lands");
+});
+
+test("a running time clock is saved with the queue: a new sign-in on the same device and technician still has it running", async () => {
+  const store = memory();
+  const first = await ready({ store });
+  const p1 = first.app.phase.value;
+  if (p1.kind !== "ready") return assert.fail("not ready");
+  first.app.router.navigate("job", { jobId: JOB });
+  render(first.app.view()); await settle(); await settle();
+  click(first.app.view(), "clock-toggle");
+  const started = p1.clock.value[JOB];
+  assert.ok(started);
+
+  const second = await ready({ store });
+  const p2 = second.app.phase.value;
+  if (p2.kind !== "ready") return assert.fail("not ready");
+  assert.equal(p2.clock.value[JOB], started, "the reload kept the running clock");
+  second.app.router.navigate("job", { jobId: JOB });
+  render(second.app.view()); await settle(); await settle();
+  assert.match(render(second.app.view()), /Running since/);
+});
+
+test("another technician's queue on this device is left alone and the signed-in tech is told it exists, not handed it", async () => {
+  const store = memory();
+  const otherKey = queueKey(DEVICE, "tech-2");
+  const theirs = [{ mutation: { mutationId: "theirs-1", deviceId: DEVICE, deviceSeq: 1, entityTable: "jobs", entityId: JOB, op: "transition", payload: { state: "en_route" }, clientObservedVersion: 3, deviceAt: "2026-09-18T08:00:00Z" }, enqueuedAt: 0 }];
+  store.setItem(otherKey, JSON.stringify(theirs));
+  const replayed: string[] = [];
+  const { app } = await ready({ store, syncHandler: (ms) => { replayed.push(...ms.map((m) => m.mutationId)); return { status: 200, body: { outcomes: ms.map((m) => ({ outcome: "applied", mutationId: m.mutationId, newVersion: 4 })) } }; } });
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  assert.equal(p.queue.pending.value.length, 0, "tech-1 does not inherit tech-2's queue");
+  app.tick(); await settle(); await settle();
+  assert.deepEqual(replayed, [], "nothing of tech-2's is sent under tech-1's token");
+  assert.equal(store.getItem(otherKey), JSON.stringify(theirs), "tech-2's queue is untouched");
+  assert.match(render(app.view()), /1 change\(s\) another technician saved on this device are kept for them/);
+});
+
+test("attention survives a reload until it is dismissed", async () => {
+  const store = memory();
+  const rejectAll = { store, syncHandler: (ms: readonly SyncMutationWire[]) => ({ status: 200, body: { outcomes: ms.map((m) => ({ outcome: "rejected", mutationId: m.mutationId, note: "belongs to dispatch" })) } }) };
+  const first = await ready(rejectAll);
+  const p1 = first.app.phase.value;
+  if (p1.kind !== "ready") return assert.fail("not ready");
+  p1.queue.enqueue("jobs", JOB, "transition", { state: "reassigned" }, job.version);
+  await p1.queue.flush((mutations) => p1.shell.gateway.replaySync({ orgId: ORG, regionId: REGION, mutations }));
+  assert.equal(p1.queue.attention.value.length, 1);
+
+  const second = await ready(rejectAll);
+  const p2 = second.app.phase.value;
+  if (p2.kind !== "ready") return assert.fail("not ready");
+  assert.equal(p2.queue.attention.value.length, 1, "the rejection is still there to read after a reload");
+  p2.queue.dismissAttention(p2.queue.attention.value[0]!.mutationId);
+  const third = await ready(rejectAll);
+  const p3 = third.app.phase.value;
+  if (p3.kind !== "ready") return assert.fail("not ready");
+  assert.equal(p3.queue.attention.value.length, 0, "a dismissed item stays dismissed");
 });

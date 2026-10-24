@@ -34,3 +34,10 @@ test("a line not on the order, a line billed twice and an empty invoice are each
 test("nothing received yet: any quantity is held", () => {
   assert.equal(threeWayMatch([line("a", 1, 100n, 0n)], [{ poLineId: "a", quantityMilli: 1n, unitPriceMinor: 100n }]).state, "held");
 });
+
+test("a negative amount or quantity reads as its sign and its magnitude, not \"0.-5\"", () => {
+  const price = threeWayMatch([line("a", 1, -150n, 10_000n)], [{ poLineId: "a", quantityMilli: 1_000n, unitPriceMinor: -5n }]);
+  assert.deepEqual(price.notes.map((n) => n.message), ["line 1: billed at -0.05, ordered at -1.50"]);
+  const qty = threeWayMatch([line("a", 1, 100n, -1_500n)], [{ poLineId: "a", quantityMilli: -1_000n, unitPriceMinor: 100n }]);
+  assert.deepEqual(qty.notes.map((n) => n.message), ["line 1: -1 billed in all, -1.5 received"]);
+});

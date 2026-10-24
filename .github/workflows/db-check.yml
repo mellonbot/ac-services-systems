@@ -14,6 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      # Production secrets run only the code on main: a dispatch from any other
+      # branch would run that branch's code with them. (The production
+      # environment's deployment-branch rule should say the same.)
+      - name: dispatched from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::this workflow runs against production and only from main, not $GITHUB_REF"
+          exit 1
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
       - uses: actions/setup-node@v7
@@ -37,7 +45,8 @@ jobs:
               const roles = await c.query("select rolname, pg_has_role(current_user, rolname, $1) as member from pg_roles where rolname like $2 order by 1", ["MEMBER", "ac_%"]);
               console.table(roles.rows);
               for (const r of ["ac_gateway", "ac_worker"]) {
-                try { await c.query("BEGIN"); await c.query(`SET LOCAL ROLE ${r}`); const t = await c.query("select count(*)::int as n from surfaces"); await c.query("ROLLBACK"); console.log(`SET LOCAL ROLE ${r}: ok; surfaces rows visible: ${t.rows[0].n}`); }
+                // regions: a table both roles are granted, read under the system binding the gateway and worker use.
+                try { await c.query("BEGIN"); await c.query(`SET LOCAL ROLE ${r}`); await c.query("select set_config($1, $2, true)", ["ac.namespace", "system"]); const t = await c.query("select count(*)::int as n from regions"); await c.query("ROLLBACK"); console.log(`SET LOCAL ROLE ${r}: ok; regions rows visible: ${t.rows[0].n}`); }
                 catch (e) { await c.query("ROLLBACK").catch(() => {}); console.error(`SET LOCAL ROLE ${r}: FAILED — ${e.message} ${e.code ?? ""}`); process.exitCode = 1; }
               }
               await c.query("LISTEN ac_db_check"); console.log("LISTEN ok");

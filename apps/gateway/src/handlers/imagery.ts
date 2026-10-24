@@ -29,13 +29,20 @@ import { MAP_TILE_REACH, MAP_ZOOM_MAX, MAP_ZOOM_MIN, tileOf, type SiteImageryInp
  * repository has not signed (docs/OPEN_DECISIONS.md, OPEN-S6-IMAGERY).
  *
  * Cached per site and coordinates for a day, in process: a roof does not
- * move, and a provider bills per fetch.
+ * move, and a provider bills per fetch. A failure is cached too, for a
+ * minute, so a provider that is down is not asked again by every card.
+ *
+ * The provider is asked OUTSIDE the request's transaction: each handler is
+ * split into a read (in the unit of work, which main.ts releases) and a fetch
+ * after it. Fetched inside, a slow provider held a pool connection per call,
+ * and ten of them held the whole pool.
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ZOOM = 18, WIDTH = 640, HEIGHT = 360;
 const MAX_BYTES = 1_500_000;
 const TTL_MS = 24 * 60 * 60 * 1000;
 const TIMEOUT_MS = 5000;
+const FAILURE_TTL_MS = 60 * 1000;
 
 export type ImageryConfig = { readonly urlTemplate: string | null; readonly attribution: string | null };
 export const imageryConfigFromEnv = (env: NodeJS.ProcessEnv = process.env): ImageryConfig => ({
@@ -45,7 +52,9 @@ export const imageryConfigFromEnv = (env: NodeJS.ProcessEnv = process.env): Imag
 
 export type Fetcher = (url: string, init: { signal: AbortSignal }) => Promise<{ ok: boolean; status: number; headers: { get(n: string): string | null }; arrayBuffer(): Promise<ArrayBuffer> }>;
 
-type Cached = { at: number; image: string };
+type Cached = { at: number; image: string | null };
+/** A hit within its TTL: a day for an image, a minute for a failure. */
+const fresh = (c: Cached | undefined, now: number): c is Cached => !!c && now - c.at < (c.image === null ? FAILURE_TTL_MS : TTL_MS);
 const cache = new Map<string, Cached>();
 /** Tests reach for this; the gateway never does. */
 export const clearImageryCache = () => cache.clear();
@@ -63,9 +72,13 @@ export const renderTemplate = (template: string, v: { lat: number; lng: number }
     .replaceAll("{lat}", String(v.lat)).replaceAll("{lng}", String(v.lng))
     .replaceAll("{zoom}", String(ZOOM)).replaceAll("{w}", String(WIDTH)).replaceAll("{h}", String(HEIGHT));
 
-export const siteImagery = async (
-  uow: UnitOfWork, input: SiteImageryInput, config: ImageryConfig, fetcher: Fetcher, now: () => number = Date.now,
-): Promise<SiteImageryOutput> => {
+/** A read that either answered, or needs the provider — asked after the transaction is released. */
+export type Plan<T, F> = { readonly answer: T } | { readonly fetch: (fetcher: F) => Promise<T> };
+export const runPlan = <T, F>(plan: Plan<T, F>, fetcher: F): Promise<T> => ("answer" in plan ? Promise.resolve(plan.answer) : plan.fetch(fetcher));
+
+export const siteImageryRead = async (
+  uow: UnitOfWork, input: SiteImageryInput, config: ImageryConfig, now: () => number = Date.now,
+): Promise<Plan<SiteImageryOutput, Fetcher>> => {
   if (typeof input.siteId !== "string" || !UUID.test(input.siteId)) throw new BadInput("siteId must be a uuid");
   const site = (await uow.tx.query<{ id: string; tier: string; address: AddressWire | null }>(
     `SELECT id, tier, address FROM accounts WHERE id = $1`, [input.siteId],
@@ -75,27 +88,40 @@ export const siteImagery = async (
 
   const at = coordinatesOf(site.address);
   const base = { siteId: site.id, lat: at?.lat ?? null, lng: at?.lng ?? null, attribution: config.attribution };
-  if (!config.urlTemplate) return { ...base, image: null, unavailable: "not_configured" };
-  if (!at) return { ...base, image: null, unavailable: "no_coordinates" };
+  if (!config.urlTemplate) return { answer: { ...base, image: null, unavailable: "not_configured" } };
+  if (!at) return { answer: { ...base, image: null, unavailable: "no_coordinates" } };
 
   const key = `${site.id}:${at.lat}:${at.lng}`;
   const hit = cache.get(key);
-  if (hit && now() - hit.at < TTL_MS) return { ...base, image: hit.image, unavailable: null };
+  if (fresh(hit, now())) return { answer: { ...base, image: hit.image, unavailable: hit.image ? null : "provider_unreachable" } };
+  const template = config.urlTemplate;
+  return {
+    fetch: async (fetcher) => {
+      const image = await fetchImage(fetcher, renderTemplate(template, at), MAX_BYTES);
+      cache.set(key, { at: now(), image });
+      return { ...base, image, unavailable: image ? null : "provider_unreachable" };
+    },
+  };
+};
 
+export const siteImagery = async (
+  uow: UnitOfWork, input: SiteImageryInput, config: ImageryConfig, fetcher: Fetcher, now: () => number = Date.now,
+): Promise<SiteImageryOutput> => runPlan(await siteImageryRead(uow, input, config, now), fetcher);
+
+/** An image as a data: URL, or null for every way a provider can fail. */
+const fetchImage = async (fetcher: Fetcher, url: string, maxBytes: number): Promise<string | null> => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetcher(renderTemplate(config.urlTemplate, at), { signal: controller.signal });
-    if (!res.ok) return { ...base, image: null, unavailable: "provider_unreachable" };
+    const res = await fetcher(url, { signal: controller.signal });
+    if (!res.ok) return null;
     const type = (res.headers.get("content-type") ?? "").split(";")[0]!.trim();
-    if (!/^image\/(png|jpeg|webp)$/.test(type)) return { ...base, image: null, unavailable: "provider_unreachable" };
+    if (!/^image\/(png|jpeg|webp)$/.test(type)) return null;
     const bytes = Buffer.from(await res.arrayBuffer());
-    if (bytes.byteLength === 0 || bytes.byteLength > MAX_BYTES) return { ...base, image: null, unavailable: "provider_unreachable" };
-    const image = `data:${type};base64,${bytes.toString("base64")}`;
-    cache.set(key, { at: now(), image });
-    return { ...base, image, unavailable: null };
+    if (bytes.byteLength === 0 || bytes.byteLength > maxBytes) return null;
+    return `data:${type};base64,${bytes.toString("base64")}`;
   } catch {
-    return { ...base, image: null, unavailable: "provider_unreachable" };
+    return null;
   } finally {
     clearTimeout(timer);
   }
@@ -140,9 +166,9 @@ const intIn = (v: unknown, name: string, lo: number, hi: number): number => {
   return n;
 };
 
-export const siteMapTile = async (
-  uow: UnitOfWork, input: SiteMapTileInput, config: MapTileConfig, fetcher: Fetcher, now: () => number = Date.now,
-): Promise<SiteMapTileOutput> => {
+export const siteMapTileRead = async (
+  uow: UnitOfWork, input: SiteMapTileInput, config: MapTileConfig, now: () => number = Date.now,
+): Promise<Plan<SiteMapTileOutput, Fetcher>> => {
   if (typeof input.siteId !== "string" || !UUID.test(input.siteId)) throw new BadInput("siteId must be a uuid");
   const z = intIn(input.z, "z", MAP_ZOOM_MIN, MAP_ZOOM_MAX);
   const x = intIn(input.x, "x", 0, 2 ** z - 1), y = intIn(input.y, "y", 0, 2 ** z - 1);
@@ -154,35 +180,28 @@ export const siteMapTile = async (
 
   const base = { z, x, y, attribution: config.attribution };
   const at = coordinatesOf(site.address);
-  if (!config.urlTemplate) return { ...base, image: null, unavailable: "not_configured" };
-  if (!at) return { ...base, image: null, unavailable: "no_coordinates" };
+  if (!config.urlTemplate) return { answer: { ...base, image: null, unavailable: "not_configured" } };
+  if (!at) return { answer: { ...base, image: null, unavailable: "no_coordinates" } };
   const home = tileOf(at.lat, at.lng, z);
   if (Math.abs(x - Math.floor(home.x)) > MAP_TILE_REACH || Math.abs(y - Math.floor(home.y)) > MAP_TILE_REACH)
     throw new InputRefused(`tile ${z}/${x}/${y} is more than ${MAP_TILE_REACH} tiles from the site`, "tile_out_of_reach");
 
   const key = `${z}/${x}/${y}`;
   const hit = tileCache.get(key);
-  if (hit && now() - hit.at < TTL_MS) return { ...base, image: hit.image, unavailable: null };
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const url = config.urlTemplate.replaceAll("{z}", String(z)).replaceAll("{x}", String(x)).replaceAll("{y}", String(y));
-    const res = await fetcher(url, { signal: controller.signal });
-    if (!res.ok) return { ...base, image: null, unavailable: "provider_unreachable" };
-    const type = (res.headers.get("content-type") ?? "").split(";")[0]!.trim();
-    if (!/^image\/(png|jpeg|webp)$/.test(type)) return { ...base, image: null, unavailable: "provider_unreachable" };
-    const bytes = Buffer.from(await res.arrayBuffer());
-    if (bytes.byteLength === 0 || bytes.byteLength > MAX_TILE_BYTES) return { ...base, image: null, unavailable: "provider_unreachable" };
-    const image = `data:${type};base64,${bytes.toString("base64")}`;
-    tileCache.set(key, { at: now(), image });
-    return { ...base, image, unavailable: null };
-  } catch {
-    return { ...base, image: null, unavailable: "provider_unreachable" };
-  } finally {
-    clearTimeout(timer);
-  }
+  if (fresh(hit, now())) return { answer: { ...base, image: hit.image, unavailable: hit.image ? null : "provider_unreachable" } };
+  const url = config.urlTemplate.replaceAll("{z}", String(z)).replaceAll("{x}", String(x)).replaceAll("{y}", String(y));
+  return {
+    fetch: async (fetcher) => {
+      const image = await fetchImage(fetcher, url, MAX_TILE_BYTES);
+      tileCache.set(key, { at: now(), image });
+      return { ...base, image, unavailable: image ? null : "provider_unreachable" };
+    },
+  };
 };
+
+export const siteMapTile = async (
+  uow: UnitOfWork, input: SiteMapTileInput, config: MapTileConfig, fetcher: Fetcher, now: () => number = Date.now,
+): Promise<SiteMapTileOutput> => runPlan(await siteMapTileRead(uow, input, config, now), fetcher);
 
 /**
  * PLACING A SITE. An address is typed as words — nothing in the forms asks
@@ -210,37 +229,75 @@ export const addressQuery = (a: AddressWire | null | undefined): string | null =
   return [a.line1, a.line2, a.city, [a.state, a.postal].filter(Boolean).join(" "), a.country].filter((s) => s && s.trim()).join(", ");
 };
 
-export const locateSite = async (uow: UnitOfWork, input: LocateSiteInput, config: GeocodeConfig, fetcher: JsonFetcher): Promise<LocateSiteOutput> => {
-  if (typeof input.siteId !== "string" || !UUID.test(input.siteId)) throw new BadInput("siteId must be a uuid");
+/**
+ * Three steps, so the geocoder is asked with no transaction open: read the
+ * site (one unit of work), ask the provider (none), and write the point (a
+ * second, short unit of work that reads the site again and writes only if the
+ * address is still the one that was asked about and still has no point).
+ */
+export type LocatePlan = { readonly answer: LocateSiteOutput } | { readonly siteId: string; readonly query: string };
+type Located = { readonly lat: number; readonly lng: number } | "not_found" | "provider_unreachable";
+const geocodeFailures = new Map<string, number>();
+export const clearGeocodeCache = () => geocodeFailures.clear();
+
+const siteRow = async (uow: UnitOfWork, siteId: string) => {
   const site = (await uow.tx.query<{ id: string; tier: string; address: AddressWire | null }>(
-    `SELECT id, tier, address FROM accounts WHERE id = $1`, [input.siteId],
+    `SELECT id, tier, address FROM accounts WHERE id = $1`, [siteId],
   ))[0];
-  if (!site) throw new InputRefused(`no node ${input.siteId} visible in this scope`, "unknown_site");
-  if (site.tier !== "site") throw new InputRefused(`"${input.siteId}" is a ${site.tier}, not a site`, "not_a_site");
+  if (!site) throw new InputRefused(`no node ${siteId} visible in this scope`, "unknown_site");
+  if (site.tier !== "site") throw new InputRefused(`"${siteId}" is a ${site.tier}, not a site`, "not_a_site");
+  return site;
+};
+const unplaced = (siteId: string, outcome: LocateSiteOutput["outcome"]): LocateSiteOutput => ({ siteId, lat: null, lng: null, outcome, eventId: null });
 
-  const none = (outcome: LocateSiteOutput["outcome"]): LocateSiteOutput => ({ siteId: site.id, lat: null, lng: null, outcome, eventId: null });
+export const locateSiteRead = async (uow: UnitOfWork, input: LocateSiteInput, config: GeocodeConfig, now: () => number = Date.now): Promise<LocatePlan> => {
+  if (typeof input.siteId !== "string" || !UUID.test(input.siteId)) throw new BadInput("siteId must be a uuid");
+  const site = await siteRow(uow, input.siteId);
   const had = coordinatesOf(site.address);
-  if (had) return { siteId: site.id, ...had, outcome: "recorded", eventId: null };
+  if (had) return { answer: { siteId: site.id, ...had, outcome: "recorded", eventId: null } };
   const q = addressQuery(site.address);
-  if (!q) return none("no_address");
-  if (!config.urlTemplate) return none("not_configured");
+  if (!q) return { answer: unplaced(site.id, "no_address") };
+  if (!config.urlTemplate) return { answer: unplaced(site.id, "not_configured") };
+  const failedAt = geocodeFailures.get(q);
+  if (failedAt !== undefined && now() - failedAt < FAILURE_TTL_MS) return { answer: unplaced(site.id, "provider_unreachable") };
+  return { siteId: site.id, query: q };
+};
 
+/** Ask the geocoder. No transaction is held while this runs; a failure is remembered for a minute. */
+export const geocode = async (q: string, config: GeocodeConfig, fetcher: JsonFetcher, now: () => number = Date.now): Promise<Located> => {
+  if (!config.urlTemplate) return "provider_unreachable";
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  let at: { lat: number; lng: number } | null;
   try {
     const res = await fetcher(config.urlTemplate.replaceAll("{q}", encodeURIComponent(q)), { signal: controller.signal });
-    if (!res.ok) return none("provider_unreachable");
+    if (!res.ok) { geocodeFailures.set(q, now()); return "provider_unreachable"; }
     const body = (await res.json()) as { features?: { place_type?: string[]; geometry?: { type?: string; coordinates?: number[] } }[] };
     const hit = body.features?.find((f) => f.place_type?.some((t) => PRECISE.has(t)) && f.geometry?.type === "Point");
     const [lng, lat] = hit?.geometry?.coordinates ?? [];
-    at = lat === undefined || lng === undefined ? null : coordinatesOf({ lat, lng });
+    return (lat === undefined || lng === undefined ? null : coordinatesOf({ lat, lng })) ?? "not_found";
   } catch {
-    return none("provider_unreachable");
+    geocodeFailures.set(q, now());
+    return "provider_unreachable";
   } finally {
     clearTimeout(timer);
   }
-  if (!at) return none("not_found");
-  const { eventId } = await updateAccount(uow, { accountId: site.id, address: { ...site.address, lat: at.lat, lng: at.lng } });
-  return { siteId: site.id, ...at, outcome: "located", eventId };
+};
+
+export const locateSiteWrite = async (uow: UnitOfWork, siteId: string, query: string, found: Located): Promise<LocateSiteOutput> => {
+  if (typeof found === "string") return unplaced(siteId, found);
+  const site = await siteRow(uow, siteId);
+  const had = coordinatesOf(site.address);
+  if (had) return { siteId: site.id, ...had, outcome: "recorded", eventId: null };
+  // The address was edited while the geocoder was asked: this point is for
+  // words the site no longer has. Nothing is written; the next open asks again.
+  if (addressQuery(site.address) !== query) return unplaced(site.id, "not_found");
+  const { eventId } = await updateAccount(uow, { accountId: site.id, address: { ...site.address, lat: found.lat, lng: found.lng } });
+  return { siteId: site.id, ...found, outcome: "located", eventId };
+};
+
+/** All three steps in one unit of work — for a caller with no pool to release (the tests). main.ts runs them apart. */
+export const locateSite = async (uow: UnitOfWork, input: LocateSiteInput, config: GeocodeConfig, fetcher: JsonFetcher, now: () => number = Date.now): Promise<LocateSiteOutput> => {
+  const plan = await locateSiteRead(uow, input, config, now);
+  if ("answer" in plan) return plan.answer;
+  return locateSiteWrite(uow, plan.siteId, plan.query, await geocode(plan.query, config, fetcher, now));
 };

@@ -2,8 +2,9 @@ name: seed-logins
 
 # Manual only. A fresh production database has the UNASSIGNED region and no
 # people: nothing can sign in. This creates one real service region (if its
-# code is new) and seeds the three staff test logins — superadmin-test,
-# dispatcher-test, service_manager-test (tools/ci/test-logins.ts) — with the
+# code is new) and seeds the staff test logins — dispatcher-test,
+# service_manager-test and, only when the `superadmin` input is ticked,
+# superadmin-test (tools/ci/test-logins.ts) — with the
 # password held as the AC_TEST_LOGIN_PASSWORD secret on the `production`
 # environment. Idempotent: re-running re-applies the same rows. Customer (S6),
 # vendor (S7) and subcontractor (S8) principals are not seeded here; see
@@ -19,6 +20,10 @@ on:
         description: "Region name"
         required: true
         default: Dallas–Fort Worth
+      superadmin:
+        description: "Also seed superadmin-test (org-wide principal, shared password). Unchecked = left out, and switched off if an earlier run made it."
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -28,6 +33,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      # Production secrets run only the code on main: a dispatch from any other
+      # branch would run that branch's code with them. (The production
+      # environment's deployment-branch rule should say the same.)
+      - name: dispatched from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::this workflow runs against production and only from main, not $GITHUB_REF"
+          exit 1
       - name: production environment is configured
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -69,4 +82,5 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           AC_TEST_LOGIN_PASSWORD: ${{ secrets.AC_TEST_LOGIN_PASSWORD }}
           AC_TEST_LOGIN_REGION: ${{ inputs.region_code }}
+          AC_TEST_LOGIN_SUPERADMIN: ${{ inputs.superadmin && '1' || '0' }}
         run: node tools/ci/seed-test-logins.ts

@@ -17,7 +17,7 @@ import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, l
 import { listSettlements, listSettlementLines, acknowledgeSettlement, disputeSettlement } from "./handlers/settlements.ts";
 import { ingestSync } from "./handlers/sync.ts";
 import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
-import { createJob, listJobs, listMyJobs, transitionJob, addJobNote, setReturnTrip } from "./handlers/jobs.ts";
+import { createJob, listJobs, listMyJobs, transitionJob, addJobNote, setReturnTrip, requireUuid } from "./handlers/jobs.ts";
 import { createProject, listProjects } from "./handlers/projects.ts";
 import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "./handlers/job-detail.ts";
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
@@ -27,7 +27,7 @@ import { createResidential, listLeads, convertLead } from "./handlers/residentia
 import { storeFromEnv } from "../../../packages/storage/src/index.ts";
 import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
 import { listEquipment, registerEquipment, listContacts, setContact, listInvoices } from "./handlers/site-record.ts";
-import { siteImagery, imageryConfigFromEnv, siteMapTile, mapTileConfigFromEnv, locateSite, geocodeConfigFromEnv } from "./handlers/imagery.ts";
+import { siteImageryRead, imageryConfigFromEnv, siteMapTileRead, mapTileConfigFromEnv, locateSiteRead, geocode, locateSiteWrite, geocodeConfigFromEnv, runPlan } from "./handlers/imagery.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
 import { SURFACES, admits, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
@@ -107,18 +107,47 @@ const ORIGINS = allowedOrigins(SESSION);
 if (!SESSION.site) console.warn(`gateway: AC_SITE not set — development posture: cookies are not Secure and browser origins are ${ORIGINS.size ? [...ORIGINS].join(", ") : "NONE (bearer only)"}`);
 
 /**
+ * Behind Cloudflare (infra/cloudflare/worker.mjs sets AC_BEHIND_CLOUDFLARE=1
+ * when it starts the container) every request arrives from the Worker, so the
+ * socket's address is the edge's, and the client's is CF-Connecting-IP, which
+ * Cloudflare sets and a client cannot. Anywhere else that header is whatever
+ * the caller typed — one per request defeats every per-address limit below —
+ * so it is read only when this is set.
+ */
+const BEHIND_CLOUDFLARE = process.env.AC_BEHIND_CLOUDFLARE === "1";
+
+/**
  * The doors anyone can knock on, throttled. Per address so one client cannot
- * saturate the event loop or the sessions table; failed attempts per email so
- * a password is not guessed from many addresses (a right password does not
- * count against it). Behind Cloudflare the client's address is
- * CF-Connecting-IP; on a laptop it is the socket's.
+ * saturate the event loop or the sessions table.
+ *
+ * Failed sign-ins are counted two ways, and both are looked at before the
+ * password is. Per (email, address), ten in fifteen minutes: the guesser is
+ * shut out and the account's owner, somewhere else, is not. Per email alone,
+ * a hundred: a guesser spread over many addresses still meets a ceiling.
+ *
+ * The trade-off, chosen: counted per email alone at ten, anyone who knew an
+ * address could lock its owner out indefinitely with ten bad tries every
+ * fifteen minutes. Now that takes a hundred failures from ten or more
+ * addresses per window — still possible for a determined attacker with many
+ * addresses, who in exchange gets at most a hundred guesses per window,
+ * against a password hashed for exactly that. A right password never counts.
  */
 const LOGIN_BY_ADDRESS = createThrottle({ limit: 120, windowMs: 60_000 });
-const LOGIN_FAILURES_BY_EMAIL = createThrottle({ limit: 10, windowMs: 15 * 60_000 });
+const LOGIN_FAILURES_BY_EMAIL_AND_ADDRESS = createThrottle({ limit: 10, windowMs: 15 * 60_000 });
+const LOGIN_FAILURES_BY_EMAIL = createThrottle({ limit: 100, windowMs: 15 * 60_000 });
 const ANONYMOUS_BY_ADDRESS = createThrottle({ limit: 20, windowMs: 60_000 });
 const addressOf = (req: IncomingMessage): string => {
-  const cf = req.headers["cf-connecting-ip"];
+  const cf = BEHIND_CLOUDFLARE ? req.headers["cf-connecting-ip"] : undefined;
   return (typeof cf === "string" && cf) || req.socket.remoteAddress || "unknown";
+};
+// Ended windows are dropped each minute, so the tables hold only live ones.
+setInterval(() => { for (const t of [LOGIN_BY_ADDRESS, LOGIN_FAILURES_BY_EMAIL_AND_ADDRESS, LOGIN_FAILURES_BY_EMAIL, ANONYMOUS_BY_ADDRESS]) t.sweep(); }, 60_000).unref();
+/** Before the password: this email from this address, and this email from anywhere. */
+const signInAllowed = (req: IncomingMessage, who: string): boolean =>
+  !LOGIN_FAILURES_BY_EMAIL_AND_ADDRESS.spent(`${who} ${addressOf(req)}`) && !LOGIN_FAILURES_BY_EMAIL.spent(who);
+const signInFailed = (req: IncomingMessage, who: string): void => {
+  LOGIN_FAILURES_BY_EMAIL_AND_ADDRESS.hit(`${who} ${addressOf(req)}`);
+  LOGIN_FAILURES_BY_EMAIL.hit(who);
 };
 const throttled = (ok: boolean, what: string): void => {
   if (!ok) throw new HttpError(429, `too many ${what} — wait a minute and try again`);
@@ -126,21 +155,34 @@ const throttled = (ok: boolean, what: string): void => {
 
 type Json = Record<string, unknown>;
 /**
- * The most any request body may be. A photo is the largest thing an operation
- * carries — PHOTO_MAX_BYTES as base64 plus its envelope — and nothing else
- * comes close; past this the body is refused before it is held in memory.
+ * The most a request body may be, by who can send it. A photo is the largest
+ * thing an operation carries — PHOTO_MAX_BYTES as base64 plus its envelope —
+ * and only the photo upload is given that. A signed-in request (a sync batch
+ * is the largest) gets a megabyte; a door anyone can knock on — sign-in, the
+ * anonymous mint, a lead — gets 64 KB, so a stranger cannot make the gateway
+ * hold fourteen megabytes per request.
  */
-const MAX_BODY_BYTES = Math.ceil(PHOTO_MAX_BYTES / 3) * 4 + 64 * 1024;
-const readJson = (req: IncomingMessage): Promise<Json> =>
+const PHOTO_BODY_BYTES = Math.ceil(PHOTO_MAX_BYTES / 3) * 4 + 64 * 1024;
+const SIGNED_IN_BODY_BYTES = 1024 * 1024;
+const OPEN_DOOR_BODY_BYTES = 64 * 1024;
+const bodyLimitOf = (opId: OperationId): number =>
+  opId === "serviceRequests.attachPhoto" ? PHOTO_BODY_BYTES
+    : OPERATIONS[opId].auth === "none" || OPERATIONS[opId].surfaces.every((s) => SURFACES[s].namespace === "anonymous") ? OPEN_DOOR_BODY_BYTES
+      : SIGNED_IN_BODY_BYTES;
+const readJson = (req: IncomingMessage, limit: number): Promise<Json> =>
   new Promise((resolve, reject) => {
+    const tooLarge = () => new HttpError(413, `request body over ${limit} bytes`);
+    // Declared too large: refused before a byte is read.
+    if (Number(req.headers["content-length"] ?? 0) > limit) { reject(tooLarge()); return; }
     const chunks: Buffer[] = [];
     let size = 0;
-    req.on("data", (c: Buffer) => {
+    const onData = (c: Buffer) => {
       size += c.length;
-      // Stop holding it, answer once; the rest drains and is dropped.
-      if (size > MAX_BODY_BYTES) { chunks.length = 0; reject(new HttpError(413, `request body over ${MAX_BODY_BYTES} bytes`)); return; }
+      // Stop reading and holding it; the server closes the connection after the 413 rather than drain the rest.
+      if (size > limit) { chunks.length = 0; req.off("data", onData); req.pause(); reject(tooLarge()); return; }
       chunks.push(c);
-    });
+    };
+    req.on("data", onData);
     req.on("end", () => {
       let body: unknown;
       try { body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {}; } catch { reject(new HttpError(400, "the request body is not JSON")); return; }
@@ -177,6 +219,8 @@ const describe = (e: unknown): { status: number; name: string; code?: string | u
   if (e instanceof InputRefused) return { status: 422, name: err.name, code: err.code, message: err.message, missingTerm: e.missingTerm };
   if (e instanceof AdmissionRefused || e instanceof ResolutionError) return { status: 422, name: err.name, code: err.code, message: err.message };
   const db = dbRefusal(e);
+  // The caller gets general words for these; what the database said is kept here.
+  if (db && (err.code === "23503" || err.code === "23505")) console.warn(`gateway: ${db.name} ${db.code} — ${err.message}${(e as { detail?: string }).detail ? ` — ${(e as { detail?: string }).detail}` : ""}`);
   if (db) return db;
   return { status: 500, name: "InternalError", message: "internal error" };
 };
@@ -300,7 +344,8 @@ const login = async (req: IncomingMessage, body: Partial<OperationIO["auth.login
   const { email, password, surface } = body;
   if (!email || !password || !surface || !SURFACES[surface]) throw new HttpError(400, "email, password and surface are required");
   const who = String(email).toLowerCase();
-  throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)) && !LOGIN_FAILURES_BY_EMAIL.spent(who), "sign-in attempts");
+  // The per-address count was taken before the body was read (beforeBody).
+  throttled(signInAllowed(req, who), "sign-in attempts");
   // Login runs as the gateway itself (no principal yet), then binds the principal's own scope.
   const tx = await beginTx(pool, "ac_gateway");
   try {
@@ -309,7 +354,7 @@ const login = async (req: IncomingMessage, body: Partial<OperationIO["auth.login
       "SELECT id, namespace, org_id, region_id, scope_tier, scope_id, roles, firm_id, password_hash, active FROM users WHERE email = $1", [email],
     ))[0];
     if (!(await verifyPasswordAsync(password, u?.password_hash)) || !u?.active) {
-      LOGIN_FAILURES_BY_EMAIL.hit(who);
+      signInFailed(req, who);
       throw new AuthError("invalid credentials", "bad_claims");
     }
     if (!SURFACES[surface].enabled) throw new SurfaceDisabled(surface);
@@ -318,6 +363,10 @@ const login = async (req: IncomingMessage, body: Partial<OperationIO["auth.login
     // a login no request on this surface would admit is not given a session.
     if (!admits(surface, { namespace: u.namespace, roles: u.roles })) {
       throw new HttpError(403, `${surface} admits [${SURFACES[surface].roles?.join(", ")}]; this login holds [${u.roles.join(", ") || "—"}]`);
+    }
+    // And the scope check: an org-wide surface is not given to a login scoped to one region.
+    if (SURFACES[surface].scopeBinding === "org" && u.scope_tier !== "parent") {
+      throw new HttpError(403, `${surface} is org-wide; this login is scoped to one ${u.scope_tier}`);
     }
     const claims: Omit<Claims, "iat" | "exp" | "sid"> = {
       sub: u.id, ns: u.namespace, org: u.org_id, region: u.region_id, scope_tier: u.scope_tier, scope_id: u.scope_id, roles: u.roles,
@@ -359,7 +408,8 @@ const deviceLogin = async (req: IncomingMessage, body: Partial<OperationIO["auth
   const { hardwareId, email, password } = body;
   if (!hardwareId || !email || !password) throw new HttpError(400, "hardwareId, email and password are required");
   const who = String(email).toLowerCase();
-  throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)) && !LOGIN_FAILURES_BY_EMAIL.spent(who), "sign-in attempts");
+  // The per-address count was taken before the body was read (beforeBody).
+  throttled(signInAllowed(req, who), "sign-in attempts");
   const tx = await beginTx(pool, "ac_gateway");
   try {
     await bindSystem(tx);
@@ -367,7 +417,7 @@ const deviceLogin = async (req: IncomingMessage, body: Partial<OperationIO["auth
       "SELECT id, password_hash, active, crew_id FROM users WHERE email = $1", [email],
     ))[0];
     if (!(await verifyPasswordAsync(password, u?.password_hash)) || !u?.active || !u.crew_id) {
-      LOGIN_FAILURES_BY_EMAIL.hit(who);
+      signInFailed(req, who);
       throw new AuthError("invalid credentials", "bad_claims");
     }
     const resolved = await resolveDeviceLogin(tx, hardwareId, u.id, new Date());
@@ -419,8 +469,26 @@ const deviceLogin = async (req: IncomingMessage, body: Partial<OperationIO["auth
  * `principal_kind = 'anonymous'` has been a legal value in `sessions` since
  * the bootstrap migration. This is the row that finally writes it.
  */
+/**
+ * A browser already signed in — to a portal, the console, a shift — keeps that
+ * session. The anonymous cookie would replace it (one cookie name, one site),
+ * signing the person out of everything for a visit to the marketing page. A
+ * cookie that is no longer good (expired, revoked, unverifiable) is replaced
+ * as before; so is an anonymous one.
+ */
+const refuseOverSignedInCookie = async (req: IncomingMessage): Promise<void> => {
+  const held = cookieToken(req.headers.cookie);
+  if (!held) return;
+  let principal: Principal;
+  try { principal = principalFromClaims(verifyToken(held, keys, Date.now())); } catch { return; }
+  if (principal.namespace === "anonymous") return;
+  const tx = await beginTx(pool, "ac_gateway");
+  try { await assertSessionLive(tx, principal); } catch (e) { if (e instanceof AuthError) return; throw e; } finally { await tx.rollback().catch(() => {}); }
+  throw new HttpError(403, "this browser is signed in — sign out first to send this as a visitor");
+};
+
 const anonymousSession = async (req: IncomingMessage, res: ServerResponse): Promise<OperationIO["auth.anonymousSession"]["output"]> => {
-  throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "visits from this address");
+  await refuseOverSignedInCookie(req);
   const claims: Omit<Claims, "iat" | "exp" | "sid"> = {
     sub: ANONYMOUS_ACTOR, ns: "anonymous", org: PROSPECT_ORG_ID, region: UNASSIGNED_REGION_ID,
     scope_tier: "parent", scope_id: PROSPECT_ORG_ID, roles: [],
@@ -478,7 +546,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
     // A customer resolves its own agreements. RLS (0006) already makes another
     // org's rows absent; naming the org from the token as well means the
     // answer for a customer never depends on what the query string said.
-    const orgId = p.namespace === "internal" ? (input.orgId ?? p.orgId) : p.orgId;
+    const orgId = p.namespace === "internal" && input.orgId !== undefined ? requireUuid(input.orgId, "orgId") : p.orgId;
     const r = await resolvedTermsAt(uow, orgId, input.tier ?? "site", input.nodeId ?? "", input.asOf ?? new Date().toISOString().slice(0, 10), keys);
     return { resolved: r.resolved, refused: Object.fromEntries(Object.entries(r.refused).map(([k, e]) => [k, { code: e.code, message: e.message }])) };
   }),
@@ -575,9 +643,16 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "contacts.list": (req, input) => withRead(req, "contacts.list", (uow) => listContacts(uow, input)),
   "contacts.set": (req, input) => withUow(req, "contacts.set", (uow) => setContact(uow, input, randomUUID)),
   "invoices.list": (req, input) => withRead(req, "invoices.list", (uow) => listInvoices(uow, input)),
-  "sites.imagery": (req, input) => withRead(req, "sites.imagery", (uow) => siteImagery(uow, input, IMAGERY, fetch)),
-  "sites.mapTile": (req, input) => withRead(req, "sites.mapTile", (uow) => siteMapTile(uow, input, MAP_TILES, fetch)),
-  "sites.locate": (req, input) => withUow(req, "sites.locate", (uow) => locateSite(uow, input, GEOCODE, fetch)),
+  // The provider is asked after the read's transaction is released, never
+  // inside it: a slow provider must not hold a pool connection per caller.
+  "sites.imagery": async (req, input) => runPlan(await withRead(req, "sites.imagery", (uow) => siteImageryRead(uow, input, IMAGERY)), fetch),
+  "sites.mapTile": async (req, input) => runPlan(await withRead(req, "sites.mapTile", (uow) => siteMapTileRead(uow, input, MAP_TILES)), fetch),
+  "sites.locate": async (req, input) => {
+    const plan = await withRead(req, "sites.locate", (uow) => locateSiteRead(uow, input, GEOCODE));
+    if ("answer" in plan) return plan.answer;
+    const found = await geocode(plan.query, GEOCODE, fetch);
+    return withUow(req, "sites.locate", (uow) => locateSiteWrite(uow, plan.siteId, plan.query, found));
+  },
 
   // item 6 — S6's first write, and the office's read of it.
   "serviceRequests.create": (req, input) => withUow(req, "serviceRequests.create", (uow, p) => createServiceRequest(uow, p.subjectId, input, randomUUID)),
@@ -634,6 +709,16 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
     // The same admission every other operation gets: session live, surface
     // enabled, role admitted, tenancy consistent. Opened and rolled back.
     await withRead(req, "events.stream", async () => {});
+    // A stream is a held socket and a place in every fan-out; a session gets a few, not as many as it asks for.
+    if ([...sseClients].filter((c) => c.sessionId === p.sessionId).length >= SSE_STREAMS_PER_SESSION)
+      throw new HttpError(429, `this session already has ${SSE_STREAMS_PER_SESSION} event streams open — close one first`);
+    // A device hears its crew's work: which crew is the shift grant's.
+    let crewId: string | null = null;
+    if (p.namespace === "device" && p.shiftId) {
+      const tx = await beginTx(pool, "ac_gateway");
+      try { await bindSystem(tx); crewId = (await tx.query<{ crew_id: string }>("SELECT crew_id FROM device_grants WHERE id = $1", [p.shiftId]))[0]?.crew_id ?? null; }
+      finally { await tx.rollback().catch(() => {}); }
+    }
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
     // Headers are not on the wire until the first byte. A subscriber's fetch()
     // does not resolve — and the shell cannot report "open" — until then.
@@ -642,18 +727,25 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
       res, regionId: p.regionId,
       orgScoped: p.namespace === "internal" && p.scopeTier === "parent",
       internal: p.namespace === "internal",
-      // A customer hears its own org's events and nobody else's.
-      orgId: p.namespace === "customer" ? p.orgId : null,
-      surfaceId,
+      // A customer or a vendor hears its own org's events and nobody else's.
+      orgId: p.namespace === "customer" || p.namespace === "vendor" ? p.orgId : null,
+      // A firm hears its own org's events and the work its crews were sent to; a device, its crew's work.
+      crew: p.namespace === "subcontractor" ? { orgId: p.orgId, firmId: p.firmId, crewId: null }
+        : p.namespace === "device" ? { orgId: null, firmId: null, crewId } : null,
+      surfaceId, sessionId: p.sessionId,
     };
     sseClients.add(client);
     // The session is checked at connect and again every minute: a stream must
-    // not outlive the logout or the expiry that ended its session.
+    // not outlive the logout or the expiry that ended its session. Only a
+    // definite answer ends it — a pool that is busy for a moment is not one.
     const recheck = setInterval(() => {
       void (async () => {
         const tx = await beginTx(pool, "ac_gateway");
         try { await assertSessionLive(tx, p); } finally { await tx.rollback().catch(() => {}); }
-      })().catch(() => { res.end(); });
+      })().catch((e) => {
+        if (e instanceof AuthError) { res.end(); return; }
+        console.warn("gateway: could not recheck an event stream's session; keeping it until the next check —", (e as Error).message);
+      });
     }, SSE_SESSION_RECHECK_MS);
     req.on("close", () => { clearInterval(recheck); sseClients.delete(client); });
     return STREAMING;
@@ -681,15 +773,20 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
     const url = new URL(req.url ?? "/", "http://localhost");
     // The query wins so a surface can ask on behalf of the host it is served
     // from; the Host header is the fallback for a portal on its own domain.
-    const host = url.searchParams.get("host") ?? req.headers.host;
+    // Behind Cloudflare the Worker rewrites Host to the container's and passes
+    // the one the browser asked for as x-ac-forwarded-host (set by the Worker,
+    // so trusted under the same flag as CF-Connecting-IP and no other time).
+    const forwarded = req.headers["x-ac-forwarded-host"];
+    const host = url.searchParams.get("host") ?? (BEHIND_CLOUDFLARE ? (typeof forwarded === "string" ? forwarded : undefined) : req.headers.host);
     const tx = await beginTx(pool, "ac_gateway");
     try { await bindSystem(tx); return await brandStylesheetFor(tx, host ?? undefined); } finally { await tx.rollback().catch(() => {}); }
   },
 
   // ---- item 8: S1's anonymous door ----
   "auth.anonymousSession": (req, _input, res) => anonymousSession(req, res),
-  "leads.submit": (req, input) => { throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"); return withUow(req, "leads.submit", (uow) => submitLead(uow, input, randomUUID)); },
-  "callRecords.record": (req, input) => { throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"); return withUow(req, "callRecords.record", (uow) => recordCall(uow, input, randomUUID, () => new Date())); },
+  // Throttled per address before the body is read (beforeBody).
+  "leads.submit": (req, input) => withUow(req, "leads.submit", (uow) => submitLead(uow, input, randomUUID)),
+  "callRecords.record": (req, input) => withUow(req, "callRecords.record", (uow) => recordCall(uow, input, randomUUID, () => new Date())),
 
   /**
    * The coverage map, with no session behind it — the same shape as
@@ -730,20 +827,71 @@ const STREAMING = Symbol("streaming");
 /** `METHOD /path` → operation id. Built from the catalogue; a route not in the catalogue does not exist. */
 const ROUTES: ReadonlyMap<string, OperationId> = new Map(OPERATION_IDS.map((id) => [routeKey(OPERATIONS[id]), id]));
 
+/**
+ * What is checked before a body is read: the per-address throttle on the doors
+ * anyone can knock on, and the token on the one route that takes megabytes.
+ * Read first, a body is held in memory by a request that was going to be refused.
+ */
+const beforeBody: Partial<Record<OperationId, (req: IncomingMessage) => void>> = {
+  "auth.login": (req) => throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)), "sign-in attempts"),
+  "auth.deviceLogin": (req) => throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)), "sign-in attempts"),
+  "auth.anonymousSession": (req) => throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "visits from this address"),
+  "leads.submit": (req) => throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"),
+  "callRecords.record": (req) => throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"),
+  "serviceRequests.attachPhoto": (req) => { callerOf(req); },
+};
+
 /** Read an operation's input from where the catalogue says it travels. */
 const inputOf = async (req: IncomingMessage, url: URL, opId: OperationId): Promise<unknown> => {
   switch (OPERATIONS[opId].carrier) {
-    case "body": return readJson(req);
+    case "body": {
+      // A cross-site <form> can POST text/plain or form-encoded to any of these
+      // with no preflight — enctype="text/plain" can even spell a JSON object —
+      // and sign the victim's browser into the sender's session. It cannot send
+      // application/json without a preflight, which CORS refuses for any origin
+      // not in the registry. So a body route takes JSON said as JSON, or nothing.
+      const type = String(req.headers["content-type"] ?? "").split(";")[0]!.trim().toLowerCase();
+      if (type !== "application/json") throw new HttpError(415, "the request body must be sent as content-type: application/json");
+      return readJson(req, bodyLimitOf(opId));
+    }
     case "query": return Object.fromEntries(url.searchParams.entries());
     case "none": return undefined;
   }
 };
 
-type SseClient = { res: ServerResponse; regionId: string; orgScoped: boolean; internal: boolean; orgId: string | null; surfaceId: SurfaceId };
+type CrewAudience = { readonly orgId: string | null; readonly firmId: string | null; readonly crewId: string | null };
+type SseClient = { res: ServerResponse; regionId: string; orgScoped: boolean; internal: boolean; orgId: string | null; crew: CrewAudience | null; surfaceId: SurfaceId; sessionId: string };
 const SSE_SESSION_RECHECK_MS = 60_000;
+const SSE_STREAMS_PER_SESSION = 4;
+/** Past this much unsent, a subscriber is not reading: it is closed rather than buffered for without end. */
+const SSE_MAX_BUFFERED_BYTES = 256 * 1024;
 const sseClients = new Set<SseClient>();
+const push = (c: SseClient, frame: string): void => {
+  if (c.res.writableLength > SSE_MAX_BUFFERED_BYTES) { sseClients.delete(c); c.res.destroy(); return; }
+  c.res.write(frame);
+};
+
+/**
+ * The crews (and their firms) ever sent to the job an event is about — the
+ * job is the entity, or an SLA timer's. This is what a firm or a device can
+ * see of another tenant's job (0007, 0028), asked once per event and only
+ * when such a subscriber is listening in its region.
+ */
+const crewsOnJobOf = async (entityId: string): Promise<{ crew_id: string; firm_id: string | null }[]> => {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entityId)) return [];
+  const tx = await beginTx(pool, "ac_gateway");
+  try {
+    await bindSystem(tx);
+    return [...await tx.query<{ crew_id: string; firm_id: string | null }>(
+      `SELECT DISTINCT a.crew_id, c.firm_id FROM assignments a JOIN crews c ON c.id = a.crew_id
+        WHERE a.job_id = COALESCE((SELECT t.job_id FROM sla_timers t WHERE t.id = $1::uuid), $1::uuid)`, [entityId])];
+  } finally { await tx.rollback().catch(() => {}); }
+};
+// Crew-scoped deliveries wait on a read; chained, so they still go out in the order they came in.
+let crewDeliveries: Promise<void> = Promise.resolve();
+
 await listenEvents(DATABASE_URL, (payload) => {
-  let env: { eventId: string; topic: string; regionId: string; orgId: string; occurredAt: string };
+  let env: { eventId: string; topic: string; entityId: string; regionId: string; orgId: string; occurredAt: string };
   // A malformed NOTIFY payload is dropped, not thrown: this runs inside the
   // listener's callback, where a throw takes the gateway down.
   try { env = JSON.parse(payload); } catch { console.error("gateway: dropped a malformed event envelope"); return; }
@@ -751,11 +899,26 @@ await listenEvents(DATABASE_URL, (payload) => {
   // id and org are other tenants' facts. The topic is enough to refetch on,
   // and the refetch goes through row security like every other read.
   const blind = `event: domain\ndata: ${JSON.stringify({ eventId: env.eventId, topic: env.topic, regionId: env.regionId, occurredAt: env.occurredAt })}\n\n`;
+  const waiting: SseClient[] = [];
   for (const c of sseClients) {
     if (!(c.orgScoped || c.regionId === env.regionId)) continue;
     if (c.orgId && c.orgId !== env.orgId) continue;
-    c.res.write(c.internal ? `event: domain\ndata: ${payload}\n\n` : blind);
+    if (c.crew) {
+      // A firm's own facts are its own org's; anything else is heard only if one of its crews was sent to the job.
+      if (c.crew.orgId && c.crew.orgId === env.orgId) push(c, blind);
+      else waiting.push(c);
+      continue;
+    }
+    push(c, c.internal ? `event: domain\ndata: ${payload}\n\n` : blind);
   }
+  if (!waiting.length) return;
+  crewDeliveries = crewDeliveries.then(async () => {
+    const crews = await crewsOnJobOf(env.entityId);
+    for (const c of waiting) {
+      if (!sseClients.has(c)) continue;
+      if (crews.some((r) => (c.crew!.crewId && r.crew_id === c.crew!.crewId) || (c.crew!.firmId && r.firm_id === c.crew!.firmId))) push(c, blind);
+    }
+  }).catch((e) => { console.warn("gateway: could not decide who hears an event; dropped for crew subscribers —", (e as Error).message); });
 });
 
 const server = createServer(async (req, res) => {
@@ -772,12 +935,15 @@ const server = createServer(async (req, res) => {
   const opId = ROUTES.get(`${req.method} ${url.pathname}`);
   try {
     if (!opId) return send(res, 404, { error: "NoRoute", message: `no route ${req.method} ${url.pathname} — not in the operation catalogue` });
+    beforeBody[opId]?.(req);
     const input = await inputOf(req, url, opId);
     const out = await (handlers[opId] as Handler<OperationId>)(req, input as never, res);
     if (out !== STREAMING) send(res, 200, out);
   } catch (e) {
     const d = describe(e);
     if (d.status === 500) console.error(e);
+    // An oversized body is not drained: answer, then close the connection under it.
+    if (d.status === 413) { res.setHeader("connection", "close"); res.once("finish", () => req.destroy()); }
     send(res, d.status, { error: d.name, code: d.code, message: d.message, missingTerm: d.missingTerm });
   }
 });

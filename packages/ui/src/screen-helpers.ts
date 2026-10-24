@@ -22,3 +22,11 @@ export const formValues = (form: HTMLFormElement): Record<string, string> => {
  * print the same eight characters for the same request.
  */
 export const shortRef = (id: string): string => id.slice(0, 8).toUpperCase();
+
+/**
+ * The viewer's own calendar date, `YYYY-MM-DD`. Not `toISOString().slice(0, 10)`,
+ * which is the date in UTC: in Texas every evening after 7 PM that is already
+ * tomorrow, and a document expiring today reads as expired.
+ */
+export const localDay = (at: Date = new Date()): string =>
+  `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;

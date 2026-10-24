@@ -246,6 +246,34 @@ test("release before the field moves: the crew comes off, the job returns for re
   );
   assert.ok((await admin(`SELECT satisfied_at FROM sla_timers WHERE job_id = $1`, [jobId]))[0]!.satisfied_at, "a release does not un-satisfy the response that already happened");
 
+  // Two releases at once: one releases, the other is refused by name — not a
+  // second job.reassigned, not a unique-violation 500.
+  const raced = await s3.gateway.assignCrew({ jobId, crewId: crewCleared, orgId, regionId: REGION_SOUTH });
+  assert.equal(raced.ok, true);
+  if (!raced.ok) return;
+  // Hold the assignment row so both requests are inside their transactions
+  // before either can write; then let them go.
+  const holder = await pool.connect();
+  await holder.query("BEGIN");
+  await holder.query("SELECT 1 FROM assignments WHERE id = $1 FOR UPDATE", [raced.assignmentId]);
+  const pending = [
+    s3.gateway.releaseAssignment({ assignmentId: raced.assignmentId, orgId, regionId: REGION_SOUTH }),
+    s3.gateway.releaseAssignment({ assignmentId: raced.assignmentId, orgId, regionId: REGION_SOUTH }),
+  ];
+  for (let i = 0; i < 100; i++) {
+    const n = (await admin(`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`))[0]!.n as number;
+    if (n >= 2) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  await holder.query("COMMIT");
+  holder.release();
+  const both = await Promise.allSettled(pending);
+  assert.equal(both.filter((r) => r.status === "fulfilled").length, 1, "exactly one release lands");
+  const lost = both.find((r) => r.status === "rejected") as PromiseRejectedResult;
+  assert.equal(code(s3, lost.reason), "already_released");
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM job_state_events WHERE job_id = $1 AND mutation_id = $2`, [jobId, `release:${raced.assignmentId}`]))[0]!.n, 1);
+  assert.equal((await admin(`SELECT state FROM jobs WHERE id = $1`, [jobId]))[0]!.state, "created");
+
   // Re-dispatch, so the field half below has a job to work.
   const again = await s3.gateway.assignCrew({ jobId, crewId: crewCleared, orgId, regionId: REGION_SOUTH });
   assert.equal(again.ok, true);
@@ -487,6 +515,40 @@ test("sync.replay after a release: a crew taken off a job cannot drive it — th
   assert.equal((await admin(`SELECT count(*)::int AS n FROM time_entries WHERE job_id = $1`, [other]))[0]!.n, 0);
   assert.equal((await admin(`SELECT count(*)::int AS n FROM sync_conflicts WHERE entity_id = $1`, [other]))[0]!.n, 2, "both are a person's to judge");
   await s5.logout();
+});
+
+test("0029: a certificate's days are the region's — an evening job on its last day clears, in the dry run and at the table; a window ending at local midnight needs no next day", { skip }, async () => {
+  // South is America/Chicago. The license's last day is D; 20:00–22:00 there
+  // on D is already D+1 in UTC, and 22:00–midnight ends on the [) bound.
+  const D = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+  const at = async (day: string, time: string) =>
+    ((await admin(`SELECT (($1::date + $2::time) AT TIME ZONE r.timezone) AS t FROM regions r WHERE r.id = $3`, [day, time, REGION_SOUTH]))[0]!.t as Date).toISOString();
+  const crew = (await s2.gateway.createCrew({ label: `Crew Evening ${RUN}`, employmentType: "employed", homeRegionId: REGION_SOUTH })).id;
+  for (const kind of ["license", "background_check"]) {
+    const c = await s2.gateway.recordCredential({ crewId: crew, kind, identifier: `${kind} eve ${RUN}`, validFrom: "2026-01-01", validTo: D });
+    await s2.gateway.verifyCredential({ credentialId: c.id });
+  }
+  const windows: [string, string, boolean][] = [
+    [await at(D, "20:00"), await at(D, "22:00"), true],
+    [await at(D, "22:00"), await at(new Date(Date.parse(D) + 86_400_000).toISOString().slice(0, 10), "00:00"), true],
+    [await at(D, "23:00"), await at(new Date(Date.parse(D) + 86_400_000).toISOString().slice(0, 10), "00:30"), false],
+  ];
+  for (const [start, end, clears] of windows) {
+    const evening = (await s2.gateway.createJob({ siteId: site, serviceCode: "HVAC-REPAIR", serviceWindowStart: start, serviceWindowEnd: end })).id;
+    const dry = (await s3.gateway.candidateCrews({ jobId: evening, orgId, regionId: REGION_SOUTH })).candidates.find((c) => c.crewId === crew)!;
+    assert.equal(dry.cleared, clears, `dry run for ${start}..${end}`);
+    // The door agrees, and so does the table it writes through (a 500 here is the trigger disagreeing).
+    const out = await s3.gateway.assignCrew({ jobId: evening, crewId: crew, orgId, regionId: REGION_SOUTH });
+    assert.equal(out.ok, clears, `the door for ${start}..${end}`);
+    if (!clears && !out.ok) assert.match(out.refusal.detail, new RegExp(`expires ${D}`), "the refusal names the day on the certificate");
+  }
+  // And the table on its own, past the gateway: the evening window is earned; one minute into D+1 is not.
+  const license = (await admin(`SELECT id FROM crew_credentials WHERE crew_id = $1 AND kind = 'license'`, [crew]))[0]!.id as string;
+  const clearance = (start: string, end: string) => admin(`INSERT INTO compliance_clearances (org_id, region_id, crew_id, service_window, credential_ids, evaluated_at, evaluated_by)
+    VALUES ($1,$2,$3, tstzrange($4::timestamptz, $5::timestamptz, '[)'), $6::jsonb, now(), $7)`, [orgId, REGION_SOUTH, crew, start, end, JSON.stringify([license]), USER_DISP_SOUTH]);
+  await clearance(windows[0]![0], windows[0]![1]);
+  await clearance(windows[1]![0], windows[1]![1]);
+  await assert.rejects(clearance(windows[2]![0], windows[2]![1]), (e: unknown) => (e as { code?: string }).code === "AC422");
 });
 
 test("a grant the office revokes ends the shift's token at once, not when the shift ends", { skip }, async () => {

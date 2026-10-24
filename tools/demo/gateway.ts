@@ -302,10 +302,10 @@ const settlements: Settlement[] = [
 const rateOf = (firmId: string, code: string) => rateCards.find((r) => r.firmId === firmId && r.serviceCode === code && r.effectiveTo === null)!;
 const settlementLines: W.SettlementLineWire[] = [
   { id: uid("l"), settlementId: ST.lsJul, jobId: J.austinJulyPm, serviceCode: "PM-VISIT", siteName: "Austin — Pool Hall Dehumidifier", rateCardId: rateCards[0]!.id, rateMinor: "18500", quantityMilli: "1000", amountMinor: "18500" },
-  { id: uid("l"), settlementId: ST.lsAug, jobId: J.austinAugPm, serviceCode: "PM-VISIT", siteName: "Austin — Rooftop RTUs", rateCardId: rateOf(FIRM_A, "PM-RTU").id, rateMinor: "19500", quantityMilli: "3000", amountMinor: "58500" },
-  { id: uid("l"), settlementId: ST.lsAug, jobId: J.elPasoAug, serviceCode: "HVAC-REPAIR", siteName: "El Paso — Main Floor", rateCardId: rateOf(FIRM_A, "REPAIR-HVAC").id, rateMinor: "12500", quantityMilli: "3960", amountMinor: "49500" },
-  { id: uid("l"), settlementId: ST.lsSep, jobId: J.austinPm, serviceCode: "PM-VISIT", siteName: "Austin — Rooftop RTUs", rateCardId: rateOf(FIRM_A, "PM-RTU").id, rateMinor: "19500", quantityMilli: "3000", amountMinor: "58500" },
-  { id: uid("l"), settlementId: ST.gcAug, jobId: J.houstonAug, serviceCode: "HVAC-REPAIR", siteName: "Houston — Clinic Main", rateCardId: rateOf(FIRM_B, "REPAIR-HVAC").id, rateMinor: "11800", quantityMilli: "3000", amountMinor: "35400" },
+  { id: uid("l"), settlementId: ST.lsAug, jobId: J.austinAugPm, serviceCode: "PM-VISIT", siteName: "Austin — Rooftop RTUs", rateCardId: rateOf(FIRM_A, "PM-VISIT").id, rateMinor: "19500", quantityMilli: "3000", amountMinor: "58500" },
+  { id: uid("l"), settlementId: ST.lsAug, jobId: J.elPasoAug, serviceCode: "HVAC-REPAIR", siteName: "El Paso — Main Floor", rateCardId: rateOf(FIRM_A, "HVAC-REPAIR").id, rateMinor: "12500", quantityMilli: "3960", amountMinor: "49500" },
+  { id: uid("l"), settlementId: ST.lsSep, jobId: J.austinPm, serviceCode: "PM-VISIT", siteName: "Austin — Rooftop RTUs", rateCardId: rateOf(FIRM_A, "PM-VISIT").id, rateMinor: "19500", quantityMilli: "3000", amountMinor: "58500" },
+  { id: uid("l"), settlementId: ST.gcAug, jobId: J.houstonAug, serviceCode: "HVAC-REPAIR", siteName: "Houston — Clinic Main", rateCardId: rateOf(FIRM_B, "HVAC-REPAIR").id, rateMinor: "11800", quantityMilli: "3000", amountMinor: "35400" },
 ];
 
 const equipment: (Omit<W.EquipmentWire, "lastServicedAt" | "lastServicedJobId" | "lastServicedServiceCode" | "jobCount">)[] = [
@@ -419,6 +419,14 @@ export const PERSONAS = users.map((u) => ({ surface: u.surfaces[0]!, email: u.em
 type Session = { id: string; user: User; token: string };
 const cookieSessions = new Map<SurfaceId, Session>();
 const bearerSessions = new Map<string, Session>();
+/** S5's signed-in device, whose stream the launcher feeds; the last device login wins, as on one tablet. */
+let deviceSession: Session | null = null;
+/**
+ * S1's anonymous sessions and when each expires: S1's bearer operations need one, as at the real gateway —
+ * by bearer token, or (the browser's way, which S1 uses) by the session cookie, kept here per surface.
+ */
+const anonTokens = new Map<string, number>();
+let anonCookieExpires = 0;
 const principalOf = (s: Session): Principal => ({ ...s.user.principal, sessionId: s.id });
 const mint = (user: User): Session => ({ id: uid("z"), user, token: `demo.${uid("t")}` });
 for (const sid of ["S2", "S3", "S4", "S6", "S7", "S8"] as SurfaceId[]) cookieSessions.set(sid, mint(users.find((u) => u.surfaces.includes(sid))!));
@@ -446,7 +454,7 @@ const log = (a: Omit<ActivityEntry, "at">) => { const e = { ...a, at: new Date()
 const publish = (surface: SurfaceId, topic: Topic, entity: string, entityId: string, orgId: string, regionId: string): string => {
   const eventId = uid("ev");
   const env: EventEnvelope = { eventId, topic, entity, entityId, regionId, orgId, occurredAt: new Date().toISOString() };
-  for (const l of listeners) l.push(env);
+  for (const l of listeners) { const e = eventFor(l.surface, env); if (e) l.push(e); }
   log({ surface, op: topic, status: 0, note: `${entity} ${entityId.slice(0, 8)}`, kind: "event" });
   return eventId;
 };
@@ -1484,6 +1492,24 @@ let offline = false;
 export const setOffline = (v: boolean) => { offline = v; };
 export const isOffline = () => offline;
 
+/**
+ * What a surface's stream hears of an event, by the rule the real gateway's
+ * events.stream applies: an org-wide internal login hears every region, anyone
+ * else only their own; a customer only its own org; and outside the internal
+ * namespace the envelope is blind — no entity, no org, just enough to refetch.
+ * S1 has no stream. Read at push time, so a persona switch takes effect at once.
+ */
+export const eventFor = (surface: SurfaceId, env: EventEnvelope): EventEnvelope | null => {
+  const s = surface === "S5" ? deviceSession : cookieSessions.get(surface);
+  if (!s) return null;
+  const p = s.user.principal;
+  const orgScoped = p.namespace === "internal" && p.scopeTier === "parent";
+  if (!(orgScoped || p.regionId === env.regionId)) return null;
+  if (p.namespace === "customer" && p.orgId !== env.orgId) return null;
+  if (p.namespace === "internal") return env;
+  return { eventId: env.eventId, topic: env.topic, regionId: env.regionId, occurredAt: env.occurredAt } as EventEnvelope;
+};
+
 const sessionFor = (req: WireRequest): Session | null => {
   const auth = req.headers["authorization"] ?? "";
   if (auth.startsWith("Bearer ")) return bearerSessions.get(auth.slice(7)) ?? null;
@@ -1523,16 +1549,19 @@ export const handle = async (req: WireRequest): Promise<WireResponse | "offline"
       const user = users.find((u) => u.email.toLowerCase() === (i.email ?? "").trim().toLowerCase() && u.password === i.password && u.surfaces.includes(req.surface));
       if (!user || (op.id === "auth.deviceLogin" && i.hardwareId?.trim() !== devices[0]!.hardwareId)) throw new Refused(401, "AuthError", "invalid credentials", "invalid_credentials");
       const s = mint(user);
-      if (op.id === "auth.deviceLogin") bearerSessions.set(s.token, s); else cookieSessions.set(req.surface, s);
+      if (op.id === "auth.deviceLogin") { bearerSessions.set(s.token, s); deviceSession = s; } else cookieSessions.set(req.surface, s);
       const ctx = await buildContext(principalOf(s), reader);
       const crew = user.crewId ? crews.find((c) => c.id === user.crewId)! : null;
       out = { token: s.token, expiresAt: at(8 * HOUR), context: { path: ctx.path, parent: ctx.parent, regions: ctx.regions, activeRegionId: ctx.activeRegionId }, ...(crew ? { crewId: crew.id, crewLabel: crew.label } : {}) };
     } else if (op.id === "auth.anonymousSession") {
-      out = { token: `demo.anon.${uid("t")}`, expiresAt: at(15 * MIN) };
+      const token = `demo.anon.${uid("t")}`;
+      anonTokens.set(token, Date.now() + 15 * MIN);
+      anonCookieExpires = Date.now() + 15 * MIN;
+      out = { token, expiresAt: at(15 * MIN) };
     } else if (op.id === "auth.logout") {
       const s = sessionFor(req);
       if (!s) throw new Refused(401, "AuthError", "no session", "missing");
-      if (bearerSessions.has(s.token)) bearerSessions.delete(s.token); else cookieSessions.delete(req.surface);
+      if (bearerSessions.has(s.token)) { bearerSessions.delete(s.token); if (deviceSession === s) deviceSession = null; } else cookieSessions.delete(req.surface);
       out = { ok: true, sessionId: s.id };
     } else {
       const h = H[op.id];
@@ -1543,6 +1572,12 @@ export const handle = async (req: WireRequest): Promise<WireResponse | "offline"
         if (!s) throw new Refused(401, "AuthError", "no session — sign in", "missing");
         ctx = { surface: req.surface, p: principalOf(s), session: s };
       } else {
+        if (op.auth === "bearer") {
+          // S1: the anonymous token from auth.anonymousSession, unexpired — never nothing at all.
+          const auth = req.headers["authorization"] ?? "";
+          const exp = auth.startsWith("Bearer ") ? anonTokens.get(auth.slice(7)) : anonCookieExpires;
+          if (exp === undefined || exp < Date.now()) throw new Refused(401, "AuthError", "no anonymous session — the page asks for one first", "missing");
+        }
         ctx = { surface: req.surface, p: { namespace: "anonymous", subjectId: ANONYMOUS_PRINCIPAL_IDS.actor, orgId: ANONYMOUS_PRINCIPAL_IDS.org, regionId: ANONYMOUS_PRINCIPAL_IDS.region, scopeTier: "parent", scopeId: ANONYMOUS_PRINCIPAL_IDS.org, roles: [], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "anon" }, session: null };
       }
       out = await h(input, ctx);

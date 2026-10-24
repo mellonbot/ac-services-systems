@@ -462,6 +462,47 @@ test("sync: a device log replays in device order; a duplicate replay is a no-op;
   });
 });
 
+test("sync: a retried batch sent while the first is still running waits for it, then finds duplicates — not a UNIQUE refusal for the whole batch", skip, async () => {
+  await deviceOnShift();
+  const job = await crewAJob();
+  const log = [1, 2].map((n) => ({ mutationId: `race-${randomUUID()}`, deviceId: DEVICE, deviceSeq: n, entityTable: "parts_used", entityId: job, op: "insert" as const, payload: { part_sku: `F-${n}`, quantity_milli: 1000, source: "truck" }, clientObservedVersion: null, deviceAt: "2026-09-16T09:30:00Z" }));
+  const batch = { deviceId: DEVICE, grantId: GRANT, orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH, mutations: log };
+  const first = await createUnitOfWork(ctxFor("S5", TECH_DEVICE), await beginTx(pool, "ac_gateway"));
+  const second = await createUnitOfWork(ctxFor("S5", TECH_DEVICE), await beginTx(pool, "ac_gateway"));
+  try {
+    assert.deepEqual((await ingestSync(first, USER_TECH, batch, NOW)).map((o) => o.outcome), ["applied", "applied"]);
+    // The first has not committed; the second must wait for it rather than read around it.
+    let settled = false;
+    const retried = ingestSync(second, USER_TECH, batch, NOW).finally(() => { settled = true; });
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(settled, false, "the retry waits on the device's lock");
+    await first.commit();
+    assert.deepEqual((await retried).map((o) => o.outcome), ["duplicate", "duplicate"]);
+    await second.commit();
+  } finally {
+    await first.rollback().catch(() => {});
+    await second.rollback().catch(() => {});
+  }
+  assert.equal((await admin(`SELECT 1 FROM sync_mutations WHERE mutation_id = ANY($1)`, [log.map((m) => m.mutationId)])).length, 2);
+});
+
+test("sync: a mutation the database refuses is recorded as rejected and the rest of the batch is applied; the replay is all duplicates", skip, async () => {
+  await deviceOnShift();
+  const job = await crewAJob();
+  await withUow("S5", TECH_DEVICE, async (uow) => {
+    const log = [
+      { mutationId: "bad-1", deviceId: DEVICE, deviceSeq: 1, entityTable: "parts_used", entityId: job, op: "insert" as const, payload: { part_sku: "F-1", quantity_milli: 1000, source: "truck" }, clientObservedVersion: null, deviceAt: "2026-09-16T09:30:00Z" },
+      // No storage_key: the NOT NULL column refuses it.
+      { mutationId: "bad-2", deviceId: DEVICE, deviceSeq: 2, entityTable: "job_media", entityId: job, op: "insert" as const, payload: { kind: "photo" }, clientObservedVersion: null, deviceAt: "2026-09-16T09:31:00Z" },
+      { mutationId: "bad-3", deviceId: DEVICE, deviceSeq: 3, entityTable: "parts_used", entityId: job, op: "insert" as const, payload: { part_sku: "F-3", quantity_milli: 2000, source: "truck" }, clientObservedVersion: null, deviceAt: "2026-09-16T09:32:00Z" },
+    ];
+    const batch = { deviceId: DEVICE, grantId: GRANT, orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH, mutations: log };
+    assert.deepEqual((await ingestSync(uow, USER_TECH, batch, NOW)).map((o) => o.outcome), ["applied", "rejected", "applied"]);
+    assert.equal((await uow.tx.query(`SELECT 1 FROM parts_used WHERE job_id = $1`, [job])).length, 2);
+    assert.deepEqual((await ingestSync(uow, USER_TECH, batch, NOW)).map((o) => o.outcome), ["duplicate", "duplicate", "duplicate"]);
+  });
+});
+
 test("sync: a device cannot touch a job its crew was never sent to, in its own region or not", skip, async () => {
   await deviceOnShift();
   const notOurs = await withUow("S3", DISP_SOUTH, async (uow) => {

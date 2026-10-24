@@ -1,6 +1,6 @@
 import { MARK_GLYPHS } from "../../../tokens/src/index.ts";
 import { DegradedBannerSpec } from "../component.ts";
-import { component, html } from "../render.ts";
+import { component, effect, html, signal } from "../render.ts";
 
 export type DegradedBannerProps = {
   /** `shell.isDegraded()`. The banner reads it; nothing in a surface writes it. */
@@ -56,4 +56,17 @@ export const applyDegraded = (slot: DegradedSlot, p: DegradedBannerProps): void 
   // the one the frame ships — it should not be the one variant of the banner
   // with no mark on it.
   if (p.degraded) slot.textContent = `${MARK_GLYPHS.fault} ${p.text} ${degradedLine(p.lastOkAt, p.now)}`;
+};
+
+/**
+ * Keeps the slot current: re-applied whenever what `read` reads changes, and
+ * again on every call of the returned `tick` — the age is the one live fact,
+ * and nothing else changes while a surface stays degraded, so without a tick
+ * "Last connected 12 s ago" would read 12 s for as long as the outage lasted.
+ * A surface calls `tick` from the 1s interval it already runs.
+ */
+export const driveDegraded = (slot: DegradedSlot, read: () => Omit<DegradedBannerProps, "now">, now: () => number): (() => void) => {
+  const at = signal(now());
+  effect(() => { applyDegraded(slot, { ...read(), now: at.value }); });
+  return () => { at.value = now(); };
 };

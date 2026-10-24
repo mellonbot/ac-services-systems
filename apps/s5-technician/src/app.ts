@@ -1,10 +1,10 @@
-import { html, mount, spinFavicon, signal, effect, createRouter, browserHistory, applyDegraded, PrimaryAction, RefusalNotice, pageHead, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
 import { createStore, type Store } from "./state.ts";
-import { createOfflineQueue, type OfflineQueue, type QueueStore } from "./offline.ts";
+import { createOfflineQueue, othersPending, type OfflineQueue, type QueueStore } from "./offline.ts";
 import type { Screen, ScreenContext } from "./screens/common.ts";
 import { jobList } from "./screens/job-list.ts";
 import { jobDetail } from "./screens/job-detail.ts";
@@ -20,7 +20,9 @@ import { S5_CSS } from "./styles.ts";
  *
  * `become()` is also where the two things S2/S3 have no equivalent of are
  * created once per session: the offline mutation queue (./offline.ts) and
- * the running-clock signal (ScreenContext.clock) — same lifetime as `store`.
+ * the running-clock signal (ScreenContext.clock), both read back from this
+ * device's storage for the technician who signed in — never for whoever was
+ * signed in before.
  */
 export const DENSITY = densityOf("S5");
 
@@ -54,9 +56,12 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       const shell = await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { hardwareId, email, password } });
       if (!shell.deviceCrew) throw new Error("auth.deviceLogin answered with no crew — the shell's own contract was not honored");
       const store = createStore(shell, now);
-      const queue = createOfflineQueue({ deviceId: shell.principal.deviceId ?? hardwareId, newId, now, store: opts.store ?? null });
-      const clock = signal<Readonly<Record<string, string>>>({});
-      phase.value = { kind: "ready", shell, store, queue, crew: shell.deviceCrew, clock };
+      // A device principal's subject is the technician who signed in (auth.deviceLogin's `sub`).
+      const deviceId = shell.principal.deviceId ?? hardwareId;
+      const queue = createOfflineQueue({ deviceId, subjectId: shell.principal.subjectId, newId, now, store: opts.store ?? null });
+      const others = othersPending(opts.store, deviceId, shell.principal.subjectId);
+      if (others > 0) store.notice.value = [...store.notice.value, `${others} change(s) another technician saved on this device are kept for them and will be sent when they sign in on it.`];
+      phase.value = { kind: "ready", shell, store, queue, crew: shell.deviceCrew, clock: queue.clock };
       router.navigate("jobs", {});
       // Envelopes carry no payload; a job assigned to or pulled off this
       // shift's crew, or a term change affecting the field ground, is a
@@ -163,12 +168,10 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   const Root = () => app.view();
   mount(html`<${Root} />`, el);
   spinFavicon(document);
-  effect(() => {
-    if (!slot) return;
+  const degradedTick = slot ? driveDegraded(slot, () => {
     const p = app.phase.value;
-    const lastOkAt = p.kind === "ready" ? p.store.lastOkAt.value : null;
-    applyDegraded(slot, { degraded: app.degraded.value, text: SURFACE.degradedNotice, lastOkAt, now: Date.now() });
-  });
+    return { degraded: app.degraded.value, text: SURFACE.degradedNotice, lastOkAt: p.kind === "ready" ? p.store.lastOkAt.value : null };
+  }, Date.now) : () => {};
   app.router.start();
-  setInterval(() => app.tick(), 1000);
+  setInterval(() => { app.tick(); degradedTick(); }, 1000);
 }

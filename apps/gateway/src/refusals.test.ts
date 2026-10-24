@@ -27,6 +27,22 @@ test("exclusion, foreign-key, unique, check and not-null violations are 422s nam
   assert.equal(dbRefusal({ code: "23502", message: "null value in column \"diagnostic_data_rights_reserved\"" })?.name, "RequiredRefused");
 });
 
+test("a foreign-key or unique refusal says nothing about what exists: no table, no key values — the constraint is the code", () => {
+  const fk = dbRefusal({ code: "23503", message: "insert or update on table \"call_records\" violates foreign key constraint \"call_records_lead_id_fkey\"", detail: "Key (lead_id)=(5d6c…) is not present in table \"leads\".", constraint: "call_records_lead_id_fkey" });
+  assert.equal(fk?.code, "call_records_lead_id_fkey");
+  assert.doesNotMatch(fk!.message, /leads|lead_id|Key \(|call_records/);
+  const dup = dbRefusal({ code: "23505", message: "duplicate key value violates unique constraint \"users_email_key\"", detail: "Key (email)=(someone@x.test) already exists.", constraint: "users_email_key" });
+  assert.doesNotMatch(dup!.message, /someone@x\.test|email|users/);
+});
+
+test("a value the database could not read (22P02, 22003, 22007, 22008) is a 400, not a 500", () => {
+  for (const code of ["22P02", "22003", "22007", "22008"]) {
+    const r = dbRefusal({ code, message: "invalid input syntax for type uuid: \"abc\"" });
+    assert.equal(r?.status, 400, code);
+    assert.equal(r?.code, code);
+  }
+});
+
 test("anything else stays a 500 — a bug is a bug, and the shell is right to go degraded on it", () => {
   assert.equal(dbRefusal(new Error("Cannot read properties of undefined")), null);
   assert.equal(dbRefusal({ code: "42P01", message: "relation does not exist" }), null, "undefined_table is a deploy bug, not a refusal");

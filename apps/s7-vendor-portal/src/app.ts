@@ -1,4 +1,4 @@
-import { html, mount, spinFavicon, signal, effect, createRouter, browserHistory, applyDegraded, pageHead, PrimaryAction, RefusalNotice, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, pageHead, PrimaryAction, RefusalNotice, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -150,13 +150,11 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   const Root = () => app.view();
   mount(html`<${Root} />`, el);
   spinFavicon(document);
-  effect(() => {
-    if (!slot) return;
+  const degradedTick = slot ? driveDegraded(slot, () => {
     const p = app.phase.value;
-    const lastOkAt = p.kind === "ready" ? p.store.lastOkAt.value : null;
-    applyDegraded(slot, { degraded: app.degraded.value, text: SURFACE.degradedNotice, lastOkAt, now: Date.now() });
-  });
+    return { degraded: app.degraded.value, text: SURFACE.degradedNotice, lastOkAt: p.kind === "ready" ? p.store.lastOkAt.value : null };
+  }, Date.now) : () => {};
   app.router.start();
-  setInterval(() => { app.tick(); app.probe(); }, 1000);
+  setInterval(() => { app.tick(); app.probe(); degradedTick(); }, 1000);
   void app.boot();
 }

@@ -68,3 +68,19 @@ test("a refetch shows the held value, keeps it through a transport failure, and 
   store.invalidate("jobs.mine");
   assert.equal(store.read("jobs.mine", fetcher).value.state, "loading", "and nothing is held after it");
 });
+
+test("a fetch overtaken by an invalidate never becomes the held value, however late it lands", async () => {
+  const store = createResourceStore({ refusalOf: () => null }, () => 1);
+  const pending: ((v: string) => void)[] = [];
+  const fetcher = (): Promise<string> => new Promise((resolve) => { pending.push(resolve); });
+  store.read("jobs.mine", fetcher);           // the old fetch, still in flight
+  store.invalidate("jobs.mine");
+  store.read("jobs.mine", fetcher);           // the refetch
+  pending[1]!("new");
+  await Promise.resolve();
+  pending[0]!("old");                         // the old one lands after it
+  await Promise.resolve();
+  store.invalidate("jobs.mine");
+  const held = store.read("jobs.mine", fetcher);
+  assert.deepEqual(held.value, { state: "ready", value: "new" }, "the placeholder is the newest answer, not the last to arrive");
+});

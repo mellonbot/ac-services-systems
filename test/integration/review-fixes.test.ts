@@ -125,7 +125,7 @@ test("projects are absent outside the office and the field", { skip }, async () 
   }
 });
 
-test("ten wrong passwords and the email is shut for the window — even to the right one; the response is 429, not a token refusal", { skip }, async () => {
+test("ten wrong passwords and the email is shut for the window from that address — even to the right one; the response is 429, not a token refusal", { skip }, async () => {
   const attempt = (password: string) => fetch(`${BASE}/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "finance.r21@ac.test", password, surface: "S2" }) });
   for (let i = 0; i < 10; i++) assert.equal((await attempt("wrong")).status, 401);
   assert.equal((await attempt(PASSWORD)).status, 429);

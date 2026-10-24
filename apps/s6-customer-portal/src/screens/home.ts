@@ -1,4 +1,4 @@
-import { html, pageHead, panel, statStrip, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, localDay, pageHead, panel, statStrip, type VNode } from "../../../../packages/ui/src/index.ts";
 import { COOL_CLUB, type ContractWire, type EquipmentWire, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, type Screen, type ScreenContext } from "./common.ts";
@@ -73,7 +73,7 @@ const membershipCard = (ctx: ScreenContext, siteId: string | null, contracts: re
       <p>${COOL_CLUB.name}: ${planLine} Ask the office to sign you up.</p>
     </div>`, "Membership", undefined, undefined, "membership-card");
   }
-  const asOf = new Date(nowMs).toISOString().slice(0, 10);
+  const asOf = localDay(new Date(nowMs));
   const terms = siteId ? ctx.store.read(keyOf("terms.resolved", { tier: "site", nodeId: siteId, asOf }), () => ctx.shell.gateway.resolvedTerms({ tier: "site", nodeId: siteId, asOf })) : null;
   // The agreed term wins where the office set one; otherwise the plan's own count.
   const agreed = terms?.value.state === "ready" ? terms.value.value.resolved["pm_visits_per_year"]?.value : undefined;

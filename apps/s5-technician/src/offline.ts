@@ -26,10 +26,14 @@ import type { SyncMutationWire, SyncOutcomeWire } from "../../../packages/contra
  * than writing the same intent twice.
  *
  * The queue is written to storage on every change and read back when the
- * device signs in again (keyed by device, so a reload, a discarded tab or a
- * sign-out in a dead zone loses nothing). Storage is injected for the same
- * reason S1's buffer injects it: absent under node, and it THROWS in a
- * browser with site data blocked — a failure degrades to memory only.
+ * device signs in again, so a reload, a discarded tab or a sign-out in a dead
+ * zone loses nothing. So are the attention items (until the tech dismisses
+ * them) and the running time clock. All three are keyed by device AND
+ * technician: a queue is replayed under the token of whoever signs in, so one
+ * tech's queued work must never be sent under another's name — it waits on
+ * this device for its own tech. Storage is injected for the same reason S1's
+ * buffer injects it: absent under node, and it THROWS in a browser with site
+ * data blocked — a failure degrades to memory only.
  */
 export const JOB_TRANSITIONS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   created: ["assigned", "cancelled", "quote_requested"],
@@ -70,14 +74,58 @@ export type QueueEntry = { readonly mutation: SyncMutationWire; readonly enqueue
 export type Attention = { readonly mutationId: string; readonly entityTable: string; readonly entityId: string; readonly kind: SyncOutcomeWire["outcome"]; readonly note: string };
 
 /** The slice of the Storage API this needs. A browser's localStorage satisfies it; a test passes a Map. */
-export type QueueStore = { getItem(key: string): string | null; setItem(key: string, value: string): void };
-export const queueKey = (deviceId: string): string => `ac.s5.pending.${deviceId}`;
+export type QueueStore = { getItem(key: string): string | null; setItem(key: string, value: string): void; readonly length?: number; key?(index: number): string | null };
+export const queueKey = (deviceId: string, subjectId: string): string => `ac.s5.pending.${deviceId}.${subjectId}`;
+export const attentionKey = (deviceId: string, subjectId: string): string => `ac.s5.attention.${deviceId}.${subjectId}`;
+export const clockKey = (deviceId: string, subjectId: string): string => `ac.s5.clock.${deviceId}.${subjectId}`;
+
+/**
+ * How many changes OTHER technicians left queued on this device. They are not
+ * replayed under this sign-in — the tech is told they exist instead. The
+ * device-only key an earlier build wrote has no owner on it, so it counts as
+ * someone else's too.
+ */
+export const othersPending = (store: QueueStore | null | undefined, deviceId: string, subjectId: string): number => {
+  if (!store?.key || store.length === undefined) return 0;
+  const own = queueKey(deviceId, subjectId);
+  const legacy = `ac.s5.pending.${deviceId}`;
+  let count = 0;
+  try {
+    for (let i = 0; i < store.length; i++) {
+      const k = store.key(i);
+      if (!k || k === own || (k !== legacy && !k.startsWith(`${legacy}.`))) continue;
+      const parsed: unknown = JSON.parse(store.getItem(k) ?? "[]");
+      if (Array.isArray(parsed)) count += parsed.length;
+    }
+  } catch { /* blocked or unreadable: nothing to report */ }
+  return count;
+};
+
+/**
+ * Where a job stands once this device's queued transitions land: the server's
+ * state with each pending transition for the job applied in device order, and
+ * the version the NEXT transition observes — the server bumps a job's version
+ * by one per applied transition, so each queued one is one more.
+ */
+export const projectedJob = (job: { readonly id: string; readonly state: string; readonly version: number }, pending: readonly QueueEntry[]): { state: string; version: number; queued: number } => {
+  let state = job.state;
+  let queued = 0;
+  for (const e of pending) {
+    const m = e.mutation;
+    if (m.entityTable !== "jobs" || m.op !== "transition" || m.entityId !== job.id) continue;
+    state = String(m.payload.state);
+    queued++;
+  }
+  return { state, version: job.version + queued, queued };
+};
 
 export type OfflineQueue = {
   readonly pending: Signal<readonly QueueEntry[]>;
   /** Why the last flush got no answer (null once one is answered) — a token refusal means sign in again, not retry. */
   readonly failure: Signal<unknown>;
   readonly attention: Signal<readonly Attention[]>;
+  /** Job id → when its time clock was started. Saved on every change: a running clock outlives a reload. */
+  readonly clock: Signal<Readonly<Record<string, string>>>;
   readonly flushing: Signal<boolean>;
   enqueue(entityTable: string, entityId: string, op: SyncMutationWire["op"], payload: Readonly<Record<string, unknown>>, clientObservedVersion: number | null): SyncMutationWire;
   dismissAttention(mutationId: string): void;
@@ -87,9 +135,17 @@ export type OfflineQueue = {
 
 const noteOf = (o: SyncOutcomeWire): string => ("note" in o ? o.note : "");
 
-export const createOfflineQueue = (opts: { deviceId: string; newId: () => string; now: () => number; store?: QueueStore | null }): OfflineQueue => {
+export const createOfflineQueue = (opts: { deviceId: string; subjectId: string; newId: () => string; now: () => number; store?: QueueStore | null }): OfflineQueue => {
   const store = opts.store ?? null;
-  const key = queueKey(opts.deviceId);
+  const key = queueKey(opts.deviceId, opts.subjectId);
+  const read = (k: string): unknown => {
+    if (!store) return null;
+    try { return JSON.parse(store.getItem(k) ?? "null"); } catch { return null; }
+  };
+  const save = (k: string, value: unknown) => {
+    if (!store) return;
+    try { store.setItem(k, JSON.stringify(value)); } catch { /* blocked site data: it is this session's */ }
+  };
   const load = (): readonly QueueEntry[] => {
     if (!store) return [];
     try {
@@ -104,15 +160,26 @@ export const createOfflineQueue = (opts: { deviceId: string; newId: () => string
     }
   };
   const pending = signal<readonly QueueEntry[]>(load());
-  const attention = signal<readonly Attention[]>([]);
+  const storedAttention = read(attentionKey(opts.deviceId, opts.subjectId));
+  const attention = signal<readonly Attention[]>(Array.isArray(storedAttention)
+    ? storedAttention.filter((a): a is Attention => !!a && typeof a === "object" && typeof (a as Attention).mutationId === "string" && typeof (a as Attention).entityId === "string")
+    : []);
+  const storedClock = read(clockKey(opts.deviceId, opts.subjectId));
+  const clock = signal<Readonly<Record<string, string>>>(storedClock && typeof storedClock === "object" && !Array.isArray(storedClock)
+    ? Object.fromEntries(Object.entries(storedClock).filter(([, v]) => typeof v === "string"))
+    : {});
+  clock.subscribe((v) => save(clockKey(opts.deviceId, opts.subjectId), v));
   const flushing = signal(false);
   const failure = signal<unknown>(null);
   // Device order continues across sessions: a reloaded queue's next intent comes after its last.
   let seq = pending.value.reduce((m, e) => Math.max(m, e.mutation.deviceSeq), 0);
   const persist = (next: readonly QueueEntry[]) => {
     pending.value = next;
-    if (!store) return;
-    try { store.setItem(key, JSON.stringify(next)); } catch { /* blocked site data: the queue is this session's */ }
+    save(key, next);
+  };
+  const setAttention = (next: readonly Attention[]) => {
+    attention.value = next;
+    save(attentionKey(opts.deviceId, opts.subjectId), next);
   };
 
   const enqueue: OfflineQueue["enqueue"] = (entityTable, entityId, op, payload, clientObservedVersion) => {
@@ -126,7 +193,7 @@ export const createOfflineQueue = (opts: { deviceId: string; newId: () => string
   };
 
   const dismissAttention = (mutationId: string) => {
-    attention.value = attention.value.filter((a) => a.mutationId !== mutationId);
+    setAttention(attention.value.filter((a) => a.mutationId !== mutationId));
   };
 
   /**
@@ -173,12 +240,12 @@ export const createOfflineQueue = (opts: { deviceId: string; newId: () => string
       // only `enqueue` (append-only) and this assignment touch it — so
       // anything appended during the await is exactly the tail past batch.length.
       persist([...unanswered, ...pending.value.slice(batch.length)]);
-      if (flagged.length) attention.value = [...attention.value, ...flagged];
+      if (flagged.length) setAttention([...attention.value, ...flagged]);
       return true;
     } finally {
       flushing.value = false;
     }
   };
 
-  return { pending, failure, attention, flushing, enqueue, dismissAttention, flush };
+  return { pending, failure, attention, clock, flushing, enqueue, dismissAttention, flush };
 };

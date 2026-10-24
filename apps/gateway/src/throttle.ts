@@ -10,6 +10,8 @@ export type Throttle = {
   /** True once the key has used its limit this window — without counting this look. */
   readonly spent: (key: string, now?: number) => boolean;
   readonly size: () => number;
+  /** Drop every window that has ended. main.ts runs it each minute so the table holds only live windows. */
+  readonly sweep: (now?: number) => void;
 };
 
 export const createThrottle = (opts: { readonly limit: number; readonly windowMs: number; readonly maxKeys?: number }): Throttle => {
@@ -36,5 +38,8 @@ export const createThrottle = (opts: { readonly limit: number; readonly windowMs
       return !!w && now - w.start < opts.windowMs && w.count >= opts.limit;
     },
     size: () => windows.size,
+    sweep(now = Date.now()) {
+      for (const [k, v] of windows) if (now - v.start >= opts.windowMs) windows.delete(k);
+    },
   };
 };
