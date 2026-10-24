@@ -250,6 +250,14 @@ ac-degraded[hidden]{display:none}
 .ac-seg,.ac-nav{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface));border:1px solid var(--color-border);border-radius:var(--radius-card)}
 .ac-seg__item{display:inline-flex;align-items:center;gap:6px;padding:var(--space-2) var(--space-4);border-radius:var(--radius-control);color:var(--color-text-muted);font-weight:600;font-size:var(--text-sm);text-decoration:none;white-space:nowrap;transition:background-color var(--motion-base) var(--ease),color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease);min-height:var(--control-height)}
 .ac-seg__item[data-current="true"]{background:var(--color-surface);color:var(--color-action-text);box-shadow:var(--elevation-raised)}
+/* A picker in a track: a native select drawn as one more segment, for a list
+   too long to give a segment each (S2's subcontractor firms). Raised like the
+   current segment when its choice is the open screen. The caret is drawn, not
+   a glyph, so it needs nothing from the font subset. */
+.ac-seg__pick{position:relative;display:inline-flex;border-radius:var(--radius-control);color:var(--color-text-muted);transition:background-color var(--motion-base) var(--ease),color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease)}
+.ac-seg__pick>select{appearance:none;-webkit-appearance:none;margin:0;border:0;border-radius:inherit;background:none;color:inherit;font:inherit;font-weight:600;font-size:var(--text-sm);min-height:var(--control-height);max-width:var(--measure-cell);padding:var(--space-2) var(--space-8) var(--space-2) var(--space-4);text-overflow:ellipsis;cursor:pointer}
+.ac-seg__pick::after{content:"";position:absolute;inset-inline-end:var(--space-4);top:50%;margin-top:-2px;border:4px solid transparent;border-top-color:currentColor;border-bottom:0;pointer-events:none}
+.ac-seg__pick[data-current="true"]{background:var(--color-surface);color:var(--color-action-text);box-shadow:var(--elevation-raised)}
 .ac-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--radius-pill);border:1px solid var(--color-border-hard);background:var(--color-surface);color:var(--color-text);font-size:var(--text-sm);font-weight:600;text-decoration:none;cursor:pointer;transition:background-color var(--motion-fast) var(--ease),border-color var(--motion-fast) var(--ease),color var(--motion-fast) var(--ease);min-height:var(--control-height)}
 .ac-chip[aria-pressed="true"]{background:color-mix(in srgb,var(--color-action) 14%,var(--color-surface));border-color:color-mix(in srgb,var(--color-action-text) 45%,transparent);color:var(--color-action-text)}
 
@@ -340,7 +348,7 @@ ac-degraded[hidden]{display:none}
    110/170/260ms on one curve, from the tokens: a control's state change
    moves, data does not. A reader who asked for reduced motion gets none —
    the same selectors, stilled, declared last so they win on source order. */
-@media (prefers-reduced-motion:reduce){.ac-action,.ac-seg__item,.ac-chip,.ac-link{transition:none}}
+@media (prefers-reduced-motion:reduce){.ac-action,.ac-seg__item,.ac-seg__pick,.ac-chip,.ac-link{transition:none}}
 `;
 
 /** Every `var(--name)` the stylesheet reads. The test checks each is defined by tokenCss for every density. */
