@@ -165,6 +165,24 @@ test("editLogin revokes only on an access change", { skip }, async () => {
   await assert.rejects(live(s), revoked);
 });
 
+test("editLogin makes addLogin's checks: roles of the login's own kind, a scope it can hold — and writes nothing when refused", { skip }, async () => {
+  const input = (msg: RegExp) => (e: unknown) => e instanceof LoginInputError && msg.test(e.message);
+  const roles = async (id: string) => (await admin(`SELECT roles FROM users WHERE id = $1`, [id]))[0].roles;
+  const before = { d: await roles(dispatcherId), c: await roles(customerId), s: await roles(subId) };
+  await assert.rejects(db.editLogin(dispatcherId, { displayName: "New", roles: [] }), input(/at least one role/));
+  await assert.rejects(db.editLogin(dispatcherId, { displayName: "New", roles: ["payer"] }), input(/not a staff role/));
+  await assert.rejects(db.editLogin(customerId, { displayName: "C", roles: ["principal"] }), input(/only pay or request/));
+  await assert.rejects(db.editLogin(customerId, { displayName: "C", roles: [] }), input(/tick at least one/));
+  await assert.rejects(db.editLogin(subId, { displayName: "S", roles: ["dispatcher"] }), input(/no roles/));
+  // A staff scope whose node is not the org or its own region; a region that is not one; a firm login's scope at all.
+  await assert.rejects(db.editLogin(dispatcherId, { displayName: "New", scope: { tier: "region", scopeId: REGION_WEST, regionId: REGION_SOUTH } }), input(/whole company or one region/));
+  await assert.rejects(db.editLogin(dispatcherId, { displayName: "New", scope: { tier: "parent", scopeId: orgId, regionId: REGION_SOUTH } }), input(/whole company or one region/));
+  await assert.rejects(db.editLogin(dispatcherId, { displayName: "New", scope: { tier: "region", scopeId: UNASSIGNED_REGION_ID, regionId: UNASSIGNED_REGION_ID } }), input(/not available/));
+  await assert.rejects(db.editLogin(subId, { displayName: "S", scope: { tier: "parent", scopeId: REGION_SOUTH, regionId: REGION_SOUTH } }), input(/follows its company/));
+  await assert.rejects(db.editLogin(dispatcherId, { displayName: "New", crew: { id: crewId, homeRegionId: REGION_SOUTH } }), input(/Only a technician/));
+  assert.deepEqual({ d: await roles(dispatcherId), c: await roles(customerId), s: await roles(subId) }, before);
+});
+
 test("remove ends an open session over the wire", { skip }, async () => {
   const s = await as("customer", "S6");
   assert.deepEqual(await db.deactivate(customerId), { revokedSessions: 1 });

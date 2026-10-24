@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { verifyPassword } from "../../../apps/gateway/src/auth.ts";
 import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
-import { accessChanged, buildUserRow, checkPassword, LoginInputError } from "./rows.ts";
+import { accessChanged, buildUserRow, checkPassword, checkRoles, internalScope, LoginInputError } from "./rows.ts";
 import type { Access, NewLogin } from "./rows.ts";
 
 const R = "a0000000-0000-0000-0000-0000000000aa";
@@ -69,4 +69,21 @@ test("accessChanged", () => {
   assert.equal(accessChanged(a, { ...a, scopeId: NODE }), true);
   assert.equal(accessChanged(a, { ...a, orgId: NODE }), true);
   assert.equal(accessChanged(a, { ...a, crewId: CREW }), true);
+});
+
+test("checkRoles: each namespace holds only its own roles — what addLogin and editLogin both refuse", () => {
+  assert.doesNotThrow(() => checkRoles("internal", ["dispatcher", "foreman"]));
+  assert.throws(() => checkRoles("internal", []), /at least one role/);
+  assert.throws(() => checkRoles("internal", ["payer"]), /not a staff role/);
+  assert.doesNotThrow(() => checkRoles("customer", ["payer"]));
+  assert.throws(() => checkRoles("customer", ["principal"]), /only pay or request/);
+  assert.throws(() => checkRoles("customer", []), /tick at least one/);
+  assert.doesNotThrow(() => checkRoles("subcontractor", []));
+  assert.throws(() => checkRoles("subcontractor", ["dispatcher"]), /no roles/);
+  assert.throws(() => buildUserRow({ ...base, kind: "customer", orgId: ORG, tier: "parent", nodeId: ORG, regionId: R, roles: ["principal" as never] }), LoginInputError);
+});
+
+test("internalScope: org-wide is the internal org; a region scope is the region itself", () => {
+  assert.deepEqual(internalScope("org", R), { scope_tier: "parent", scope_id: INTERNAL_ORG_ID });
+  assert.deepEqual(internalScope("region", R), { scope_tier: "region", scope_id: R });
 });

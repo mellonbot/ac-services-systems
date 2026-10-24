@@ -4,8 +4,8 @@ import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import type { CustomerSegment } from "../../../packages/contracts/src/operations.ts";
 import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
 import type { UserRecord } from "./kinds.ts";
-import { buildUserRow, checkPassword, accessChanged, LoginInputError } from "./rows.ts";
-import type { NewLogin, Access } from "./rows.ts";
+import { buildUserRow, checkPassword, checkRoles, internalScope, accessChanged, LoginInputError } from "./rows.ts";
+import type { NewLogin, Access, UsersRow } from "./rows.ts";
 import { hashPassword } from "../../../apps/gateway/src/auth.ts";
 import { summarizeDocuments } from "../../../apps/gateway/src/handlers/network.ts";
 import type { CredentialWire } from "../../../packages/contracts/src/operations.ts";
@@ -369,9 +369,20 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       }
       return (edit.crew ? writeAsOffice : write)(async (q) => {
         if (edit.crew) await requireActiveCompany(q, edit.crew.id);
-        const [cur] = await q<{ roles: Role[]; region_id: string; scope_tier: Tier; scope_id: string; org_id: string; crew_id: string | null }>(
-          `SELECT roles, region_id, scope_tier, scope_id, org_id, crew_id FROM users WHERE id = $1 FOR UPDATE`, [userId]);
+        const [cur] = await q<{ namespace: UsersRow["namespace"]; roles: Role[]; region_id: string; scope_tier: Tier; scope_id: string; org_id: string; crew_id: string | null }>(
+          `SELECT namespace, roles, region_id, scope_tier, scope_id, org_id, crew_id FROM users WHERE id = $1 FOR UPDATE`, [userId]);
         if (!cur) throw new LoginInputError(GONE);
+        // The same checks addLogin makes: the window's edit is input, not a trusted row.
+        if (edit.roles) checkRoles(cur.namespace, edit.roles);
+        if (edit.crew && cur.crew_id === null) throw new LoginInputError("Only a technician belongs to a company.");
+        if (edit.scope) {
+          if (cur.namespace === "subcontractor" || cur.crew_id !== null) throw new LoginInputError("This login's scope follows its company — it cannot be set by hand.");
+          if (cur.namespace === "internal") {
+            const want = edit.scope.tier === "parent" || edit.scope.tier === "region" ? internalScope(edit.scope.tier === "parent" ? "org" : "region", edit.scope.regionId) : null;
+            if (!want || want.scope_tier !== edit.scope.tier || want.scope_id !== edit.scope.scopeId) throw new LoginInputError("A staff login sees the whole company or one region.");
+          }
+          await requireRegion(q, edit.scope.regionId);
+        }
         const before: Access = { roles: cur.roles, regionId: cur.region_id, scopeTier: cur.scope_tier, scopeId: cur.scope_id, orgId: cur.org_id, crewId: cur.crew_id };
         let after: Access = { ...before, roles: edit.roles ?? before.roles };
         if (edit.scope) after = { ...after, scopeTier: edit.scope.tier, scopeId: edit.scope.scopeId, regionId: edit.scope.regionId };
