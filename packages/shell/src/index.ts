@@ -74,6 +74,8 @@ export type Shell = {
   isDegraded(): boolean;
   /** Domain events for this surface, deduplicated on eventId. Returns unsubscribe. */
   subscribe(handler: (e: EventEnvelope) => void, opts?: SubscribeOptions): () => void;
+  /** Close every stream this shell opened. A shell whose session is over must not keep reconnecting on it. */
+  close(): void;
   /** The typed refusal behind a rejected gateway call, or null if the error is not one. */
   refusalOf(e: unknown): Refusal | null;
 };
@@ -112,6 +114,13 @@ export const createShell = (config: ShellConfig): Shell => {
   const state: DegradedState = { degraded: false };
   const transport = guardedTransport(config.transport ?? unconnectedTransport(), state);
   const gateway = createGatewayClient(transport);
+
+  // Every open subscription's unsubscribe. A surface that signs out and in
+  // again builds a new shell; the old one's streams would otherwise keep
+  // reconnecting on a revoked session, one connection each against the
+  // browser's per-origin limit, until the page could open no request at all.
+  const streams = new Set<() => void>();
+  const close = () => { for (const unsubscribe of [...streams]) unsubscribe(); };
 
   const RECONNECT_MIN_MS = 1000;
   const RECONNECT_MAX_MS = 30_000;
@@ -158,7 +167,11 @@ export const createShell = (config: ShellConfig): Shell => {
     };
     open();
     const page = pageOf(config.page ?? globalThis);
-    if (!page) return halt;
+    if (!page) {
+      const unsubscribe = () => { streams.delete(unsubscribe); if (live) halt(); };
+      streams.add(unsubscribe);
+      return unsubscribe;
+    }
 
     // A STREAM BELONGS TO A PAGE THAT IS SHOWING. A browser keeps the last few
     // pages alive in its back/forward cache, and a page kept alive keeps its
@@ -173,11 +186,14 @@ export const createShell = (config: ShellConfig): Shell => {
     const onShow = (ev: { persisted?: boolean }) => { if (live || !ev.persisted) return; live = true; delay = RECONNECT_MIN_MS; open(); };
     page.addEventListener("pagehide", onHide);
     page.addEventListener("pageshow", onShow);
-    return () => {
+    const unsubscribe = () => {
+      streams.delete(unsubscribe);
       page.removeEventListener("pagehide", onHide);
       page.removeEventListener("pageshow", onShow);
       if (live) halt();
     };
+    streams.add(unsubscribe);
+    return unsubscribe;
   };
 
   return Object.freeze(Object.assign(
@@ -191,6 +207,7 @@ export const createShell = (config: ShellConfig): Shell => {
       gateway,
       isDegraded: () => state.degraded,
       subscribe,
+      close,
       refusalOf: (e: unknown) => (e instanceof GatewayRefusal ? e.refusal : null),
     },
     { [DEGRADED]: state },
@@ -268,7 +285,7 @@ export const connectShell = async (cfg: ConnectConfig): Promise<ConnectedShell> 
   const context = await bootstrap.me();
   const shell = createShell({ surfaceId: cfg.surfaceId, principal: context.principal, transport: raw, context });
   const logout = async () => {
-    try { await shell.gateway.logout(); } finally { token = null; }
+    try { await shell.gateway.logout(); } finally { shell.close(); token = null; }
   };
   // Spread copies own enumerable symbol keys too, so the DEGRADED handle travels with it.
   return Object.freeze({ ...shell, token: () => token, deviceCrew, logout });

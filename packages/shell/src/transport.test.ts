@@ -298,3 +298,28 @@ test("a stream that ends is reopened with backoff, keeps its dedupe set, and a h
   t.mock.timers.tick(60_000);
   assert.equal(opens.length, 2, "a stream the surface stopped is not reopened");
 });
+
+test("close() ends every stream the shell opened, and logout closes them — a signed-out shell does not keep reconnecting", async () => {
+  let closed = 0;
+  const inner: Transport = { request: async () => ({}), stream: () => () => { closed++; } };
+  const shell = createShell({ surfaceId: "S3", principal: dispatcher, transport: inner });
+  shell.subscribe(() => {});
+  const stop = shell.subscribe(() => {});
+  shell.subscribe(() => {});
+  stop();
+  assert.equal(closed, 1);
+  shell.close();
+  assert.equal(closed, 3, "the two still open are closed; the one already stopped is not closed twice");
+  shell.close();
+  assert.equal(closed, 3);
+
+  // Over the wire: the fake gateway has no /events, so a live subscription
+  // retries within a second. After logout, nothing retries.
+  const gw = fakeGateway();
+  const connected = await connectShell({ surfaceId: "S3", baseUrl: "https://gw.test", fetch: gw.fetch, credentials: { email: "d@ac", password: "pw" } });
+  connected.subscribe(() => {});
+  await new Promise((r) => setTimeout(r, 20));
+  await connected.logout().catch(() => {});
+  await new Promise((r) => setTimeout(r, 1200));
+  assert.equal(gw.calls.filter((c) => new URL(c.url).pathname === "/events").length, 1, "the stream did not reopen after sign-out");
+});
