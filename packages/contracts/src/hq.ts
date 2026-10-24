@@ -43,7 +43,7 @@ export type HqMetric = {
 export const HQ_METRICS = {
   // ---- service & SLA ----
   jobs_opened_30d: { area: "service", label: "Jobs opened", unit: "count", window: "30d", means: "Jobs opened in the thirty days, any state." },
-  jobs_completed_30d: { area: "service", label: "Jobs completed", unit: "count", window: "30d", means: "Jobs that reached complete or invoiced, opened in the thirty days." },
+  jobs_completed_30d: { area: "service", label: "Jobs completed", unit: "count", window: "30d", means: "Jobs whose work is done, counted on the day they reached complete — in the thirty days, whenever they were opened." },
   jobs_open_now: { area: "service", label: "Open jobs", unit: "count", window: "now", means: "Jobs not yet complete, invoiced, cancelled or aborted." },
   jobs_unassigned_now: { area: "service", label: "Unassigned", unit: "count", window: "now", means: "Open jobs with no crew holding them." },
   jobs_at_risk_now: { area: "service", label: "At risk", unit: "count", window: "now", means: "Open response clocks that have escalated or fall due within the hour." },
