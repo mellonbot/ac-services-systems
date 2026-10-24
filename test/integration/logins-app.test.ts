@@ -237,7 +237,7 @@ test("a write to a login that does not exist says so", { skip }, async () => {
 });
 
 const INTERNAL = "00000000-0000-0000-0000-000000000003";
-const crewRows = (id: string) => admin(`SELECT org_id, region_id, home_region_id, label, employment_type, firm_id, active FROM crews WHERE id = $1`, [id]);
+const crewRows = (id: string) => admin(`SELECT org_id, region_id, home_region_id, label, employment_type, firm_id, active, kind FROM crews WHERE id = $1`, [id]);
 const tech = (who: string, company: string, home = REGION_SOUTH) =>
   db.addLogin({ kind: "technician", email: email(who), displayName: who, password: PASSWORD, crewId: company, crewHomeRegionId: home });
 const refusedWith = (re: RegExp) => (e: unknown) => e instanceof LoginInputError && re.test(e.message);
@@ -246,12 +246,30 @@ const newFirm = (name: string) => ({ legalName: name, regionId: REGION_SOUTH, pa
 test("addCompany ours, then a technician under it", { skip }, async () => {
   const made = await db.addCompany({ type: "ours", name: `Ours ${RUN}`, regionId: REGION_SOUTH });
   assert.equal(made.firmId, null);
-  assert.deepEqual((await crewRows(made.id))[0], { org_id: INTERNAL, region_id: REGION_SOUTH, home_region_id: REGION_SOUTH, label: `Ours ${RUN}`, employment_type: "employed", firm_id: null, active: true });
+  assert.deepEqual((await crewRows(made.id))[0], { org_id: INTERNAL, region_id: REGION_SOUTH, home_region_id: REGION_SOUTH, label: `Ours ${RUN}`, employment_type: "employed", firm_id: null, active: true, kind: "service" });
   const listed = (await db.listCrews()).find((c) => c.id === made.id);
   assert.equal(listed?.employmentType, "employed");
   assert.equal(listed?.firmName, null);
   const t = await tech("ours-tech", made.id);
   assert.equal((await admin(`SELECT crew_id FROM users WHERE id = $1`, [t.id]))[0].crew_id, made.id);
+});
+
+test("0024: addCompany makes an install crew, listed as one, and no technician login may stand on it", { skip }, async () => {
+  const made = await db.addCompany({ type: "ours", name: `Install ${RUN}`, regionId: REGION_SOUTH, kind: "install" });
+  assert.equal((await crewRows(made.id))[0].kind, "install");
+  assert.equal((await db.listCrews()).find((c) => c.id === made.id)?.kind, "install");
+  assert.equal((await db.listCompanies({ includeInactive: false })).find((c) => c.id === made.id)?.kind, "install");
+  await assert.rejects(tech("install-tech", made.id), refusedWith(/is an install crew — a technician is never on an install crew/));
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM users WHERE email = $1`, [email("install-tech")]))[0].n, 0);
+  // Nor moved onto one by Edit, and the refused edit writes nothing.
+  const ours = await db.addCompany({ type: "ours", name: `Service ${RUN}`, regionId: REGION_SOUTH });
+  const t = await tech("service-tech", ours.id);
+  await assert.rejects(db.editLogin(t.id, { displayName: "service-tech", crew: { id: made.id, homeRegionId: REGION_SOUTH } }), refusedWith(/install crew/));
+  assert.equal((await admin(`SELECT crew_id FROM users WHERE id = $1`, [t.id]))[0].crew_id, ours.id);
+  // A contractor's install crew under a new firm.
+  const sub = await db.addCompany({ type: "contractor", name: `Sub Install ${RUN}`, kind: "install", firm: newFirm(`Sub Install Firm ${RUN}`) });
+  assert.equal((await crewRows(sub.id))[0].kind, "install");
+  await assert.rejects(db.addCompany({ type: "ours", name: `Bad Kind ${RUN}`, regionId: REGION_SOUTH, kind: "commissioning" as never }), refusedWith(/service unit or an install crew/));
 });
 
 test("addCompany refuses a region that is not available", { skip }, async () => {
@@ -268,7 +286,7 @@ test("addCompany contractor with a new firm", { skip }, async () => {
   assert.deepEqual((await admin(`SELECT name, kind FROM organizations WHERE id = $1`, [contractorFirmId]))[0], { name: `Contractor Firm ${RUN} LLC`, kind: "subcontractor" });
   const f = (await admin(`SELECT org_id, region_id, legal_name, status, settlement_terms_days, to_char(msa_signed_at,'YYYY-MM-DD') AS msa, diagnostic_data_rights_reserved FROM subcontractor_firms WHERE id = $1`, [contractorFirmId]))[0];
   assert.deepEqual(f, { org_id: contractorFirmId, region_id: REGION_SOUTH, legal_name: `Contractor Firm ${RUN} LLC`, status: "onboarding", settlement_terms_days: 30, msa: "2026-03-01", diagnostic_data_rights_reserved: false });
-  assert.deepEqual((await crewRows(contractorId))[0], { org_id: contractorFirmId, region_id: REGION_SOUTH, home_region_id: REGION_SOUTH, label: `Contractor ${RUN}`, employment_type: "subcontracted", firm_id: contractorFirmId, active: true });
+  assert.deepEqual((await crewRows(contractorId))[0], { org_id: contractorFirmId, region_id: REGION_SOUTH, home_region_id: REGION_SOUTH, label: `Contractor ${RUN}`, employment_type: "subcontracted", firm_id: contractorFirmId, active: true, kind: "service" });
   const row = (await db.listCompanies({ includeInactive: false })).find((c) => c.id === contractorId)!;
   assert.equal(row.firmName, `Contractor Firm ${RUN} LLC`);
   assert.equal(row.firmStatus, "onboarding");

@@ -91,6 +91,7 @@ const renderSegment = (): void => {
 
 const roles = (u: UserRecord): string => u.roles.join(", ") || "—";
 const companyType = (t: Crew["employmentType"]): string => (t === "employed" ? "Ours" : "Contractor");
+const KIND_WORD: Record<Crew["kind"], string> = { service: "Service", install: "Install crew" };
 const COLUMNS: Record<KindId, readonly [string, (u: UserRecord) => string][]> = {
   S2: [["Roles", roles], ["Scope", (u) => (u.scopeTier === "parent" ? "org-wide" : u.regionCode)]],
   S3: [["Roles", roles], ["Scope", (u) => (u.scopeTier === "parent" ? "org-wide" : u.regionCode)]],
@@ -104,6 +105,7 @@ const COLUMNS: Record<KindId, readonly [string, (u: UserRecord) => string][]> = 
 
 const COMPANY_COLUMNS: readonly [string, (c: Company) => string, string?][] = [
   ["Type", (c) => companyType(c.employmentType)],
+  ["Kind", (c) => KIND_WORD[c.kind]],
   ["Firm", (c) => c.firmName ?? ""],
   ["Region", (c) => c.regionCode],
   ["Technicians", (c) => String(c.technicians), "num"],
@@ -301,11 +303,11 @@ const indented = (nodes: readonly AccountNode[]): [string, string][] => {
 
 const COMPANY_FIELD = "Company (HVAC license)";
 
-/** Every active company, grouped Ours / Contractors. */
+/** Every active service company, grouped Ours / Contractors — a technician is never on an install crew (0024). */
 const companyPicker = (crews: readonly Crew[]): HTMLSelectElement => h("select", { name: "crewId", required: true },
   h("option", { value: "" }, "Choose…"),
   ...([["Ours", "employed"], ["Contractors", "subcontracted"]] as const).map(([label, type]) => {
-    const xs = crews.filter((c) => c.employmentType === type);
+    const xs = crews.filter((c) => c.employmentType === type && c.kind === "service");
     return xs.length > 0 && h("optgroup", { label }, ...xs.map((c) => h("option", { value: c.id }, type === "employed" ? c.label : `${c.label} — ${c.firmName ?? ""}`)));
   }));
 
@@ -325,6 +327,7 @@ const companyForm = async (db: DbName): Promise<void> => {
   const regionOptions = regions.map((r): [string, string] => [r.id, `${r.code} — ${r.name}`]);
 
   const type = radios("type", "Type", [["ours", "Ours"], ["contractor", "Contractor"]], "ours");
+  const kind = radios("kind", "Kind", [["service", "Service — technicians"], ["install", "Install crew — installers"]], "service");
   const ours = branch(field("Name", input("name")), field("Region", select("regionId", regionOptions)));
 
   const firmMode = radios("firmMode", "Firm", [["new", "New firm"], ["existing", "Existing firm"]], "new");
@@ -361,15 +364,16 @@ const companyForm = async (db: DbName): Promise<void> => {
   firmMode.addEventListener("change", sync);
   sync();
 
-  openForm("Add company", [type, ours, contractor], async (f) => {
+  openForm("Add company", [type, kind, ours, contractor], async (f) => {
     let n: NewCompany;
+    const k = str(f, "kind") as Crew["kind"];
     if (str(f, "type") === "ours") {
-      n = { type: "ours", name: str(f, "name"), regionId: str(f, "regionId") };
+      n = { type: "ours", name: str(f, "name"), regionId: str(f, "regionId"), kind: k };
     } else if (str(f, "firmMode") === "existing") {
-      n = { type: "contractor", name: str(f, "companyName"), firm: { existing: str(f, "firmId") } };
+      n = { type: "contractor", name: str(f, "companyName"), kind: k, firm: { existing: str(f, "firmId") } };
     } else {
       if (!f.has("dataRights")) throw new Error(DATA_RIGHTS_UNCHOSEN);
-      n = { type: "contractor", name: str(f, "companyName"), firm: {
+      n = { type: "contractor", name: str(f, "companyName"), kind: k, firm: {
         legalName: str(f, "legalName"), regionId: str(f, "firmRegionId"), paymentTermsDays: Number(str(f, "paymentTermsDays")),
         dataRightsReserved: str(f, "dataRights") === "yes", msaSignedAt: str(f, "msaSignedAt") || null,
       } };
@@ -443,7 +447,7 @@ const addForm = async (): Promise<void> => {
         const crews = await api.listCrews(db);
         if (stale(db)) return;
         const picker = companyPicker(crews);
-        picker.value = crews.find((c) => c.employmentType === "employed" && sameName(c.label, DEFAULT_COMPANY_NAME))?.id ?? "";
+        picker.value = crews.find((c) => c.employmentType === "employed" && c.kind === "service" && sameName(c.label, DEFAULT_COMPANY_NAME))?.id ?? "";
         openForm("Add Technician login", [...head, field(COMPANY_FIELD, picker), ...passwordFields()],
           async (f) => {
             const crew = crews.find((c) => c.id === str(f, "crewId"))!;
@@ -528,7 +532,7 @@ const editForm = async (u: UserRecord): Promise<void> => {
     if (u.namespace === "internal" && u.crewId !== null) {
       const crews = await api.listCrews(db);
       const crew = companyPicker(crews);
-      keepOption(crew, u.crewId, `${u.crewLabel ?? u.crewId} (removed)`);
+      keepOption(crew, u.crewId, `${u.crewLabel ?? u.crewId} (${crews.some((c) => c.id === u.crewId) ? "install crew" : "removed"})`);
       body.push(roleBoxes(u.roles), field(COMPANY_FIELD, crew));
       // `crew` is sent only when the picker moved: an unchanged company may have been removed, and naming it would refuse the edit.
       build = (f) => {

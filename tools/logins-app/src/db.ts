@@ -1,7 +1,7 @@
 import { createPool, beginTx, bindSystem, type Pool } from "../../../apps/gateway/src/pg-tx.ts";
 import type { ScopeBinding, Role } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
-import type { CustomerSegment } from "../../../packages/contracts/src/operations.ts";
+import type { CustomerSegment, CrewKind } from "../../../packages/contracts/src/operations.ts";
 import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
 import type { UserRecord } from "./kinds.ts";
 import { buildUserRow, checkPassword, checkRoles, internalScope, accessChanged, LoginInputError } from "./rows.ts";
@@ -11,7 +11,7 @@ import { summarizeDocuments } from "../../../apps/gateway/src/handlers/network.t
 import type { CredentialWire } from "../../../packages/contracts/src/operations.ts";
 import { randomUUID } from "node:crypto";
 import { isTopic, type Topic } from "../../../packages/contracts/src/events.ts";
-import { buildCrewRow, buildFirmRows, documentsLabel, normaliseName } from "./companies.ts";
+import { buildCrewRow, buildFirmRows, crewKind, documentsLabel, normaliseName } from "./companies.ts";
 import type { NewCompany } from "./companies.ts";
 
 /**
@@ -31,7 +31,7 @@ export const INTERNAL_READ_BINDING: Readonly<Record<string, string>> = {
 export class LoginsDbError extends Error {}
 
 export type Region = { id: string; code: string; name: string };
-export type Crew = { id: string; label: string; homeRegionId: string; employmentType: "employed" | "subcontracted"; firmName: string | null };
+export type Crew = { id: string; label: string; homeRegionId: string; employmentType: "employed" | "subcontracted"; kind: CrewKind; firmName: string | null };
 export type Firm = { id: string; legalName: string; regionId: string; status: "onboarding" | "active" | "suspended" | "terminated" };
 export type Company = Crew & { regionCode: string; active: boolean; firmId: string | null; firmStatus: Firm["status"] | null; technicians: number; documents: string };
 export type CustomerOrg = { id: string; name: string; segment: CustomerSegment };
@@ -88,6 +88,7 @@ const GONE = "That login no longer exists";
 const COMPANY_GONE = "That company no longer exists";
 const NO_REGION = "That region is not available";
 const removedMessage = (label: string): string => `${label} has been removed — choose another company`;
+const installMessage = (label: string): string => `${label} is an install crew — a technician is never on an install crew; choose a service company`;
 const terminatedMessage = (legalName: string): string => `${legalName} is terminated — it can't take a new company`;
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 const NOT_THIS_CUSTOMER = "That site or location doesn't belong to the chosen customer";
@@ -173,11 +174,12 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
     }
   });
 
-  /** A technician may only stand under an active company; the share lock keeps removeCompany from slipping in before the users write commits. */
+  /** A technician may only stand under an active service company (0024); the share lock keeps removeCompany from slipping in before the users write commits. */
   const requireActiveCompany = async (q: Q, crewId: string): Promise<void> => {
-    const [c] = await q<{ label: string; active: boolean }>(`SELECT label, active FROM crews WHERE id = $1 FOR SHARE`, [crewId]);
+    const [c] = await q<{ label: string; active: boolean; kind: CrewKind }>(`SELECT label, active, kind FROM crews WHERE id = $1 FOR SHARE`, [crewId]);
     if (!c) throw new LoginInputError(COMPANY_GONE);
     if (!c.active) throw new LoginInputError(removedMessage(c.label));
+    if (c.kind === "install") throw new LoginInputError(installMessage(c.label));
   };
 
   const requireRegion = async (q: Q, regionId: string): Promise<void> => {
@@ -218,11 +220,11 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
 
     listRegions: () => read<Region>(`SELECT id, code, name FROM regions WHERE active AND id <> $1 ORDER BY code`, [UNASSIGNED_REGION_ID]),
 
-    listCrews: async () => (await read<{ id: string; label: string; home_region_id: string; employment_type: Crew["employmentType"]; firm_name: string | null }>(
-      `SELECT c.id, c.label, c.home_region_id, c.employment_type, f.legal_name AS firm_name
+    listCrews: async () => (await read<{ id: string; label: string; home_region_id: string; employment_type: Crew["employmentType"]; kind: CrewKind; firm_name: string | null }>(
+      `SELECT c.id, c.label, c.home_region_id, c.employment_type, c.kind, f.legal_name AS firm_name
          FROM crews c LEFT JOIN subcontractor_firms f ON f.id = c.firm_id
         WHERE c.active ORDER BY c.employment_type, c.label`))
-      .map((c) => ({ id: c.id, label: c.label, homeRegionId: c.home_region_id, employmentType: c.employment_type, firmName: c.firm_name })),
+      .map((c) => ({ id: c.id, label: c.label, homeRegionId: c.home_region_id, employmentType: c.employment_type, kind: c.kind, firmName: c.firm_name })),
 
     listFirms: async () => (await read<{ id: string; legal_name: string; region_id: string; status: Firm["status"] }>(
       `SELECT id, legal_name, region_id, status FROM subcontractor_firms WHERE status <> 'terminated' ORDER BY legal_name`))
@@ -230,10 +232,10 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
 
     listCompanies: async ({ includeInactive }) => {
       const crews = await read<{
-        id: string; label: string; home_region_id: string; region_code: string; employment_type: Crew["employmentType"]; active: boolean;
+        id: string; label: string; home_region_id: string; region_code: string; employment_type: Crew["employmentType"]; kind: CrewKind; active: boolean;
         firm_id: string | null; firm_name: string | null; firm_status: Firm["status"] | null; technicians: number;
       }>(
-        `SELECT c.id, c.label, c.home_region_id, r.code AS region_code, c.employment_type, c.active,
+        `SELECT c.id, c.label, c.home_region_id, r.code AS region_code, c.employment_type, c.kind, c.active,
                 c.firm_id, f.legal_name AS firm_name, f.status AS firm_status,
                 (SELECT count(*)::int FROM users u WHERE u.crew_id = c.id AND u.active) AS technicians
            FROM crews c
@@ -252,7 +254,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       }
       const today = new Date().toISOString().slice(0, 10);
       return crews.map((c) => ({
-        id: c.id, label: c.label, homeRegionId: c.home_region_id, employmentType: c.employment_type, firmName: c.firm_name,
+        id: c.id, label: c.label, homeRegionId: c.home_region_id, employmentType: c.employment_type, kind: c.kind, firmName: c.firm_name,
         regionCode: c.region_code, active: c.active, firmId: c.firm_id, firmStatus: c.firm_status, technicians: c.technicians,
         documents: documentsLabel(summarizeDocuments(c.employment_type, byCrew.get(c.id) ?? [], today)),
       }));
@@ -264,6 +266,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       const firmRows = newFirm ? buildFirmRows(randomUUID(), newFirm) : null;
       const name = normaliseName(n.name);
       if (name === "") throw new LoginInputError("The name cannot be empty.");
+      crewKind(n.kind);
       return writeAsOffice(async (q) => {
         // The duplicate checks below read, then insert. Two saves at once (a
         // double-click, two operators) would both read nothing; company
@@ -272,20 +275,20 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
         let crew;
         if (n.type === "ours") {
           await requireRegion(q, n.regionId);
-          crew = buildCrewRow(name, n);
+          crew = buildCrewRow(name, n, n.kind);
         } else if (firmRows) {
           await requireRegion(q, firmRows.firm.region_id);
           if ((await q(`SELECT 1 FROM subcontractor_firms WHERE ${NORMALISED("legal_name")} = lower($1)`, [firmRows.firm.legal_name])).length > 0) {
             throw new LoginInputError(`A firm named ${firmRows.firm.legal_name} already exists`);
           }
-          crew = buildCrewRow(name, { type: "contractor", firmId: firmRows.firm.id, firmOrgId: firmRows.firm.id, firmRegionId: firmRows.firm.region_id });
+          crew = buildCrewRow(name, { type: "contractor", firmId: firmRows.firm.id, firmOrgId: firmRows.firm.id, firmRegionId: firmRows.firm.region_id }, n.kind);
         } else {
           const existing = (n.firm as { existing: string }).existing;
           const [f] = await q<{ id: string; org_id: string; region_id: string; status: Firm["status"]; legal_name: string }>(
             `SELECT id, org_id, region_id, status, legal_name FROM subcontractor_firms WHERE id = $1 FOR SHARE`, [existing]);
           if (!f) throw new LoginInputError("That firm no longer exists");
           if (f.status === "terminated") throw new LoginInputError(terminatedMessage(f.legal_name));
-          crew = buildCrewRow(name, { type: "contractor", firmId: f.id, firmOrgId: f.org_id, firmRegionId: f.region_id });
+          crew = buildCrewRow(name, { type: "contractor", firmId: f.id, firmOrgId: f.org_id, firmRegionId: f.region_id }, n.kind);
         }
         if ((await q(`SELECT 1 FROM crews WHERE active AND ${NORMALISED("label")} = lower($1)`, [crew.label])).length > 0) {
           throw new LoginInputError(`A company named ${crew.label} already exists`);
@@ -300,8 +303,8 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
           await emit(q, { topic: "firm.created", action: "firm.create", entity: "firm", entityId: f.id, orgId: f.id, regionId: f.region_id, after: { legalName: f.legal_name, status: "onboarding" } });
         }
         const [made] = await q<{ id: string }>(
-          `INSERT INTO crews (org_id, region_id, label, employment_type, firm_id, home_region_id, active) VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING id`,
-          [crew.org_id, crew.region_id, crew.label, crew.employment_type, crew.firm_id, crew.home_region_id]);
+          `INSERT INTO crews (org_id, region_id, label, employment_type, firm_id, home_region_id, active, kind) VALUES ($1, $2, $3, $4, $5, $6, true, $7) RETURNING id`,
+          [crew.org_id, crew.region_id, crew.label, crew.employment_type, crew.firm_id, crew.home_region_id, crew.kind]);
         await crewChanged(q, made!.id, "crew.created", "crew.create");
         return { id: made!.id, firmId: crew.firm_id };
       });
