@@ -18,14 +18,22 @@ import { fileURLToPath } from "node:url";
 /** A commit, as much of one as this file needs. `parents` is how a merge is spotted. */
 export type PrCommit = { readonly subject: string; readonly body: string; readonly parents: number };
 
-const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-
 /**
- * GitHub's fallback title is the branch with its separators spelled as spaces:
- * `claude/site-design-branding-rksmnj` → "Claude/site design branding rksmnj".
- * Compared on alphanumerics only, so the punctuation it picks does not matter.
+ * GitHub's fallback title is the branch with `-` and `_` spelled as spaces and
+ * its first letter capitalised: `claude/site-design-branding-rksmnj` →
+ * "Claude/site design branding rksmnj". Exactly that, or the branch name as it
+ * stands — compared as written, because a title whose case or punctuation
+ * differs ("Fix Login Redirect", "Fix login redirect.") was typed by a person.
  */
-export const isBranchDerived = (title: string, branch: string): boolean => norm(title) === norm(branch);
+export const branchTitle = (branch: string): string => {
+  const spaced = branch.replace(/[-_]/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+};
+
+export const isBranchDerived = (title: string, branch: string): boolean => {
+  const t = title.trim();
+  return t === branchTitle(branch) || t === branch;
+};
 
 /**
  * GitHub cuts a commit subject at 72 chars and marks the cut — AND starts the
@@ -35,9 +43,14 @@ export const isBranchDerived = (title: string, branch: string): boolean => norm(
 export const isTruncated = (title: string, body: string): boolean =>
   /(?:…|\.\.\.)\s*$/.test(title) && /^\s*(?:…|\.\.\.)\s*\S/.test(body);
 
-/** Only these three. A title a person typed is never touched. */
-export const needsTitle = (title: string, branch: string, body = ""): boolean =>
-  title.trim() === "" || isBranchDerived(title, branch) || isTruncated(title, body);
+/**
+ * Only these three. A title a person typed is never touched. GitHub falls back
+ * to the branch only for a PR of more than one commit — with one, it uses that
+ * commit's subject — so on a one-commit PR a title that reads like the branch
+ * was typed by someone (`commitCount`, when known).
+ */
+export const needsTitle = (title: string, branch: string, body = "", commitCount?: number): boolean =>
+  title.trim() === "" || (isBranchDerived(title, branch) && (commitCount === undefined || commitCount > 1)) || isTruncated(title, body);
 
 /**
  * The headline is the first non-merge commit: the one GitHub would have used
@@ -80,7 +93,7 @@ export const retitle = (
   pr: { readonly title: string; readonly body: string; readonly branch: string },
   commits: readonly PrCommit[],
 ): { readonly title?: string; readonly body?: string } => {
-  if (!needsTitle(pr.title, pr.branch, pr.body ?? "")) return {};
+  if (!needsTitle(pr.title, pr.branch, pr.body ?? "", commits.length)) return {};
   const title = titleFrom(commits);
   if (!title) return {};
   const patch: { title: string; body?: string } = { title };
