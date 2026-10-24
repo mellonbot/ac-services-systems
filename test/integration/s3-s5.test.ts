@@ -489,6 +489,17 @@ test("sync.replay after a release: a crew taken off a job cannot drive it — th
   await s5.logout();
 });
 
+test("a grant the office revokes ends the shift's token at once, not when the shift ends", { skip }, async () => {
+  const s5 = await technician();
+  await s5.gateway.myJobs();
+  await admin(`UPDATE device_grants SET revoked_at = now() WHERE id = $1`, [shiftId]);
+  try {
+    await assert.rejects(s5.gateway.myJobs(), (e: unknown) => { const r = refusal(s5, e); return r.kind === "token" && "code" in r && r.code === "revoked"; });
+  } finally {
+    await admin(`UPDATE device_grants SET revoked_at = NULL WHERE id = $1`, [shiftId]);
+  }
+});
+
 test("a revoked grant is a dead token: logout ends the session, and the next call is refused as revoked", { skip }, async () => {
   const s5 = await technician();
   const held = s5.token()!;
