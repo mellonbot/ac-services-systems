@@ -60,6 +60,7 @@ before(async () => {
   pool = createPool(URL_, "ac-hardening-test");
   await admin(`INSERT INTO regions (id, code, name) VALUES ($1,'SOUTH','South') ON CONFLICT (id) DO NOTHING`, [REGION_SOUTH]);
   await user(1, "lockout.h24@ac.test", ["finance"]);
+  await user(2, "csrf.h24@ac.test", ["finance"]);
   await spawnGateway(PORT, {});
   await spawnGateway(PORT + 1, { AC_BEHIND_CLOUDFLARE: "1" });
 });
@@ -119,4 +120,30 @@ test("the throttle is taken before the body is read: a spent address is a 429, h
   const ip = "203.0.113.77";
   for (let i = 0; i < 20; i++) await anonymous(EDGE, { "cf-connecting-ip": ip });
   assert.equal((await declare(EDGE, "/s1/leads", 14 * 1024 * 1024, { "cf-connecting-ip": ip })).status, 429);
+});
+
+const cookieOf = (setCookie: string | null) => (setCookie ?? "").split(";")[0]!;
+
+test("login CSRF: a body that is not said to be JSON is refused — a cross-site text/plain form cannot sign this browser into anyone's session", { skip }, async () => {
+  const body = JSON.stringify({ email: "csrf.h24@ac.test", password: PASSWORD, surface: "S2" });
+  for (const type of ["text/plain", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x", ""]) {
+    const r = await fetch(`${LAPTOP}/auth/login`, { method: "POST", headers: type ? { "content-type": type } : {}, body });
+    assert.equal(r.status, 415, type || "(none)");
+    assert.equal(r.headers.get("set-cookie"), null);
+  }
+  assert.equal((await fetch(`${LAPTOP}/auth/login`, { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body })).status, 200);
+});
+
+test("the anonymous mint does not replace a signed-in browser's live session; an anonymous or dead cookie is replaced as before", { skip }, async () => {
+  const at = (ip: string) => ({ "cf-connecting-ip": ip });
+  const login = await fetch(`${EDGE}/auth/login`, { method: "POST", headers: { "content-type": "application/json", ...at("203.0.113.89") }, body: JSON.stringify({ email: "csrf.h24@ac.test", password: PASSWORD, surface: "S2" }) });
+  const signedIn = cookieOf(login.headers.get("set-cookie"));
+  const over = await anonymous(EDGE, { ...at("203.0.113.89"), cookie: signedIn });
+  assert.equal(over.status, 403);
+  assert.equal(over.headers.get("set-cookie"), null);
+  assert.equal((await fetch(`${EDGE}/me`, { headers: { cookie: signedIn, "x-ac-surface": "S2" } })).status, 200, "still signed in");
+  const visitor = await anonymous(EDGE, at("203.0.113.90"));
+  assert.equal((await anonymous(EDGE, { ...at("203.0.113.90"), cookie: cookieOf(visitor.headers.get("set-cookie")) })).status, 200);
+  await fetch(`${EDGE}/auth/logout`, { method: "POST", headers: { cookie: signedIn, "x-ac-surface": "S2" } });
+  assert.equal((await anonymous(EDGE, { ...at("203.0.113.91"), cookie: signedIn })).status, 200, "a session that has ended is no session to keep");
 });

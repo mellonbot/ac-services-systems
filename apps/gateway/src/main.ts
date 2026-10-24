@@ -465,7 +465,26 @@ const deviceLogin = async (req: IncomingMessage, body: Partial<OperationIO["auth
  * `principal_kind = 'anonymous'` has been a legal value in `sessions` since
  * the bootstrap migration. This is the row that finally writes it.
  */
+/**
+ * A browser already signed in — to a portal, the console, a shift — keeps that
+ * session. The anonymous cookie would replace it (one cookie name, one site),
+ * signing the person out of everything for a visit to the marketing page. A
+ * cookie that is no longer good (expired, revoked, unverifiable) is replaced
+ * as before; so is an anonymous one.
+ */
+const refuseOverSignedInCookie = async (req: IncomingMessage): Promise<void> => {
+  const held = cookieToken(req.headers.cookie);
+  if (!held) return;
+  let principal: Principal;
+  try { principal = principalFromClaims(verifyToken(held, keys, Date.now())); } catch { return; }
+  if (principal.namespace === "anonymous") return;
+  const tx = await beginTx(pool, "ac_gateway");
+  try { await assertSessionLive(tx, principal); } catch (e) { if (e instanceof AuthError) return; throw e; } finally { await tx.rollback().catch(() => {}); }
+  throw new HttpError(403, "this browser is signed in — sign out first to send this as a visitor");
+};
+
 const anonymousSession = async (req: IncomingMessage, res: ServerResponse): Promise<OperationIO["auth.anonymousSession"]["output"]> => {
+  await refuseOverSignedInCookie(req);
   const claims: Omit<Claims, "iat" | "exp" | "sid"> = {
     sub: ANONYMOUS_ACTOR, ns: "anonymous", org: PROSPECT_ORG_ID, region: UNASSIGNED_REGION_ID,
     scope_tier: "parent", scope_id: PROSPECT_ORG_ID, roles: [],
@@ -800,7 +819,16 @@ const beforeBody: Partial<Record<OperationId, (req: IncomingMessage) => void>> =
 /** Read an operation's input from where the catalogue says it travels. */
 const inputOf = async (req: IncomingMessage, url: URL, opId: OperationId): Promise<unknown> => {
   switch (OPERATIONS[opId].carrier) {
-    case "body": return readJson(req, bodyLimitOf(opId));
+    case "body": {
+      // A cross-site <form> can POST text/plain or form-encoded to any of these
+      // with no preflight — enctype="text/plain" can even spell a JSON object —
+      // and sign the victim's browser into the sender's session. It cannot send
+      // application/json without a preflight, which CORS refuses for any origin
+      // not in the registry. So a body route takes JSON said as JSON, or nothing.
+      const type = String(req.headers["content-type"] ?? "").split(";")[0]!.trim().toLowerCase();
+      if (type !== "application/json") throw new HttpError(415, "the request body must be sent as content-type: application/json");
+      return readJson(req, bodyLimitOf(opId));
+    }
     case "query": return Object.fromEntries(url.searchParams.entries());
     case "none": return undefined;
   }
