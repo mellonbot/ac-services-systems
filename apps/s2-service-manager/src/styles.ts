@@ -47,6 +47,9 @@ export const S2_CSS = `
    above; the colour roles stay the neutral ones, because filing state is not
    operational health and must not borrow the status ramp. */
 .s2-state[data-tone="held"]{border-style:dotted;color:var(--color-text-muted)}
+/* 0030 — settled (an invoice paid in full): the plain solid mark in body ink.
+   Not ended's strike-through, which reads as cancelled; the word carries which. */
+.s2-state[data-tone="settled"]{color:var(--color-text)}
 .s2-terms{display:grid;grid-template-columns:auto 1fr;gap:var(--space-2) var(--space-4);margin:0;align-items:baseline}
 .s2-terms dt{color:var(--color-text-muted);font-size:var(--text-sm)}
 .s2-terms dd{margin:0}

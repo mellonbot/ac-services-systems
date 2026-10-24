@@ -348,6 +348,11 @@ const bill = (id: string, orgId: string, contractId: string, issuedDaysAgo: numb
     status: invoiceStatusOf({ issuedAt: "issued", voidedAt: null, totalMinor: total, paidMinor: String(paid) }), paidMinor: String(paid), voidedAt: null, voidReason: null,
     lines: ls, subtotalMinor: total };
 };
+// 0030: what was received against the demo's paid and part-paid invoices, as the office recorded it.
+const payments: W.PaymentWire[] = [];
+const received = (invoiceId: string, amountMinor: string, method: W.PaymentMethod, reference: string | null, daysAgo: number, returned?: { daysAgo: number; reason: string }) =>
+  payments.push({ id: uid("p"), invoiceId, amountMinor, currency: "USD", method, reference, state: returned ? "returned" : "succeeded",
+    receivedAt: at(-daysAgo * DAY), returnedAt: returned ? at(-returned.daysAgo * DAY) : null, returnReason: returned?.reason ?? null });
 invoices.push(
   bill("i0000000-0000-0000-0000-000000000002", AMPED, MSA, 6, 45, [[N.sanJose, "Enterprise SLA — San Jose, monthly", 1840000], [N.reno, "Enterprise SLA — Reno, monthly", 1215000], [N.sanJose, "Compressor replacement, RTU-North", 2960000]]),
   bill("i0000000-0000-0000-0000-000000000003", AMPED, MSA, 12, 45, [[N.boulder, "Enterprise SLA — Boulder, monthly", 1390000], [N.boulder, "PM visit x2, roof units", 780000]], 2170000),
@@ -355,6 +360,9 @@ invoices.push(
   bill("i0000000-0000-0000-0000-000000000005", CEDAR, CEDAR_MSA, 38, 30, [[S.cedarHouston, "Clinic HVAC program, monthly", 985000], [S.cedarHouston, "Emergency call-out, after hours", 312000]]),
   bill("i0000000-0000-0000-0000-000000000006", CEDAR, CEDAR_MSA, 8, 30, [[S.cedarHouston, "Clinic HVAC program, monthly", 985000]]),
 );
+received("i0000000-0000-0000-0000-000000000003", "2170000", "ach", "ACH 0091-2217", 2);
+received("i0000000-0000-0000-0000-000000000004", "2000000", "check", "CHK 10442", 4);
+received("i0000000-0000-0000-0000-000000000004", "650000", "check", "CHK 10418", 6, { daysAgo: 3, reason: "Returned unpaid — account closed" });
 
 const devices: W.DeviceWire[] = [
   { id: "v0000000-0000-0000-0000-000000000001", hardwareId: "RK-TAB-0042", kind: "web_fallback", firmId: null, active: true, orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH },
@@ -779,7 +787,10 @@ const H: Partial<Record<OperationId, Handler>> = {
     const up = ancestorsOf(i.accountId);
     return { contacts: contacts.filter((c) => up.has(c.accountId) && vis.has(c.accountId)) };
   },
+  "payments.list": (i: W.ListPaymentsInput) => ({ payments: payments.filter((x) => x.invoiceId === i.invoiceId) }),
   "invoices.list": (i: W.ListInvoicesInput, { p }) => {
+    // The office, asking for no node, reads every invoice — as the gateway's RLS lets it.
+    if (!i.siteId && !i.locationId && p.namespace === "internal") return { invoices };
     const node = i.siteId ?? i.locationId ?? "";
     if (!visibleAccounts(p).some((a) => a.id === node)) return { invoices: [] };
     const nodeAcc = accounts.find((a) => a.id === node)!;

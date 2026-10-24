@@ -37,6 +37,9 @@ export const SCREENS = {
   // item 11: purchasing — the office's side of procurement (S7 is the vendor's).
   "purchasing.vendor": { path: "/purchasing/vendors/:vendorId",          uses: ["vendors.list", "catalog.list", "catalog.addItem", "prices.decide", "receivingPoints.list", "pos.create"] },
   "purchasing.po":     { path: "/purchasing/pos/:poId",                  uses: ["pos.detail", "pos.issue", "pos.cancel", "receipts.record", "rmas.request"] },
+  // 0030: what was paid against each invoice. The invoice route before `billing`.
+  "billing.invoice":   { path: "/billing/invoices/:invoiceId",           uses: ["invoices.list", "payments.list", "organizations.list"] },
+  "billing":           { path: "/billing",                               uses: ["invoices.list", "organizations.list"], title: "Billing" },
   "purchasing":        { path: "/purchasing",                            uses: ["pos.list", "vendors.list", "vendors.create", "receivingPoints.list", "receivingPoints.create", "regions.list"], title: "Purchasing" },
 } as const satisfies Record<string, ScreenSpec>;
 
