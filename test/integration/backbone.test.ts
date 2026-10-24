@@ -474,6 +474,9 @@ test("sync: a device cannot touch a job its crew was never sent to, in its own r
       { mutationId: `x-${notOurs}`, deviceId: DEVICE, deviceSeq: 1, entityTable: "jobs", entityId: notOurs, op: "transition", payload: { state: "en_route" }, clientObservedVersion: 1, deviceAt: "2026-09-16T08:30:00Z" },
     ] }, NOW);
     assert.equal(out[0]!.outcome, "rejected");
+    assert.equal((await uow.tx.query(`SELECT 1 FROM jobs WHERE id = $1`, [notOurs])).length, 0, "0028: a device does not even see a job its crew was not sent to");
+  });
+  await withUow("S3", DISP_SOUTH, async (uow) => {
     assert.equal((await uow.tx.query<{ state: string }>(`SELECT state FROM jobs WHERE id = $1`, [notOurs]))[0]!.state, "created");
   });
 });

@@ -376,3 +376,21 @@ test("bearer is unchanged: a bearer request needs no x-ac-surface when the opera
   const r = await fetch(`${BASE}/me`, { headers: { authorization: `Bearer ${s3.token()}` } });
   assert.equal(r.status, 200);
 });
+
+test("a session is only as good as what it was minted from: a role change or a deactivation refuses the token now, not at its expiry", { skip }, async () => {
+  const revoked = (s: Awaited<ReturnType<typeof dispatcher>>) => (e: unknown) => { const r = s.refusalOf(e); return r?.kind === "token" && r.code === "revoked"; };
+  const s3 = await dispatcher();
+  await s3.gateway.me();
+  await admin(`UPDATE users SET roles = '["dispatcher","account_owner"]' WHERE id = $1`, [USER_DISP_SOUTH]);
+  await assert.rejects(s3.gateway.me(), revoked(s3), "roles changed under the token");
+  await admin(`UPDATE users SET roles = '["dispatcher"]' WHERE id = $1`, [USER_DISP_SOUTH]);
+
+  const again = await dispatcher();
+  await again.gateway.me();
+  await admin(`UPDATE users SET active = false WHERE id = $1`, [USER_DISP_SOUTH]);
+  try {
+    await assert.rejects(again.gateway.me(), revoked(again), "a deactivated user's token is dead at once");
+  } finally {
+    await admin(`UPDATE users SET active = true WHERE id = $1`, [USER_DISP_SOUTH]);
+  }
+});

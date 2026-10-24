@@ -91,6 +91,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           const refusal = refusalOf(p.queue.failure.value);
           if (refusal.kind === "token") {
             // The shift's token is over. The work is on this device; signing in again replays it.
+            // Its stream goes with it: the next sign-in opens its own.
+            p.shell.close();
             phase.value = { kind: "login", refusal: { ...refusal, message: `${refusal.message} — ${p.queue.pending.value.length} change(s) are saved on this device and will be sent after you sign in.` }, busy: false };
             router.navigate("login", {});
             return;

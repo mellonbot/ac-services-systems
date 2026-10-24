@@ -199,13 +199,33 @@ const callerOf = (req: IncomingMessage): Caller => {
  * A token is only valid while its session row is not revoked (schema: sessions).
  * Logout revokes; this is what makes logout mean something. One indexed read per
  * request, inside the request's own transaction.
+ *
+ * The session is also only as good as what it was minted FROM. A user who is
+ * deactivated, or whose roles or scope change, holds claims the database no
+ * longer agrees with; a device grant that is revoked, a device that is retired,
+ * or a technician who is deactivated ends the shift. Any of these refuses the
+ * token now, not at its expiry up to TOKEN_TTL later.
  */
 const assertSessionLive = async (tx: Tx, p: Principal): Promise<void> => {
   await bindSystem(tx);
-  const row = (await tx.query<{ revoked_at: string | null; expires_at: string }>("SELECT revoked_at, expires_at FROM sessions WHERE id = $1", [p.sessionId]))[0];
+  const row = (await tx.query<{ revoked_at: string | null; expires_at: string; standing: boolean | null }>(
+    `SELECT s.revoked_at, s.expires_at,
+            CASE s.principal_kind
+              WHEN 'user' THEN (SELECT u.active AND u.roles @> $2::jsonb AND $2::jsonb @> u.roles
+                                       AND u.scope_tier = $3 AND u.scope_id::text = $4 AND u.firm_id IS NOT DISTINCT FROM $5::uuid
+                                  FROM users u WHERE u.id = s.principal_id)
+              WHEN 'device_grant' THEN (SELECT g.revoked_at IS NULL AND d.active AND u.active
+                                          FROM device_grants g JOIN devices d ON d.id = g.device_id JOIN users u ON u.id = g.technician_id
+                                         WHERE g.id = s.principal_id)
+              ELSE true
+            END AS standing
+       FROM sessions s WHERE s.id = $1`,
+    [p.sessionId, JSON.stringify(p.roles), p.scopeTier, p.scopeId, p.firmId],
+  ))[0];
   if (!row) throw new AuthError(`session ${p.sessionId} is unknown to this gateway`, "revoked");
   if (row.revoked_at) throw new AuthError(`session was ended at ${new Date(row.revoked_at).toISOString()} — sign in again`, "revoked");
   if (new Date(row.expires_at).getTime() <= Date.now()) throw new AuthError("session has expired — sign in again", "revoked");
+  if (!row.standing) throw new AuthError("this sign-in's access has changed or ended — sign in again", "revoked");
 };
 
 /**

@@ -214,8 +214,17 @@ export const validateBrandTheme = (
           `themeable focus ring is an accessibility regression shipped under someone else's logo, and a themeable ` +
           `state ramp is an instrument a tenant re-keyed.`,
       });
+      continue;
+    }
+    // A value is a colour the gate can measure, and nothing else: it is written
+    // into a stylesheet verbatim, so anything wider is a way out of TENANT_SCOPE.
+    const value = overrides[token]!;
+    const transparentByDefault = SEMANTIC[token as SemanticToken] === "transparent";
+    if (!/^#[0-9a-fA-F]{6}$/.test(value) && !(transparentByDefault && value === "transparent")) {
+      rejections.push({ token, reason: `"${value}" is not #rrggbb — the gate measures a colour, and it cannot measure anything else.` });
     }
   }
+  if (rejections.length) return rejections;
 
   const merged = { ...SEMANTIC, ...overrides } as Record<SemanticToken, string>;
   const pairs: [SemanticToken, SemanticToken, number, string][] = [
@@ -236,7 +245,7 @@ export const validateBrandTheme = (
   for (const [fg, bg, min, label] of pairs) {
     if (merged[bg] === "transparent") continue;
     const ratio = contrastRatio(merged[fg]!, merged[bg]!);
-    if (ratio < min) {
+    if (!(ratio >= min)) {
       rejections.push({
         token: fg,
         reason: `${label} is ${ratio.toFixed(2)}:1 on the light stock, needs ${min.toFixed(1)}:1 (WCAG AA).`,

@@ -135,6 +135,10 @@ test("a brand stylesheet is validated before it is a string, and scoped to the s
   assert.equal(brandCss({ "color.action": "#1b56cc", "color.action-ink": "#FFFFFF" }),
     `${TENANT_SCOPE}{--color-action:#1b56cc;--color-action-ink:#FFFFFF}`);
   assert.throws(() => brandCss({ "color.action": "#7FD4FF" }), /the word on the action fill/);
+  // A value is written into the sheet verbatim: anything but #rrggbb is a way out of the tenant scope.
+  assert.throws(() => brandCss({ "color.border": "red}:root{--color-focus-ring:transparent" }), /not #rrggbb/);
+  assert.throws(() => brandCss({ "color.text": "#fff" }), /not #rrggbb/, "a short hex measured NaN and passed every pair");
+  assert.throws(() => brandCss({ "color.action-text": "url(https://x.test/b)" }), /not #rrggbb/);
   // The hole an unscoped :root{} block is: every pair in validateBrandTheme is
   // measured against the LIGHT stock, and the field frame is <html
   // data-density="field"> with frost for --color-text. A tenant ground admitted

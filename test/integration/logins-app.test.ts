@@ -115,6 +115,19 @@ test("the pickers see what the unbound role cannot", { skip }, async () => {
   assert.ok(!regions.some((r) => r.id === UNASSIGNED_REGION_ID));
 });
 
+test("0027: the role reads no password hash, session row, price or audit trail — from a laptop", { skip }, async () => {
+  for (const sql of [
+    "SELECT password_hash FROM users LIMIT 1",
+    "SELECT expires_at FROM sessions LIMIT 1",
+    "SELECT 1 FROM rate_cards LIMIT 1",
+    "SELECT 1 FROM settlements LIMIT 1",
+    "SELECT 1 FROM audit_log LIMIT 1",
+  ]) {
+    await assert.rejects(admin(`SET ROLE ac_logins; ${sql}`), /permission denied/, sql);
+    await admin("RESET ROLE");
+  }
+});
+
 test("add one of each kind, and each signs in where kindsOf says", { skip }, async () => {
   dispatcherId = (await db.addLogin({ kind: "internal", email: email("dispatcher"), displayName: "Dee Dispatcher", password: PASSWORD, roles: ["dispatcher"], scope: "region", regionId: REGION_SOUTH })).id;
   customerId = (await db.addLogin({ kind: "customer", email: email("customer"), displayName: "Cass Customer", password: PASSWORD, orgId, tier: "location", nodeId: locationId, regionId: REGION_SOUTH })).id;
@@ -291,8 +304,9 @@ test("removeCompany refuses live assignments", { skip }, async () => {
   try {
     await client.query(`SET session_replication_role = replica`); // the assignment gate trigger wants a real clearance; this test is about the count
     const job = (await client.query(`INSERT INTO jobs (org_id, region_id, site_id, service_code, service_window) VALUES ($1,$2,$3,'HVAC-REPAIR','[2030-01-01 09:00Z,2030-01-01 13:00Z)') RETURNING id`, [orgId, REGION_SOUTH, locationId])).rows[0].id;
-    const clearance = (await client.query(`INSERT INTO compliance_clearances (org_id, region_id, crew_id, service_window, credential_ids, evaluated_at, evaluated_by) VALUES ($1,$2,$3,'[2030-01-01 09:00Z,2030-01-01 13:00Z)','[]'::jsonb,now(),$4) RETURNING id`, [INTERNAL, REGION_SOUTH, c.id, dispatcherId])).rows[0].id;
-    await client.query(`INSERT INTO assignments (org_id, region_id, job_id, crew_id, clearance_id, assigned_by) VALUES ($1,$2,$3,$4,$5,$6)`, [INTERNAL, REGION_SOUTH, job, c.id, clearance, dispatcherId]);
+    const clearance = (await client.query(`INSERT INTO compliance_clearances (org_id, region_id, crew_id, service_window, credential_ids, evaluated_at, evaluated_by) VALUES ($1,$2,$3,'[2030-01-01 09:00Z,2030-01-01 13:00Z)','[]'::jsonb,now(),$4) RETURNING id`, [orgId, REGION_SOUTH, c.id, dispatcherId])).rows[0].id;
+    // The job's org, as dispatch.assign writes it: 0028's gate refuses an assignment whose org is not its job's.
+    await client.query(`INSERT INTO assignments (org_id, region_id, job_id, crew_id, clearance_id, assigned_by) VALUES ($1,$2,$3,$4,$5,$6)`, [orgId, REGION_SOUTH, job, c.id, clearance, dispatcherId]);
   } finally { await client.query(`SET session_replication_role = DEFAULT`); client.release(); }
   await assert.rejects(db.removeCompany(c.id), refusedWith(/It has 1 job assigned — release them in Dispatch first/));
   await admin(`UPDATE assignments SET released_at = now() WHERE crew_id = $1`, [c.id]);

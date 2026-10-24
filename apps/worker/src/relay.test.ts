@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { notifyPublisher, type RelayTx } from "./relay.ts";
+import { notifyPublisher, relayOnce, PARKED, type RelayTx } from "./relay.ts";
 import type { DomainEvent } from "../../../packages/contracts/src/events.ts";
 
 const U = (n: number) => `c4110000-0000-0000-0000-${String(n).padStart(12, "0")}`;
@@ -33,4 +33,18 @@ test("NOTIFY publishes both channels for a batch in one ordered query", async ()
       return [envelope, envelope];
     }),
   );
+});
+
+test("a failed publish counts attempts but never parks a row — only an unknown topic does", async () => {
+  const calls: string[] = [];
+  const row = { id: U(21), event_id: U(22), topic: "job.created", entity: "job", entity_id: U(23), payload: {}, actor_id: U(24), surface_id: "S2", region_id: U(25), org_id: U(26), occurred_at: "2026-10-01T12:00:00.000Z", attempts: PARKED - 1 };
+  const tx: RelayTx = {
+    async query<T = Record<string, unknown>>(sql: string): Promise<readonly T[]> { calls.push(sql); return (sql.includes("FROM outbox") ? [row] : []) as unknown as T[]; },
+    async commit() {},
+    async rollback() {},
+  };
+  const down = { async publish() { throw new Error("notify queue full"); } };
+  await assert.rejects(relayOnce(tx, down), /notify queue full/);
+  const bump = calls.find((s) => s.includes("SET attempts"))!;
+  assert.match(bump, new RegExp(`LEAST\\(attempts \\+ 1, ${PARKED - 1}\\)`), "an outage of any length leaves the row publishable");
 });
