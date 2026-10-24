@@ -7,8 +7,8 @@
  * against the real thing: the gateway spawned as a child process, the
  * generated client sending real HTTP, the outbox relayed and received over
  * SSE. Every S0 clause in 05 §S0 that talks to the gateway has an assertion
- * here. Depends on the Amped seed from backbone.test.ts (idempotent; repeated
- * here for the rows this file needs, so it runs alone too).
+ * here. The Amped seed (./amped-seed.ts) is the one backbone.test.ts uses —
+ * idempotent, and run here too, so this file runs alone.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -20,7 +20,8 @@ import { relayOnce, notifyPublisher } from "../../apps/worker/src/relay.ts";
 import { connectShell } from "../../packages/shell/src/index.ts";
 import { GatewayRefusal, type EventEnvelope } from "../../packages/contracts/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
-import { ORG, N, REGION_WEST, REGION_MOUNTAIN, REGION_SOUTH, NODES, MSA } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
+import { ORG, N, REGION_SOUTH, MSA } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
+import { seedAmped } from "./amped-seed.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — S0 was not verified over the wire";
@@ -42,15 +43,9 @@ const admin = async (sql: string, params: unknown[] = []) => {
 before(async () => {
   if (!URL_) return;
   pool = createPool(URL_, "ac-s0-test");
-  await admin(`INSERT INTO organizations (id, name, kind, segment) VALUES ($1,'Amped Fitness Inc.','customer','commercial') ON CONFLICT (id) DO NOTHING`, [ORG]);
-  await admin(`INSERT INTO regions (id, code, name) VALUES ($1,'WEST','West'), ($2,'MOUNTAIN','Mountain'), ($3,'SOUTH','South') ON CONFLICT (id) DO NOTHING`, [REGION_WEST, REGION_MOUNTAIN, REGION_SOUTH]);
-  for (const n of NODES) {
-    if (n.tier === "parent") continue;
-    await admin(`INSERT INTO accounts (id, org_id, region_id, parent_id, tier, name, customer_group) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO NOTHING`,
-      [n.id, ORG, n.serviceRegion, n.parent === ORG ? null : n.parent, n.tier, n.name, n.customerGroup ?? null]);
-  }
-  await admin(`INSERT INTO contracts (id, org_id, region_id, scope_tier, scope_id, kind, billing_path, signed_at, effective, diagnostic_data_rights_reserved, state)
-    VALUES ($1,$2,$3,'parent',$2,'msa','enterprise_sla','2025-12-15','[2026-01-01,)',true,'active') ON CONFLICT (id) DO NOTHING`, [MSA, ORG, REGION_SOUTH]);
+  // The customer, its agreements and the terms this file's refusals are measured against: seeded here, not
+  // borrowed from backbone.test.ts having run first — finding 2's ratchet is the MSA's sla_response.
+  await seedAmped(admin, USER_OPS);
   const hash = hashPassword(PASSWORD);
   await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
     VALUES ($1,$2,$3,'internal','ops.s0@ac.test','Ops','["ops_leadership","account_owner"]','parent',$2,$4,true),

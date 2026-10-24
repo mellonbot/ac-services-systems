@@ -23,7 +23,8 @@ import { sweepCredentialExpiry } from "../../apps/worker/src/sweeps.ts";
 import { AdmissionRefused } from "../../packages/domain/src/inheritance/admit.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import type { Principal } from "../../packages/contracts/src/scope.ts";
-import { ORG, N, REGION_WEST, REGION_MOUNTAIN, REGION_SOUTH, NODES, OVERRIDES, MSA, AMEND_SJ, AMEND_AUSTIN_JULY, BOULDER_WARRANTY } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
+import { ORG, N, REGION_WEST, REGION_MOUNTAIN, REGION_SOUTH, MSA, AMEND_SJ } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
+import { seedAmped } from "./amped-seed.ts";
 
 const URL = process.env.DATABASE_URL;
 if (!URL) {
@@ -81,28 +82,9 @@ const withUow = async <T>(surface: "S2" | "S3" | "S5" | "S6" | "S8", p: Principa
 before(async () => {
   if (!URL) return;
   pool = createPool(URL, "ac-integration");
-  await admin(`INSERT INTO organizations (id, name, kind, segment) VALUES ($1,'Amped Fitness Inc.','customer','commercial'), ($2,'Firm A LLC','subcontractor',NULL), ($3,'Firm B LLC','subcontractor',NULL) ON CONFLICT (id) DO NOTHING`, [ORG, FIRM_A, FIRM_B]);
-  await admin(`INSERT INTO regions (id, code, name) VALUES ($1,'WEST','West'), ($2,'MOUNTAIN','Mountain'), ($3,'SOUTH','South') ON CONFLICT (id) DO NOTHING`, [REGION_WEST, REGION_MOUNTAIN, REGION_SOUTH]);
-  for (const n of NODES) {
-    if (n.tier === "parent") continue;
-    await admin(`INSERT INTO accounts (id, org_id, region_id, parent_id, tier, name, customer_group) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO NOTHING`,
-      [n.id, ORG, n.serviceRegion, n.parent === ORG ? null : n.parent, n.tier, n.name, n.customerGroup ?? null]);
-  }
-  await admin(`INSERT INTO contracts (id, org_id, region_id, scope_tier, scope_id, kind, billing_path, signed_at, effective, diagnostic_data_rights_reserved, state)
-    VALUES ($1,$2,$3,'parent',$2,'msa','enterprise_sla','2025-12-15','[2026-01-01,)',true,'active'),
-           ($4,$2,$5,'location',$6,'amendment','enterprise_sla','2026-02-20','[2026-03-01,)',true,'active'),
-           ($7,$2,$3,'location',$8,'amendment','enterprise_sla','2026-06-15','[2026-07-01,)',true,'active') ON CONFLICT (id) DO NOTHING`,
-    [MSA, ORG, REGION_SOUTH, AMEND_SJ, REGION_WEST, N.sanJose, AMEND_AUSTIN_JULY, N.austin]);
-  await admin(`INSERT INTO contracts (id, org_id, region_id, scope_tier, scope_id, kind, billing_path, signed_at, effective, diagnostic_data_rights_reserved, state)
-    VALUES ($1,$2,$3,'site',$4,'amendment','enterprise_sla','2026-02-10','[2026-02-15,)',true,'active') ON CONFLICT (id) DO NOTHING`, [BOULDER_WARRANTY, ORG, REGION_MOUNTAIN, N.boulderRoof]);
-  // Overrides from the fixture, through the DB's own admission trigger.
-  const regionOf = (tier: string, id: string) => (tier === "parent" ? REGION_SOUTH : NODES.find((n) => n.id === id)!.serviceRegion);
-  for (const o of OVERRIDES) {
-    await admin(`INSERT INTO contract_term_overrides (org_id, region_id, contract_id, scope_tier, scope_id, term_key, term_value, effective, authored_by)
-      SELECT $1,$2,$3,$4,$5,$6,$7::jsonb, daterange($8::date,$9::date,'[)'), $10
-      WHERE NOT EXISTS (SELECT 1 FROM contract_term_overrides WHERE scope_tier=$4 AND scope_id=$5 AND term_key=$6 AND lower(effective)=$8::date)`,
-      [ORG, regionOf(o.scopeTier, o.scopeId), o.contractId, o.scopeTier, o.scopeId, o.termKey, JSON.stringify(o.termValue), o.effectiveFrom, o.effectiveTo, USER_OPS]);
-  }
+  await admin(`INSERT INTO organizations (id, name, kind, segment) VALUES ($1,'Firm A LLC','subcontractor',NULL), ($2,'Firm B LLC','subcontractor',NULL) ON CONFLICT (id) DO NOTHING`, [FIRM_A, FIRM_B]);
+  // The customer, its tree, its agreements and the fixture's overrides — shared with the suites that read them.
+  await seedAmped(admin, USER_OPS);
   // Network: two subcontractor firms in South, one employed crew in West.
   await admin(`INSERT INTO subcontractor_firms (id, org_id, region_id, legal_name, status, settlement_terms_days, diagnostic_data_rights_reserved)
     VALUES ($1,$1,$3,'Firm A LLC','active',30,true), ($2,$2,$3,'Firm B LLC','active',30,true) ON CONFLICT (id) DO NOTHING`, [FIRM_A, FIRM_B, REGION_SOUTH]);
