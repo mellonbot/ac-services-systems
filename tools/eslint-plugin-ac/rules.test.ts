@@ -20,8 +20,10 @@ if (!eslint) {
   // RuleTester reports through describe/it when they exist; hand it node:test's.
   Object.assign(RuleTester, { describe, it, itOnly: it.only });
   const tester = new RuleTester({ languageOptions: { ecmaVersion: 2024, sourceType: "module" } });
-  const { default: noDb } = await import("./rules/no-db-in-surface.js");
-  const { default: noFetch } = await import("./rules/no-fetch-in-surface.js");
+  // Through a string: the rules are plain JS with no declarations, and the type of a rule is eslint's anyway.
+  const rule = async (name: string) => ((await import(`./rules/${name}.js`)) as { default: import("eslint").Rule.RuleModule }).default;
+  const noDb = await rule("no-db-in-surface");
+  const noFetch = await rule("no-fetch-in-surface");
 
   tester.run("no-db-in-surface", noDb, {
     valid: [
