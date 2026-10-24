@@ -133,6 +133,9 @@ jobs:
   #           checked at all: the durable buffer surviving a reload, and the
   #           D7a/OQ6 copy ceiling against the PAINTED page, so a promise
   #           arriving through a stylesheet fails too.
+  #   c3-amped — the C3 acceptance drive: Amped's fixture authored through the
+  #           real operations against a live gateway, then resolved and its
+  #           illegal rows refused by the real resolver. No browser.
   # One job per drive: each creates, migrates and drops its own database, so
   # they share nothing, and side by side they cost the deploy one drive's
   # time (~40s) instead of four (~2.5m).
@@ -141,7 +144,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        surface: [s2-c4, s6, s8, s1]
+        surface: [s2-c4, s6, s8, s1, c3-amped]
     name: drive (${{ matrix.surface }})
     services:
       postgres:
