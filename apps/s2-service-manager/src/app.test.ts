@@ -183,7 +183,7 @@ test("boot with no session shows login, not an error; a bad password is a refusa
   assert.equal(JSON.parse(login.init.body!).surface, "S2");
 });
 
-test("Technician Network: AC Services DFW first, then a tab per firm that can still field crews for us", async () => {
+test("Technician Network: AC Services DFW is a tab, and every firm that can still field crews for us is one picker beside it", async () => {
   const gw = fakeGateway();
   const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
   await app.login("owner@ac.test", "pw");
@@ -193,8 +193,11 @@ test("Technician Network: AC Services DFW first, then a tab per firm that can st
   const nav = render(app.view()).split('<nav class="s2-trail"')[0]!;
   const group = nav.split('aria-label="Technician Network"')[1]!.split('aria-label="Purchasing"')[0]!;
   const tabs = [...group.matchAll(/<a class="ac-seg__item"[^>]*>([^<]+)<\/a>/g)].map((m) => m[1]);
-  assert.deepEqual(tabs, ["AC Services DFW", "Cool Air Partners LLC", "North Texas Mechanical"], "a terminated firm fields no crews, so it gets no tab");
-  assert.match(group, /data-current="true" aria-current="page" href="\/network\/a2000000-0000-0000-0000-000000000060">Cool Air Partners LLC/);
+  assert.deepEqual(tabs, ["AC Services DFW"], "a firm is a choice in the picker, never a tab of its own");
+  const options = [...group.matchAll(/<option[^>]*>([^<]+)<\/option>/g)].map((m) => m[1]);
+  assert.deepEqual(options, ["Subcontractor firms (2)", "Cool Air Partners LLC", "North Texas Mechanical"], "a terminated firm fields no crews, so the picker does not offer it");
+  assert.match(group, /<span class="ac-seg__pick" data-current="true"><select aria-label="Subcontractor firm"/);
+  assert.match(group, /<option value="a2000000-0000-0000-0000-000000000060" selected>Cool Air Partners LLC/);
   assert.match(group, /data-current="false" href="\/network">AC Services DFW/);
 
   assert.match(render(app.view()), /<li>Technician Network<\/li><li aria-current="location">Cool Air Partners LLC<\/li>/, "the breadcrumb names the firm, not a second 'Network'");
@@ -202,6 +205,8 @@ test("Technician Network: AC Services DFW first, then a tab per firm that can st
   app.router.navigate("network", {});
   const own = render(app.view());
   assert.match(own, /data-current="true" aria-current="page" href="\/network">AC Services DFW/);
+  assert.match(own, /<span class="ac-seg__pick" data-current="false">/);
+  assert.match(own, /<option value disabled selected>Subcontractor firms \(2\)<\/option>/, "on our own crews the picker names what it holds, and no firm reads as chosen");
   assert.match(own, /<h1 class="ac-page-head__title">Technician Network<\/h1>/);
   assert.match(own, /<li>Technician Network<\/li><li aria-current="location">AC Services DFW<\/li>/);
 });

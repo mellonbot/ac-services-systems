@@ -80,8 +80,8 @@ const NAV_GROUPS = [
   { label: "Billing", screens: ["billing"] as const },
 ] as const;
 
-/** A terminated firm will field no more crews for us, so it gets no tab; it stays in the screen's firm list. */
-export const firmTabs = (firms: readonly FirmWire[]): readonly FirmWire[] => firms.filter((f) => f.status !== "terminated");
+/** A terminated firm will field no more crews for us, so the picker does not offer it; it stays in the screen's firm list. */
+export const pickableFirms = (firms: readonly FirmWire[]): readonly FirmWire[] => firms.filter((f) => f.status !== "terminated");
 
 /** The firm the open network screen belongs to; null is our own crews. A crew's documents follow the crew's firm. */
 const networkFirmOf = (params: Readonly<Record<string, string>>, store: Store): string | null => {
@@ -280,11 +280,20 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const tabsFor = (navGroup: (typeof NAV_GROUPS)[number]): VNode[] => {
       const open = routeId !== undefined && group?.label === navGroup.label;
       if (navGroup.label === "Technician Network") {
+        // Our own crews are a tab; the subcontractor firms are one picker, so the
+        // track holds its width however many firms the network grows to.
         const at = open && loc ? networkFirmOf(loc.params, p.store) : undefined;
-        const firmList = firms.state === "ready" ? firmTabs(firms.value.firms) : [];
+        const firmList = firms.state === "ready" ? pickableFirms(firms.value.firms) : [];
+        const picked = firmList.find((f) => f.id === at);
+        const pick = (e: Event) => { const firmId = (e.currentTarget as HTMLSelectElement).value; if (firmId) router.navigate("network", { firmId }); };
         return [
           tab("network", {}, OWN_CREWS_LABEL, open && at === null && routeId !== "network.firm.new"),
-          ...firmList.map((f) => tab("network", { firmId: f.id }, f.legalName, at === f.id)),
+          ...(firmList.length ? [html`<span class="ac-seg__pick" data-current=${picked ? "true" : "false"}>
+            <select aria-label="Subcontractor firm" onChange=${pick}>
+              <option value="" disabled selected=${!picked}>Subcontractor firms (${firmList.length})</option>
+              ${firmList.map((f) => html`<option value=${f.id} selected=${f.id === picked?.id}>${f.legalName}</option>`)}
+            </select>
+          </span>`] : []),
         ];
       }
       return navGroup.screens.map((id) => {
