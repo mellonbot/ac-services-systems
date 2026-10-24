@@ -20,6 +20,7 @@ import { networkFirmNew, networkCrewNew } from "./screens/network-new.ts";
 import { networkCrewDocuments } from "./screens/network-documents.ts";
 import { networkRates } from "./screens/network-rates.ts";
 import { networkTechnicianNew, networkTechnicianEdit } from "./screens/network-technicians.ts";
+import { devices, refreshDevices } from "./screens/devices.ts";
 import { purchasing, purchasingVendor, purchasingPo, refreshProcurement } from "./screens/purchasing.ts";
 import { billing, billingInvoice, refreshBilling } from "./screens/billing.ts";
 import { S2_CSS } from "./styles.ts";
@@ -66,6 +67,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "network.rates": networkRates,
   "network.technician.new": networkTechnicianNew,
   "network.technician.edit": networkTechnicianEdit,
+  "devices": devices,
   "purchasing": purchasing,
   "purchasing.vendor": purchasingVendor,
   "purchasing.po": purchasingPo,
@@ -76,6 +78,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
 const NAV_GROUPS = [
   { label: "Customer records", screens: ["accounts.tree", "contracts.list", "projects", "leads"] as const },
   { label: "Technician Network", screens: ["network"] as const },
+  { label: "Field devices", screens: ["devices"] as const },
   { label: "Purchasing", screens: ["purchasing"] as const },
   { label: "Billing", screens: ["billing"] as const },
 ] as const;
@@ -115,6 +118,7 @@ const ROUTE_LABELS: Readonly<Record<Exclude<ScreenId, "login">, string>> = {
   "network.rates": "Rate card",
   "network.technician.new": "New technician",
   "network.technician.edit": "Edit technician",
+  "devices": "Field devices",
   "purchasing": "Purchasing",
   "purchasing.vendor": "Vendor catalogue",
   "purchasing.po": "Purchase order",
@@ -219,6 +223,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     shell.subscribe(() => store.invalidate("leads.list"), { topics: ["lead.captured", "lead.converted"] });
     shell.subscribe(() => refreshProcurement(store), { topics: ["vendor_price.proposed", "vendor_price.withdrawn", "po.acknowledged", "po.shipped", "vendor_invoice.submitted", "rma.responded"] });
     // 0030: a payment recorded or returned, an invoice paid or voided — here or by another office user.
+    // D-2a: a device registered or a shift granted, here or by another office user.
+    shell.subscribe(() => refreshDevices(store), { topics: ["device.registered", "device.shift_granted"] });
     shell.subscribe(() => refreshBilling(store), { topics: ["payment.recorded", "payment.returned", "invoice.paid", "invoice.voided", "invoice.issued"] });
   };
 

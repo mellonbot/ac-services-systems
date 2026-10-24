@@ -20,7 +20,7 @@ import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
 import { createJob, listJobs, listMyJobs, transitionJob, addJobNote, setReturnTrip, requireUuid } from "./handlers/jobs.ts";
 import { createProject, listProjects } from "./handlers/projects.ts";
 import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "./handlers/job-detail.ts";
-import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
+import { listDevices, registerDevice, grantDeviceShift, listDeviceShifts, resolveDeviceLogin } from "./handlers/devices.ts";
 import { createServiceRequest, listServiceRequests, openJobFromRequest } from "./handlers/service-requests.ts";
 import { attachPhoto, getMedia } from "./handlers/photos.ts";
 import { createResidential, listLeads, convertLead } from "./handlers/residential.ts";
@@ -417,12 +417,13 @@ const deviceLogin = async (req: IncomingMessage, body: Partial<OperationIO["auth
     const u = (await tx.query<{ id: string; password_hash: string | null; active: boolean; crew_id: string | null }>(
       "SELECT id, password_hash, active, crew_id FROM users WHERE email = $1", [email],
     ))[0];
-    if (!(await verifyPasswordAsync(password, u?.password_hash)) || !u?.active || !u.crew_id) {
+    if (!(await verifyPasswordAsync(password, u?.password_hash)) || !u?.active) {
       signInFailed(req, who);
       throw new AuthError("invalid credentials", "bad_claims");
     }
+    // From here the password is right: say what is missing, not "invalid credentials".
+    if (!u.crew_id) throw new InputRefused("This login is not a technician's: it has no unit to work a shift on. Technician logins are made in AC Logins.", "not_a_technician");
     const resolved = await resolveDeviceLogin(tx, hardwareId, u.id, new Date());
-    if (!resolved) throw new AuthError("invalid credentials", "bad_claims");
 
     const ttl = Math.min(TOKEN_TTL, Math.max(1, Math.floor((resolved.shiftEndsAt.getTime() - Date.now()) / 1000)));
     const claims: Omit<Claims, "iat" | "exp" | "sid"> = {
@@ -695,6 +696,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "devices.list": (req, input) => withRead(req, "devices.list", (uow) => listDevices(uow, input)),
   "devices.register": (req, input) => withUow(req, "devices.register", (uow) => registerDevice(uow, input, randomUUID)),
   "devices.grantShift": (req, input) => withUow(req, "devices.grantShift", (uow, p) => grantDeviceShift(uow, p.subjectId, input, randomUUID)),
+  "devices.shifts": (req) => withRead(req, "devices.shifts", (uow) => listDeviceShifts(uow, new Date())),
 
   // S5 — what a technician reads before replaying a sync batch, and the replay itself.
   "jobs.mine": (req) => withRead(req, "jobs.mine", (uow, p) => {

@@ -33,6 +33,8 @@ export const SCREENS = {
   "network.technician.new":  { path: "/network/technicians/new/:firmId?", uses: ["technicians.record", "crews.list", "firms.list", "regions.list"] },
   "network.technician.edit": { path: "/network/technicians/:technicianId", uses: ["technicians.list", "technicians.update", "crews.list", "firms.list", "regions.list"] },
   "network.rates":     { path: "/network/rates/:firmId",                 uses: ["rateCards.list", "rateCards.set", "firms.list"] },
+  // D-2a: what a technician login needs besides itself to open S5 — a registered device and a shift on it.
+  "devices":           { path: "/devices",                               uses: ["devices.list", "devices.shifts", "devices.register", "devices.grantShift", "regions.list", "firms.list"], title: "Field devices" },
   "network":           { path: "/network/:firmId?",                      uses: ["firms.list", "firms.update", "crews.list", "regions.list", "technicians.list"], title: "Technician Network" },
   // item 11: purchasing — the office's side of procurement (S7 is the vendor's).
   "purchasing.vendor": { path: "/purchasing/vendors/:vendorId",          uses: ["vendors.list", "catalog.list", "catalog.addItem", "prices.decide", "receivingPoints.list", "pos.create"] },

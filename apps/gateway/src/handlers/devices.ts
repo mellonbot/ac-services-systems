@@ -4,7 +4,7 @@ import { InputRefused, BadInput } from "../refusals.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
 import type {
   DeviceKind, DeviceWire, ListDevicesInput, ListDevicesOutput, RegisterDeviceInput, RegisterDeviceOutput,
-  GrantShiftInput, GrantShiftOutput,
+  GrantShiftInput, GrantShiftOutput, ListDeviceShiftsOutput, ShiftTechnicianWire, DeviceGrantWire,
 } from "../../../../packages/contracts/src/operations.ts";
 
 /**
@@ -62,7 +62,8 @@ export const listDevices = async (uow: UnitOfWork, input: ListDevicesInput): Pro
 export const registerDevice = async (uow: UnitOfWork, input: RegisterDeviceInput, newId: () => string): Promise<RegisterDeviceOutput> => {
   const hardwareId = requireText(input.hardwareId, "hardwareId");
   const kind = requireOneOf(input.kind, "kind", DEVICE_KINDS);
-  const publicKey = requireText(input.publicKey, "publicKey");
+  // A browser on the web fallback holds no key; every other kind is hardware that does.
+  const publicKey = kind === "web_fallback" && !input.publicKey?.trim() ? "" : requireText(input.publicKey, "publicKey");
   const region = await activeRegion(uow, requireUuid(input.regionId, "regionId"));
 
   let firmId: string | null = null;
@@ -150,6 +151,40 @@ export const grantDeviceShift = async (uow: UnitOfWork, actorId: string, input: 
   return { id, orgId: crew.org_id, regionId: crew.home_region_id, eventId };
 };
 
+const ISO = (col: string) => `to_char(${col} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+
+/**
+ * Who a shift can go to, and what is already granted. A technician login is a
+ * `users` row with a crew — their own service unit (0024) — not a roster row
+ * in `technicians`; that is what `grantShift` checks and `deviceLogin` reads.
+ */
+export const listDeviceShifts = async (uow: UnitOfWork, now: Date): Promise<ListDeviceShiftsOutput> => {
+  const technicians = await uow.tx.query<{ id: string; display_name: string; email: string; crew_id: string; crew_label: string; region_id: string }>(
+    `SELECT u.id, u.display_name, u.email, u.crew_id, c.label AS crew_label, c.home_region_id AS region_id
+       FROM users u JOIN crews c ON c.id = u.crew_id
+      WHERE u.active AND c.active
+      ORDER BY u.display_name, u.email`,
+  );
+  const grants = await uow.tx.query<{
+    id: string; device_id: string; hardware_id: string; technician_id: string; technician_name: string;
+    crew_id: string; crew_label: string; starts_at: string; ends_at: string;
+  }>(
+    `SELECT g.id, g.device_id, d.hardware_id, g.technician_id, u.display_name AS technician_name, g.crew_id, c.label AS crew_label,
+            ${ISO("lower(g.service_window)")} AS starts_at, ${ISO("upper(g.service_window)")} AS ends_at
+       FROM device_grants g JOIN devices d ON d.id = g.device_id JOIN users u ON u.id = g.technician_id JOIN crews c ON c.id = g.crew_id
+      WHERE g.revoked_at IS NULL AND upper(g.service_window) > $1::timestamptz
+      ORDER BY lower(g.service_window), d.hardware_id`,
+    [now.toISOString()],
+  );
+  return {
+    technicians: technicians.map((t): ShiftTechnicianWire => ({ id: t.id, name: t.display_name, email: t.email, crewId: t.crew_id, crewLabel: t.crew_label, regionId: t.region_id })),
+    grants: grants.map((g): DeviceGrantWire => ({
+      id: g.id, deviceId: g.device_id, hardwareId: g.hardware_id, technicianId: g.technician_id, technicianName: g.technician_name,
+      crewId: g.crew_id, crewLabel: g.crew_label, windowStart: g.starts_at, windowEnd: g.ends_at,
+    })),
+  };
+};
+
 // ---------------------------------------------------------------------------
 // auth.deviceLogin's own lookup — pre-authentication, unscoped, the same
 // class as `login()`'s read of `users`. Kept beside the writes above because
@@ -163,11 +198,19 @@ export type ResolvedDeviceLogin = {
   readonly shiftEndsAt: Date;
 };
 
+/**
+ * Called only once the technician's password has been checked, so each way
+ * this can fail is said in words they can act on — no device by that ID, no
+ * shift on it now, a unit stood down — instead of "invalid credentials", which
+ * sent a technician with the right password to reset it. Nothing here tells a
+ * stranger anything: without the password they never reach it.
+ */
 export const resolveDeviceLogin = async (
   tx: Tx, hardwareId: string, technicianId: string, now: Date,
-): Promise<ResolvedDeviceLogin | null> => {
+): Promise<ResolvedDeviceLogin> => {
   const device = (await tx.query<{ id: string; active: boolean }>(`SELECT id, active FROM devices WHERE hardware_id = $1`, [hardwareId]))[0];
-  if (!device || !device.active) return null;
+  if (!device) throw new InputRefused(`No device "${hardwareId}" is registered. Check the ID, or ask the office to register it in Service Manager, under Field devices.`, "device_unknown");
+  if (!device.active) throw new InputRefused(`Device "${hardwareId}" is retired and cannot open a shift. Ask the office for another.`, "device_retired");
   const grant = (await tx.query<{ id: string; crew_id: string; org_id: string; region_id: string; ends_at: string }>(
     `SELECT id, crew_id, org_id, region_id, to_char(upper(service_window) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS ends_at
        FROM device_grants
@@ -175,7 +218,7 @@ export const resolveDeviceLogin = async (
       ORDER BY created_at DESC LIMIT 1`,
     [device.id, technicianId, now.toISOString()],
   ))[0];
-  if (!grant) return null;
+  if (!grant) throw new InputRefused(`You have no shift on device "${hardwareId}" right now. The office grants one in Service Manager, under Field devices.`, "no_live_shift");
   // `crews` is behind row-level security, and the login transaction has no
   // scope bound yet — read unbound, the policy sees no namespace and returns
   // ZERO rows, so every device login was "invalid credentials" against a live
@@ -189,7 +232,7 @@ export const resolveDeviceLogin = async (
     "ac.firm_id": "", "ac.device_id": device.id, "ac.actor_id": technicianId, "ac.surface_id": "S5",
   });
   const crew = (await tx.query<{ label: string; active: boolean }>(`SELECT label, active FROM crews WHERE id = $1`, [grant.crew_id]))[0];
-  if (!crew || !crew.active) return null;
+  if (!crew || !crew.active) throw new InputRefused(`Your unit${crew ? ` ${crew.label}` : ""} is stood down, so its shift cannot open. Ask the office.`, "crew_inactive");
   return {
     technicianId, crewId: grant.crew_id, crewLabel: crew.label,
     orgId: grant.org_id, regionId: grant.region_id, deviceId: device.id, grantId: grant.id,

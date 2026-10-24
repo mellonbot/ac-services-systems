@@ -508,6 +508,40 @@ test("a contractor technician signs in on S5", { skip }, async () => {
   await s2.logout();
 });
 
+test("a technician made in AC Logins is told what is missing, and signs in once S2 registers a device and grants the shift", { skip }, async () => {
+  const t = await tech("field-tech");
+  const unit = await unitOf(t.id);
+  await db.addLogin({ kind: "internal", email: email("shift-office"), displayName: "Dee Dispatch", password: PASSWORD, roles: ["office_manager"], scope: "org", regionId: REGION_SOUTH });
+  const hardwareId = `van-${RUN}`;
+  const s5 = () => connectShell({ surfaceId: "S5", baseUrl: BASE, fetch, credentials: { hardwareId, email: email("field-tech"), password: PASSWORD } });
+  const said = (want: string, words: RegExp) => (e: unknown) => e instanceof GatewayRefusal && e.refusal.kind === "admission" && e.refusal.code === want && words.test(e.message);
+
+  await assert.rejects(s5(), said("device_unknown", new RegExp(`No device "${hardwareId}" is registered`)));
+  await assert.rejects(
+    connectShell({ surfaceId: "S5", baseUrl: BASE, fetch, credentials: { hardwareId, email: email("shift-office"), password: PASSWORD } }),
+    said("not_a_technician", /not a technician's/),
+  );
+
+  const s2 = await as("shift-office", "S2");
+  const listed = (await s2.gateway.listDeviceShifts()).technicians.find((x) => x.id === t.id);
+  assert.deepEqual(listed && { crewId: listed.crewId, email: listed.email }, { crewId: unit, email: email("field-tech") }, "the login is offered for a shift, on its own unit");
+  // A browser on the web fallback holds no device key.
+  const deviceId = (await s2.gateway.registerDevice({ hardwareId, kind: "web_fallback", regionId: REGION_SOUTH })).id;
+  await assert.rejects(s5(), said("no_live_shift", /no shift on device/));
+
+  const start = new Date(Date.now() - 60_000);
+  const grantId = (await s2.gateway.grantDeviceShift({ deviceId, crewId: unit, technicianId: t.id, windowStart: start.toISOString(), windowEnd: new Date(start.getTime() + 10 * 3600_000).toISOString() })).id;
+  const shift = (await s2.gateway.listDeviceShifts()).grants.find((g) => g.id === grantId);
+  assert.equal(shift?.hardwareId, hardwareId);
+  assert.equal(shift?.technicianName, `field-tech ${RUN}`);
+
+  const shell = await s5();
+  assert.equal(shell.principal.shiftId, grantId);
+  assert.deepEqual(shell.deviceCrew, { id: unit, label: `field-tech ${RUN}` });
+  await shell.logout();
+  await s2.logout();
+});
+
 test("a dropped idle connection is swallowed, and the next query still works", { skip }, async () => {
   const p = createPool(URL_!, "ac-logins-app-idle-test");
   try {

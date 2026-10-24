@@ -168,11 +168,12 @@ test("boot with no session shows login, not an error; a bad password is a refusa
   const chrome = render(app.view());
   assert.match(chrome, /aria-label="Customer records"/);
   assert.match(chrome, /aria-label="Technician Network"/);
+  assert.match(chrome, /aria-label="Field devices"/);
   assert.match(chrome, /aria-label="Purchasing"/);
   assert.match(chrome, /aria-label="Billing"/);
   assert.match(chrome, /data-current="true" aria-current="page" href="\/accounts"/);
   // Each domain is its own track, never one shared strip; the open one is marked on the group.
-  assert.equal(chrome.match(/<div class="ac-seg">/g)?.length, 4, "customer records, the technician network, purchasing and billing each get a track");
+  assert.equal(chrome.match(/<div class="ac-seg">/g)?.length, 5, "customer records, the technician network, field devices, purchasing and billing each get a track");
   assert.match(chrome, /class="ac-nav ac-nav--grouped"/, "the plain ac-nav is one shared track and would merge the domains again");
   assert.match(chrome, /aria-label="Customer records" data-current="true"/);
   assert.match(chrome, /aria-label="Technician Network" data-current="false"/);
@@ -191,7 +192,7 @@ test("Technician Network: AC Services DFW is a tab, and every firm that can stil
   render(app.view());
   await settle();
   const nav = render(app.view()).split('<nav class="s2-trail"')[0]!;
-  const group = nav.split('aria-label="Technician Network"')[1]!.split('aria-label="Purchasing"')[0]!;
+  const group = nav.split('aria-label="Technician Network"')[1]!.split('aria-label="Field devices"')[0]!;
   const tabs = [...group.matchAll(/<a class="ac-seg__item"[^>]*>([^<]+)<\/a>/g)].map((m) => m[1]);
   assert.deepEqual(tabs, ["AC Services DFW"], "a firm is a choice in the picker, never a tab of its own");
   const options = [...group.matchAll(/<option[^>]*>([^<]+)<\/option>/g)].map((m) => m[1]);

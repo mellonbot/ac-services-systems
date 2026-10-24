@@ -67,7 +67,7 @@ export const S2_CSS = `
 .s2-policy{margin:0;color:var(--color-text-muted);font-size:var(--text-sm)}
 .s2-policy[data-combine="ratchet"]{color:var(--color-text)}
 .s2-rationale{margin:0 0 var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm)}
-.s2-purchasing{display:flex;flex-direction:column;gap:var(--space-3)}
+.s2-purchasing,.s2-devices{display:flex;flex-direction:column;gap:var(--space-3)}
 .s2-list{margin:0;padding-inline-start:var(--space-4)}
 .s2-trace{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
 .s2-trace__step{display:grid;grid-template-columns:minmax(var(--label-min),1fr) max-content minmax(var(--label-min),1fr);gap:var(--space-1) var(--space-3);align-items:baseline;padding-block:var(--space-1);border-bottom:1px solid var(--color-border)}

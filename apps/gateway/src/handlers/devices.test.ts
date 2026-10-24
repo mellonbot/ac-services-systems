@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
-import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./devices.ts";
+import { listDevices, registerDevice, grantDeviceShift, listDeviceShifts, resolveDeviceLogin } from "./devices.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
@@ -62,6 +62,29 @@ test("registerDevice is a BadInput on a missing hardwareId or an unknown kind", 
   const uow = await uowFor(scripted([["FROM regions", [region]]]).tx);
   await assert.rejects(registerDevice(uow, { kind: "web_fallback", publicKey: "A", regionId: REGION } as never, newId), BadInput);
   await assert.rejects(registerDevice(uow, { hardwareId: "hw", kind: "toaster", publicKey: "A", regionId: REGION } as never, newId), BadInput);
+});
+
+test("registerDevice: a web-fallback browser holds no key and may omit it; hardware may not", async () => {
+  const s = scripted([["FROM regions", [region]]]);
+  await registerDevice(await uowFor(s.tx), { hardwareId: "van-12-ipad", kind: "web_fallback", regionId: REGION }, newId);
+  const insert = s.queries.find((q) => q.sql.includes("INSERT INTO devices"))!;
+  assert.equal((insert.params[5] as Buffer).length, 0, "an empty key — the column is NOT NULL, and nothing checks it at login yet");
+  const uow = await uowFor(scripted([["FROM regions", [region]]]).tx);
+  await assert.rejects(registerDevice(uow, { hardwareId: "hw-9", kind: "android_pilot", regionId: REGION }, newId), BadInput);
+});
+
+test("listDeviceShifts: technician logins on an active unit, and every grant not yet over", async () => {
+  const s = scripted([
+    ["FROM users u JOIN crews", [{ id: TECH, display_name: "Dana Diaz", email: "dana@ac.test", crew_id: CREW, crew_label: "Dana Diaz", region_id: REGION }]],
+    ["FROM device_grants g", [{ id: U(62), device_id: DEVICE, hardware_id: "hw-001", technician_id: TECH, technician_name: "Dana Diaz", crew_id: CREW, crew_label: "Dana Diaz", starts_at: "2026-09-18T06:00:00.000Z", ends_at: "2026-09-18T18:00:00.000Z" }]],
+  ]);
+  const out = await listDeviceShifts(await uowFor(s.tx), new Date("2026-09-18T10:00:00Z"));
+  assert.deepEqual(out.technicians, [{ id: TECH, name: "Dana Diaz", email: "dana@ac.test", crewId: CREW, crewLabel: "Dana Diaz", regionId: REGION }]);
+  assert.equal(out.grants[0]!.hardwareId, "hw-001");
+  assert.equal(out.grants[0]!.windowEnd, "2026-09-18T18:00:00.000Z");
+  const grants = s.queries.find((q) => q.sql.includes("FROM device_grants g"))!;
+  assert.match(grants.sql, /revoked_at IS NULL AND upper\(g.service_window\) > \$1/, "an ended or revoked grant is not listed");
+  assert.deepEqual(grants.params, ["2026-09-18T10:00:00.000Z"]);
 });
 
 const crewRow = { id: CREW, active: true, org_id: INTERNAL_ORG_ID, home_region_id: REGION };
@@ -142,13 +165,15 @@ test("resolveDeviceLogin finds the one live grant for (device, technician) and c
   assert.equal(out!.shiftEndsAt.toISOString(), "2026-09-18T18:00:00.000Z");
 });
 
-test("resolveDeviceLogin returns null for an unknown device, no live grant, or an inactive crew", async () => {
-  assert.equal(await resolveDeviceLogin(rawTx([]), "hw-404", TECH, new Date()), null);
-  assert.equal(await resolveDeviceLogin(rawTx([["FROM devices WHERE hardware_id", [{ id: DEVICE, active: true }]]]), "hw-001", TECH, new Date()), null);
+test("resolveDeviceLogin names what is missing — an unknown or retired device, no live grant, a stood-down unit", async () => {
+  const refused = (code: string, words: RegExp) => (e: unknown) => e instanceof InputRefused && e.code === code && words.test(e.message);
+  await assert.rejects(resolveDeviceLogin(rawTx([]), "hw-404", TECH, new Date()), refused("device_unknown", /No device "hw-404" is registered/));
+  await assert.rejects(resolveDeviceLogin(rawTx([["FROM devices WHERE hardware_id", [{ id: DEVICE, active: false }]]]), "hw-001", TECH, new Date()), refused("device_retired", /retired/));
+  await assert.rejects(resolveDeviceLogin(rawTx([["FROM devices WHERE hardware_id", [{ id: DEVICE, active: true }]]]), "hw-001", TECH, new Date()), refused("no_live_shift", /no shift on device "hw-001" right now/));
   const noCrew = rawTx([
     ["FROM devices WHERE hardware_id", [{ id: DEVICE, active: true }]],
     ["FROM device_grants", [{ id: U(61), crew_id: CREW, org_id: INTERNAL_ORG_ID, region_id: REGION, ends_at: "2026-09-18T18:00:00.000Z" }]],
     ["FROM crews WHERE id", [{ label: "Crew A1", active: false }]],
   ]);
-  assert.equal(await resolveDeviceLogin(noCrew, "hw-001", TECH, new Date("2026-09-18T10:00:00Z")), null, "a crew stood down mid-shift does not get a token");
+  await assert.rejects(resolveDeviceLogin(noCrew, "hw-001", TECH, new Date("2026-09-18T10:00:00Z")), refused("crew_inactive", /Crew A1 is stood down/), "a crew stood down mid-shift does not get a token");
 });

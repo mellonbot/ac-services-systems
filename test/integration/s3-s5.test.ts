@@ -339,9 +339,15 @@ test("D-2a: a device, a grant for this crew and this technician over this window
 });
 
 test("auth.deviceLogin: the token is the SHIFT's — it expires with the grant, carries no crew claim, and the crew travels on the login response instead", { skip }, async () => {
-  // Unknown hardware, or a technician without a live grant on it, is one refusal: invalid credentials.
-  await assert.rejects(technician(`nope-${RUN}`), (e: unknown) => (e as { refusal?: { kind: string } }).refusal?.kind === "token" || /invalid credentials/i.test(String(e)));
-  await assert.rejects(technician(HARDWARE, "tech.b.d4@ac.test"), (e: unknown) => (e as { refusal?: { kind: string } }).refusal?.kind === "token" || /invalid credentials/i.test(String(e)));
+  // A wrong password is invalid credentials, whatever the device. Past the
+  // password, what is missing is named: the technician can act on it.
+  const said = (want: string) => (e: unknown) => (e as { refusal?: { kind: string; code?: string } }).refusal?.kind === "admission" && (e as { refusal: { code: string } }).refusal.code === want;
+  await assert.rejects(
+    connectShell({ surfaceId: "S5", baseUrl: BASE, fetch, credentials: { hardwareId: HARDWARE, email: "tech.d4@ac.test", password: `${PASSWORD}-wrong` } }),
+    (e: unknown) => (e as { refusal?: { kind: string } }).refusal?.kind === "token" && /invalid credentials/i.test(String(e)),
+  );
+  await assert.rejects(technician(`nope-${RUN}`), said("device_unknown"));
+  await assert.rejects(technician(HARDWARE, "tech.b.d4@ac.test"), said("no_live_shift"));
 
   const s5 = await technician();
   assert.equal(s5.principal.namespace, "device");

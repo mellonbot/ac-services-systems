@@ -509,6 +509,11 @@ export const OPERATIONS = {
     surfaces: ["S2"], carrier: "body", sdkMethod: "grantDeviceShift",
     summary: "The primitive: this device, this crew, this technician, this window. What auth.deviceLogin mints a token against. Refused if the technician is not on the named crew, the crew is inactive, or the device already holds an overlapping grant.",
   },
+  "devices.shifts": {
+    id: "devices.shifts", method: "GET", path: "/s2/devices/shifts", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "none", sdkMethod: "listDeviceShifts",
+    summary: "Who a shift can be granted to — every active technician login on an active unit — and every grant not yet over, live or upcoming. What the office reads to put a technician on a device.",
+  },
   // ---- S5: what a technician reads before replaying a sync batch ----
   "jobs.mine": {
     id: "jobs.mine", method: "GET", path: "/s5/jobs/mine", kind: "query", auth: "bearer",
@@ -1750,8 +1755,8 @@ export type ListDevicesInput = { readonly firmId?: string };
 export type ListDevicesOutput = { readonly devices: readonly DeviceWire[] };
 export type RegisterDeviceInput = {
   readonly hardwareId: string; readonly kind: DeviceKind;
-  /** The device-held public key a future challenge-response login would verify against. Base64. Not yet checked at login — see claude/19_S3_S5_Dispatch_and_Field.md. */
-  readonly publicKey: string;
+  /** The device-held public key a future challenge-response login would verify against. Base64. Not yet checked at login — see claude/19_S3_S5_Dispatch_and_Field.md. A `web_fallback` browser holds none and may omit it. */
+  readonly publicKey?: string;
   /** Where this hardware is provisioned. Required — a device is an operational row and region_id is never null. */
   readonly regionId: string;
   /** Hardware the firm already owns (D-2a). Absent: the device is ours. */
@@ -1767,6 +1772,18 @@ export type GrantShiftInput = {
   readonly windowEnd: string;
 };
 export type GrantShiftOutput = { readonly id: string; readonly orgId: string; readonly regionId: string; readonly eventId: string };
+/** A technician login (users.crew_id set) a shift can be granted to: the crew is their own unit. */
+export type ShiftTechnicianWire = {
+  readonly id: string; readonly name: string; readonly email: string;
+  readonly crewId: string; readonly crewLabel: string; readonly regionId: string;
+};
+/** A grant not yet over. `windowEnd` is exclusive. */
+export type DeviceGrantWire = {
+  readonly id: string; readonly deviceId: string; readonly hardwareId: string;
+  readonly technicianId: string; readonly technicianName: string; readonly crewId: string; readonly crewLabel: string;
+  readonly windowStart: string; readonly windowEnd: string;
+};
+export type ListDeviceShiftsOutput = { readonly technicians: readonly ShiftTechnicianWire[]; readonly grants: readonly DeviceGrantWire[] };
 
 export type AssignInput = { readonly jobId: string; readonly crewId: string; readonly orgId: string; readonly regionId: string };
 export type ComplianceRefusalWire = {
@@ -2121,6 +2138,7 @@ export type OperationIO = {
   "devices.list": { input: ListDevicesInput; output: ListDevicesOutput };
   "devices.register": { input: RegisterDeviceInput; output: RegisterDeviceOutput };
   "devices.grantShift": { input: GrantShiftInput; output: GrantShiftOutput };
+  "devices.shifts": { input: void; output: ListDeviceShiftsOutput };
   "sync.replay": { input: SyncReplayInput; output: SyncReplayOutput };
   "brand.setTheme": { input: BrandThemeInput; output: BrandThemeOutput };
   "brand.theme": { input: BrandStylesheetInput; output: BrandStylesheetOutput };
