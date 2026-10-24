@@ -705,6 +705,16 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
     // The same admission every other operation gets: session live, surface
     // enabled, role admitted, tenancy consistent. Opened and rolled back.
     await withRead(req, "events.stream", async () => {});
+    // A stream is a held socket and a place in every fan-out; a session gets a few, not as many as it asks for.
+    if ([...sseClients].filter((c) => c.sessionId === p.sessionId).length >= SSE_STREAMS_PER_SESSION)
+      throw new HttpError(429, `this session already has ${SSE_STREAMS_PER_SESSION} event streams open — close one first`);
+    // A device hears its crew's work: which crew is the shift grant's.
+    let crewId: string | null = null;
+    if (p.namespace === "device" && p.shiftId) {
+      const tx = await beginTx(pool, "ac_gateway");
+      try { await bindSystem(tx); crewId = (await tx.query<{ crew_id: string }>("SELECT crew_id FROM device_grants WHERE id = $1", [p.shiftId]))[0]?.crew_id ?? null; }
+      finally { await tx.rollback().catch(() => {}); }
+    }
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
     // Headers are not on the wire until the first byte. A subscriber's fetch()
     // does not resolve — and the shell cannot report "open" — until then.
@@ -713,18 +723,25 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
       res, regionId: p.regionId,
       orgScoped: p.namespace === "internal" && p.scopeTier === "parent",
       internal: p.namespace === "internal",
-      // A customer hears its own org's events and nobody else's.
-      orgId: p.namespace === "customer" ? p.orgId : null,
-      surfaceId,
+      // A customer or a vendor hears its own org's events and nobody else's.
+      orgId: p.namespace === "customer" || p.namespace === "vendor" ? p.orgId : null,
+      // A firm hears its own org's events and the work its crews were sent to; a device, its crew's work.
+      crew: p.namespace === "subcontractor" ? { orgId: p.orgId, firmId: p.firmId, crewId: null }
+        : p.namespace === "device" ? { orgId: null, firmId: null, crewId } : null,
+      surfaceId, sessionId: p.sessionId,
     };
     sseClients.add(client);
     // The session is checked at connect and again every minute: a stream must
-    // not outlive the logout or the expiry that ended its session.
+    // not outlive the logout or the expiry that ended its session. Only a
+    // definite answer ends it — a pool that is busy for a moment is not one.
     const recheck = setInterval(() => {
       void (async () => {
         const tx = await beginTx(pool, "ac_gateway");
         try { await assertSessionLive(tx, p); } finally { await tx.rollback().catch(() => {}); }
-      })().catch(() => { res.end(); });
+      })().catch((e) => {
+        if (e instanceof AuthError) { res.end(); return; }
+        console.warn("gateway: could not recheck an event stream's session; keeping it until the next check —", (e as Error).message);
+      });
     }, SSE_SESSION_RECHECK_MS);
     req.on("close", () => { clearInterval(recheck); sseClients.delete(client); });
     return STREAMING;
@@ -838,11 +855,39 @@ const inputOf = async (req: IncomingMessage, url: URL, opId: OperationId): Promi
   }
 };
 
-type SseClient = { res: ServerResponse; regionId: string; orgScoped: boolean; internal: boolean; orgId: string | null; surfaceId: SurfaceId };
+type CrewAudience = { readonly orgId: string | null; readonly firmId: string | null; readonly crewId: string | null };
+type SseClient = { res: ServerResponse; regionId: string; orgScoped: boolean; internal: boolean; orgId: string | null; crew: CrewAudience | null; surfaceId: SurfaceId; sessionId: string };
 const SSE_SESSION_RECHECK_MS = 60_000;
+const SSE_STREAMS_PER_SESSION = 4;
+/** Past this much unsent, a subscriber is not reading: it is closed rather than buffered for without end. */
+const SSE_MAX_BUFFERED_BYTES = 256 * 1024;
 const sseClients = new Set<SseClient>();
+const push = (c: SseClient, frame: string): void => {
+  if (c.res.writableLength > SSE_MAX_BUFFERED_BYTES) { sseClients.delete(c); c.res.destroy(); return; }
+  c.res.write(frame);
+};
+
+/**
+ * The crews (and their firms) ever sent to the job an event is about — the
+ * job is the entity, or an SLA timer's. This is what a firm or a device can
+ * see of another tenant's job (0007, 0028), asked once per event and only
+ * when such a subscriber is listening in its region.
+ */
+const crewsOnJobOf = async (entityId: string): Promise<{ crew_id: string; firm_id: string | null }[]> => {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entityId)) return [];
+  const tx = await beginTx(pool, "ac_gateway");
+  try {
+    await bindSystem(tx);
+    return [...await tx.query<{ crew_id: string; firm_id: string | null }>(
+      `SELECT DISTINCT a.crew_id, c.firm_id FROM assignments a JOIN crews c ON c.id = a.crew_id
+        WHERE a.job_id = COALESCE((SELECT t.job_id FROM sla_timers t WHERE t.id = $1::uuid), $1::uuid)`, [entityId])];
+  } finally { await tx.rollback().catch(() => {}); }
+};
+// Crew-scoped deliveries wait on a read; chained, so they still go out in the order they came in.
+let crewDeliveries: Promise<void> = Promise.resolve();
+
 await listenEvents(DATABASE_URL, (payload) => {
-  let env: { eventId: string; topic: string; regionId: string; orgId: string; occurredAt: string };
+  let env: { eventId: string; topic: string; entityId: string; regionId: string; orgId: string; occurredAt: string };
   // A malformed NOTIFY payload is dropped, not thrown: this runs inside the
   // listener's callback, where a throw takes the gateway down.
   try { env = JSON.parse(payload); } catch { console.error("gateway: dropped a malformed event envelope"); return; }
@@ -850,11 +895,26 @@ await listenEvents(DATABASE_URL, (payload) => {
   // id and org are other tenants' facts. The topic is enough to refetch on,
   // and the refetch goes through row security like every other read.
   const blind = `event: domain\ndata: ${JSON.stringify({ eventId: env.eventId, topic: env.topic, regionId: env.regionId, occurredAt: env.occurredAt })}\n\n`;
+  const waiting: SseClient[] = [];
   for (const c of sseClients) {
     if (!(c.orgScoped || c.regionId === env.regionId)) continue;
     if (c.orgId && c.orgId !== env.orgId) continue;
-    c.res.write(c.internal ? `event: domain\ndata: ${payload}\n\n` : blind);
+    if (c.crew) {
+      // A firm's own facts are its own org's; anything else is heard only if one of its crews was sent to the job.
+      if (c.crew.orgId && c.crew.orgId === env.orgId) push(c, blind);
+      else waiting.push(c);
+      continue;
+    }
+    push(c, c.internal ? `event: domain\ndata: ${payload}\n\n` : blind);
   }
+  if (!waiting.length) return;
+  crewDeliveries = crewDeliveries.then(async () => {
+    const crews = await crewsOnJobOf(env.entityId);
+    for (const c of waiting) {
+      if (!sseClients.has(c)) continue;
+      if (crews.some((r) => (c.crew!.crewId && r.crew_id === c.crew!.crewId) || (c.crew!.firmId && r.firm_id === c.crew!.firmId))) push(c, blind);
+    }
+  }).catch((e) => { console.warn("gateway: could not decide who hears an event; dropped for crew subscribers —", (e as Error).message); });
 });
 
 const server = createServer(async (req, res) => {
