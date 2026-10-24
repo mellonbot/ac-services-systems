@@ -116,10 +116,11 @@ before(async () => {
     await c.query("SET LOCAL session_replication_role = replica");
     await c.query(`UPDATE crew_credentials SET verified_at = now(), verified_by = $2 WHERE id = $1`, [CRED_NEW, WORKER_ACTOR]);
     // Crew B holds two jobs: one ends this afternoon (inside the licence's last day), one ends at 01:00 tomorrow.
-    await c.query(`INSERT INTO jobs (id, org_id, region_id, site_id, service_code, priority, service_window, state) VALUES
-      ($1, $3, $4, $5, 'HVAC-REPAIR', 'routine', tstzrange((${D}::timestamp + interval '13 hours') AT TIME ZONE 'UTC', (${D}::timestamp + interval '15 hours') AT TIME ZONE 'UTC', '[)'), 'assigned'),
-      ($2, $3, $4, $5, 'HVAC-REPAIR', 'routine', tstzrange((${D}::timestamp + interval '23 hours') AT TIME ZONE 'UTC', (${D}::timestamp + interval '25 hours') AT TIME ZONE 'UTC', '[)'), 'assigned')
-      ON CONFLICT (id) DO NOTHING`, [JOB_PM, JOB_NEXT, ORG, REGION_SOUTH, SITE]);
+    // Triggers off, so each job's number (0030) is written by hand.
+    await c.query(`INSERT INTO jobs (id, org_id, region_id, site_id, service_code, priority, service_window, state, job_no) VALUES
+      ($1, $3, $4, $5, 'HVAC-REPAIR', 'routine', tstzrange((${D}::timestamp + interval '13 hours') AT TIME ZONE 'UTC', (${D}::timestamp + interval '15 hours') AT TIME ZONE 'UTC', '[)'), 'assigned', $6),
+      ($2, $3, $4, $5, 'HVAC-REPAIR', 'routine', tstzrange((${D}::timestamp + interval '23 hours') AT TIME ZONE 'UTC', (${D}::timestamp + interval '25 hours') AT TIME ZONE 'UTC', '[)'), 'assigned', $7)
+      ON CONFLICT (id) DO NOTHING`, [JOB_PM, JOB_NEXT, ORG, REGION_SOUTH, SITE, `FIXTURE-${JOB_PM}`, `FIXTURE-${JOB_NEXT}`]);
     for (const job of [JOB_PM, JOB_NEXT]) {
       await c.query(`INSERT INTO assignments (org_id, region_id, job_id, crew_id, clearance_id, assigned_by) VALUES ($1, $2, $3, $4, gen_random_uuid(), $5)`, [ORG, REGION_SOUTH, job, CREW_B, WORKER_ACTOR]);
     }
