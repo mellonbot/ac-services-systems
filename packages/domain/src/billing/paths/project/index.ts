@@ -1,5 +1,6 @@
 import type { BillingPath, DraftInvoice, PathContext, BillableEvent, InvoiceLine } from "../../path.ts";
 import { lineFromEvent, totalOf } from "../../shared/lines.ts";
+import { requireTerm } from "../../shared/terms.ts";
 
 /**
  * Milestone / percentage-of-completion, with retainage. It shares roughly 80%
@@ -9,7 +10,7 @@ import { lineFromEvent, totalOf } from "../../shared/lines.ts";
 export const project: BillingPath = {
   key: "project",
   build(events: readonly BillableEvent[], ctx: PathContext): DraftInvoice {
-    const retainageBps = BigInt(String(ctx.resolvedTerms["retainage_bps"] ?? "0"));
+    const retainageBps = BigInt(requireTerm(ctx.resolvedTerms, "retainage_bps", "project"));
     const work = events.map((e) => lineFromEvent(e, `${e.serviceCode} — milestone work`));
     const gross = totalOf(work);
     const held = (gross * retainageBps) / 10000n;

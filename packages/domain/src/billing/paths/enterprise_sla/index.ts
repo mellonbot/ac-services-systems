@@ -1,5 +1,6 @@
 import type { BillingPath, DraftInvoice, PathContext, BillableEvent, InvoiceLine } from "../../path.ts";
 import { lineFromEvent, totalOf } from "../../shared/lines.ts";
+import { requireTerm } from "../../shared/terms.ts";
 import { allocate } from "../../../money/allocate.ts";
 
 /**
@@ -28,7 +29,7 @@ export const enterpriseSla: BillingPath = {
     // Money crosses the jsonb boundary as a STRING, never a JSON number. A JSON
     // number is an IEEE754 double: past 2^53 minor units it silently rounds, and
     // an enterprise platform fee is exactly the kind of number that gets there.
-    const platformFeeMinor = BigInt(String(ctx.resolvedTerms["platform_fee_minor"] ?? "0"));
+    const platformFeeMinor = BigInt(requireTerm(ctx.resolvedTerms, "platform_fee_minor", "enterprise_sla"));
     const sites = [...new Set(events.map((e) => e.accountId))];
     const weights = sites.map((s) =>
       events.filter((e) => e.accountId === s).reduce((a, e) => a + e.quantityMilli, 0n),

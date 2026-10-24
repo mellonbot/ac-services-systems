@@ -1,5 +1,7 @@
 import type { BillingPath, DraftInvoice, PathContext, BillableEvent, InvoiceLine } from "../../path.ts";
 import { lineFromEvent, totalOf } from "../../shared/lines.ts";
+import { requireTerm } from "../../shared/terms.ts";
+import { ResolutionError } from "../../../inheritance/resolve.ts";
 
 /**
  * Recurring membership fee plus whatever the plan does not cover. The included-
@@ -9,8 +11,11 @@ import { lineFromEvent, totalOf } from "../../shared/lines.ts";
 export const residentialMembership: BillingPath = {
   key: "residential_membership",
   build(events: readonly BillableEvent[], ctx: PathContext): DraftInvoice {
-    const feeMinor = BigInt(String(ctx.resolvedTerms["membership_fee_minor"] ?? "0"));
-    const included = Number(ctx.resolvedTerms["included_visits"] ?? 0);
+    const feeMinor = BigInt(requireTerm(ctx.resolvedTerms, "membership_fee_minor", "residential_membership"));
+    const visits = requireTerm(ctx.resolvedTerms, "included_visits", "residential_membership");
+    // slice() takes a fraction or a negative as something else entirely; a count of visits is a whole number.
+    if (!/^\d+$/.test(visits)) throw new ResolutionError(`[billing:residential_membership] included_visits must be a whole number of visits; got "${visits}".`, "included_visits", "bad_value");
+    const included = Number(visits);
 
     const fee: InvoiceLine = Object.freeze({
       accountId: ctx.billToAccountId,
