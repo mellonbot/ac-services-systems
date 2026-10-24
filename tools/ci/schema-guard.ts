@@ -12,6 +12,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { importsDriver, touchesWire } from "./surface-wire.ts";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const failures: string[] = [];
@@ -324,7 +325,7 @@ for (const f of files) {
 
   // The driver is importable from exactly one file. Everything else — surfaces,
   // domain, worker, tools — reaches the database through the gateway's Tx.
-  if (/from\s+["'](pg|postgres|drizzle-orm|knex|typeorm|mysql2?)["']/.test(src) && r !== "apps/gateway/src/pg-tx.ts")
+  if (importsDriver(src) && r !== "apps/gateway/src/pg-tx.ts")
     fail("gateway is sole access path", `${r} imports a database driver — apps/gateway/src/pg-tx.ts is the only door`);
   if (/apps[\\/]s\d/.test(r) && /packages[\\/]schema/.test(src))
     fail("gateway is sole access path", `${r} imports the schema package — a surface owns no data`);
@@ -333,7 +334,7 @@ for (const f of files) {
   // above the SDK — surfaces, the shell, the component set — holds a client
   // and never a URL.
   const surfaceLayer = /^(apps[\\/]s\d[^\\/]*|packages[\\/](shell|ui|tokens))[\\/]/.test(r);
-  if (surfaceLayer && /(^|[^.\w])(fetch|EventSource|XMLHttpRequest|WebSocket)\s*\(/.test(src))
+  if (surfaceLayer && touchesWire(src))
     fail("no surface writes its own fetch call", `${r} touches the wire directly — packages/sdk/src/runtime.ts is the only place that does`);
   if (surfaceLayer && /from\s+["'](node:https?|https?|undici|axios|ky|got|node-fetch|cross-fetch|eventsource|ws)["']/.test(src))
     fail("no surface writes its own fetch call", `${r} imports a wire library`);
