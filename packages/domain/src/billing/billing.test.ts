@@ -67,3 +67,22 @@ test("included visits is a whole, non-negative number of visits", () => {
     assert.throws(() => build(bad), (e: unknown) => e instanceof ResolutionError && e.code === "bad_value", `refused: ${bad}`);
   }
 });
+
+test("enterprise: a site whose credits outweigh its work carries none of the fee, and the invoice still builds", () => {
+  const events = [ev("phx-04", 2000n, 45_000n), ev("tus-01", 1000n, 45_000n), { ...ev("tus-01", -3000n, 45_000n), jobId: "credit" }];
+  const inv = BILLING_PATHS.enterprise_sla.build(events, {
+    billToAccountId: "amped", billToTier: "parent", resolvedTerms: { platform_fee_minor: "100000" },
+  });
+  const fee = (site: string) => inv.lines.filter((l) => l.jobId === null && l.accountId === site).reduce((a, l) => a + l.amountMinor, 0n);
+  assert.equal(fee("phx-04"), 100_000n);
+  assert.equal(fee("tus-01"), 0n);
+  assert.ok(sumsExactly(inv.totalMinor, inv.lines.map((l) => l.amountMinor)));
+});
+
+test("project: a credit-only invoice holds no retainage", () => {
+  const inv = BILLING_PATHS.project.build([ev("site-a", -1000n, 1_000_000n)], {
+    billToAccountId: "site-a", billToTier: "location", resolvedTerms: { retainage_bps: "1000" },
+  });
+  assert.equal(inv.lines.length, 1, "no \"Retainage held\" line");
+  assert.equal(inv.totalMinor, -1_000_000n);
+});

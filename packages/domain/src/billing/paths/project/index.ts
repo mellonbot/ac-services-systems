@@ -13,7 +13,8 @@ export const project: BillingPath = {
     const retainageBps = BigInt(requireTerm(ctx.resolvedTerms, "retainage_bps", "project"));
     const work = events.map((e) => lineFromEvent(e, `${e.serviceCode} — milestone work`));
     const gross = totalOf(work);
-    const held = (gross * retainageBps) / 10000n;
+    // Retainage is held back from money owed; a credit owes nothing to hold.
+    const held = gross > 0n ? (gross * retainageBps) / 10000n : 0n;
 
     const retainage: readonly InvoiceLine[] = held === 0n ? [] : [
       Object.freeze({

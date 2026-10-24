@@ -31,9 +31,13 @@ export const enterpriseSla: BillingPath = {
     // an enterprise platform fee is exactly the kind of number that gets there.
     const platformFeeMinor = BigInt(requireTerm(ctx.resolvedTerms, "platform_fee_minor", "enterprise_sla"));
     const sites = [...new Set(events.map((e) => e.accountId))];
-    const weights = sites.map((s) =>
-      events.filter((e) => e.accountId === s).reduce((a, e) => a + e.quantityMilli, 0n),
-    );
+    // Volume is net work done. A site whose credits outweigh its work did none
+    // this period and carries none of the fee: clamp at zero rather than hand
+    // allocate() a negative weight, which refuses the whole invoice.
+    const weights = sites.map((s) => {
+      const net = events.filter((e) => e.accountId === s).reduce((a, e) => a + e.quantityMilli, 0n);
+      return net > 0n ? net : 0n;
+    });
 
     const allocated: InvoiceLine[] =
       platformFeeMinor === 0n || sites.length === 0
