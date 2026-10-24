@@ -12,6 +12,8 @@
 --      under a live crew of the wrong kind.
 --   3. a service unit is one technician: the check holds the crew row, so
 --      two technicians put on one unit at once cannot both pass.
+--   4. a clearance's window is read in the region's days, and its upper bound
+--      is exclusive, as the range says.
 -- ===========================================================================
 
 -- 1. ------------------------------------------------------------------------
@@ -113,5 +115,50 @@ BEGIN
     RAISE EXCEPTION 'a service unit is one technician — crew % already has one; give % a unit of their own', NEW.crew_id, NEW.name
       USING ERRCODE = 'AC422';
   END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+
+-- 4. ------------------------------------------------------------------------
+-- 0004's function, the window's days now read where the work is. It cast
+-- lower/upper(service_window)::date in the session's TimeZone — the server's
+-- clock, not the job's — and closed the [) window's exclusive upper bound,
+-- so a window ending at local midnight demanded the next day too. The days
+-- are now the region's (regions.timezone), and the last day is the one the
+-- window's final instant falls on. The gateway's dry run reads the same days
+-- (handlers/assignment.ts credentialsOf).
+CREATE OR REPLACE FUNCTION ac_clearance_is_earned() RETURNS trigger AS $$
+DECLARE
+  cred RECORD;
+  cid TEXT;
+  tz TEXT;
+  first_day DATE;
+  last_day DATE;
+BEGIN
+  IF jsonb_typeof(NEW.credential_ids) <> 'array' OR jsonb_array_length(NEW.credential_ids) = 0 THEN
+    RAISE EXCEPTION 'a clearance names the credentials that earned it'
+    USING ERRCODE = 'AC422';
+  END IF;
+  SELECT timezone INTO tz FROM regions WHERE id = NEW.region_id;
+  IF tz IS NULL THEN
+    RAISE EXCEPTION 'clearance names region %, which this caller cannot see — its days cannot be read', NEW.region_id
+    USING ERRCODE = 'AC422';
+  END IF;
+  first_day := (lower(NEW.service_window) AT TIME ZONE tz)::date;
+  last_day := ((upper(NEW.service_window) - interval '1 microsecond') AT TIME ZONE tz)::date;
+  FOR cid IN SELECT jsonb_array_elements_text(NEW.credential_ids) LOOP
+    SELECT crew_id, valid_from, valid_to, verified_at INTO cred FROM crew_credentials WHERE id = cid::uuid;
+    IF cred IS NULL OR cred.crew_id <> NEW.crew_id THEN
+      RAISE EXCEPTION 'clearance cites credential % which does not belong to crew %', cid, NEW.crew_id
+    USING ERRCODE = 'AC422';
+    END IF;
+    IF cred.verified_at IS NULL THEN
+      RAISE EXCEPTION 'clearance cites unverified credential %', cid
+    USING ERRCODE = 'AC422';
+    END IF;
+    IF NOT (daterange(cred.valid_from, cred.valid_to, '[]') @> daterange(first_day, last_day, '[]')) THEN
+      RAISE EXCEPTION 'credential % [% .. %] does not cover clearance window % (% .. % in %)', cid, cred.valid_from, cred.valid_to, NEW.service_window, first_day, last_day, tz
+    USING ERRCODE = 'AC422';
+    END IF;
+  END LOOP;
   RETURN NEW;
 END $$ LANGUAGE plpgsql;

@@ -40,8 +40,10 @@ const now = new Date("2026-09-17T12:00:00Z");
 
 const job = { id: JOB, ws: "2026-09-18T09:00:00.000Z", we: "2026-09-18T17:00:00.000Z", state: "created", region_id: REGION, org_id: ORG, work_class: "service" };
 const clearedCrew = { id: CREW, label: "Crew A1", active: true, employment_type: "employed", kind: "service" };
-const clearedCreds = [{ crew_id: CREW, id: U(10), kind: "license", valid_from: "2026-01-01", valid_to: "2026-12-31", verified_at: "2026-01-02T00:00:00Z" },
-  { crew_id: CREW, id: U(11), kind: "background_check", valid_from: "2026-01-01", valid_to: "2026-12-31", verified_at: "2026-01-02T00:00:00Z" }];
+// As credentialsOf's SQL answers: the days' bounds in the region's timezone, already in epoch ms.
+const yearOf2026 = { valid_to: "2026-12-31", from_ms: String(Date.parse("2026-01-01T06:00:00Z")), to_ms: String(Date.parse("2027-01-01T06:00:00Z") - 1), verified_at: "2026-01-02T00:00:00Z" };
+const clearedCreds = [{ crew_id: CREW, id: U(10), kind: "license", ...yearOf2026 },
+  { crew_id: CREW, id: U(11), kind: "background_check", ...yearOf2026 }];
 
 test("assignCrew satisfies the job's open SLA timer on success — the response the cascade is timing", async () => {
   const s = scripted([

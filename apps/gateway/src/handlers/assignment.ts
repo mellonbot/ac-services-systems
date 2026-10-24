@@ -6,20 +6,29 @@ import { InputRefused } from "../refusals.ts";
 import type { CandidateCrewsInput, CandidateCrewsOutput, CandidateCrewWire, CrewKind, JobWorkClass, ReleaseAssignmentInput, ReleaseAssignmentOutput } from "../../../../packages/contracts/src/operations.ts";
 import { crewKindFor } from "../../../../packages/contracts/src/operations.ts";
 
-/** Shared by `assignCrew` and `candidateCrews` — one query shape, one mapping, so a dry run reads exactly what the gated door reads. One query for any number of crews. */
-const credentialsOf = async (uow: UnitOfWork, crewIds: readonly string[]): Promise<Map<string, Credential[]>> => {
-  const creds = await uow.tx.query<{ crew_id: string; id: string; kind: string; valid_from: string; valid_to: string; verified_at: string | null }>(
-    `SELECT crew_id, id, kind, to_char(valid_from,'YYYY-MM-DD') AS valid_from, to_char(valid_to,'YYYY-MM-DD') AS valid_to, verified_at FROM crew_credentials WHERE crew_id = ANY($1::uuid[])`,
-    [crewIds],
+/**
+ * Shared by `assignCrew` and `candidateCrews` — one query shape, one mapping, so a dry run reads exactly what the gated door reads. One query for any number of crews.
+ * A certificate's dates are days where the work is: they run from midnight
+ * of valid_from to the end of valid_to in the job's region's timezone — the
+ * same days 0029's clearance trigger reads.
+ */
+const credentialsOf = async (uow: UnitOfWork, crewIds: readonly string[], regionId: string): Promise<Map<string, Credential[]>> => {
+  const creds = await uow.tx.query<{ crew_id: string; id: string; kind: string; valid_to: string; from_ms: string; to_ms: string; verified_at: string | null }>(
+    `SELECT c.crew_id, c.id, c.kind, to_char(c.valid_to,'YYYY-MM-DD') AS valid_to,
+            (extract(epoch FROM c.valid_from::timestamp AT TIME ZONE r.timezone) * 1000)::bigint::text AS from_ms,
+            (extract(epoch FROM (c.valid_to + 1)::timestamp AT TIME ZONE r.timezone) * 1000 - 1)::bigint::text AS to_ms,
+            c.verified_at
+       FROM crew_credentials c, regions r WHERE c.crew_id = ANY($1::uuid[]) AND r.id = $2`,
+    [crewIds, regionId],
   );
   const byCrew = new Map<string, Credential[]>(crewIds.map((id) => [id, []]));
   for (const c of creds) {
     byCrew.get(c.crew_id)!.push({
       id: c.id, kind: c.kind,
-      validFrom: Date.parse(`${c.valid_from}T00:00:00Z`),
-      // valid_to is inclusive on the certificate; cover through the end of that day.
-      validTo: Date.parse(`${c.valid_to}T23:59:59.999Z`),
+      validFrom: Number(c.from_ms),
+      validTo: Number(c.to_ms),
       verifiedAt: c.verified_at ? Date.parse(c.verified_at) : null,
+      lastDay: c.valid_to,
     });
   }
   return byCrew;
@@ -83,7 +92,7 @@ export const assignCrew = async (uow: UnitOfWork, actorId: string, input: Assign
     );
   }
   const crew = crewOf(crewRow);
-  const credentials = (await credentialsOf(uow, [input.crewId])).get(input.crewId)!;
+  const credentials = (await credentialsOf(uow, [input.crewId], job.region_id)).get(input.crewId)!;
   const window = { start: Date.parse(job.ws), end: Date.parse(job.we) };
   const verdict = evaluate(crew, credentials, window, evaluatedAt.getTime());
 
@@ -164,7 +173,7 @@ export const candidateCrews = async (uow: UnitOfWork, input: CandidateCrewsInput
     // at a job outside their home region. Only the kind the work needs (0024).
     `${CREW_SELECT} WHERE c.home_region_id = $1 AND c.active AND c.kind = $2 ORDER BY c.label`, [job.region_id, crewKindFor(job.work_class)],
   );
-  const credentials = await credentialsOf(uow, crews.map((c) => c.id));
+  const credentials = await credentialsOf(uow, crews.map((c) => c.id), job.region_id);
 
   const candidates: CandidateCrewWire[] = [];
   for (const c of crews) {
