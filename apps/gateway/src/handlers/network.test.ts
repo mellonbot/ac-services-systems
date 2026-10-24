@@ -6,6 +6,7 @@ import { createOrganization } from "./hierarchy.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import type { CredentialWire } from "../../../../packages/contracts/src/operations.ts";
+import { multiplierBp, multiplierOf } from "../../../../packages/contracts/src/operations.ts";
 import { admissionAxis } from "../../../../packages/contracts/src/refusals.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
 import { REQUIRED } from "../../../../packages/domain/src/compliance/gate.ts";
@@ -248,6 +249,7 @@ test("setRateCard closes the row in effect at the new first day and inserts — 
   const ins = s.queries.find((q) => /INSERT INTO rate_cards/.test(q.sql))!;
   assert.equal(ins.params[4], "HVAC-REPAIR", "service codes are upper-cased so 'hvac-repair' and 'HVAC-REPAIR' are one price line");
   assert.equal(ins.params[5], "9900", "money crosses as a string of minor units");
+  assert.equal(ins.params[9], 15_000, "0027: no multiplier named is time and a half");
   const { audits, events } = uow.pending();
   assert.equal(audits.length, 2);
   assert.equal(audits[0]!.action, "rate_card.close");
@@ -274,6 +276,22 @@ test("a rate that begins on the same day as the row in effect is refused by name
     (e: unknown) => e instanceof InputRefused && e.code === "empty_window",
   );
   assert.equal(admissionAxis("rate_cards_no_overlap"), "structural", "the EXCLUDE constraint's refusal is a wrong row, not a negotiation");
+});
+
+test("0027: the emergency multiplier is typed as a decimal, stored as basis points, and must be at least 1", async () => {
+  const s = scripted({ "FROM subcontractor_firms": [firmRow({ status: "active" })] });
+  await setRateCard(await uowFor(s.tx), { firmId: FIRM, serviceCode: "PM-VISIT", rateMinor: "18500", currency: "USD", effectiveFrom: "2026-11-01", emergencyMultiplier: "2.25" }, newId);
+  assert.equal(s.queries.find((q) => /INSERT INTO rate_cards/.test(q.sql))!.params[9], 22_500);
+  for (const bad of ["0.9", "1.505", "x", "-1"]) {
+    await assert.rejects(
+      setRateCard(await uowFor(scripted({ "FROM subcontractor_firms": [firmRow({ status: "active" })] }).tx), { firmId: FIRM, serviceCode: "PM-VISIT", rateMinor: "18500", currency: "USD", effectiveFrom: "2026-11-01", emergencyMultiplier: bad }, newId),
+      (e: unknown) => e instanceof BadInput, bad,
+    );
+  }
+  assert.equal(multiplierOf(15_000), "1.5");
+  assert.equal(multiplierOf(20_000), "2");
+  assert.equal(multiplierOf(12_500), "1.25");
+  assert.equal(multiplierBp("1.50"), 15_000);
 });
 
 test("0026: a rate is for a service in the catalogue — the old spelling and an emergency premium are refused by name, before anything is read", async () => {

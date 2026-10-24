@@ -57,8 +57,8 @@ const DOCS: CredentialWire[] = [
   { id: LIC, crewId: CREW_A, kind: "license", identifier: "LIC-1", validFrom: "2026-01-01", validTo: "2027-01-01", documentKey: null, verifiedAt: null, verifiedBy: null },
 ];
 const RATES: RateCardWire[] = [
-  { id: RATE_JAN, firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "9500", currency: "USD", effectiveFrom: "2026-01-01", effectiveTo: "2026-10-01" },
-  { id: RATE_OCT, firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "9900", currency: "USD", effectiveFrom: "2026-10-01", effectiveTo: null },
+  { id: RATE_JAN, firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "9500", currency: "USD", effectiveFrom: "2026-01-01", effectiveTo: "2026-10-01", emergencyMultiplier: "1.5", emergencyRateMinor: "14250" },
+  { id: RATE_OCT, firmId: FIRM_A, serviceCode: "HVAC-REPAIR", rateMinor: "9900", currency: "USD", effectiveFrom: "2026-10-01", effectiveTo: null, emergencyMultiplier: "2", emergencyRateMinor: "19800" },
 ];
 
 type Reply = { status: number; body: unknown };
@@ -246,6 +246,10 @@ test("the rate card is a timeline: every row with its window, the one in effect 
   assert.match(html, /inputmode="numeric"/);
   assert.doesNotMatch(html, /name="rateMinor"[^>]*type="number"/, "a JSON number is an IEEE-754 double — money is a digits-only string");
   assert.match(html, /Integer minor units/);
+  // 0027: each rate says what an emergency on it is settled at, and the form sets the multiplier (1.5 unless changed).
+  assert.match(html, /14250 <small class="s2-muted">1\.5× · USD 142\.50<\/small>/);
+  assert.match(html, /19800 <small class="s2-muted">2× · USD 198\.00<\/small>/);
+  assert.match(html, /name="emergencyMultiplier" value="1\.5"/);
 
   assert.equal(readable("9500", "USD"), "USD 95.00");
   assert.equal(inEffect(RATES[1]!, "2026-11-01"), true);

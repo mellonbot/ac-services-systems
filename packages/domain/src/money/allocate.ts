@@ -62,6 +62,18 @@ export const lineAmount = (quantityMilli: bigint, unitPriceMinor: bigint): bigin
   return x < 0n ? -((-x + 500n) / 1000n) : (x + 500n) / 1000n;
 };
 
+/**
+ * A subcontractor's settlement line: quantity × the rate card's rate, and on
+ * an emergency job × the card's emergency multiplier (basis points; 10000 is
+ * 1×). One division, so the multiplier is not rounded twice; half away from
+ * zero, as lineAmount — at 10000 the two are the same function. 0027's
+ * trigger on settlement_lines holds the same arithmetic in SQL.
+ */
+export const ratedAmount = (quantityMilli: bigint, rateMinor: bigint, multiplierBp: bigint): bigint => {
+  const x = quantityMilli * rateMinor * multiplierBp;
+  return x < 0n ? -((-x + 5_000_000n) / 10_000_000n) : (x + 5_000_000n) / 10_000_000n;
+};
+
 /** The invariant, callable. The invoice builder asserts it before persisting. */
 export const sumsExactly = (total: bigint, lines: readonly bigint[]): boolean =>
   lines.reduce((a, b) => a + b, 0n) === total;

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { allocate, sumsExactly, lineAmount } from "./allocate.ts";
+import { allocate, sumsExactly, lineAmount, ratedAmount } from "./allocate.ts";
 
 test("the cent that starts the invoice dispute never exists", () => {
   const lines = allocate(100_000n, [1n, 1n, 1n]);
@@ -44,6 +44,13 @@ test("a credit allocates exactly, mirrored: -100 across three is -34, -33, -33",
   assert.deepEqual(out, [-34n, -33n, -33n]);
   assert.ok(sumsExactly(-100n, out));
   assert.ok(sumsExactly(-1000n, allocate(-1000n, [3n, 3n, 3n, 1n])));
+});
+
+test("ratedAmount: at 1× it is lineAmount; an emergency multiplier is applied in the same division, rounded once", () => {
+  for (const [q, r] of [[1500n, 333n], [4500n, 9500n], [-1500n, 333n], [1n, 1n]] as const) assert.equal(ratedAmount(q, r, 10_000n), lineAmount(q, r));
+  assert.equal(ratedAmount(4500n, 9500n, 15_000n), 64125n); // 4.5 h × 95.00 × 1.5 = 641.25
+  assert.equal(ratedAmount(1000n, 333n, 15_000n), 500n); // 499.5 → 500, not round(333 × 1.5) rounded again
+  assert.equal(ratedAmount(-1000n, 333n, 15_000n), -500n, "a credit rounds as its charge does");
 });
 
 test("lineAmount: half away from zero, the same for a charge and its credit", () => {
