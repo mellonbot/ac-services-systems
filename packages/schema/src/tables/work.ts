@@ -40,12 +40,29 @@ export const jobs = operationalTable("jobs", {
       name: "work_class", type: "text", check: `work_class IN (${JOB_WORK_CLASSES.map((w) => `'${w}'`).join(",")})`, default: "'service'",
       comment: "0024: install goes to an install crew; service and commissioning go to a technician.",
     },
+    {
+      name: "job_no", type: "text",
+      comment: "0030: what people read — REGION-YYMM-SEQ-CHECK. Assigned at insert, never changed. The id is still what everything references.",
+    },
   ],
   indexes: [["site_id"], ["state"], ["project_id"], ["contract_id"]],
+  uniques: [["job_no"]],
   constraints: [
     { name: "jobs_install_sits_under_a_project", sql: "CHECK (work_class <> 'install' OR project_id IS NOT NULL)" },
     { name: "jobs_install_is_never_an_emergency", sql: "CHECK (work_class <> 'install' OR priority <> 'emergency')" },
   ],
+});
+
+/**
+ * 0030: the next job number, one row per region per month. Written only by
+ * ac_take_job_seq(); the runtime roles hold no privilege on it.
+ */
+export const job_number_counters = operationalTable("job_number_counters", {
+  columns: [
+    { name: "month", type: "text", check: "month ~ '^[0-9]{4}$'", comment: "YYMM, in the region's timezone." },
+    { name: "last_seq", type: "integer", comment: "Starts at a random 1000–4999 each month, so a number does not tell a customer the month's volume." },
+  ],
+  uniques: [["region_id", "month"]],
 });
 
 /**

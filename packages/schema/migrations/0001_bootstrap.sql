@@ -389,8 +389,10 @@ CREATE TABLE IF NOT EXISTS jobs (
   opened_at timestamptz NOT NULL DEFAULT now(),
   return_trip boolean NOT NULL DEFAULT false,
   work_class text NOT NULL DEFAULT 'service' CHECK (work_class IN ('service','install','commissioning')),
+  job_no text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (id),
+  UNIQUE (job_no),
   CONSTRAINT jobs_install_sits_under_a_project CHECK (work_class <> 'install' OR project_id IS NOT NULL),
   CONSTRAINT jobs_install_is_never_an_emergency CHECK (work_class <> 'install' OR priority <> 'emergency')
 );
@@ -399,6 +401,18 @@ CREATE INDEX IF NOT EXISTS jobs_site_id_idx ON jobs (site_id);
 CREATE INDEX IF NOT EXISTS jobs_state_idx ON jobs (state);
 CREATE INDEX IF NOT EXISTS jobs_project_id_idx ON jobs (project_id);
 CREATE INDEX IF NOT EXISTS jobs_contract_id_idx ON jobs (contract_id);
+
+CREATE TABLE IF NOT EXISTS job_number_counters (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  month text NOT NULL CHECK (month ~ '^[0-9]{4}$'),
+  last_seq integer NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (region_id, month)
+);
+CREATE INDEX IF NOT EXISTS job_number_counters_region_id_idx ON job_number_counters (region_id);
 
 CREATE TABLE IF NOT EXISTS compliance_clearances (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
