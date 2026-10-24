@@ -88,6 +88,10 @@ before(async () => {
     [U(20), PROSPECT_ORG_ID, UNASSIGNED_REGION_ID, JSON.stringify({ name: `Existing ${RUN}`, email: "someone@example.com", phone: "555 9999" }), randomUUID()]);
   await admin(`INSERT INTO call_records (id, org_id, region_id, lead_id, direction, occurred_at)
     VALUES ($1,$2,$3,$4,'outbound', now()) ON CONFLICT DO NOTHING`, [U(21), PROSPECT_ORG_ID, UNASSIGNED_REGION_ID, U(20)]);
+  // And a signed-in session of ours, so "sessions answers a stranger with nothing" is about a row that exists —
+  // not about whichever suite happened to log someone in before this one.
+  await admin(`INSERT INTO sessions (id, org_id, region_id, principal_kind, principal_id, expires_at, surface_id)
+    VALUES ($1,$2,$3,'user',$4, now() + interval '1 hour','S2') ON CONFLICT (id) DO NOTHING`, [U(22), INTERNAL_ORG_ID, REGION_SOUTH, USER_OWNER]);
 
   gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
     env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test" }, stdio: ["ignore", "pipe", "pipe"],
