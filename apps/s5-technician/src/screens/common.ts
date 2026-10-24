@@ -16,8 +16,9 @@ export { linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
  * clock is not a server resource (there is nothing to fetch — nobody has
  * started a span until this device says so) and not a queued mutation either
  * (the mutation is only minted at Stop, once the span has an end). It is
- * per-app instance, created once in app.ts's `become()`, the same lifetime as
- * `store` and `queue`.
+ * the queue's (`queue.clock`), saved with it in this device's storage under
+ * the same device-and-technician key, so a running clock outlives a reload or
+ * a sign-in again after the token expires.
  */
 export type ScreenContext = {
   readonly shell: Shell;
