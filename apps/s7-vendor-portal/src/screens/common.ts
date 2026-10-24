@@ -1,4 +1,4 @@
-import { html, signal, RefusalNotice, PrimaryAction, StatusPill, type VNode, type Router, type Status } from "../../../../packages/ui/src/index.ts";
+import { html, localDay, signal, RefusalNotice, PrimaryAction, StatusPill, type VNode, type Router, type Status } from "../../../../packages/ui/src/index.ts";
 import type { Shell } from "../../../../packages/shell/src/index.ts";
 import { densityOf, type Refusal, type DensityOf, type PoState } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
@@ -67,4 +67,4 @@ export const TIER_WORD = { location_stock: "Location stock", regional_hub: "Regi
 export const toMinor = (typed: string): string => parseMoney(typed, `"${typed}" is not an amount — use digits and at most two decimals`);
 /** Minor units → "42.50", for prefilling a price field. */
 export const plain = (minor: string): string => { const n = BigInt(minor); return `${n / 100n}.${(n % 100n).toString().padStart(2, "0")}`; };
-export const today = (): string => new Date().toISOString().slice(0, 10);
+export const today = (): string => localDay();

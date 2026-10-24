@@ -1,4 +1,4 @@
-import { html, pageHead, panel, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, localDay, pageHead, panel, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { RateCardWire, FirmWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { JOB_WORK_CLASSES, JOB_WORK_CLASS_LABEL, SERVICE_CATALOG, serviceLabel } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
@@ -37,7 +37,7 @@ export const inEffect = (r: RateCardWire, today: string): boolean => r.effective
 export const networkRates: Screen = (ctx, params) => {
   const { shell, store } = ctx;
   const firmId = params.firmId!;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDay();
   const firms = store.read(keyOf("firms.list"), () => shell.gateway.listFirms({}));
   const cards = store.read(keyOf("rateCards.list", { firmId }), () => shell.gateway.listRateCards({ firmId }));
 

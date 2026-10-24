@@ -1,4 +1,4 @@
-import { html, pageHead, panel, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, localDay, pageHead, panel, signal, DataGrid, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { CredentialWire, CredentialKind, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readCrews, submitAction, refusalView, linkTo, kindWord, day, type Screen, type ScreenContext } from "./common.ts";
@@ -32,7 +32,7 @@ export const documents: Screen = (ctx, params) => {
   const crews = readCrews(ctx);
   const docs = ctx.store.read(keyOf("credentials.list", { crewId }), () => ctx.shell.gateway.listCredentials({ crewId }));
   const crew = crews.value.state === "ready" ? crews.value.value.crews.find((c) => c.id === crewId) ?? null : null;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDay();
 
   const submit = async (e: Event) => {
     e.preventDefault();

@@ -1,3 +1,4 @@
+import { localDay } from "./screen-helpers.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToString as render } from "./testing.ts";
@@ -43,4 +44,15 @@ test("a notice is one sentence with a tone — a status line, never a toast", ()
   assert.equal(render(notice("ok", "Filed — with the office.", "doc-outcome")), `<p class="ac-notice" role="status" data-tone="ok" id="doc-outcome">Filed — with the office.</p>`);
   assert.match(render(notice("at_risk", "Queued.")), /data-tone="at_risk"/);
   for (const cls of ["ac-notice"]) assert.match(UI_CSS, new RegExp(`\\.${cls}(?![\\w-])`), cls);
+});
+
+test("localDay is the viewer's calendar date, not the UTC one", () => {
+  const tz = process.env.TZ;
+  try {
+    process.env.TZ = "America/Chicago";
+    assert.equal(localDay(new Date("2026-10-24T02:30:00.000Z")), "2026-10-23", "9:30 PM on the 23rd in Texas is already the 24th in UTC");
+    assert.equal(localDay(new Date("2026-01-05T18:00:00.000Z")), "2026-01-05");
+  } finally {
+    if (tz === undefined) delete process.env.TZ; else process.env.TZ = tz;
+  }
 });

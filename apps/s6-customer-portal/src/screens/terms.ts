@@ -1,4 +1,4 @@
-import { html, pageHead, panel, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, localDay, pageHead, panel, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { ResolutionWire, TermPolicy, Tier } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, TIER_WORD, type Screen } from "./common.ts";
@@ -50,7 +50,7 @@ export const wonWhere = (r: ResolutionWire, nameOf: (id: string) => string | und
 export const terms: Screen = (ctx, params) => {
   const tier = params.tier as Tier;
   const nodeId = params.nodeId ?? "";
-  const asOf = params.asOf ?? new Date().toISOString().slice(0, 10);
+  const asOf = params.asOf ?? localDay();
   const nodes = readNodes(ctx);
   const register = ctx.store.read("terms.register", () => ctx.shell.gateway.termRegister());
   const resolved = ctx.store.read(keyOf("terms.resolved", { tier, nodeId, asOf }), () => ctx.shell.gateway.resolvedTerms({ tier, nodeId, asOf }));
