@@ -174,7 +174,27 @@ export const OPERATIONS = {
   "invoices.list": {
     id: "invoices.list", method: "GET", path: "/invoices", kind: "query", auth: "bearer",
     surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "listInvoices",
-    summary: "Invoices with lines at a site or location this principal may see, with THOSE lines and their subtotal — a consolidated parent invoice read from one location shows that location's lines and nothing beside (0009). Issuance is WS-E's; this is the read.",
+    summary: "Invoices with lines at a site or location this principal may see, with THOSE lines and their subtotal — a consolidated parent invoice read from one location shows that location's lines and nothing beside (0009). Issuance is WS-E's; this is the read. Each carries its status and what is paid against the whole invoice, derived from its payments (0030).",
+  },
+  "invoices.void": {
+    id: "invoices.void", method: "POST", path: "/s2/invoices/void", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "voidInvoice",
+    summary: "Void an issued invoice the office should not have issued, with the reason. Refused while any payment stands against it. Final (0030). Finance and the principals (S2 writeRoles.invoice).",
+  },
+  "payments.list": {
+    id: "payments.list", method: "GET", path: "/s2/payments", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "query", sdkMethod: "listPayments",
+    summary: "Every payment recorded against an invoice, oldest first, in every state — the history the derived status is read from.",
+  },
+  "payments.record": {
+    id: "payments.record", method: "POST", path: "/s2/payments", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "recordPayment",
+    summary: "Record a payment received against an issued invoice: amount in the invoice's currency, method, reference, the day it arrived (today if not given; never ahead, never before issue). Part payments are rows like any other; the total is never exceeded (0030). Emits invoice.paid when it settles the invoice, payment.recorded otherwise. Finance and the principals (S2 writeRoles.payment).",
+  },
+  "payments.return": {
+    id: "payments.return", method: "POST", path: "/s2/payments/return", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "returnPayment",
+    summary: "Mark a succeeded payment returned (a bounced check, an ACH return) or refunded, with the reason. The row stays; the invoice's status is re-derived without it. Finance and the principals.",
   },
   "sites.imagery": {
     id: "sites.imagery", method: "GET", path: "/s6/sites/imagery", kind: "query", auth: "bearer",
@@ -960,11 +980,42 @@ export type InvoiceWire = {
   readonly billingPath: BillingPath; readonly periodStart: string | null; readonly periodEnd: string | null;
   /** The whole invoice's total — the consolidated header — as minor units. */
   readonly totalMinor: string; readonly currency: string; readonly issuedAt: string | null; readonly dueAt: string | null;
+  /** 0030, derived from the invoice's payments: never stored. Past due is `open` or `partially_paid` with `dueAt` behind now — a reading, not a status. */
+  readonly status: InvoiceStatus;
+  /** Succeeded payments against the WHOLE invoice, minor units — set beside `totalMinor`, not `subtotalMinor`. */
+  readonly paidMinor: string;
+  readonly voidedAt: string | null; readonly voidReason: string | null;
   /** The lines this principal may see on it, at the node asked for. */
   readonly lines: readonly InvoiceLineWire[];
   /** Sum of `lines` — what the node asked for was billed on this invoice. */
   readonly subtotalMinor: string;
 };
+export type InvoiceStatus = "draft" | "open" | "partially_paid" | "paid" | "void";
+export const invoiceStatusOf = (r: { readonly issuedAt: string | null; readonly voidedAt: string | null; readonly totalMinor: string; readonly paidMinor: string }): InvoiceStatus =>
+  r.voidedAt ? "void"
+    : !r.issuedAt ? "draft"
+    : BigInt(r.paidMinor) >= BigInt(r.totalMinor) ? "paid"
+    : BigInt(r.paidMinor) > 0n ? "partially_paid"
+    : "open";
+export const PAYMENT_METHODS = ["ach", "wire", "check", "card", "cash", "other"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+export type PaymentState = "pending" | "succeeded" | "failed" | "returned" | "refunded";
+export type PaymentWire = {
+  readonly id: string; readonly invoiceId: string; readonly amountMinor: string; readonly currency: string;
+  readonly method: PaymentMethod; readonly reference: string | null; readonly state: PaymentState;
+  readonly receivedAt: string; readonly returnedAt: string | null; readonly returnReason: string | null;
+};
+export type ListPaymentsInput = { readonly invoiceId: string };
+export type ListPaymentsOutput = { readonly payments: readonly PaymentWire[] };
+export type RecordPaymentInput = {
+  readonly invoiceId: string; readonly amountMinor: string; readonly method: PaymentMethod;
+  readonly reference?: string; readonly receivedAt?: string;
+};
+export type ReturnPaymentInput = { readonly paymentId: string; readonly reason: string; readonly as?: "returned" | "refunded" };
+/** What a payment write left the invoice at, so the caller need not refetch to know. */
+export type PaymentOutput = { readonly payment: PaymentWire; readonly invoiceStatus: InvoiceStatus; readonly paidMinor: string; readonly eventId: string };
+export type VoidInvoiceInput = { readonly invoiceId: string; readonly reason: string };
+export type VoidInvoiceOutput = { readonly invoiceId: string; readonly voidedAt: string; readonly eventId: string };
 export type ListInvoicesInput = { readonly siteId?: string; readonly locationId?: string };
 export type ListInvoicesOutput = { readonly invoices: readonly InvoiceWire[] };
 
@@ -2010,6 +2061,10 @@ export type OperationIO = {
   "contacts.list": { input: ListContactsInput; output: ListContactsOutput };
   "contacts.set": { input: SetContactInput; output: SetContactOutput };
   "invoices.list": { input: ListInvoicesInput; output: ListInvoicesOutput };
+  "invoices.void": { input: VoidInvoiceInput; output: VoidInvoiceOutput };
+  "payments.list": { input: ListPaymentsInput; output: ListPaymentsOutput };
+  "payments.record": { input: RecordPaymentInput; output: PaymentOutput };
+  "payments.return": { input: ReturnPaymentInput; output: PaymentOutput };
   "sites.imagery": { input: SiteImageryInput; output: SiteImageryOutput };
   "sites.mapTile": { input: SiteMapTileInput; output: SiteMapTileOutput };
   "sites.locate": { input: LocateSiteInput; output: LocateSiteOutput };

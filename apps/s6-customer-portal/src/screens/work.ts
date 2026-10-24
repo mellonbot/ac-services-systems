@@ -117,6 +117,10 @@ const billOf = (job: JobWire | null, invoices: readonly InvoiceWire[]) => {
   return null;
 };
 
+/** 0030: a settled invoice says so in words — a fact about the bill, not a state colour. Null while something is still owed. */
+const settledNote = (inv: InvoiceWire): string | null =>
+  inv.status === "paid" ? ", paid in full" : inv.status === "void" ? ", voided" : null;
+
 const noteOf = (ctx: ScreenContext, o: WorkOrder, invoices: readonly InvoiceWire[]): VNode | string => {
   const at = stepOf(o);
   const j = o.job;
@@ -134,7 +138,7 @@ const noteOf = (ctx: ScreenContext, o: WorkOrder, invoices: readonly InvoiceWire
   const done = j ? `Completed ${day(j.stateChangedAt)}.` : "The work is done.";
   const bill = at === 4 ? billOf(j, invoices) : null;
   if (!bill) return at === 4 ? `${done} It has been invoiced.` : done;
-  return html`${done} Invoice <span class="ac-num">${refOf(bill.inv.id)}</span> · <span class="ac-num">${bill.amount}</span>${bill.inv.dueAt ? html` due <span class="ac-num">${day(bill.inv.dueAt)}</span>` : null} — ${linkTo(ctx, "site", { siteId: o.siteId }, "see it on the site card")}`;
+  return html`${done} Invoice <span class="ac-num">${refOf(bill.inv.id)}</span> · <span class="ac-num">${bill.amount}</span>${settledNote(bill.inv) ?? html`${bill.inv.status === "partially_paid" ? ", part paid," : null}${bill.inv.dueAt ? html` due <span class="ac-num">${day(bill.inv.dueAt)}</span>` : null}`} — ${linkTo(ctx, "site", { siteId: o.siteId }, "see it on the site card")}`;
 };
 
 export const orderCard = (ctx: ScreenContext, o: WorkOrder, invoices: readonly InvoiceWire[], nowMs: number): VNode => {
@@ -249,7 +253,7 @@ export const work: Screen = (ctx) => {
       const orders = ordersOf(out.requests, jobRows);
       const n = (k: number) => orders.filter((o) => stepOf(o) === k).length;
       const done30 = orders.filter((o) => stepOf(o) >= 3 && now - Date.parse(o.job?.stateChangedAt ?? o.submittedAt) <= 30 * DAY_MS).length;
-      const due = invoiceRows.filter((i) => i.dueAt && Date.parse(i.dueAt) >= now).length;
+      const due = invoiceRows.filter((i) => (i.status === "open" || i.status === "partially_paid") && i.dueAt && Date.parse(i.dueAt) >= now).length;
       return statStrip([
         { n: n(0), label: "Open requests" },
         { n: n(1), label: "Scheduled" },

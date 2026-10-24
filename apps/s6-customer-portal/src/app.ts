@@ -81,7 +81,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",
       "service_request.created", "service_request.job_opened", "contract.created", "contract.amended", "contract.term_overridden", "contract.expired",
       "account.created", "account.updated", "account.deactivated",
-      "equipment.registered", "account_contact.set", "invoice.issued",
+      "equipment.registered", "account_contact.set", "invoice.issued", "invoice.paid", "invoice.voided", "payment.recorded", "payment.returned",
       "job.update_published", "job.message_posted",
     ] });
   };

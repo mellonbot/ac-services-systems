@@ -9,7 +9,7 @@ import { STATE_WORD, isOpen, ordersOf, pillOf } from "./screens/work.ts";
 import { plannedVisits } from "./screens/home.ts";
 import { valueWord, wonWhere } from "./screens/terms.ts";
 import { resetRequestForm, describe, refOf, photoProblem, toBase64 } from "./screens/request.ts";
-import { money, tons, addressLines, ledgerOf } from "./screens/site.ts";
+import { money, tons, addressLines, ledgerOf, invoiceWord } from "./screens/site.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { Principal, JobWire, HierarchyContext, AccountWire, ContractWire, ServiceRequestWire, ResolutionWire, EquipmentWire, ContactWire, InvoiceWire, SiteImageryOutput } from "../../../packages/contracts/src/index.ts";
 import { OPERATIONS, TERMS } from "../../../packages/contracts/src/index.ts";
@@ -94,6 +94,7 @@ const contacts: ContactWire[] = [
 const invoice: InvoiceWire = {
   id: INVOICE, billToTier: "parent", billToId: ORG, contractId: MSA, billingPath: "enterprise_sla", periodStart: "2026-06-01", periodEnd: "2026-06-30",
   totalMinor: "1284500", currency: "USD", issuedAt: "2026-07-03T15:00:00.000Z", dueAt: "2026-08-17T00:00:00.000Z",
+  status: "open", paidMinor: "0", voidedAt: null, voidReason: null,
   lines: [{ id: U(26), locationId: AUSTIN, jobId: U(30), description: "Quarterly PM — RTU-1", quantityMilli: "1000", unitPriceMinor: "42500", amountMinor: "42500" }],
   subtotalMinor: "42500",
 };
@@ -537,4 +538,14 @@ test("plannedVisits: PM jobs completed this year, and the earliest booked one st
   const v = plannedVisits(jobs, now);
   assert.equal(v.done, 1, "last year's visit and a repair are not this year's planned visits");
   assert.equal(v.next?.id, U(63));
+});
+
+test("0030: an invoice says where it stands in words — due, part paid against the whole, paid in full, voided and why", () => {
+  const word = (over: Partial<InvoiceWire>) => render(invoiceWord({ ...invoice, ...over })!);
+  assert.match(word({}), /Due/);
+  const part = word({ status: "partially_paid", paidMinor: "500000" });
+  assert.match(part, /Part paid/);
+  assert.ok(part.includes(money("500000")) && part.includes(money("1284500")), part);
+  assert.match(word({ status: "paid", paidMinor: "1284500" }), /Paid in full/);
+  assert.match(word({ status: "void", voidedAt: "2026-07-05T00:00:00.000Z", voidReason: "billed twice" }), /Voided — billed twice/);
 });

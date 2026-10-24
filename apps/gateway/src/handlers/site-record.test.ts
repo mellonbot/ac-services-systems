@@ -119,12 +119,13 @@ test("listInvoices: the subtotal is the sum of the lines RLS returned, as a bigi
       { id: U(40), invoice_id: INVOICE, location_id: LOCATION, job_id: JOB, description: "PM visit", quantity_milli: "1000", unit_price_minor: "42500", amount_minor: "42500" },
       { id: U(41), invoice_id: INVOICE, location_id: LOCATION, job_id: JOB, description: "Filters", quantity_milli: "4000", unit_price_minor: "1899", amount_minor: "7596" },
     ]],
-    ["FROM invoices WHERE id", [{ id: INVOICE, bill_to_tier: "parent", bill_to_id: ORG, contract_id: U(60), billing_path: "enterprise_sla", period_start: "2026-08-01", period_end: "2026-08-31", total_minor: "1250000", currency: "USD", issued_at: "2026-09-02T00:00:00.000Z", due_at: "2026-10-02T00:00:00.000Z" }]],
+    ["FROM invoices WHERE id", [{ id: INVOICE, bill_to_tier: "parent", bill_to_id: ORG, contract_id: U(60), billing_path: "enterprise_sla", period_start: "2026-08-01", period_end: "2026-08-31", total_minor: "1250000", currency: "USD", issued_at: "2026-09-02T00:00:00.000Z", due_at: "2026-10-02T00:00:00.000Z", voided_at: null, void_reason: null, paid_minor: "400000" }]],
   ]);
   const out = await listInvoices(await uowFor(s.tx, "S6", executive), { siteId: SITE });
   assert.equal(out.invoices.length, 1);
   assert.equal(out.invoices[0]!.subtotalMinor, "50096");
   assert.equal(out.invoices[0]!.totalMinor, "1250000", "the consolidated header, untouched");
+  assert.deepEqual([out.invoices[0]!.status, out.invoices[0]!.paidMinor], ["partially_paid", "400000"], "0030: derived from what was paid against the whole invoice");
   assert.equal(out.invoices[0]!.lines.length, 2);
   await assert.rejects(listInvoices(await uowFor(scripted([]).tx), { siteId: SITE, locationId: LOCATION }), BadInput);
   const none = await listInvoices(await uowFor(scripted([["FROM accounts WHERE id", [site]]]).tx), { siteId: SITE });

@@ -66,6 +66,7 @@ export const ALL_TABLES: readonly Table[] = Object.freeze([
   // money
   billing.invoices,
   billing.invoice_lines,
+  billing.payments,
   billing.working_capital_positions,
   network.settlements,
   network.settlement_lines,

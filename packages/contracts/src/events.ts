@@ -49,7 +49,9 @@ export const TOPICS = [
   // screen needs to react rather than in anticipation of one.
   "device.registered", "device.shift_granted",
   // money
-  "invoice.issued", "invoice.paid", "settlement.statement_issued",
+  "invoice.issued", "invoice.paid", "invoice.voided", "settlement.statement_issued",
+  // 0030: a part payment, and a payment that came back. invoice.paid is the one that settles it.
+  "payment.recorded", "payment.returned",
   // item 7: the firm's position on a statement. The office subscribes to both.
   "settlement.acknowledged", "settlement.disputed",
   // item 8 — S1's intake. Arc 1: a stranger becomes a signed account, and the
@@ -120,6 +122,8 @@ export const SUBSCRIBERS: Readonly<Record<"OFC" | "FLD" | "INV" | "WORKER", read
   INV: ["service_request.job_opened", "job.completed", "job.update_published", "job.message_posted", "contract.amended", "contract.term_overridden", "sla.breached", "settlement.statement_issued", "firm.status_changed", "credential.verified", "rate_card.changed", "brand.theme_set",
         // item 9: the site card's own facts.
         "equipment.registered", "account_contact.set", "invoice.issued",
+        // 0030: what was paid against an invoice changes its status on the card.
+        "invoice.paid", "invoice.voided", "payment.recorded", "payment.returned",
         // item 11: what S7 refetches on — the office issued, cancelled, received, decided a price, asked for a return.
         "po.issued", "po.cancelled", "po.received", "vendor_price.decided", "rma.requested"],
   WORKER: ["job.created", "job.assigned", "sla.timer_opened", "credential.verified"],

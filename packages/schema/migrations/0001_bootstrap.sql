@@ -628,8 +628,12 @@ CREATE TABLE IF NOT EXISTS invoices (
   currency text NOT NULL REFERENCES currencies(code),
   issued_at timestamptz,
   due_at timestamptz,
+  voided_at timestamptz,
+  void_reason text,
   created_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (id)
+  PRIMARY KEY (id),
+  CONSTRAINT invoices_void_has_reason CHECK ((voided_at IS NULL) = (void_reason IS NULL) AND (void_reason IS NULL OR length(btrim(void_reason)) > 0)),
+  CONSTRAINT invoices_void_once_issued CHECK (voided_at IS NULL OR issued_at IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS invoices_region_id_idx ON invoices (region_id);
 CREATE INDEX IF NOT EXISTS invoices_bill_to_tier_bill_to_id_idx ON invoices (bill_to_tier, bill_to_id);
@@ -653,6 +657,27 @@ CREATE TABLE IF NOT EXISTS invoice_lines (
 CREATE INDEX IF NOT EXISTS invoice_lines_region_id_idx ON invoice_lines (region_id);
 CREATE INDEX IF NOT EXISTS invoice_lines_invoice_id_idx ON invoice_lines (invoice_id);
 CREATE INDEX IF NOT EXISTS invoice_lines_location_id_idx ON invoice_lines (location_id);
+
+CREATE TABLE IF NOT EXISTS payments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  invoice_id uuid NOT NULL REFERENCES invoices(id),
+  amount_minor bigint NOT NULL CHECK (amount_minor > 0),
+  currency text NOT NULL REFERENCES currencies(code),
+  method text NOT NULL CHECK (method IN ('ach','wire','check','card','cash','other')),
+  reference text,
+  state text NOT NULL DEFAULT 'succeeded' CHECK (state IN ('pending','succeeded','failed','returned','refunded')),
+  received_at timestamptz NOT NULL,
+  returned_at timestamptz,
+  return_reason text,
+  recorded_by uuid NOT NULL REFERENCES users(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  CONSTRAINT payments_returned_has_when CHECK ((state IN ('returned','refunded')) = (returned_at IS NOT NULL) AND (returned_at IS NULL OR returned_at >= received_at))
+);
+CREATE INDEX IF NOT EXISTS payments_region_id_idx ON payments (region_id);
+CREATE INDEX IF NOT EXISTS payments_invoice_id_idx ON payments (invoice_id);
 
 CREATE TABLE IF NOT EXISTS working_capital_positions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

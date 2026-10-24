@@ -21,6 +21,11 @@ import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/
  * test runs against a live database as ac_worker.
  */
 const WINDOW = (col: string) => `${col} > $1::timestamptz - interval '30 days' AND ${col} <= $1::timestamptz`;
+// 0030, read as of the snapshot so a past day re-computed reads as it stood:
+// a payment counts once it arrived, until it came back; a void, once voided.
+const PAID = `(SELECT COALESCE(sum(p.amount_minor), 0) FROM payments p WHERE p.invoice_id = i.id AND p.received_at <= $1::timestamptz
+   AND (p.state = 'succeeded' OR (p.state IN ('returned','refunded') AND p.returned_at > $1::timestamptz)))`;
+const NOT_VOID = `(i.voided_at IS NULL OR i.voided_at > $1::timestamptz)`;
 const WORK_DONE_SQL = WORK_DONE_STATES.map((s) => `'${s}'`).join(",");
 const OPEN_JOB = `j.state NOT IN (${WORK_DONE_SQL},'cancelled','aborted')`;
 const OPEN_STATEMENT = `s.state IN ('issued','acknowledged','disputed')`;
@@ -55,9 +60,11 @@ export const HQ_ROLLUP_SQL: Readonly<Record<HqMetricKey, string>> = {
   sla_escalated_30d: count("sla_timers t", `t.region_id = r.id AND ${WINDOW("t.opened_at")} AND t.escalation_stage > 0`),
 
   // ---- revenue & money ----
-  invoiced_minor_30d: sum("i.total_minor", "invoices i", `i.region_id = r.id AND i.issued_at IS NOT NULL AND ${WINDOW("i.issued_at")}`),
-  // An upper bound: invoices carry no paid or void state yet (OPEN-PAYMENTS), so nothing here can take a paid one out.
-  invoices_past_due_minor: sum("i.total_minor", "invoices i", `i.region_id = r.id AND i.issued_at IS NOT NULL AND i.due_at < $1::timestamptz`),
+  // A voided invoice was never billed.
+  invoiced_minor_30d: sum("i.total_minor", "invoices i", `i.region_id = r.id AND i.issued_at IS NOT NULL AND ${WINDOW("i.issued_at")} AND ${NOT_VOID}`),
+  // What is still owed on invoices past their due date: each one's total less what was paid against it.
+  invoices_past_due_minor: sum(`i.total_minor - ${PAID}`, "invoices i",
+    `i.region_id = r.id AND i.issued_at IS NOT NULL AND i.due_at < $1::timestamptz AND ${NOT_VOID} AND i.total_minor > ${PAID}`),
   receivable_minor: latestPosition("receivable_minor"),
   subcontractor_payable_minor: latestPosition("subcontractor_payable_minor"),
   settlements_open_minor: sum("s.total_minor", "settlements s", `s.region_id = r.id AND ${OPEN_STATEMENT}`),
