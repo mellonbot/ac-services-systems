@@ -21,6 +21,7 @@ import { networkCrewDocuments } from "./screens/network-documents.ts";
 import { networkRates } from "./screens/network-rates.ts";
 import { networkTechnicianNew, networkTechnicianEdit } from "./screens/network-technicians.ts";
 import { purchasing, purchasingVendor, purchasingPo, refreshProcurement } from "./screens/purchasing.ts";
+import { billing, billingInvoice, refreshBilling } from "./screens/billing.ts";
 import { S2_CSS } from "./styles.ts";
 
 /**
@@ -68,12 +69,15 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "purchasing": purchasing,
   "purchasing.vendor": purchasingVendor,
   "purchasing.po": purchasingPo,
+  "billing": billing,
+  "billing.invoice": billingInvoice,
 };
 
 const NAV_GROUPS = [
   { label: "Customer records", screens: ["accounts.tree", "contracts.list", "projects", "leads"] as const },
   { label: "Technician Network", screens: ["network"] as const },
   { label: "Purchasing", screens: ["purchasing"] as const },
+  { label: "Billing", screens: ["billing"] as const },
 ] as const;
 
 /** A terminated firm will field no more crews for us, so it gets no tab; it stays in the screen's firm list. */
@@ -114,6 +118,8 @@ const ROUTE_LABELS: Readonly<Record<Exclude<ScreenId, "login">, string>> = {
   "purchasing": "Purchasing",
   "purchasing.vendor": "Vendor catalogue",
   "purchasing.po": "Purchase order",
+  "billing": "Billing",
+  "billing.invoice": "Invoice",
 };
 
 const navGroupFor = (screen: Exclude<ScreenId, "login">): (typeof NAV_GROUPS)[number] | undefined =>
@@ -122,13 +128,15 @@ const navGroupFor = (screen: Exclude<ScreenId, "login">): (typeof NAV_GROUPS)[nu
     (id === "accounts.tree" && screen === "organizations.new") ||
     (id === "contracts.list" && (screen.startsWith("contracts.") || screen.startsWith("terms."))) ||
     (id === "network" && screen.startsWith("network.")) ||
-    (id === "purchasing" && screen.startsWith("purchasing."))));
+    (id === "purchasing" && screen.startsWith("purchasing.")) ||
+    (id === "billing" && screen.startsWith("billing."))));
 
 const navTargetFor = (screen: Exclude<ScreenId, "login">): Exclude<ScreenId, "login"> => {
   if (screen === "organizations.new" || screen.startsWith("accounts.")) return "accounts.tree";
   if (screen.startsWith("contracts.") || screen.startsWith("terms.")) return "contracts.list";
   if (screen.startsWith("network.")) return "network";
   if (screen.startsWith("purchasing.")) return "purchasing";
+  if (screen.startsWith("billing.")) return "billing";
   return screen;
 };
 
@@ -210,6 +218,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     // S1's arc 1: a lead arrives, or someone here converts one.
     shell.subscribe(() => store.invalidate("leads.list"), { topics: ["lead.captured", "lead.converted"] });
     shell.subscribe(() => refreshProcurement(store), { topics: ["vendor_price.proposed", "vendor_price.withdrawn", "po.acknowledged", "po.shipped", "vendor_invoice.submitted", "rma.responded"] });
+    // 0030: a payment recorded or returned, an invoice paid or voided — here or by another office user.
+    shell.subscribe(() => refreshBilling(store), { topics: ["payment.recorded", "payment.returned", "invoice.paid", "invoice.voided", "invoice.issued"] });
   };
 
   const login = async (email: string, password: string) => {

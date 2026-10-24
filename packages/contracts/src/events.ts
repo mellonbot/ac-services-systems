@@ -116,7 +116,9 @@ export const SUBSCRIBERS: Readonly<Record<"OFC" | "FLD" | "INV" | "WORKER", read
         // item 7: a firm's document arrived (to verify), a firm's position on a statement (to act on).
         "credential.recorded", "settlement.acknowledged", "settlement.disputed",
         // item 11: the vendor's side — a proposed price, an acknowledgement, a shipment, an invoice, an answer on a return.
-        "vendor_price.proposed", "po.acknowledged", "po.shipped", "vendor_invoice.submitted", "rma.responded"],
+        "vendor_price.proposed", "po.acknowledged", "po.shipped", "vendor_invoice.submitted", "rma.responded",
+        // 0030: S2's billing screens refetch on what was paid against an invoice.
+        "invoice.issued", "invoice.paid", "invoice.voided", "payment.recorded", "payment.returned"],
   FLD: ["job.assigned", "job.reassigned", "job.cancelled", "contract.term_overridden"],
   // S8 learns of its own verification and its own price the same way S2 does — by refetch.
   INV: ["service_request.job_opened", "job.completed", "job.update_published", "job.message_posted", "contract.amended", "contract.term_overridden", "sla.breached", "settlement.statement_issued", "firm.status_changed", "credential.verified", "rate_card.changed", "brand.theme_set",
