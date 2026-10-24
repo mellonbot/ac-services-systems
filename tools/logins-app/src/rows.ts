@@ -2,7 +2,6 @@ import { hashPassword } from "../../../apps/gateway/src/auth.ts";
 import { ROLES, CUSTOMER_ROLES, type Role, type CustomerRole } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
-import { MIN_TEST_LOGIN_PASSWORD } from "../../ci/test-logins.ts";
 import type { UserRecord } from "./kinds.ts";
 import { LoginInputError } from "./errors.ts";
 
@@ -33,9 +32,17 @@ export type UsersRow = {
 
 export { LoginInputError };
 
+/** AC Logins' own rule; the CI seed keeps its longer MIN_TEST_LOGIN_PASSWORD for the shared test logins. */
+export const MIN_PASSWORD = 6;
+/** Anything that is not a letter, a digit or whitespace, in any script. */
+const SPECIAL = /[^\p{L}\p{N}\s]/u;
+
 export const checkPassword = (password: string): void => {
-  if (password.length < MIN_TEST_LOGIN_PASSWORD) {
-    throw new LoginInputError(`The password must be at least ${MIN_TEST_LOGIN_PASSWORD} characters.`);
+  if (password.length < MIN_PASSWORD) {
+    throw new LoginInputError(`The password must be at least ${MIN_PASSWORD} characters.`);
+  }
+  if (!SPECIAL.test(password)) {
+    throw new LoginInputError("The password must include a special character, such as ! @ # $ or -.");
   }
 };
 

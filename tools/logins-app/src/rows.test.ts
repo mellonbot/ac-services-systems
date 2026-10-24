@@ -11,7 +11,7 @@ const NODE = "a0000000-0000-0000-0000-0000000000cc";
 const FIRM = "a0000000-0000-0000-0000-0000000000dd";
 const CREW = "a0000000-0000-0000-0000-0000000000ee";
 const CREW_HOME = "a0000000-0000-0000-0000-0000000000ff";
-const pw = "correct horse battery";
+const pw = "correct horse battery!";
 const base = { email: "a@b.co", displayName: "A B", password: pw };
 
 const shape = (r: ReturnType<typeof buildUserRow>) =>
@@ -55,11 +55,17 @@ test("subcontractor", () => {
 
 test("refusals", () => {
   const internal: NewLogin = { ...base, kind: "internal", roles: ["principal"], scope: "org", regionId: R };
-  assert.throws(() => buildUserRow({ ...internal, password: "x".repeat(11) }), /at least 12/);
+  assert.throws(() => buildUserRow({ ...internal, password: "x!".repeat(2) + "x" }), /at least 6/);
   assert.throws(() => checkPassword("short"), LoginInputError);
   assert.throws(() => buildUserRow({ ...internal, email: "nope" }), /email/);
   assert.throws(() => buildUserRow({ ...internal, roles: [] }), /role/);
   assert.equal(buildUserRow({ ...internal, email: "  A@B.Co " }).email, "a@b.co");
+});
+
+test("checkPassword: 6 or more characters, one of them special", () => {
+  for (const ok of ["abcde!", "ab-cd1", "Pässw@", "123456#", "a b c#"]) assert.doesNotThrow(() => checkPassword(ok), ok);
+  for (const short of ["", "abc!", "abcd!"]) assert.throws(() => checkPassword(short), /at least 6/, short);
+  for (const plain of ["abcdef", "Password123", "Pässwort", "abc def", "abc\tdef"]) assert.throws(() => checkPassword(plain), /special character/, plain);
 });
 
 test("accessChanged", () => {
