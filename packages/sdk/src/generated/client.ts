@@ -185,9 +185,9 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["crews.enroll"], input) as Promise<OperationIO["crews.enroll"]["output"]>;
   },
 
-  /** `GET /network/crews` · query · bearer · surfaces: S2, S8
+  /** `GET /network/crews` · query · bearer · surfaces: S2, S3, S8
    *
-   * Crews — ours and the firms' — with a document summary per crew: what the gate would need, what is on file, what is verified, and the earliest expiry. Read by S2 and by a firm for its own crews; never by the field layer. */
+   * Crews — ours and the firms' — with a document summary per crew: what the gate would need, what is on file, what is verified, and the earliest expiry. Read by S2, by S3's board for a row per crew whether or not it holds work, and by a firm for its own crews; never by the field layer. */
   listCrews(input: OperationIO["crews.list"]["input"]): Promise<OperationIO["crews.list"]["output"]> {
     return transport.request(OPERATIONS["crews.list"], input) as Promise<OperationIO["crews.list"]["output"]>;
   },
@@ -703,7 +703,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["system.health"], undefined) as Promise<OperationIO["system.health"]["output"]>;
   },
 
-  /** `GET /network/technicians` · query · bearer · surfaces: S2
+  /** `GET /network/technicians` · query · bearer · surfaces: S2, S3
    *
    * The technician roster — name, phone, specialties, crew, and the home address for an account owner or principal (restricted for every other role). Optionally one firm's. */
   listTechnicians(input: OperationIO["technicians.list"]["input"]): Promise<OperationIO["technicians.list"]["output"]> {

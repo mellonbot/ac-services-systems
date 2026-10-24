@@ -242,8 +242,8 @@ export const OPERATIONS = {
   },
   "crews.list": {
     id: "crews.list", method: "GET", path: "/network/crews", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listCrews",
-    summary: "Crews — ours and the firms' — with a document summary per crew: what the gate would need, what is on file, what is verified, and the earliest expiry. Read by S2 and by a firm for its own crews; never by the field layer.",
+    surfaces: ["S2", "S3", "S8"], carrier: "query", sdkMethod: "listCrews",
+    summary: "Crews — ours and the firms' — with a document summary per crew: what the gate would need, what is on file, what is verified, and the earliest expiry. Read by S2, by S3's board for a row per crew whether or not it holds work, and by a firm for its own crews; never by the field layer.",
   },
   "crews.create": {
     id: "crews.create", method: "POST", path: "/s2/network/crews", kind: "mutation", auth: "bearer",
@@ -256,12 +256,13 @@ export const OPERATIONS = {
     summary: "Label and active flag. Never the firm, never the home region — a crew that changes employer or region is a new crew with a new document set.",
   },
   // 0020: the technician roster — every person who works our jobs, ours or a
-  // firm's, login or not. S2 only: S8 is not given it. The home address is
-  // served to account owners alone; every other office role reads it as
-  // restricted and cannot write it.
+  // firm's, login or not. The office reads it: S2 to keep it, S3's board to
+  // draw every technician whether or not they hold work. S8 is not given it.
+  // The home address is served to account owners alone; every other office
+  // role reads it as restricted and cannot write it.
   "technicians.list": {
     id: "technicians.list", method: "GET", path: "/network/technicians", kind: "query", auth: "bearer",
-    surfaces: ["S2"], carrier: "query", sdkMethod: "listTechnicians",
+    surfaces: ["S2", "S3"], carrier: "query", sdkMethod: "listTechnicians",
     summary: "The technician roster — name, phone, specialties, crew, and the home address for an account owner or principal (restricted for every other role). Optionally one firm's.",
   },
   "technicians.record": {
