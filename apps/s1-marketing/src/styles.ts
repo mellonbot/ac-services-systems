@@ -58,6 +58,12 @@ export const S1_CSS = `
 .s1-portal span{color:var(--color-text-muted);font-size:var(--text-xs)}
 .s1-portal:hover{border-color:var(--color-border-hard);box-shadow:var(--elevation-raised)}
 .s1-portal:hover strong{text-decoration:underline}
+/* A stage wide enough to carry them takes the plates a step up; below it the side plates would leave the stage. */
+@container (min-width:56rem){
+  .s1-portal{padding:var(--space-2) var(--space-4)}
+  .s1-portal strong{font-size:var(--text-md)}
+  .s1-portal span{font-size:var(--text-sm)}
+}
 @container (max-width:45rem){
   .s1-scene__stage{aspect-ratio:4/3}
   .s1-scene__plates{position:static;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);padding:var(--space-3);pointer-events:auto}
