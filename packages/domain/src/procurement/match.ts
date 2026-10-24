@@ -23,11 +23,16 @@ export type InvoicedLine = { readonly poLineId: string; readonly quantityMilli: 
 export type MatchNote = { readonly poLineId: string | null; readonly code: "unknown_line" | "duplicate_line" | "price" | "over_received" | "empty"; readonly message: string };
 export type MatchVerdict = { readonly state: "matched" | "held"; readonly notes: readonly MatchNote[] };
 
+// bigint / and % truncate toward zero, so a negative is formatted as its sign and its magnitude.
 const qty = (milli: bigint): string => {
-  const whole = milli / 1000n, frac = milli % 1000n;
-  return frac === 0n ? whole.toString() : `${whole}.${frac.toString().padStart(3, "0").replace(/0+$/, "")}`;
+  const sign = milli < 0n ? "-" : "", abs = milli < 0n ? -milli : milli;
+  const whole = abs / 1000n, frac = abs % 1000n;
+  return frac === 0n ? `${sign}${whole}` : `${sign}${whole}.${frac.toString().padStart(3, "0").replace(/0+$/, "")}`;
 };
-const money = (minor: bigint): string => `${minor / 100n}.${(minor % 100n).toString().padStart(2, "0")}`;
+const money = (minor: bigint): string => {
+  const sign = minor < 0n ? "-" : "", abs = minor < 0n ? -minor : minor;
+  return `${sign}${abs / 100n}.${(abs % 100n).toString().padStart(2, "0")}`;
+};
 
 export const threeWayMatch = (ordered: readonly OrderedLine[], invoiced: readonly InvoicedLine[]): MatchVerdict => {
   const notes: MatchNote[] = [];
