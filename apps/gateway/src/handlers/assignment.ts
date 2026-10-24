@@ -189,15 +189,20 @@ export const candidateCrews = async (uow: UnitOfWork, input: CandidateCrewsInput
  * S3 does not have a screen for yet, not a release.
  */
 export const releaseAssignment = async (uow: UnitOfWork, actorId: string, input: ReleaseAssignmentInput, releasedAt: Date): Promise<ReleaseAssignmentOutput> => {
+  const found = (await uow.tx.query<{ job_id: string }>(`SELECT job_id FROM assignments WHERE id = $1`, [input.assignmentId]))[0];
+  if (!found) throw new InputRefused(`assignment ${input.assignmentId} not found in scope`, "unknown_assignment");
+
+  // FOR UPDATE, job first and then the assignment — the order assignCrew and
+  // sync take them in — so two releases (or a release racing the field's
+  // en_route) queue here and the second reads what the first left behind.
+  const job = (await uow.tx.query<{ state: string }>(`SELECT state FROM jobs WHERE id = $1 FOR UPDATE`, [found.job_id]))[0];
+  if (!job) throw new InputRefused(`job ${found.job_id} not found in scope`, "unknown_job");
   const a = (await uow.tx.query<{ id: string; job_id: string; crew_id: string; org_id: string; region_id: string; released_at: string | null }>(
-    `SELECT id, job_id, crew_id, org_id, region_id, released_at FROM assignments WHERE id = $1`, [input.assignmentId],
+    `SELECT id, job_id, crew_id, org_id, region_id, released_at FROM assignments WHERE id = $1 FOR UPDATE`, [input.assignmentId],
   ))[0];
   if (!a) throw new InputRefused(`assignment ${input.assignmentId} not found in scope`, "unknown_assignment");
   if (a.org_id !== input.orgId || a.region_id !== input.regionId) throw new InputRefused(`assignment ${input.assignmentId} tenancy does not match input`, "tenancy_mismatch");
   if (a.released_at) throw new InputRefused(`assignment ${input.assignmentId} was already released at ${a.released_at}`, "already_released");
-
-  const job = (await uow.tx.query<{ state: string }>(`SELECT state FROM jobs WHERE id = $1`, [a.job_id]))[0];
-  if (!job) throw new InputRefused(`job ${a.job_id} not found in scope`, "unknown_job");
   if (job.state !== "assigned") {
     throw new InputRefused(
       `job ${a.job_id} is "${job.state}" — past assignment, so release is not the right door. A job a technician has already acted on needs a cancellation or a reassignment conversation, not a release.`,
@@ -213,8 +218,12 @@ export const releaseAssignment = async (uow: UnitOfWork, actorId: string, input:
       payload: { jobId: a.job_id, crewId: a.crew_id, reason: input.reason ?? null },
     },
     async (tx) => {
-      await tx.query(`UPDATE assignments SET released_at = $2, release_reason = $3 WHERE id = $1`, [a.id, releasedAt.toISOString(), input.reason ?? null]);
-      await tx.query(`UPDATE jobs SET state = 'created', version = version + 1 WHERE id = $1 AND state = 'assigned'`, [a.job_id]);
+      // Both guarded, both counted: a guard that misses is a refusal, never a
+      // half-release with an event claiming the job went back to 'created'.
+      const released = await tx.query(`UPDATE assignments SET released_at = $2, release_reason = $3 WHERE id = $1 AND released_at IS NULL RETURNING id`, [a.id, releasedAt.toISOString(), input.reason ?? null]);
+      if (released.length === 0) throw new InputRefused(`assignment ${a.id} was already released`, "already_released");
+      const reopened = await tx.query(`UPDATE jobs SET state = 'created', version = version + 1 WHERE id = $1 AND state = 'assigned' RETURNING id`, [a.job_id]);
+      if (reopened.length === 0) throw new InputRefused(`job ${a.job_id} is no longer "assigned" — release is not the right door`, "job_in_progress");
       await tx.insert("job_state_events", {
         org_id: input.orgId, region_id: input.regionId, job_id: a.job_id, from_state: "assigned", to_state: "created",
         actor_id: actorId, surface_id: "S3", mutation_id: `release:${a.id}`, occurred_at: releasedAt.toISOString(),

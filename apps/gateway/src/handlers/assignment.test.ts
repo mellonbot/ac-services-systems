@@ -129,6 +129,7 @@ test("releaseAssignment returns the job to 'created' and refuses a second releas
   const s = scripted([
     ["FROM assignments WHERE id", [openAssignment]],
     ["FROM jobs WHERE id = $1", [{ state: "assigned" }]],
+    ["RETURNING id", [{ id: openAssignment.id }]],
   ]);
   const uow = await uowFor(s.tx);
   const out = await releaseAssignment(uow, U(9), { assignmentId: openAssignment.id, orgId: ORG, regionId: REGION, reason: "customer rescheduled" }, now);
@@ -136,7 +137,10 @@ test("releaseAssignment returns the job to 'created' and refuses a second releas
   assert.ok(s.queries.some((q) => /UPDATE assignments SET released_at/.test(q.sql)));
   assert.ok(s.queries.some((q) => /UPDATE jobs SET state = 'created'/.test(q.sql)));
 
-  const already = await uowFor(scripted([["FROM assignments WHERE id", [{ ...openAssignment, released_at: "2026-09-17T00:00:00Z" }]]]).tx);
+  const already = await uowFor(scripted([
+    ["FROM assignments WHERE id", [{ ...openAssignment, released_at: "2026-09-17T00:00:00Z" }]],
+    ["FROM jobs WHERE id = $1", [{ state: "created" }]],
+  ]).tx);
   await assert.rejects(
     releaseAssignment(already, U(9), { assignmentId: openAssignment.id, orgId: ORG, regionId: REGION }, now),
     (e: unknown) => e instanceof InputRefused && e.code === "already_released",
@@ -154,4 +158,21 @@ test("releaseAssignment refuses a job that has already moved past assignment —
     (e: unknown) => e instanceof InputRefused && e.code === "job_in_progress",
   );
   assert.equal(s.queries.filter((q) => q.sql.startsWith("UPDATE")).length, 0, "nothing was written for the refused release");
+});
+
+test("releaseAssignment locks the job and the assignment, and refuses by name when a guarded write misses", async () => {
+  const s = scripted([
+    ["FROM assignments WHERE id", [openAssignment]],
+    ["FROM jobs WHERE id = $1", [{ state: "assigned" }]],
+  ]);
+  const uow = await uowFor(s.tx);
+  // Every guarded UPDATE comes back empty: someone else got there first.
+  await assert.rejects(
+    releaseAssignment(uow, U(9), { assignmentId: openAssignment.id, orgId: ORG, regionId: REGION }, now),
+    (e: unknown) => e instanceof InputRefused && e.code === "already_released",
+  );
+  assert.match(s.queries.find((q) => q.sql.includes("FROM jobs"))!.sql, /FOR UPDATE/);
+  assert.ok(s.queries.some((q) => /FROM assignments WHERE id = \$1 FOR UPDATE/.test(q.sql)));
+  assert.match(s.queries.find((q) => q.sql.startsWith("UPDATE assignments"))!.sql, /released_at IS NULL/);
+  assert.equal(uow.pending().events.length, 0, "no job.reassigned for a release that did not happen");
 });
