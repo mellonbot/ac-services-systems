@@ -62,6 +62,7 @@ before(async () => {
   await admin(`INSERT INTO regions (id, code, name) VALUES ($1,'SOUTH','South') ON CONFLICT (id) DO NOTHING`, [REGION_SOUTH]);
   await user(1, "lockout.h24@ac.test", ["finance"]);
   await user(2, "csrf.h24@ac.test", ["finance"]);
+  await user(4, "regional.h24@ac.test", ["office_manager", "ops_leadership"], "region", REGION_SOUTH);
   // A subcontractor firm and its coordinator, for the event stream.
   await admin(`INSERT INTO organizations (id, name, kind) VALUES ($1,'Firm H24 LLC','subcontractor') ON CONFLICT (id) DO NOTHING`, [FIRM]);
   await admin(`INSERT INTO subcontractor_firms (id, org_id, region_id, legal_name, status, settlement_terms_days, diagnostic_data_rights_reserved)
@@ -207,4 +208,15 @@ test("a firm's stream hears its own org's events, not another tenant's in its re
   s.close();
   assert.ok(s.heard().includes(ours), "its own org's event");
   assert.ok(!s.heard().includes(theirs), "another tenant's job, which none of its crews was sent to");
+});
+
+test("an org-wide surface is not given to a login scoped to one region: refused at sign-in, and on every request", { skip }, async () => {
+  const at = { "content-type": "application/json", "cf-connecting-ip": "203.0.113.130" };
+  const s2 = await fetch(`${EDGE}/auth/login`, { method: "POST", headers: at, body: JSON.stringify({ email: "regional.h24@ac.test", password: PASSWORD, surface: "S2" }) });
+  assert.equal(s2.status, 403);
+  // Signed in where it belongs, its token still cannot be spent on S2.
+  const s3 = await fetch(`${EDGE}/auth/login`, { method: "POST", headers: at, body: JSON.stringify({ email: "regional.h24@ac.test", password: PASSWORD, surface: "S3" }) });
+  assert.equal(s3.status, 200);
+  const { token } = (await s3.json()) as { token: string };
+  assert.equal((await fetch(`${EDGE}/s2/devices`, { headers: { authorization: `Bearer ${token}`, "x-ac-surface": "S2" } })).status, 403);
 });

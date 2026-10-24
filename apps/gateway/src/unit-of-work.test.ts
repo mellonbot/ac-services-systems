@@ -166,3 +166,11 @@ test("R6: who pays is not who asks — a payer-only login cannot request service
   await write(home(["payer", "requester"]), "service_request");
   await write(home(["payer", "requester"]), "payment");
 });
+
+test("an org-wide surface (S2, S4) refuses a login scoped to one region, whatever its roles; the region's surface admits it", async () => {
+  const regional: Principal = { ...dispatcher, roles: ["office_manager", "ops_leadership"], scopeTier: "region" };
+  await assert.rejects(createUnitOfWork(ctx("S2", regional), fakeTx().tx), TenancyMismatch);
+  await assert.rejects(createUnitOfWork(ctx("S4", regional), fakeTx().tx), TenancyMismatch);
+  await createUnitOfWork(ctx("S3", regional), fakeTx().tx);
+  await createUnitOfWork(ctx("S2", { ...regional, scopeTier: "parent" }), fakeTx().tx);
+});

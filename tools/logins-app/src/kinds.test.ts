@@ -26,6 +26,7 @@ test("superadmin-test opens S2, S3, S4", () => {
 test("single-surface logins", () => {
   assert.deepEqual(kindsOf({ namespace: "internal", roles: ["dispatcher"], crewId: null }), ["S3"]);
   assert.deepEqual(kindsOf({ namespace: "internal", roles: ["office_manager"], crewId: null }), ["S2"]);
+  assert.deepEqual(kindsOf({ namespace: "internal", roles: ["principal"], crewId: null, scopeTier: "region" }), ["S3"], "S2 and S4 are org-wide; a regional login opens S3 alone");
   assert.deepEqual(kindsOf({ namespace: "customer", roles: [], crewId: null }), ["S6"]);
   assert.deepEqual(kindsOf({ namespace: "subcontractor", roles: [], crewId: null }), ["S8"]);
   assert.deepEqual(kindsOf({ namespace: "vendor", roles: [], crewId: null }), ["S7"]);

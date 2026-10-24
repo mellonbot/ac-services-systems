@@ -364,6 +364,10 @@ const login = async (req: IncomingMessage, body: Partial<OperationIO["auth.login
     if (!admits(surface, { namespace: u.namespace, roles: u.roles })) {
       throw new HttpError(403, `${surface} admits [${SURFACES[surface].roles?.join(", ")}]; this login holds [${u.roles.join(", ") || "—"}]`);
     }
+    // And the scope check: an org-wide surface is not given to a login scoped to one region.
+    if (SURFACES[surface].scopeBinding === "org" && u.scope_tier !== "parent") {
+      throw new HttpError(403, `${surface} is org-wide; this login is scoped to one ${u.scope_tier}`);
+    }
     const claims: Omit<Claims, "iat" | "exp" | "sid"> = {
       sub: u.id, ns: u.namespace, org: u.org_id, region: u.region_id, scope_tier: u.scope_tier, scope_id: u.scope_id, roles: u.roles,
       ...(u.firm_id ? { firm: u.firm_id } : {}),

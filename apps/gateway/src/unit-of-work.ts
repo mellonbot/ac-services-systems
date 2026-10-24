@@ -115,6 +115,12 @@ export const createUnitOfWork = async (ctx: UnitOfWorkContext, tx: Tx) => {
   if (surface.roles && !surface.roles.some((r) => ctx.principal.roles.includes(r))) {
     throw new RoleDenied(ctx.surfaceId, ctx.principal.roles);
   }
+  // An org-bound surface (S2, S4) authors and reads org-wide truth — every
+  // region's hardware, every region's books. A login scoped to one region is
+  // not admitted to it, whatever its roles; its surface is the region's (S3).
+  if (surface.scopeBinding === "org" && ctx.principal.scopeTier !== "parent") {
+    throw new TenancyMismatch(`${ctx.surfaceId} is org-wide; this login is scoped to one ${ctx.principal.scopeTier} — sign in at company scope`);
+  }
 
   // 1. RLS inputs, first, before any statement runs.
   await tx.setLocal(scopeBinding(ctx.principal, ctx.surfaceId));
