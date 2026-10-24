@@ -97,3 +97,17 @@ test("Projects lists what was sold and who sold it, and offers only agreements i
   assert.doesNotMatch(agreements, new RegExp(DRAFT), "nothing is sold under a draft");
   assert.match(sell.split('name="foremanId"')[1]!.split("</select>")[0]!, /Blake Keating/);
 });
+
+test("Projects reads by foreman, searches the customers they sold to, and searches every customer account by name", async () => {
+  const out = await screenAt("projects", {});
+  const foremen = out.split('id="project-foremen"')[1]!.split('id="project-accounts"')[0]!;
+  assert.match(foremen, /Blake Keating/);
+  const accounts = out.split('id="project-accounts"')[1]!.split('id="projects"')[0]!;
+  assert.match(accounts, /aria-label="Search every customer account by name"/);
+  assert.match(accounts, /Amped/);
+  const sold = out.split('id="projects"')[1]!;
+  assert.match(sold, /aria-label="Search the customers sold to"/);
+  assert.match(sold, /Sold by/);
+  assert.match(sold, /Austin roof — RTU changeout/);
+  assert.match(sold, /Find the customer under Customer accounts to record a sale/);
+});
