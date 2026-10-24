@@ -82,3 +82,13 @@ test("behind Cloudflare, CF-Connecting-IP is the client: two clients are counted
   assert.equal((await anonymous(EDGE, { "cf-connecting-ip": "203.0.113.1" })).status, 429);
   assert.equal((await anonymous(EDGE, { "cf-connecting-ip": "203.0.113.2" })).status, 200);
 });
+
+test("ten wrong passwords shut the email from that address only: its owner, signing in from elsewhere, is not locked out", { skip }, async () => {
+  const attempt = (password: string, ip: string) => fetch(`${EDGE}/auth/login`, {
+    method: "POST", headers: { "content-type": "application/json", "cf-connecting-ip": ip },
+    body: JSON.stringify({ email: "lockout.h24@ac.test", password, surface: "S2" }),
+  });
+  for (let i = 0; i < 10; i++) assert.equal((await attempt("wrong", "203.0.113.50")).status, 401);
+  assert.equal((await attempt(PASSWORD, "203.0.113.50")).status, 429, "the guesser's address is shut, right password or not");
+  assert.equal((await attempt(PASSWORD, "203.0.113.51")).status, 200, "the owner, elsewhere, signs in");
+});

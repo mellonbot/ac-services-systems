@@ -118,19 +118,37 @@ const BEHIND_CLOUDFLARE = process.env.AC_BEHIND_CLOUDFLARE === "1";
 
 /**
  * The doors anyone can knock on, throttled. Per address so one client cannot
- * saturate the event loop or the sessions table; failed attempts per email so
- * a password is not guessed from many addresses (a right password does not
- * count against it).
+ * saturate the event loop or the sessions table.
+ *
+ * Failed sign-ins are counted two ways, and both are looked at before the
+ * password is. Per (email, address), ten in fifteen minutes: the guesser is
+ * shut out and the account's owner, somewhere else, is not. Per email alone,
+ * a hundred: a guesser spread over many addresses still meets a ceiling.
+ *
+ * The trade-off, chosen: counted per email alone at ten, anyone who knew an
+ * address could lock its owner out indefinitely with ten bad tries every
+ * fifteen minutes. Now that takes a hundred failures from ten or more
+ * addresses per window — still possible for a determined attacker with many
+ * addresses, who in exchange gets at most a hundred guesses per window,
+ * against a password hashed for exactly that. A right password never counts.
  */
 const LOGIN_BY_ADDRESS = createThrottle({ limit: 120, windowMs: 60_000 });
-const LOGIN_FAILURES_BY_EMAIL = createThrottle({ limit: 10, windowMs: 15 * 60_000 });
+const LOGIN_FAILURES_BY_EMAIL_AND_ADDRESS = createThrottle({ limit: 10, windowMs: 15 * 60_000 });
+const LOGIN_FAILURES_BY_EMAIL = createThrottle({ limit: 100, windowMs: 15 * 60_000 });
 const ANONYMOUS_BY_ADDRESS = createThrottle({ limit: 20, windowMs: 60_000 });
 const addressOf = (req: IncomingMessage): string => {
   const cf = BEHIND_CLOUDFLARE ? req.headers["cf-connecting-ip"] : undefined;
   return (typeof cf === "string" && cf) || req.socket.remoteAddress || "unknown";
 };
 // Ended windows are dropped each minute, so the tables hold only live ones.
-setInterval(() => { for (const t of [LOGIN_BY_ADDRESS, LOGIN_FAILURES_BY_EMAIL, ANONYMOUS_BY_ADDRESS]) t.sweep(); }, 60_000).unref();
+setInterval(() => { for (const t of [LOGIN_BY_ADDRESS, LOGIN_FAILURES_BY_EMAIL_AND_ADDRESS, LOGIN_FAILURES_BY_EMAIL, ANONYMOUS_BY_ADDRESS]) t.sweep(); }, 60_000).unref();
+/** Before the password: this email from this address, and this email from anywhere. */
+const signInAllowed = (req: IncomingMessage, who: string): boolean =>
+  !LOGIN_FAILURES_BY_EMAIL_AND_ADDRESS.spent(`${who} ${addressOf(req)}`) && !LOGIN_FAILURES_BY_EMAIL.spent(who);
+const signInFailed = (req: IncomingMessage, who: string): void => {
+  LOGIN_FAILURES_BY_EMAIL_AND_ADDRESS.hit(`${who} ${addressOf(req)}`);
+  LOGIN_FAILURES_BY_EMAIL.hit(who);
+};
 const throttled = (ok: boolean, what: string): void => {
   if (!ok) throw new HttpError(429, `too many ${what} — wait a minute and try again`);
 };
@@ -313,7 +331,7 @@ const login = async (req: IncomingMessage, body: Partial<OperationIO["auth.login
   const { email, password, surface } = body;
   if (!email || !password || !surface || !SURFACES[surface]) throw new HttpError(400, "email, password and surface are required");
   const who = String(email).toLowerCase();
-  throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)) && !LOGIN_FAILURES_BY_EMAIL.spent(who), "sign-in attempts");
+  throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)) && signInAllowed(req, who), "sign-in attempts");
   // Login runs as the gateway itself (no principal yet), then binds the principal's own scope.
   const tx = await beginTx(pool, "ac_gateway");
   try {
@@ -322,7 +340,7 @@ const login = async (req: IncomingMessage, body: Partial<OperationIO["auth.login
       "SELECT id, namespace, org_id, region_id, scope_tier, scope_id, roles, firm_id, password_hash, active FROM users WHERE email = $1", [email],
     ))[0];
     if (!(await verifyPasswordAsync(password, u?.password_hash)) || !u?.active) {
-      LOGIN_FAILURES_BY_EMAIL.hit(who);
+      signInFailed(req, who);
       throw new AuthError("invalid credentials", "bad_claims");
     }
     if (!SURFACES[surface].enabled) throw new SurfaceDisabled(surface);
@@ -372,7 +390,7 @@ const deviceLogin = async (req: IncomingMessage, body: Partial<OperationIO["auth
   const { hardwareId, email, password } = body;
   if (!hardwareId || !email || !password) throw new HttpError(400, "hardwareId, email and password are required");
   const who = String(email).toLowerCase();
-  throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)) && !LOGIN_FAILURES_BY_EMAIL.spent(who), "sign-in attempts");
+  throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)) && signInAllowed(req, who), "sign-in attempts");
   const tx = await beginTx(pool, "ac_gateway");
   try {
     await bindSystem(tx);
@@ -380,7 +398,7 @@ const deviceLogin = async (req: IncomingMessage, body: Partial<OperationIO["auth
       "SELECT id, password_hash, active, crew_id FROM users WHERE email = $1", [email],
     ))[0];
     if (!(await verifyPasswordAsync(password, u?.password_hash)) || !u?.active || !u.crew_id) {
-      LOGIN_FAILURES_BY_EMAIL.hit(who);
+      signInFailed(req, who);
       throw new AuthError("invalid credentials", "bad_claims");
     }
     const resolved = await resolveDeviceLogin(tx, hardwareId, u.id, new Date());
