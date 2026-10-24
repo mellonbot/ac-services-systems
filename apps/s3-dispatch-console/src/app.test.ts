@@ -174,7 +174,8 @@ test("the board is read off jobs.list: a row per crew holding work, bars in each
 test("the board draws every rostered crew and active technician, whether or not they hold work", () => {
   const now = Date.parse("2026-09-18T12:00:00.000Z");
   const m = boardModel([jobCreated, jobAssigned], now, 0, { crews: CREWS, technicians: TECHNICIANS });
-  assert.deepEqual(m.rows.map((r) => r.name), ["Ben Cole", "Crew A1", "Cy Park"], "a service unit under its technician's name, the install crew under its label, the uncrewed technician on their own; the inactive one is gone");
+  assert.deepEqual(m.rows.map((r) => r.name), ["Ben Cole", "Cy Park", "Crew A1"], "service technicians first — a unit under its technician's name, the uncrewed technician on their own — then the install crew under its label; the inactive one is gone");
+  assert.deepEqual(m.rows.map((r) => r.kind), ["service", "service", "install"]);
   const byName = Object.fromEntries(m.rows.map((r) => [r.name, r]));
   assert.equal(byName["Crew A1"]!.members, "Ana Ruiz");
   assert.equal(byName["Ben Cole"]!.service, "No jobs today");
@@ -205,7 +206,10 @@ test("the board steps three days either way from today and no further, and draws
   click("board-today");
   assert.equal(find("board-prev").props!.disabled, false);
   assert.equal(find("board-next").props!.disabled, false);
-  assert.match(render(app.view()), /Cy Park/, "an idle technician has a row");
+  const page = render(app.view());
+  assert.match(page, /Cy Park/, "an idle technician has a row");
+  assert.ok(page.indexOf('data-kind="service"') < page.indexOf('data-kind="install"'), "service technicians are banded above install crews");
+  assert.equal((page.match(/class="dispatch-board__group"/g) ?? []).length, 2, "one band per half");
 });
 
 test("board filters persist across renders and show only the selected assignment state", async () => {
