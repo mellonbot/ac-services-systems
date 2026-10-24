@@ -115,6 +115,19 @@ test("the pickers see what the unbound role cannot", { skip }, async () => {
   assert.ok(!regions.some((r) => r.id === UNASSIGNED_REGION_ID));
 });
 
+test("0027: the role reads no password hash, session row, price or audit trail — from a laptop", { skip }, async () => {
+  for (const sql of [
+    "SELECT password_hash FROM users LIMIT 1",
+    "SELECT expires_at FROM sessions LIMIT 1",
+    "SELECT 1 FROM rate_cards LIMIT 1",
+    "SELECT 1 FROM settlements LIMIT 1",
+    "SELECT 1 FROM audit_log LIMIT 1",
+  ]) {
+    await assert.rejects(admin(`SET ROLE ac_logins; ${sql}`), /permission denied/, sql);
+    await admin("RESET ROLE");
+  }
+});
+
 test("add one of each kind, and each signs in where kindsOf says", { skip }, async () => {
   dispatcherId = (await db.addLogin({ kind: "internal", email: email("dispatcher"), displayName: "Dee Dispatcher", password: PASSWORD, roles: ["dispatcher"], scope: "region", regionId: REGION_SOUTH })).id;
   customerId = (await db.addLogin({ kind: "customer", email: email("customer"), displayName: "Cass Customer", password: PASSWORD, orgId, tier: "location", nodeId: locationId, regionId: REGION_SOUTH })).id;
