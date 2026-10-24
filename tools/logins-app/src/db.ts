@@ -14,18 +14,19 @@ import { isTopic, type Topic } from "../../../packages/contracts/src/events.ts";
 import { buildCrewRow, buildFirmRows, documentsLabel, normaliseName } from "./companies.ts";
 import type { NewCompany } from "./companies.ts";
 
-/** Reads run as internal at the parent tier, so one query can join users to crew, firm, org and scope names. */
-export const INTERNAL_READ_BINDING: Readonly<Record<string, string>> = {
-  "ac.namespace": "internal", "ac.org_id": INTERNAL_ORG_ID, "ac.scope_tier": "parent", "ac.scope_id": INTERNAL_ORG_ID,
-  "ac.region_id": "", "ac.firm_id": "", "ac.device_id": "", "ac.actor_id": "", "ac.surface_id": "logins-app",
-};
-
 /**
  * The app's actor in audit_log and outbox. Like the worker (WORKER_ACTOR), it
  * has no principal; its surface is "logins-app". Writing both rows in the same
  * transaction is what lets the relay push the change to every open page.
  */
 export const LOGINS_APP_ACTOR = "00000000-0000-0000-0000-00000000aa02";
+
+/** Reads run as internal at the parent tier, so one query can join users to crew, firm, org and scope names. */
+export const INTERNAL_READ_BINDING: Readonly<Record<string, string>> = {
+  "ac.namespace": "internal", "ac.org_id": INTERNAL_ORG_ID, "ac.scope_tier": "parent", "ac.scope_id": INTERNAL_ORG_ID,
+  "ac.region_id": "", "ac.firm_id": "", "ac.device_id": "", "ac.actor_id": LOGINS_APP_ACTOR, "ac.surface_id": "logins-app",
+};
+
 
 export class LoginsDbError extends Error {}
 
