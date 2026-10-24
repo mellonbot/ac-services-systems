@@ -105,3 +105,11 @@ test("browserHistory scopes app routes under a mount path and preserves deep lin
   pathname = "/customer/sites";
   assert.equal(history.path(), "/__outside_surface__", "a path outside the mount never resolves as an app route");
 });
+
+test("a path segment that does not decode is not found — the router still constructs and the surface still mounts", () => {
+  assert.equal(matchPath("/jobs/:jobId", "/jobs/%E0"), null);
+  const { h } = fakeHistory("/accounts/%E0%A4%A");
+  const r = createRouter(SCREENS, h);
+  assert.equal(r.current.value, null);
+  assert.deepEqual(r.resolve("/accounts/org%201"), { screen: "accounts.tree", params: { orgId: "org 1" } }, "a well-formed escape still decodes");
+});
