@@ -75,7 +75,6 @@ const handlers: Handlers = {
   select,
   listUsers: async (db, includeInactive) => (await use(db)).listUsers({ includeInactive }),
   listRegions: async (db) => (await use(db)).listRegions(),
-  listCrews: async (db) => (await use(db)).listCrews(),
   listFirms: async (db) => (await use(db)).listFirms(),
   listCompanies: async (db, includeInactive) => (await use(db)).listCompanies({ includeInactive }),
   addCompany: async (db, n) => (await use(db)).addCompany(n),

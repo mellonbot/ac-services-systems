@@ -1,11 +1,11 @@
-import { CREW_KINDS, type CrewDocumentSummary, type CrewKind } from "../../../packages/contracts/src/operations.ts";
+import type { CrewDocumentSummary, CrewKind } from "../../../packages/contracts/src/operations.ts";
 import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
 import { LoginInputError } from "./errors.ts";
 
-/** `kind` (0024): a service unit or an install crew. Absent → service, as `crews.create` reads it. */
+/** An install crew (0024). A service unit is never added here: it is made with its technician's login. */
 export type NewCompany =
-  | { readonly type: "ours"; readonly name: string; readonly regionId: string; readonly kind?: CrewKind }
-  | { readonly type: "contractor"; readonly name: string; readonly kind?: CrewKind; readonly firm:
+  | { readonly type: "ours"; readonly name: string; readonly regionId: string }
+  | { readonly type: "contractor"; readonly name: string; readonly firm:
         | { readonly existing: string }
         | { readonly legalName: string; readonly regionId: string; readonly paymentTermsDays: number;
             readonly dataRightsReserved: boolean; readonly msaSignedAt: string | null } };
@@ -13,7 +13,6 @@ export type NewCompany =
 export type NewFirm = Exclude<Extract<NewCompany, { type: "contractor" }>["firm"], { existing: string }>;
 
 export const DEFAULT_PAYMENT_TERMS_DAYS = 30;
-export const DEFAULT_COMPANY_NAME = "AC Services DFW";
 
 export const normaliseName = (s: string): string => s.trim().replace(/\s+/g, " ");
 
@@ -65,24 +64,16 @@ export type CrewRow = {
   readonly employment_type: "employed" | "subcontracted"; readonly firm_id: string | null; readonly kind: CrewKind;
 };
 
-/** Checked at runtime: the window sends it, and a type is no guard against what arrives over IPC. */
-export const crewKind = (kind: unknown): CrewKind => {
-  if (kind === undefined) return "service";
-  if (!(CREW_KINDS as readonly unknown[]).includes(kind)) throw new LoginInputError("A company is a service unit or an install crew.");
-  return kind as CrewKind;
-};
-
 export const buildCrewRow = (
   name: string,
   placement: { readonly type: "ours"; readonly regionId: string }
     | { readonly type: "contractor"; readonly firmId: string; readonly firmOrgId: string; readonly firmRegionId: string },
-  kind?: unknown,
+  kind: CrewKind,
 ): CrewRow => {
   const label = requireName(name);
-  const k = crewKind(kind);
   return placement.type === "ours"
-    ? { org_id: INTERNAL_ORG_ID, region_id: placement.regionId, home_region_id: placement.regionId, label, employment_type: "employed", firm_id: null, kind: k }
-    : { org_id: placement.firmOrgId, region_id: placement.firmRegionId, home_region_id: placement.firmRegionId, label, employment_type: "subcontracted", firm_id: placement.firmId, kind: k };
+    ? { org_id: INTERNAL_ORG_ID, region_id: placement.regionId, home_region_id: placement.regionId, label, employment_type: "employed", firm_id: null, kind }
+    : { org_id: placement.firmOrgId, region_id: placement.firmRegionId, home_region_id: placement.firmRegionId, label, employment_type: "subcontracted", firm_id: placement.firmId, kind };
 };
 
 export const documentsLabel = (s: CrewDocumentSummary): string => {

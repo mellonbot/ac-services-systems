@@ -1,7 +1,8 @@
 // One-off write smoke, LOCAL ac_dev only — not part of dist. Drives the real window, checking each step in SQL:
 // Customer Portal → Add (whole company) → Edit name → Remove;
-// Companies → Add Ours → Technician under it → Remove company refused → Remove technician → Remove company;
-// Companies → Add Contractor (new firm) refused until data rights are chosen → Remove it.
+// Crews & units → Add install crew (Ours); Technician → Add (Ours) makes their own service unit → Remove unit refused →
+// Remove technician retires the unit → Remove the install crew;
+// Crews & units → Add install crew, Contractor (new firm) refused until data rights are chosen → Remove it.
 // Run after `npm run build`: `npx electron smoke-write.cjs` (needs the ac-pg docker container).
 const { app } = require("electron");
 const { execFileSync } = require("node:child_process");
@@ -62,58 +63,60 @@ const run = async (win) => {
   const banner = await js(`document.getElementById("banner").hidden ? "" : document.getElementById("banner").textContent`);
   if (banner) console.log("banner:", banner);
 
-  // ── Companies ──
+  // ── Crews & units ──
   const open = (name) => js(`[...document.querySelectorAll("#kinds button")].find((b) => b.querySelector(".name").textContent === ${JSON.stringify(name)}).click()`);
   const rowOf = (text) => `[...document.querySelectorAll("#tbody tr")].find((tr) => tr.querySelector("td")?.firstChild?.textContent === ${JSON.stringify(text)})`;
   const click = (row, label) => js(`[...${row}.querySelectorAll("button")].find((b) => b.textContent === ${JSON.stringify(label)}).click()`);
   const check = (name, value) => js(`document.querySelector("#form [name=${name}][value=${value}]").click()`);
   const bannerText = `(document.getElementById("banner").hidden ? "" : document.getElementById("banner").textContent)`;
 
-  await open("Companies");
+  await open("Crews & units");
   await js(`document.getElementById("add").click()`);
-  await waitFor(`document.getElementById("dialog").open && !!document.querySelector("#form [name=type]")`, "add company form");
+  await waitFor(`document.getElementById("dialog").open && !!document.querySelector("#form [name=type]")`, "add install crew form");
   await check("type", "ours");
   await set("name", company);
   await set("regionId", await js(`document.querySelector("#form [name=regionId] option:not([value=''])").value`));
   await js(`document.getElementById("form").requestSubmit()`);
-  await waitFor(`!document.getElementById("dialog").open && !!${rowOf(company)}`, "the new company row");
+  await waitFor(`!document.getElementById("dialog").open && !!${rowOf(company)}`, "the new install crew row");
   const crewId = sql(`SELECT id FROM crews WHERE label = '${company}'`);
-  console.log("company added:   ", sql(`SELECT employment_type, firm_id IS NULL AS no_firm, region_id = home_region_id AS same_region, active FROM crews WHERE id = '${crewId}'`));
-  console.log("company row:     ", JSON.stringify(await js(`[...${rowOf(company)}.querySelectorAll("td")].slice(0, 6).map((td) => td.textContent)`)));
+  console.log("crew added:      ", sql(`SELECT kind, employment_type, firm_id IS NULL AS no_firm, region_id = home_region_id AS same_region, active FROM crews WHERE id = '${crewId}'`));
+  console.log("crew row:        ", JSON.stringify(await js(`[...${rowOf(company)}.querySelectorAll("td")].slice(0, 6).map((td) => td.textContent)`)));
 
   await open("Technician");
   await js(`document.getElementById("add").click()`);
-  await waitFor(`document.getElementById("dialog").open && !!document.querySelector("#form [name=crewId]")`, "add technician form");
-  console.log("picker groups:   ", JSON.stringify(await js(`[...document.querySelectorAll("#form [name=crewId] optgroup")].map((g) => g.label)`)));
-  await set("crewId", crewId);
+  await waitFor(`document.getElementById("dialog").open && !!document.querySelector("#form [name=employer]")`, "add technician form");
+  await check("employer", "ours");
+  await set("regionId", await js(`document.querySelector("#form [name=regionId] option:not([value=''])").value`));
   await set("email", techEmail);
   await set("displayName", "Smoke Tech");
   await set("password", "smoke-password-123");
   await set("password2", "smoke-password-123");
   await js(`document.getElementById("form").requestSubmit()`);
   await waitFor(`!document.getElementById("dialog").open && !!${rowOf(techEmail)}`, "the technician row");
-  console.log("technician added:", sql(`SELECT crew_id = '${crewId}' AS under_company, namespace, roles, active FROM users WHERE email = '${techEmail}'`));
+  const unitId = sql(`SELECT crew_id FROM users WHERE email = '${techEmail}'`);
+  console.log("technician added:", sql(`SELECT c.kind, c.label, c.employment_type, u.namespace, u.roles, u.active FROM users u JOIN crews c ON c.id = u.crew_id WHERE u.email = '${techEmail}'`));
+  console.log("technician row:  ", JSON.stringify(await js(`[...${rowOf(techEmail)}.querySelectorAll("td")].slice(0, 4).map((td) => td.textContent)`)));
 
-  await open("Companies");
-  await waitFor(`!!${rowOf(company)}`, "the company row");
-  await click(rowOf(company), "Remove");
-  await waitFor(`${bannerText}.includes("Move its 1 technician")`, "the refusal");
-  console.log("remove refused:  ", await js(bannerText), "| active:", sql(`SELECT active FROM crews WHERE id = '${crewId}'`));
+  await open("Crews & units");
+  await waitFor(`!!${rowOf("Smoke Tech")}`, "the unit row");
+  await click(rowOf("Smoke Tech"), "Remove");
+  await waitFor(`${bannerText}.includes("own service unit")`, "the refusal");
+  console.log("remove refused:  ", await js(bannerText), "| active:", sql(`SELECT active FROM crews WHERE id = '${unitId}'`));
 
   await open("Technician");
   await waitFor(`!!${rowOf(techEmail)}`, "the technician row");
   await click(rowOf(techEmail), "Remove");
   await waitFor(`!${rowOf(techEmail)}`, "the technician to leave the active list");
-  console.log("technician removed:", sql(`SELECT active FROM users WHERE email = '${techEmail}'`));
+  console.log("technician removed:", sql(`SELECT active FROM users WHERE email = '${techEmail}'`), "| unit active:", sql(`SELECT active FROM crews WHERE id = '${unitId}'`));
 
-  await open("Companies");
-  await waitFor(`!!${rowOf(company)}`, "the company row");
+  await open("Crews & units");
+  await waitFor(`!!${rowOf(company)}`, "the install crew row");
   await click(rowOf(company), "Remove");
-  await waitFor(`!${rowOf(company)}`, "the company to leave the active list");
-  console.log("company removed: ", sql(`SELECT active FROM crews WHERE id = '${crewId}'`), "| banner:", JSON.stringify(await js(bannerText)));
+  await waitFor(`!${rowOf(company)}`, "the install crew to leave the active list");
+  console.log("crew removed:    ", sql(`SELECT active FROM crews WHERE id = '${crewId}'`), "| banner:", JSON.stringify(await js(bannerText)));
 
   await js(`document.getElementById("add").click()`);
-  await waitFor(`document.getElementById("dialog").open && !!document.querySelector("#form [name=type]")`, "add company form");
+  await waitFor(`document.getElementById("dialog").open && !!document.querySelector("#form [name=type]")`, "add install crew form");
   await check("type", "contractor");
   await check("firmMode", "new");
   await set("legalName", contractor);
@@ -127,7 +130,7 @@ const run = async (win) => {
   await check("dataRights", "no");
   await js(`document.getElementById("form").requestSubmit()`);
   await waitFor(`!document.getElementById("dialog").open && !!${rowOf(contractor)}`, "the contractor row");
-  console.log("contractor added:", sql(`SELECT f.status, f.settlement_terms_days, f.diagnostic_data_rights_reserved, f.msa_signed_at IS NULL, o.kind, c.employment_type, c.org_id = f.org_id
+  console.log("contractor added:", sql(`SELECT f.status, f.settlement_terms_days, f.diagnostic_data_rights_reserved, f.msa_signed_at IS NULL, o.kind, c.kind, c.employment_type, c.org_id = f.org_id
     FROM crews c JOIN subcontractor_firms f ON f.id = c.firm_id JOIN organizations o ON o.id = f.org_id WHERE c.label = '${contractor}' AND c.active`));
   console.log("contractor row:  ", JSON.stringify(await js(`[...${rowOf(contractor)}.querySelectorAll("td")].slice(0, 7).map((td) => td.textContent)`)));
   await click(rowOf(contractor), "Remove");
