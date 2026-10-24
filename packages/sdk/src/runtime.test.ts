@@ -148,3 +148,22 @@ test("cookie-session mode sends credentials:include and never an authorization h
   assert.equal(bearer.calls[0]!.init.credentials, undefined);
   assert.equal(bearer.calls[0]!.init.headers.authorization, "Bearer tok");
 });
+
+test("a 429 or a 413 is the gateway answering — a refusal of its own kind, and the surface does not go degraded", async () => {
+  for (const [status, kind] of [[429, "throttled"], [413, "too_large"]] as const) {
+    const { fetch } = fakeFetch(() => ({ status, body: { error: "HttpError", message: "wait" } }));
+    const { t, outcomes } = transportWith(fetch, { token: () => null });
+    await assert.rejects(createGatewayClient(t).login({ email: "a@b", password: "p", surface: "S2" }), (e: GatewayRefusal) => e.refusal.kind === kind);
+    assert.deepEqual(outcomes, [true]);
+  }
+});
+
+test("every body-carrying POST says it is JSON, and the anonymous mint names its surface — what the gateway requires of a cross-site-proof request", async () => {
+  const { fetch, calls } = fakeFetch(() => ({ status: 200, body: { token: "t", expiresAt: "x" } }));
+  const { t } = transportWith(fetch, { token: () => null, surfaceId: "S1" });
+  const client = createGatewayClient(t);
+  await client.login({ email: "a@b", password: "p", surface: "S2" });
+  await client.anonymousSession();
+  assert.equal(calls[0]!.init.headers["content-type"], "application/json");
+  assert.equal(calls[1]!.init.headers["x-ac-surface"], "S1");
+});

@@ -103,5 +103,8 @@ test("classifyRefusal maps the gateway's statuses onto the taxonomy", () => {
   if (adm.kind === "admission") assert.equal(adm.axis, "commercial");
   assert.equal(classifyRefusal(400, { message: "email required" }).kind, "bad_request");
   assert.deepEqual(classifyRefusal(503, null), { kind: "transport", status: 503, message: "HTTP 503" });
+  // The gateway answered both: neither is the gateway being down, so neither flips degraded.
+  assert.deepEqual(classifyRefusal(429, { message: "too many sign-in attempts" }), { kind: "throttled", message: "too many sign-in attempts" });
+  assert.equal(classifyRefusal(413, { message: "request body over 65536 bytes" }).kind, "too_large");
   assert.equal(classifyRefusal(500, { error: "Error", message: "internal error" }).kind, "transport");
 });

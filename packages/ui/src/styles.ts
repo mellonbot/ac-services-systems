@@ -189,7 +189,8 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
 .ac-refusal[data-axis="commercial"]{--refusal-color:var(--color-status-at-risk)}
 .ac-refusal[data-axis="incomplete"]{--refusal-color:var(--color-status-at-risk)}
 .ac-refusal[data-kind="token"],.ac-refusal[data-kind="transport"]{--refusal-color:var(--color-status-breached)}
-.ac-refusal[data-kind="scope"],.ac-refusal[data-kind="bad_request"],.ac-refusal[data-kind="no_route"],.ac-refusal[data-kind="phase_disabled"]{--refusal-color:var(--color-status-blocked)}
+.ac-refusal[data-kind="scope"],.ac-refusal[data-kind="bad_request"],.ac-refusal[data-kind="no_route"],.ac-refusal[data-kind="phase_disabled"],.ac-refusal[data-kind="too_large"]{--refusal-color:var(--color-status-blocked)}
+.ac-refusal[data-kind="throttled"]{--refusal-color:var(--color-status-at-risk)}
 .ac-refusal__heading{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-lg);font-weight:700;letter-spacing:var(--track-tight)}
 .ac-refusal__mark{color:var(--refusal-color)}
 .ac-refusal__message{margin:0 0 var(--space-2)}

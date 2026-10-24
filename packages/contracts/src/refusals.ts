@@ -170,6 +170,10 @@ export type Refusal =
   | { readonly kind: "admission"; readonly code: string; readonly axis: AdmissionAxis; readonly message: string; readonly missingTerm?: MissingTerm }
   /** 400 — the input did not parse or lacked a required field. */
   | { readonly kind: "bad_request"; readonly message: string }
+  /** 429 — too many requests from here for now. The gateway answered; wait and try again. Not degraded. */
+  | { readonly kind: "throttled"; readonly message: string }
+  /** 413 — the request body was larger than the operation takes. The gateway answered. Not degraded. */
+  | { readonly kind: "too_large"; readonly message: string }
   /** 5xx or no response — the gateway is unreachable or broken. The ONLY kind that flips degraded mode. */
   | { readonly kind: "transport"; readonly status: number | null; readonly message: string };
 
@@ -183,6 +187,8 @@ export const classifyRefusal = (status: number, body: WireError | null): Refusal
   if (status === 404) return body?.error === "SurfaceDisabled" ? { kind: "phase_disabled", message } : { kind: "no_route", message };
   if (status === 422) return { kind: "admission", code: body?.code ?? "unknown", axis: admissionAxis(body?.code), message, ...(body?.missingTerm ? { missingTerm: body.missingTerm } : {}) };
   if (status === 400) return { kind: "bad_request", message };
+  if (status === 429) return { kind: "throttled", message };
+  if (status === 413) return { kind: "too_large", message };
   return { kind: "transport", status, message };
 };
 
