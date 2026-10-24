@@ -213,6 +213,32 @@ test("a return: the office asks within what was received, the vendor authorizes 
   assert.equal((await s2.gateway.listReturns({ poId })).returns[0]!.rmaNumber, `RMA-${RUN}`);
 });
 
+test("0029: the cap holds at the table — two returns at once cannot pass it together, and a quantity changed later is checked again", { skip }, async () => {
+  // 10 received, 2 already returned: 8 left. Two writers of 5 each, the
+  // second started while the first is still open — the gateway's PO lock
+  // is not in play, so this is the table's own check.
+  const po = (await admin("SELECT org_id, region_id FROM purchase_orders WHERE id = $1", [poId]))[0]!;
+  const insertRma = (c: { query: (s: string, p: unknown[]) => Promise<unknown> }) =>
+    c.query("INSERT INTO rmas (org_id, region_id, po_id, po_line_id, vendor_id, quantity_milli, reason, requested_by) VALUES ($1, $2, $3, $4, $1, 5000, 'race', $5)",
+      [po.org_id, po.region_id, poId, lineId, OWNER]);
+  const first = await pool.connect(), second = await pool.connect();
+  try {
+    await first.query("BEGIN"); await second.query("BEGIN");
+    await insertRma(first);
+    const late = insertRma(second).then(() => "inserted", (e: unknown) => code(e));
+    await new Promise((r) => setTimeout(r, 200));
+    await first.query("COMMIT");
+    assert.equal(await late, "AC422", "the second return waits for the first and then sees it");
+    await second.query("ROLLBACK");
+  } finally { first.release(); second.release(); }
+
+  // An UPDATE is the same check, without counting the row's own old quantity.
+  const raced = (await admin("SELECT id FROM rmas WHERE po_line_id = $1 AND reason = 'race'", [lineId]))[0]!.id as string;
+  await assert.rejects(admin("UPDATE rmas SET quantity_milli = 9000 WHERE id = $1", [raced]), (e) => code(e) === "AC422");
+  await admin("UPDATE rmas SET quantity_milli = 8000 WHERE id = $1", [raced]);
+  await admin("UPDATE rmas SET state = 'rejected' WHERE id = $1", [raced]);
+});
+
 test("a price change: accepting a later proposal closes the old price at its first day; the open order keeps its price", { skip }, async () => {
   const p = await asVendor(vendorA, (uow) => proc.proposePrice(uow, { itemId: item, priceMinor: "4600", currency: "USD", effectiveFrom: inDays(5) }, randomUUID));
   const d = await s2.gateway.decidePrice({ priceId: p.id, decision: "accepted" });
