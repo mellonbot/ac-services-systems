@@ -11,6 +11,10 @@
  * crew, put a document on file, verify it once and fail to verify it twice,
  * then set TWO rates in one session — and asserts what the page says.
  *
+ * Checks 14–17 (0030) walk billing the way finance does: a part payment, the
+ * payment that settles it, a check that bounces, and a void — each through its
+ * confirmation, each read back from the history the gateway derived.
+ *
  * Check 11 is the one that pays for the file: the second rate is the action
  * that silently never reached the gateway, and nothing else in the repository
  * would notice if `defaultValue` became `value` again.
@@ -175,7 +179,7 @@ async function main(): Promise<void> {
     await admin(`INSERT INTO regions (id, code, name) VALUES ($1,'WEST','West'), ($2,'SOUTH','South') ON CONFLICT (id) DO NOTHING`, [REGION_WEST, REGION_SOUTH]);
     await admin(`INSERT INTO currencies (code) VALUES ('USD') ON CONFLICT DO NOTHING`).catch(() => {});
     await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
-      VALUES ($1,$2,$3,'internal',$4,'Drive Owner','["account_owner"]','parent',$2,$5,true)
+      VALUES ($1,$2,$3,'internal',$4,'Drive Owner','["account_owner","finance"]','parent',$2,$5,true)
       ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, active = true`,
       [USER, INTERNAL_ORG_ID, REGION_SOUTH, EMAIL, hashPassword(PASSWORD)]);
 
@@ -399,6 +403,55 @@ async function main(): Promise<void> {
     })()`);
     must(closed, "the row that was in effect should be closed at the new first day, not left open");
     check(13, "the row that was in effect is closed at the new day — one price per day");
+
+    // ── 14–17. billing (0030): what finance does with an invoice that is owed.
+    const customer = (await admin(`INSERT INTO organizations (name, kind, segment) VALUES ($1,'customer','commercial') RETURNING id`, [`Drive Billing ${RUN}`]))[0].id as string;
+    const msa = (await admin(`INSERT INTO contracts (org_id, region_id, scope_tier, scope_id, kind, billing_path, signed_at, effective, diagnostic_data_rights_reserved, state)
+      VALUES ($1,$2,'parent',$1,'msa','enterprise_sla', now() - interval '30 days', daterange(current_date - 30, NULL), false, 'active') RETURNING id`, [customer, REGION_SOUTH]))[0].id as string;
+    // Every invoice line is itemised to a location (non-negotiable #7), and the office reads an invoice through its lines.
+    const node = (await admin(`INSERT INTO accounts (org_id, region_id, tier, name) VALUES ($1,$2,'region',$3) RETURNING id`, [customer, REGION_SOUTH, `Drive Billing ${RUN} / South`]))[0].id as string;
+    const location = (await admin(`INSERT INTO accounts (org_id, region_id, parent_id, tier, name) VALUES ($1,$2,$3,'location',$4) RETURNING id`, [customer, REGION_SOUTH, node, `Drive Billing ${RUN} / Store 1`]))[0].id as string;
+    const invoiceAt = async (totalMinor: number) => {
+      const id = (await admin(`INSERT INTO invoices (org_id, region_id, bill_to_tier, bill_to_id, contract_id, billing_path, total_minor, currency, issued_at, due_at)
+        VALUES ($1,$2,'parent',$1,$3,'enterprise_sla',$4,'USD', now() - interval '2 days', now() + interval '28 days') RETURNING id`, [customer, REGION_SOUTH, msa, totalMinor]))[0].id as string;
+      await admin(`INSERT INTO invoice_lines (org_id, region_id, invoice_id, location_id, description, quantity_milli, unit_price_minor, amount_minor)
+        VALUES ($1,$2,$3,$4,'Enterprise SLA, monthly',1000,$5,$5)`, [customer, REGION_SOUTH, id, location, totalMinor]);
+      return id;
+    };
+    const owed = await invoiceAt(50000);
+    const toVoid = await invoiceAt(12000);
+    const history = `(document.getElementById("payment-history")?.innerText ?? "")`;
+
+    await cdp.navigate(`${SITE}${SURFACE_PATHS.S2}/billing/invoices/${owed}`);
+    await cdp.waitFor(`document.getElementById("record-payment-form")`, "the record-payment form");
+    await cdp.eval(fillAndSubmit("record-payment-form", { amount: "300.00", method: "check", reference: `CHK ${RUN}` }));
+    await confirmAction(cdp, "Record payment");
+    await cdp.waitFor(`${history}.includes(${JSON.stringify(`CHK ${RUN}`)})`, "the first payment in the history");
+    await cdp.waitFor(`${text}.includes("Part paid")`, "the invoice to read part paid");
+    must(/200\.00/.test(await cdp.eval<string>(`document.getElementById("invoice-facts")?.innerText ?? ""`)), "200.00 should still be owed");
+    check(14, "a part payment goes through its confirmation, lands in the history, and the invoice reads part paid with the rest still owed");
+
+    await cdp.eval(fillAndSubmit("record-payment-form", { amount: "200.00", method: "ach", reference: `ACH ${RUN}` }));
+    await confirmAction(cdp, "Record payment");
+    await cdp.waitFor(`${text}.includes("Paid in full")`, "the invoice to read paid in full");
+    must(!(await cdp.eval<boolean>(`!!document.getElementById("record-payment-form")`)), "a paid invoice should offer no payment form");
+    check(15, "the payment that settles it reads paid in full, and the payment form is gone");
+
+    const checkPayment = await cdp.eval<string>(`[...document.querySelectorAll("#return-payment-form option")].find(o => o.textContent.includes(${JSON.stringify(`CHK ${RUN}`)}))?.value ?? ""`);
+    must(checkPayment.length > 0, "the check should be offered to mark returned");
+    await cdp.eval(fillAndSubmit("return-payment-form", { paymentId: checkPayment, reason: "R01 insufficient funds" }));
+    await confirmAction(cdp, "Mark returned");
+    await cdp.waitFor(`${history}.includes("R01 insufficient funds")`, "the returned check in the history");
+    await cdp.waitFor(`${text}.includes("Part paid")`, "the invoice to read part paid again");
+    check(16, "a bounced check stays in the history as returned, with why, and the invoice is part paid again");
+
+    await cdp.navigate(`${SITE}${SURFACE_PATHS.S2}/billing/invoices/${toVoid}`);
+    await cdp.waitFor(`document.getElementById("void-invoice-form")`, "the void form on an invoice nothing was paid against");
+    await cdp.eval(fillAndSubmit("void-invoice-form", { reason: "Billed twice" }));
+    await confirmAction(cdp, "Void invoice");
+    await cdp.waitFor(`document.getElementById("invoice-facts")?.innerText.includes("Billed twice")`, "the void's reason on the invoice");
+    must((await admin(`SELECT void_reason FROM invoices WHERE id = $1`, [toVoid]))[0].void_reason === "Billed twice", "the void should be at the table");
+    check(17, "an invoice with nothing paid is voided through its confirmation, with its reason, at the table");
 
     console.log(`\ndrive-s2-c4: ${passed} checks passed`);
   } finally {
