@@ -1,7 +1,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
-import { siteImagery, coordinatesOf, renderTemplate, imageryConfigFromEnv, clearImageryCache, siteMapTile, mapTileConfigFromEnv, clearMapTileCache, type Fetcher } from "./imagery.ts";
+import { siteImagery, siteImageryRead, siteMapTileRead, coordinatesOf, renderTemplate, imageryConfigFromEnv, clearImageryCache, siteMapTile, mapTileConfigFromEnv, clearMapTileCache, type Fetcher } from "./imagery.ts";
 import { tileOf } from "../../../../packages/contracts/src/operations.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
@@ -105,4 +105,32 @@ test("map tile: unconfigured and uncoordinated are answers; a tile far from the 
   await assert.rejects(siteMapTile(await uowFor(scripted(withCoords)), { siteId: SITE, z: 3, x: 1, y: 1 }, tiles, okFetch(calls)), BadInput);
   await assert.rejects(siteMapTile(await uowFor(scripted([{ id: SITE, tier: "location", address: null }])), { siteId: SITE, z: 16, x, y }, tiles, okFetch(calls)), (e: InputRefused) => e.code === "not_a_site");
   assert.equal(calls.length, 0);
+});
+
+test("the read answers without the provider; the fetch is a separate step the gateway runs after the transaction is released", async () => {
+  let released = false;
+  const tx: Tx = { ...scripted(withCoords), async rollback() { released = true; } };
+  const calls: string[] = [];
+  const plan = await siteImageryRead(await uowFor(tx), { siteId: SITE }, configured);
+  assert.equal(calls.length, 0, "reading the site asks no provider");
+  assert.ok("fetch" in plan);
+  await tx.rollback();
+  const out = await plan.fetch(async (url, init) => { assert.ok(released, "the provider is asked with no transaction open"); return okFetch(calls)(url, init); });
+  assert.equal(out.unavailable, null);
+  const { x, y } = homeTile(16);
+  assert.ok("fetch" in await siteMapTileRead(await uowFor(scripted(withCoords)), { siteId: SITE, z: 16, x, y }, tiles));
+});
+
+test("a failed fetch is remembered for a minute, then asked again — a provider that is down is not hammered by every card", async () => {
+  let asked = 0, t = 5_000_000;
+  const failing: Fetcher = async () => { asked++; throw new Error("ETIMEDOUT"); };
+  for (let i = 0; i < 5; i++) assert.equal((await siteImagery(await uowFor(scripted(withCoords)), { siteId: SITE }, configured, failing, () => t)).unavailable, "provider_unreachable");
+  assert.equal(asked, 1);
+  const { x, y } = homeTile(16);
+  for (let i = 0; i < 3; i++) assert.equal((await siteMapTile(await uowFor(scripted(withCoords)), { siteId: SITE, z: 16, x, y }, tiles, failing, () => t)).unavailable, "provider_unreachable");
+  assert.equal(asked, 2);
+  t += 61_000;
+  const calls: string[] = [];
+  assert.equal((await siteImagery(await uowFor(scripted(withCoords)), { siteId: SITE }, configured, okFetch(calls), () => t)).unavailable, null);
+  assert.equal(calls.length, 1);
 });

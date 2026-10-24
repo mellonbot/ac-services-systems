@@ -1,7 +1,7 @@
-import { test } from "node:test";
+import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
-import { locateSite, addressQuery, geocodeConfigFromEnv, type JsonFetcher } from "./imagery.ts";
+import { locateSite, locateSiteRead, locateSiteWrite, clearGeocodeCache, addressQuery, geocodeConfigFromEnv, type JsonFetcher } from "./imagery.ts";
 import { InputRefused } from "../refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 
@@ -26,6 +26,7 @@ const db = (row: unknown) => {
 const uowFor = (tx: Tx) => createUnitOfWork({ surfaceId: "S2", principal: ops, requestId: "r", now: () => new Date(), newId: () => U(500) }, tx);
 const geocoder = { urlTemplate: "https://geo.example/geocoding/{q}.json?key=K&limit=1" };
 const answering = (calls: string[], body: unknown): JsonFetcher => async (url) => { calls.push(url); return { ok: true, json: async () => body }; };
+beforeEach(() => clearGeocodeCache());
 const feature = (place_type: string[], lng: number, lat: number) => ({ place_type, geometry: { type: "Point", coordinates: [lng, lat] } });
 
 test("the address is asked for as one line of words; the geocoder template is read from the environment", () => {
@@ -69,4 +70,25 @@ test("unconfigured, no street line, and a failing provider are answers; a locati
   const denied: JsonFetcher = async () => ({ ok: false, json: async () => ({}) });
   assert.equal((await locateSite(await uowFor(db(siteRow(ADDRESS)).tx), { siteId: SITE }, geocoder, denied)).outcome, "provider_unreachable");
   await assert.rejects(locateSite(await uowFor(db({ ...siteRow(null), tier: "location" }).tx), { siteId: SITE }, geocoder, down), (e: InputRefused) => e.code === "not_a_site");
+});
+
+test("the geocoder is asked between two transactions; the write re-reads the site and does not place an address that changed meanwhile", async () => {
+  const plan = await locateSiteRead(await uowFor(db(siteRow(ADDRESS)).tx), { siteId: SITE }, geocoder);
+  assert.ok("query" in plan);
+  const edited = db(siteRow({ ...ADDRESS, line1: "9 Other St" }));
+  const out = await locateSiteWrite(await uowFor(edited.tx), plan.siteId, plan.query, { lat: 32.7, lng: -97.3 });
+  assert.equal(out.outcome, "not_found");
+  assert.equal(edited.queries.some((q) => q.sql.startsWith("UPDATE")), false);
+  const same = db(siteRow(ADDRESS));
+  assert.equal((await locateSiteWrite(await uowFor(same.tx), plan.siteId, plan.query, { lat: 32.7, lng: -97.3 })).outcome, "located");
+});
+
+test("a geocoder failure is remembered for a minute", async () => {
+  let asked = 0, t = 1_000;
+  const down: JsonFetcher = async () => { asked++; throw new Error("ECONNRESET"); };
+  for (let i = 0; i < 4; i++) assert.equal((await locateSite(await uowFor(db(siteRow(ADDRESS)).tx), { siteId: SITE }, geocoder, down, () => t)).outcome, "provider_unreachable");
+  assert.equal(asked, 1);
+  t += 61_000;
+  await locateSite(await uowFor(db(siteRow(ADDRESS)).tx), { siteId: SITE }, geocoder, down, () => t);
+  assert.equal(asked, 2);
 });

@@ -27,7 +27,7 @@ import { createResidential, listLeads, convertLead } from "./handlers/residentia
 import { storeFromEnv } from "../../../packages/storage/src/index.ts";
 import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
 import { listEquipment, registerEquipment, listContacts, setContact, listInvoices } from "./handlers/site-record.ts";
-import { siteImagery, imageryConfigFromEnv, siteMapTile, mapTileConfigFromEnv, locateSite, geocodeConfigFromEnv } from "./handlers/imagery.ts";
+import { siteImageryRead, imageryConfigFromEnv, siteMapTileRead, mapTileConfigFromEnv, locateSiteRead, geocode, locateSiteWrite, geocodeConfigFromEnv, runPlan } from "./handlers/imagery.ts";
 import { AdmissionRefused } from "../../../packages/domain/src/inheritance/admit.ts";
 import { ResolutionError } from "../../../packages/domain/src/inheritance/resolve.ts";
 import { SURFACES, admits, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
@@ -575,9 +575,16 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "contacts.list": (req, input) => withRead(req, "contacts.list", (uow) => listContacts(uow, input)),
   "contacts.set": (req, input) => withUow(req, "contacts.set", (uow) => setContact(uow, input, randomUUID)),
   "invoices.list": (req, input) => withRead(req, "invoices.list", (uow) => listInvoices(uow, input)),
-  "sites.imagery": (req, input) => withRead(req, "sites.imagery", (uow) => siteImagery(uow, input, IMAGERY, fetch)),
-  "sites.mapTile": (req, input) => withRead(req, "sites.mapTile", (uow) => siteMapTile(uow, input, MAP_TILES, fetch)),
-  "sites.locate": (req, input) => withUow(req, "sites.locate", (uow) => locateSite(uow, input, GEOCODE, fetch)),
+  // The provider is asked after the read's transaction is released, never
+  // inside it: a slow provider must not hold a pool connection per caller.
+  "sites.imagery": async (req, input) => runPlan(await withRead(req, "sites.imagery", (uow) => siteImageryRead(uow, input, IMAGERY)), fetch),
+  "sites.mapTile": async (req, input) => runPlan(await withRead(req, "sites.mapTile", (uow) => siteMapTileRead(uow, input, MAP_TILES)), fetch),
+  "sites.locate": async (req, input) => {
+    const plan = await withRead(req, "sites.locate", (uow) => locateSiteRead(uow, input, GEOCODE));
+    if ("answer" in plan) return plan.answer;
+    const found = await geocode(plan.query, GEOCODE, fetch);
+    return withUow(req, "sites.locate", (uow) => locateSiteWrite(uow, plan.siteId, plan.query, found));
+  },
 
   // item 6 — S6's first write, and the office's read of it.
   "serviceRequests.create": (req, input) => withUow(req, "serviceRequests.create", (uow, p) => createServiceRequest(uow, p.subjectId, input, randomUUID)),
