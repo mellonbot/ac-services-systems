@@ -10,7 +10,7 @@
  * (term resolution, override admission, the compliance gate, context
  * resolution) the real module is imported and run.
  */
-import { OPERATIONS, OFFICE_JOB_TRANSITIONS, FIELD_CLOSED_STATES, serviceOf, EMERGENCY_MULTIPLIER_DEFAULT, multiplierBp, multiplierOf, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, routeKey, mayReadTechnicianAddress, type OperationId } from "../../packages/contracts/src/operations.ts";
+import { OPERATIONS, OFFICE_JOB_TRANSITIONS, FIELD_CLOSED_STATES, serviceOf, EMERGENCY_MULTIPLIER_DEFAULT, multiplierBp, multiplierOf, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, AVATAR_MAX_BYTES, ACCOUNT_PASSWORD_MIN, STATUS_NOTE_MAX, routeKey, mayReadTechnicianAddress, type OperationId } from "../../packages/contracts/src/operations.ts";
 import type * as W from "../../packages/contracts/src/operations.ts";
 import { invoiceStatusOf } from "../../packages/contracts/src/operations.ts";
 import { SURFACES, type SurfaceId } from "../../packages/contracts/src/surfaces.ts";
@@ -439,6 +439,14 @@ let deviceSession: Session | null = null;
  */
 const anonTokens = new Map<string, number>();
 let anonCookieExpires = 0;
+type Profile = { presence: W.Presence; statusNote: string | null; avatar: W.MyAccountWire["avatar"]; passwordChangedAt: string | null };
+const profiles = new Map<string, Profile>();
+const profileOf = (u: User): Profile => {
+  let p = profiles.get(u.id);
+  if (!p) profiles.set(u.id, (p = { presence: "available", statusNote: null, avatar: null, passwordChangedAt: null }));
+  return p;
+};
+const accountOf = (u: User): W.MyAccountWire => ({ userId: u.id, email: u.email, displayName: u.name, ...profileOf(u) });
 const principalOf = (s: Session): Principal => ({ ...s.user.principal, sessionId: s.id });
 const mint = (user: User): Session => ({ id: uid("z"), user, token: `demo.${uid("t")}` });
 for (const sid of ["S2", "S3", "S4", "S6", "S7", "S8"] as SurfaceId[]) cookieSessions.set(sid, mint(users.find((u) => u.surfaces.includes(sid))!));
@@ -689,6 +697,36 @@ const H: Partial<Record<OperationId, Handler>> = {
   },
   "system.health": () => ({ ok: true, surfaces: Object.values(SURFACES).filter((s) => s.enabled).map((s) => s.id) }),
   "session.me": async (_i, { p }) => buildContext(p, reader),
+  // 0032 — the Account button, on the signed-in demo user's own record.
+  "account.me": (_i, { session }) => accountOf(session!.user),
+  "account.update": (i: W.UpdateMyAccountInput, { session }) => {
+    const u = session!.user, a = profileOf(u);
+    if (i.displayName !== undefined) { const n = i.displayName.replace(/\s+/g, " ").trim(); need(n, "your name cannot be blank", "blank_name"); u.name = n; }
+    if (i.presence !== undefined) a.presence = i.presence;
+    if (i.statusNote !== undefined) { need((i.statusNote ?? "").length <= STATUS_NOTE_MAX, `your status is at most ${STATUS_NOTE_MAX} characters`, "too_long"); a.statusNote = i.statusNote?.trim() || null; }
+    return accountOf(u);
+  },
+  "account.setAvatar": (i: W.SetAvatarInput, { session }) => {
+    const a = profileOf(session!.user);
+    if (i.dataBase64 === null) a.avatar = null;
+    else {
+      const bytes = new Uint8Array(Buffer.from(i.dataBase64, "base64"));
+      need(bytes.length <= AVATAR_MAX_BYTES, `a picture is at most ${AVATAR_MAX_BYTES / 1024} KB`, "avatar_too_large");
+      const type = sniffPhoto(bytes);
+      need(type === "image/jpeg" || type === "image/png", "that file is not a JPEG or PNG picture", "not_a_photo");
+      a.avatar = { contentType: type as W.AvatarContentType, image: i.dataBase64 };
+    }
+    return accountOf(session!.user);
+  },
+  "account.changePassword": (i: W.ChangePasswordInput, { session }) => {
+    const u = session!.user;
+    need(i.currentPassword === u.password, "your current password is not right", "wrong_password");
+    need(i.newPassword.length >= ACCOUNT_PASSWORD_MIN, `a new password is at least ${ACCOUNT_PASSWORD_MIN} characters`, "password_too_short");
+    need(i.newPassword !== i.currentPassword, "the new password is the same as the current one", "password_unchanged");
+    u.password = i.newPassword;
+    profileOf(u).passwordChangedAt = new Date().toISOString();
+    return { ok: true, passwordChangedAt: profileOf(u).passwordChangedAt!, endedSessions: 0 };
+  },
   "brand.theme": () => ({ tenant: false, css: "", admission: null }),
 
   // ---- S1 ----
