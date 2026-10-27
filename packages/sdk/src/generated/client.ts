@@ -397,7 +397,7 @@ export const createGatewayClient = (transport: Transport) => ({
 
   /** `POST /s3/jobs/transition` · mutation · bearer · surfaces: S3
    *
-   * The office's hand on a job's state: waiting on the customer (quote requested, quote submitted, approved or declined; held mid-job and resumed) and what blocks the invoice (needs pricing, waiting on a PO or pictures, an invoice kicked back). Only the edges OFFICE_JOB_TRANSITIONS lists; anything else is refused by name as an illegal transition. */
+   * The office's hand on a job's state: waiting on the customer (quote requested, quote submitted, approved or declined; held mid-job and resumed), closing out a dispatched job the crew finished off-device (any field state to complete), and what blocks the invoice (needs pricing, waiting on a PO or pictures, an invoice kicked back). Only the edges OFFICE_JOB_TRANSITIONS lists; anything else is refused by name as an illegal transition. */
   transitionJob(input: OperationIO["jobs.transition"]["input"]): Promise<OperationIO["jobs.transition"]["output"]> {
     return transport.request(OPERATIONS["jobs.transition"], input) as Promise<OperationIO["jobs.transition"]["output"]>;
   },

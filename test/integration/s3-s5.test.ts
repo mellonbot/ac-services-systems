@@ -431,6 +431,19 @@ test("waiting on the customer, mid-job: the office holds an on-site job for the 
   assert.equal((await move("in_progress")).state, "in_progress");
 });
 
+test("closing out: a crew that finished off-device leaves the job dispatched; the office moves it to complete from a field state, logged as S3's", { skip }, async () => {
+  const move = (to: string) => s3.gateway.transitionJob({ jobId, orgId, regionId: REGION_SOUTH, to: to as never });
+  // A crew that never touched the tablet past "en route" — the paper ticket came back finished.
+  await admin(`UPDATE jobs SET state = 'en_route' WHERE id = $1`, [jobId]);
+  const out = await move("complete");
+  assert.equal(out.state, "complete");
+  assert.equal((await admin(`SELECT topic FROM outbox WHERE event_id = $1`, [out.eventId]))[0]!.topic, "job.transitioned");
+  const logged = (await admin(`SELECT from_state, surface_id, mutation_id FROM job_state_events WHERE job_id = $1 AND to_state = 'complete' ORDER BY recorded_at DESC LIMIT 1`, [jobId]))[0]!;
+  assert.deepEqual([logged.from_state, logged.surface_id, logged.mutation_id], ["en_route", "S3", `office:v${out.version}`]);
+  assert.equal((await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!.state, "complete", "the board reads it as finished work");
+  await assert.rejects(move("in_progress"), (e: unknown) => code(s3, e) === "illegal_transition", "a closed-out job does not reopen through the office's hand");
+});
+
 test("what blocks the invoice: a finished job goes to needs pricing, a PO or pictures and back to ready-to-invoice; a kicked-back invoice is fixed and re-sent", { skip }, async () => {
   const move = (to: string) => s3.gateway.transitionJob({ jobId, orgId, regionId: REGION_SOUTH, to: to as never });
   // The field finishing and billing invoicing have their own doors; this test starts on the far side of each.

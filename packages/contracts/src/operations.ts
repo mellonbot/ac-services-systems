@@ -451,7 +451,7 @@ export const OPERATIONS = {
   "jobs.transition": {
     id: "jobs.transition", method: "POST", path: "/s3/jobs/transition", kind: "mutation", auth: "bearer",
     surfaces: ["S3"], carrier: "body", sdkMethod: "transitionJob",
-    summary: "The office's hand on a job's state: waiting on the customer (quote requested, quote submitted, approved or declined; held mid-job and resumed) and what blocks the invoice (needs pricing, waiting on a PO or pictures, an invoice kicked back). Only the edges OFFICE_JOB_TRANSITIONS lists; anything else is refused by name as an illegal transition.",
+    summary: "The office's hand on a job's state: waiting on the customer (quote requested, quote submitted, approved or declined; held mid-job and resumed), closing out a dispatched job the crew finished off-device (any field state to complete), and what blocks the invoice (needs pricing, waiting on a PO or pictures, an invoice kicked back). Only the edges OFFICE_JOB_TRANSITIONS lists; anything else is refused by name as an illegal transition.",
   },
   "jobs.addNote": {
     id: "jobs.addNote", method: "POST", path: "/s3/jobs/note", kind: "mutation", auth: "bearer",
@@ -1463,9 +1463,10 @@ export type JobStateWire =
 export const WORK_DONE_STATES: readonly JobStateWire[] = Object.freeze(["complete", "needs_pricing", "awaiting_po", "awaiting_pictures", "invoiced", "invoice_trouble"]);
 
 /**
- * The moves the office makes by hand (`jobs.transition`, S3) — every one is
- * the job waiting on the customer, or coming back from it. A subset of
- * packages/domain's JOB_TRANSITIONS (the gateway test holds it there), kept
+ * The moves the office makes by hand (`jobs.transition`, S3) — the job
+ * waiting on the customer or coming back from it, and closing out a job the
+ * crew finished. Apart from closing out, a subset of packages/domain's
+ * JOB_TRANSITIONS (the domain test holds it there), kept
  * here because a surface reads it to offer the buttons and a surface may not
  * import the domain. Before dispatch the wait is a quote: requested,
  * submitted, then approved back to `created` or declined to `cancelled`.
@@ -1473,14 +1474,25 @@ export const WORK_DONE_STATES: readonly JobStateWire[] = Object.freeze(["complet
  * `in_progress`. After the work, whatever blocks the invoice (pricing, a PO,
  * pictures) and back to `complete`; an invoice kicked back and re-sent.
  * Assignment, release and the field's own moves keep their own doors.
+ *
+ * Closing out: a dispatched job the crew finished without moving it on a
+ * device — a paper ticket, a phoned-in finish, a dead tablet — the office
+ * moves to `complete` from any field state (OFFICE_CLOSE_OUT_FROM). Except
+ * in_progress → complete, these are the office's edges alone and deliberately
+ * NOT in the domain's JOB_TRANSITIONS, which is what a device may take: a
+ * technician still walks en route → on site → in progress → complete.
  */
 export const OFFICE_JOB_TRANSITIONS: Readonly<Partial<Record<JobStateWire, readonly JobStateWire[]>>> = Object.freeze({
   created: ["quote_requested"],
   quote_requested: ["quote_submitted", "cancelled"],
   quote_submitted: ["created", "cancelled"],
-  on_site: ["awaiting_customer"],
-  in_progress: ["awaiting_customer"],
-  awaiting_customer: ["in_progress"],
+  // Closing out a dispatched job (OFFICE_CLOSE_OUT_FROM).
+  assigned: ["complete"],
+  en_route: ["complete"],
+  on_site: ["awaiting_customer", "complete"],
+  in_progress: ["awaiting_customer", "complete"],
+  awaiting_parts: ["complete"],
+  awaiting_customer: ["in_progress", "complete"],
   // After the work: what blocks the invoice, and back to ready-to-invoice.
   complete: ["needs_pricing", "awaiting_po", "awaiting_pictures"],
   needs_pricing: ["complete"],
@@ -1489,6 +1501,9 @@ export const OFFICE_JOB_TRANSITIONS: Readonly<Partial<Record<JobStateWire, reado
   invoiced: ["invoice_trouble"],
   invoice_trouble: ["invoiced"],
 });
+
+/** The field states the office may close a dispatched job out of — each has `complete` in OFFICE_JOB_TRANSITIONS. */
+export const OFFICE_CLOSE_OUT_FROM: readonly JobStateWire[] = Object.freeze(["assigned", "en_route", "on_site", "in_progress", "awaiting_parts", "awaiting_customer"]);
 
 /** 0024: what an install was sold under. `foremanId` is the person who sold it — an active internal user holding `foreman`. */
 export type ProjectState = "planned" | "active" | "closed" | "cancelled";

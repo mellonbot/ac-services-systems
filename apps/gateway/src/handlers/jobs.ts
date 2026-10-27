@@ -252,8 +252,9 @@ export const listMyJobs = async (uow: UnitOfWork, shiftId: string): Promise<MyJo
 };
 
 /**
- * S3 → gateway: the office's hand on a job's state, and only for waiting on
- * the customer (OFFICE_JOB_TRANSITIONS). Assignment and release keep their
+ * S3 → gateway: the office's hand on a job's state — waiting on the customer,
+ * what blocks the invoice, and closing out a dispatched job the crew finished
+ * off-device (OFFICE_JOB_TRANSITIONS). Assignment and release keep their
  * own doors; the field's moves arrive through sync.replay. The UPDATE names
  * the state it read, so a job the field moved in the meantime is refused as
  * a stale transition instead of being overwritten.

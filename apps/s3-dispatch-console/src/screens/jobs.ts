@@ -1,5 +1,5 @@
 import { html, signal, DataGrid, StatusPill, pageHead, statStrip, panel, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
-import { serviceLabel, OFFICE_JOB_TRANSITIONS, JOB_WORK_CLASS_LABEL, type JobWire, type JobStateWire, type AddressWire } from "../../../../packages/contracts/src/index.ts";
+import { serviceLabel, OFFICE_JOB_TRANSITIONS, OFFICE_CLOSE_OUT_FROM, JOB_WORK_CLASS_LABEL, type JobWire, type JobStateWire, type AddressWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, linkTo, submitAction, perStore, focusId, type Screen, type ScreenContext } from "./common.ts";
 import { slaStatus, isDispatchable } from "./board.ts";
@@ -14,6 +14,7 @@ import { slaStatus, isDispatchable } from "./board.ts";
  * own state log). The waiting-on-customer states (0013) are moved here by
  * hand, one button per edge OFFICE_JOB_TRANSITIONS admits — the same list
  * the gateway enforces, so the screen never offers a move it would refuse.
+ * A dispatched job the crew finished off-device is closed out the same way.
  *
  * Notes and the return-trip flag (0015) are the office's own: a flag is set
  * by hand, never guessed out of the note text, and a note is append-only —
@@ -30,6 +31,8 @@ export const STATE_LABEL: Readonly<Record<JobStateWire, string>> = {
 };
 
 /** The button's word for a move — what the dispatcher is saying happened, not the state's name. */
+const moveLabel = (from: JobStateWire, to: JobStateWire): string =>
+  to === "complete" && OFFICE_CLOSE_OUT_FROM.includes(from) ? "Close out" : MOVE_LABEL[to] ?? STATE_LABEL[to];
 const MOVE_LABEL: Readonly<Partial<Record<JobStateWire, string>>> = {
   quote_requested: "Quote requested", quote_submitted: "Quote sent", created: "Approved", cancelled: "Declined",
   awaiting_customer: "Hold for customer", in_progress: "Resume",
@@ -124,11 +127,13 @@ const bucketCard = (bucket: (typeof BUCKETS)[number], jobs: readonly JobWire[]):
 
 /**
  * A move in flight, or one waiting on its confirmation. Declining cancels the
- * job, and nothing in OFFICE_JOB_TRANSITIONS leads back out of cancelled, so
- * that one asks first; the rest go on the click, one at a time per row.
+ * job, and closing one out finishes it; nothing in OFFICE_JOB_TRANSITIONS leads
+ * back out of either, so those two ask first; the rest go on the click, one at
+ * a time per row.
  */
 type Moving = { readonly jobId: string; readonly to: JobStateWire; readonly busy: boolean } | null;
 const movingFor = perStore<Moving>(null);
+const asksFirst = (from: JobStateWire, to: JobStateWire): boolean => to === "cancelled" || (to === "complete" && OFFICE_CLOSE_OUT_FROM.includes(from));
 
 const moveJob = async (ctx: ScreenContext, job: JobWire, to: JobStateWire): Promise<void> => {
   const moving = movingFor(ctx.store);
@@ -136,7 +141,9 @@ const moveJob = async (ctx: ScreenContext, job: JobWire, to: JobStateWire): Prom
   moving.value = { jobId: job.id, to, busy: true };
   try {
     await ctx.shell.gateway.transitionJob({ jobId: job.id, orgId: job.orgId, regionId: job.regionId, to });
-    ctx.store.notice.value = [to === "created" ? `Job ${job.id}: approved — back to dispatch.` : to === "complete" ? `Job ${job.id}: ready to invoice.` : `Job ${job.id}: ${STATE_LABEL[to].toLowerCase()}.`];
+    ctx.store.notice.value = [to === "created" ? `Job ${job.id}: approved — back to dispatch.`
+      : to === "complete" ? (OFFICE_CLOSE_OUT_FROM.includes(job.state) ? `Job ${job.id}: closed out — ready to invoice.` : `Job ${job.id}: ready to invoice.`)
+      : `Job ${job.id}: ${STATE_LABEL[to].toLowerCase()}.`];
   } catch {
     ctx.store.notice.value = [`Job ${job.id} did not move — it may have changed since this page loaded. The list has been refreshed.`];
   } finally {
@@ -224,10 +231,19 @@ export const jobs: Screen = (ctx) => {
           </span>
         </span>`;
       }
+      if (m && m.to === "complete" && !m.busy && OFFICE_CLOSE_OUT_FROM.includes(j.state)) {
+        return html`<span class="s3-confirm s3-confirm--cell" role="group" aria-labelledby=${`close-${j.id}`}>
+          <strong id=${`close-${j.id}`}>Close out job ${j.id} as finished? It goes to invoicing, and the crew's device can no longer move it.</strong>
+          <span class="s3-row-actions">
+            <button type="button" class="s3-act" id=${`move-${j.id}-complete-yes`} disabled=${ctx.degraded} onClick=${() => void moveJob(ctx, j, "complete")}>Close out</button>
+            <button type="button" class="s3-act" id=${`move-${j.id}-complete-keep`} onClick=${() => { moving.value = null; focusId(`move-${j.id}-complete`); }}>Keep it open</button>
+          </span>
+        </span>`;
+      }
       return html`<span class="s3-moves">${isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act", `Dispatch job ${j.id}`) : null}${(OFFICE_JOB_TRANSITIONS[j.state] ?? []).map((to) =>
-        html`<button type="button" class="s3-act" id=${`move-${j.id}-${to}`} aria-label=${`${MOVE_LABEL[to] ?? STATE_LABEL[to]} — job ${j.id}`} disabled=${ctx.degraded || m !== null}
+        html`<button type="button" class="s3-act" id=${`move-${j.id}-${to}`} aria-label=${`${moveLabel(j.state, to)} — job ${j.id}`} disabled=${ctx.degraded || m !== null}
           title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
-          onClick=${() => { if (to === "cancelled") { moving.value = { jobId: j.id, to, busy: false }; focusId(`move-${j.id}-cancelled-keep`); } else void moveJob(ctx, j, to); }}>${m?.busy && m.to === to ? "Saving…" : MOVE_LABEL[to] ?? STATE_LABEL[to]}</button>`)}</span>`;
+          onClick=${() => { if (asksFirst(j.state, to)) { moving.value = { jobId: j.id, to, busy: false }; focusId(`move-${j.id}-${to}-keep`); } else void moveJob(ctx, j, to); }}>${m?.busy && m.to === to ? "Saving…" : moveLabel(j.state, to)}</button>`)}</span>`;
     } },
     { key: "note", header: "Note", cell: noteCell },
     { key: "age", header: "Days in status", numeric: true, align: "end", cell: (j) => html`<span title=${`In this status since ${new Date(j.stateChangedAt).toLocaleString()}`}>${daysInState(j, now)}d</span>` },

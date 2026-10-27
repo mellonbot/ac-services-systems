@@ -698,6 +698,31 @@ test("job dashboard: Declined asks before it cancels the job; nothing is sent un
   assert.equal((moves[0] as { to: string }).to, "cancelled");
 });
 
+test("job dashboard: a dispatched job the crew finished off-device is closed out — asked first, then sent as complete", async () => {
+  const enRoute: JobWire = { ...jobAssigned, id: U(42), state: "en_route" };
+  const moves: unknown[] = [];
+  const { app, gateway } = await ready({
+    [OPERATIONS["jobs.list"].path]: { status: 200, body: { jobs: [enRoute] } },
+    [OPERATIONS["jobs.transition"].path]: (init) => { moves.push(JSON.parse(String(init?.body))); return { status: 200, body: { jobId: U(42), state: "complete", version: 3, eventId: "e" } }; },
+  });
+  app.router.navigate("jobs", {});
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  (nodesIn(app.view()).find((n) => n.type === "button" && (n.props?.children as unknown[] | string | undefined)?.toString().includes("All open"))!.props!.onClick as () => void)();
+  assert.match(render(app.view()), new RegExp(`id="move-${U(42)}-complete"[^>]*>Close out<`), "the move is named for what the dispatcher is doing, not 'Ready to invoice'");
+  const click = (id: string) => (nodesIn(app.view()).find((n) => n.props?.id === id)!.props!.onClick as () => void)();
+  click(`move-${U(42)}-complete`);
+  assert.match(render(app.view()), new RegExp(`Close out job ${U(42)} as finished\\?`));
+  assert.equal(moves.length, 0, "a click on Close out sends nothing yet");
+  click(`move-${U(42)}-complete-keep`);
+  assert.doesNotMatch(render(app.view()), /Close out job/);
+  click(`move-${U(42)}-complete`);
+  click(`move-${U(42)}-complete-yes`);
+  await settle(); await settle();
+  assert.equal(gateway.calls.filter((c) => c.path === OPERATIONS["jobs.transition"].path).length, 1);
+  assert.deepEqual(moves[0], { jobId: U(42), orgId: enRoute.orgId, regionId: enRoute.regionId, to: "complete" });
+  assert.match(render(app.view()), new RegExp(`Job ${U(42)}: closed out — ready to invoice\\.`));
+});
+
 test("local preview is sample data only when no gateway answers, and says so on every screen", async () => {
   const down: FetchLike = async () => { throw new TypeError("fetch failed"); };
   const preview = createApp({ baseUrl: "http://127.0.0.1:8080", fetch: down, now: () => 1_000 });
