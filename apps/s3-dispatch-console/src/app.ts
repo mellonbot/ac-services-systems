@@ -394,8 +394,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           <a class="ac-seg__item" href=${router.href("intake", {})}
              data-current=${loc?.screen === "intake" ? "true" : undefined}
              aria-current=${loc?.screen === "intake" ? "page" : undefined}
-             aria-label=${waiting.length ? `Intake — ${waiting.length} waiting${emergencies ? `, ${emergencies} emergency` : ""}` : undefined}
-             onClick=${(e: Event) => { e.preventDefault(); router.navigate("intake", {}); }}>Intake${waiting.length ? html`<span class="s3-nav-count" id="intake-count">${waiting.length}</span>` : null}${emergencies
+             aria-label=${waiting.length ? `Portal requests — ${waiting.length} waiting${emergencies ? `, ${emergencies} emergency` : ""}` : undefined}
+             onClick=${(e: Event) => { e.preventDefault(); router.navigate("intake", {}); }}>Portal requests${waiting.length ? html`<span class="s3-nav-count" id="intake-count">${waiting.length}</span>` : null}${emergencies
                ? html`<span class="s3-nav-count" data-tone="breached" id="intake-emergency"><span aria-hidden="true">${STATUS_GLYPH.breached.glyph}</span> ${emergencies} emergency</span>` : null}</a>
           <a class="ac-seg__item" href=${router.href("jobs", {})}
              data-current=${loc?.screen === "jobs" ? "true" : undefined}
