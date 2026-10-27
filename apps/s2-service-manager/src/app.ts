@@ -366,6 +366,14 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   // Root is the one Preact component; every signal a screen reads during its render re-renders Root.
   const Root = () => app.view();
   mount(html`<${Root} />`, el);
+  // A refusal is announced (role="alert"), but under a long form it can land below the fold and the
+  // click looks like it did nothing — bring a newly shown one into view.
+  new MutationObserver((records) => {
+    for (const r of records) for (const n of Array.from(r.addedNodes)) {
+      const card = n instanceof HTMLElement ? (n.matches(".ac-refusal") ? n : n.querySelector(".ac-refusal")) : null;
+      if (card) { card.scrollIntoView({ block: "nearest" }); return; }
+    }
+  }).observe(el, { childList: true, subtree: true });
   spinFavicon(document);
   const degradedTick = slot ? driveDegraded(slot, () => {
     const p = app.phase.value;
