@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 119 today. There is no
+ * One method per operation in the catalogue — 121 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -360,6 +360,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["jobs.addNote"], input) as Promise<OperationIO["jobs.addNote"]["output"]>;
   },
 
+  /** `POST /s5/jobs/media` · mutation · bearer · surfaces: S5
+   *
+   * One photo or the customer's signature onto a job this device's crew holds, as base64 in the body (0034). JPEG, PNG or HEIC by the file's own bytes — a signature is a PNG — at most PHOTO_MAX_BYTES, at most JOB_MEDIA_MAX per job. Idempotent by the device's mutationId: a retried upload answers with the row it already wrote. */
+  attachJobMedia(input: OperationIO["jobs.attachMedia"]["input"]): Promise<OperationIO["jobs.attachMedia"]["output"]> {
+    return transport.request(OPERATIONS["jobs.attachMedia"], input) as Promise<OperationIO["jobs.attachMedia"]["output"]>;
+  },
+
   /** `GET /jobs/conversation` · query · bearer · surfaces: S6
    *
    * What a customer reads about its job beyond the state: the updates dispatch PUBLISHED and the thread. A draft, an internal note, a crew or a photo key is not here — RLS (0016) returns only published updates to a customer. */
@@ -428,6 +435,13 @@ export const createGatewayClient = (transport: Transport) => ({
    * The office's hand on a job's state: waiting on the customer (quote requested, quote submitted, approved or declined; held mid-job and resumed), closing out a dispatched job the crew finished off-device (any field state to complete), cancelling one before the crew is on site (the crew is released with it), and what blocks the invoice (needs pricing, waiting on a PO or pictures, an invoice kicked back). Only the edges OFFICE_JOB_TRANSITIONS lists; anything else is refused by name as an illegal transition. */
   transitionJob(input: OperationIO["jobs.transition"]["input"]): Promise<OperationIO["jobs.transition"]["output"]> {
     return transport.request(OPERATIONS["jobs.transition"], input) as Promise<OperationIO["jobs.transition"]["output"]>;
+  },
+
+  /** `POST /s5/jobs/wrap-up` · mutation · bearer · surfaces: S5
+   *
+   * Close a visit from the field (0034): complete the job, in progress, and record how — Complete or Quote needed — with the notes, the signature or why there is none, and for a quote the RTU measurements. Every rule (WRAP_UP_MIN_PHOTOS, QUOTE_MIN_PHOTOS, the measurements) is checked against the media already uploaded, not the device's word. Idempotent by wrapUpId. A quote's QUOTE job is opened by the worker, not here. */
+  wrapUpJob(input: OperationIO["jobs.wrapUp"]["input"]): Promise<OperationIO["jobs.wrapUp"]["output"]> {
+    return transport.request(OPERATIONS["jobs.wrapUp"], input) as Promise<OperationIO["jobs.wrapUp"]["output"]>;
   },
 
   /** `POST /s2/leads/convert` · mutation · bearer · surfaces: S2
@@ -847,4 +861,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["changePassword", "myAccount", "setAccountAvatar", "updateMyAccount", "createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "myPunches", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);
+export const GENERATED_METHODS = Object.freeze(["changePassword", "myAccount", "setAccountAvatar", "updateMyAccount", "createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "attachJobMedia", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "wrapUpJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "myPunches", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);

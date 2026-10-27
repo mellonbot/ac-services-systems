@@ -541,6 +541,16 @@ export const OPERATIONS = {
     surfaces: ["S5"], carrier: "query", sdkMethod: "myPunches",
     summary: "The signed-in technician's own shift punches between two instants (at most 35 days apart), oldest first — every shift and every device they punched on, and nobody else's (0033). What the timesheet pairs into spans.",
   },
+  "jobs.attachMedia": {
+    id: "jobs.attachMedia", method: "POST", path: "/s5/jobs/media", kind: "mutation", auth: "bearer",
+    surfaces: ["S5"], carrier: "body", sdkMethod: "attachJobMedia",
+    summary: "One photo or the customer's signature onto a job this device's crew holds, as base64 in the body (0034). JPEG, PNG or HEIC by the file's own bytes — a signature is a PNG — at most PHOTO_MAX_BYTES, at most JOB_MEDIA_MAX per job. Idempotent by the device's mutationId: a retried upload answers with the row it already wrote.",
+  },
+  "jobs.wrapUp": {
+    id: "jobs.wrapUp", method: "POST", path: "/s5/jobs/wrap-up", kind: "mutation", auth: "bearer",
+    surfaces: ["S5"], carrier: "body", sdkMethod: "wrapUpJob",
+    summary: "Close a visit from the field (0034): complete the job, in progress, and record how — Complete or Quote needed — with the notes, the signature or why there is none, and for a quote the RTU measurements. Every rule (WRAP_UP_MIN_PHOTOS, QUOTE_MIN_PHOTOS, the measurements) is checked against the media already uploaded, not the device's word. Idempotent by wrapUpId. A quote's QUOTE job is opened by the worker, not here.",
+  },
   "sync.replay": {
     id: "sync.replay", method: "POST", path: "/s5/sync", kind: "mutation", auth: "bearer",
     surfaces: ["S5"], carrier: "body", sdkMethod: "replaySync",
@@ -1267,6 +1277,8 @@ export const SERVICE_CATALOG = [
   { code: "HVAC-REPAIR", label: "Repair", workClass: "service" },
   { code: "PM-VISIT", label: "Preventive maintenance", workClass: "service" },
   { code: "WARRANTY-CALLBACK", label: "Warranty callback", workClass: "service" },
+  // 0034: what a technician's "Quote needed" opens. Service class, so it needs no project: once the customer approves, sales opens the install under one.
+  { code: "QUOTE", label: "Quote", workClass: "service" },
   { code: "EQUIPMENT-CHANGEOUT", label: "Equipment changeout", workClass: "install" },
   { code: "NEW-INSTALL", label: "New installation", workClass: "install" },
   { code: "DUCTWORK", label: "Ductwork", workClass: "install" },
@@ -1772,6 +1784,54 @@ export type FieldJobWire = {
 };
 export type MyJobsOutput = { readonly jobs: readonly FieldJobWire[] };
 export type MyPunchesInput = { readonly from: string; readonly to: string };
+
+// ---- 0034: wrapping up a visit ----
+/** Photos an ordinary completion needs (a before and an after), and what Quote needed needs. Partner answers, 2026-10-27. */
+export const WRAP_UP_MIN_PHOTOS = 2;
+export const QUOTE_MIN_PHOTOS = 10;
+/** The most media one job carries — photos and the signature together. */
+export const JOB_MEDIA_MAX = 40;
+export const RTU_VOLTAGES = ["208-230/1", "208-230/3", "460/3", "575/3"] as const;
+export const RTU_FUELS = ["gas", "electric", "heat_pump"] as const;
+/** The fixed RTU set Quote needed requires, every field (partner, 2026-10-27). Dimensions in whole inches. */
+export type WrapUpMeasurementsWire = {
+  readonly tonnage: number; readonly voltage: (typeof RTU_VOLTAGES)[number]; readonly fuel: (typeof RTU_FUELS)[number];
+  readonly unitLengthIn: number; readonly unitWidthIn: number; readonly unitHeightIn: number;
+  readonly curbLengthIn: number; readonly curbWidthIn: number;
+  readonly oldModel: string; readonly oldSerial: string;
+};
+const DIMENSIONS = ["unitLengthIn", "unitWidthIn", "unitHeightIn", "curbLengthIn", "curbWidthIn"] as const;
+/**
+ * What is wrong with a measurement set, in words, or null when it is whole.
+ * One function, so the device's Submit and the gateway's refusal name the
+ * same missing field.
+ */
+export const measurementsFault = (m: unknown): string | null => {
+  if (!m || typeof m !== "object") return "the measurements are missing";
+  const r = m as Record<string, unknown>;
+  if (typeof r.tonnage !== "number" || !(r.tonnage >= 1 && r.tonnage <= 150) || Math.round(r.tonnage * 2) !== r.tonnage * 2) return "tonnage is a number of tons, 1 to 150, in halves";
+  if (!RTU_VOLTAGES.includes(r.voltage as never)) return `voltage is one of ${RTU_VOLTAGES.join(", ")}`;
+  if (!RTU_FUELS.includes(r.fuel as never)) return `fuel is one of ${RTU_FUELS.join(", ")}`;
+  for (const k of DIMENSIONS) if (typeof r[k] !== "number" || !Number.isInteger(r[k]) || (r[k] as number) < 1 || (r[k] as number) > 600) return `${k} is whole inches, 1 to 600`;
+  for (const k of ["oldModel", "oldSerial"] as const) if (typeof r[k] !== "string" || r[k].trim().length === 0 || r[k].length > 80) return `${k} is required`;
+  return null;
+};
+export type JobMediaKind = "photo" | "signature";
+export type AttachJobMediaInput = {
+  readonly jobId: string; readonly mutationId: string; readonly kind: JobMediaKind;
+  readonly dataBase64: string; readonly capturedAt: string;
+};
+export type AttachJobMediaOutput = { readonly id: string; readonly jobId: string; readonly duplicate: boolean };
+export type WrapUpOutcome = "complete" | "quote_needed";
+export type WrapUpInput = {
+  readonly jobId: string; readonly wrapUpId: string; readonly outcome: WrapUpOutcome; readonly submittedAt: string;
+  readonly notes?: string; readonly measurements?: WrapUpMeasurementsWire;
+  /** The mutationIds the photos were uploaded under (jobs.attachMedia). */
+  readonly photoMutationIds: readonly string[];
+  /** Exactly one of these two. */
+  readonly signatureMutationId?: string; readonly customerAbsentReason?: string;
+};
+export type WrapUpOutput = { readonly jobId: string; readonly wrapUpId: string; readonly state: "complete"; readonly duplicate: boolean };
 /** One tap of the shift clock (0033). `at` is the device's clock at the tap. */
 export type ShiftPunchWire = { readonly id: string; readonly kind: "in" | "out"; readonly at: string };
 export type MyPunchesOutput = { readonly punches: readonly ShiftPunchWire[] };
@@ -2220,6 +2280,8 @@ export type OperationIO = {
   "media.get": { input: GetMediaInput; output: GetMediaOutput };
   "jobs.mine": { input: void; output: MyJobsOutput };
   "punches.mine": { input: MyPunchesInput; output: MyPunchesOutput };
+  "jobs.attachMedia": { input: AttachJobMediaInput; output: AttachJobMediaOutput };
+  "jobs.wrapUp": { input: WrapUpInput; output: WrapUpOutput };
   "dispatch.assign": { input: AssignInput; output: AssignOutput };
   "dispatch.candidates": { input: CandidateCrewsInput; output: CandidateCrewsOutput };
   "dispatch.release": { input: ReleaseAssignmentInput; output: ReleaseAssignmentOutput };

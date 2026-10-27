@@ -30,6 +30,9 @@ export const TOPICS = [
   // 0016: the customer was told something (an update published), or either side
   // wrote in the thread. OFC refetches the job; INV (S6) refetches the conversation.
   "job.update_published", "job.message_posted",
+  // 0034: a photo or the customer's signature reached a job from the field.
+  // No subscriber yet — the office's job view will be the first.
+  "job.media_attached",
   "project.created", "project.crew_requested", "project.crew_released", "project.closed",
   // SLA
   "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",

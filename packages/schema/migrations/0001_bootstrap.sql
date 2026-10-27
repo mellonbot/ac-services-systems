@@ -572,6 +572,34 @@ CREATE INDEX IF NOT EXISTS shift_punches_region_id_idx ON shift_punches (region_
 CREATE INDEX IF NOT EXISTS shift_punches_technician_id_punched_at_idx ON shift_punches (technician_id, punched_at);
 CREATE INDEX IF NOT EXISTS shift_punches_grant_id_idx ON shift_punches (grant_id);
 
+CREATE TABLE IF NOT EXISTS job_wrap_ups (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  job_id uuid NOT NULL REFERENCES jobs(id),
+  wrap_up_id text NOT NULL,
+  crew_id uuid NOT NULL REFERENCES crews(id),
+  submitted_by uuid NOT NULL REFERENCES users(id),
+  submitted_at timestamptz NOT NULL,
+  outcome text NOT NULL CHECK (outcome IN ('complete','quote_needed')),
+  notes text CHECK (notes IS NULL OR length(btrim(notes)) BETWEEN 1 AND 4000),
+  measurements jsonb,
+  signature_media_id uuid REFERENCES job_media(id),
+  customer_absent_reason text,
+  quote_job_id uuid REFERENCES jobs(id),
+  quote_error text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (job_id),
+  UNIQUE (wrap_up_id),
+  CONSTRAINT job_wrap_ups_measured_quote CHECK ((outcome = 'quote_needed') = (measurements IS NOT NULL)),
+  CONSTRAINT job_wrap_ups_signed_or_absent CHECK ((signature_media_id IS NULL) <> (customer_absent_reason IS NULL)),
+  CONSTRAINT job_wrap_ups_absent_says_why CHECK (customer_absent_reason IS NULL OR length(btrim(customer_absent_reason)) BETWEEN 3 AND 500),
+  CONSTRAINT job_wrap_ups_quote_only_from_quote CHECK (quote_job_id IS NULL OR outcome = 'quote_needed')
+);
+CREATE INDEX IF NOT EXISTS job_wrap_ups_region_id_idx ON job_wrap_ups (region_id);
+CREATE INDEX IF NOT EXISTS job_wrap_ups_quote_job_id_idx ON job_wrap_ups (quote_job_id);
+
 CREATE TABLE IF NOT EXISTS checklist_items (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   org_id uuid NOT NULL REFERENCES organizations(id),

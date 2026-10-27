@@ -20,7 +20,11 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createPool, beginTx, type Pool } from "../../apps/gateway/src/pg-tx.ts";
+import { sweepQuoteJobs } from "../../apps/worker/src/quotes.ts";
+import { workerScope, WORKER_ACTOR } from "../../apps/worker/src/sweeps.ts";
 import { hashPassword } from "../../apps/gateway/src/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
@@ -61,7 +65,7 @@ before(async () => {
     [USER_OWNER, INTERNAL_ORG_ID, REGION_SOUTH, hash, USER_DISP_SOUTH, USER_DISP_WEST, REGION_WEST, USER_TECH, USER_TECH_B]);
 
   gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
-    env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test" }, stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test", AC_STORAGE_DIR: join(tmpdir(), `ac-wrapup-${RUN}`) }, stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";
   gateway.stdout!.on("data", (d) => { log += String(d); });
@@ -487,6 +491,94 @@ test("0033 shift punches: a punch is made on the device's own shift, as the gran
   assert.ok(!mine.includes(`in@${at(-90)}`), "another technician's punch is not on this timesheet");
   await assert.rejects(s5.gateway.myPunches({ from: at(0), to: at(-1) }), (e: unknown) => /after from/.test(refusal(s5, e).message));
   await assert.rejects(s5.gateway.myPunches({ from: at(-60 * 24 * 40), to: at(0) }), (e: unknown) => /35 days/.test(refusal(s5, e).message));
+  await s5.logout();
+});
+
+test("0034 wrap-up: media first, then the wrap-up, each idempotent; every rule is counted from what was stored; Quote needed becomes a QUOTE job the worker opens", { skip }, async () => {
+  const inProgress = async () => {
+    const id = (await s2.gateway.createJob({ siteId: site, serviceCode: "HVAC-REPAIR", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;
+    assert.equal((await s3.gateway.assignCrew({ jobId: id, crewId: crewCleared, orgId, regionId: REGION_SOUTH })).ok, true);
+    await admin(`UPDATE jobs SET state = 'in_progress' WHERE id = $1`, [id]);
+    return id;
+  };
+  const done = await inProgress(), quoted = await inProgress();
+  const s5 = await technician();
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, ...Array(64).fill(7)]).toString("base64");
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...Array(64).fill(1)]).toString("base64");
+  const at = new Date().toISOString();
+  const upload = (jobId: string, n: string, kind: "photo" | "signature" = "photo", dataBase64 = kind === "photo" ? jpeg : png) =>
+    s5.gateway.attachJobMedia({ jobId, mutationId: `${RUN}-${n}`, kind, dataBase64, capturedAt: at });
+
+  // Media: stored, replay-safe, judged by its own bytes, and only on this crew's work.
+  const first = await upload(done, "d1");
+  assert.equal(first.duplicate, false);
+  assert.deepEqual(await upload(done, "d1"), { ...first, duplicate: true }, "a retried upload answers with the row it wrote");
+  await upload(done, "d2");
+  await assert.rejects(upload(done, "dsig-bad", "signature", jpeg), (e: unknown) => code(s5, e) === "not_a_photo", "a signature is a PNG");
+  await assert.rejects(upload(done, "d-text", "photo", Buffer.from("not a photo").toString("base64")), (e: unknown) => code(s5, e) === "not_a_photo");
+  const unassigned = (await s2.gateway.createJob({ siteId: site, serviceCode: "HVAC-REPAIR", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;
+  await assert.rejects(upload(unassigned, "foreign"), (e: unknown) => code(s5, e) === "not_your_job", "a job nobody sent this crew to");
+  await upload(done, "dsig", "signature");
+  const media = await admin(`SELECT kind, captured_by, storage_key FROM job_media WHERE job_id = $1 ORDER BY mutation_id`, [done]);
+  assert.deepEqual(media.map((m) => m.kind), ["photo", "photo", "signature"]);
+  assert.equal(media[0]!.captured_by, USER_TECH);
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM storage_objects WHERE storage_key = ANY($1::text[])`, [media.map((m) => m.storage_key)]))[0]!.n, 3);
+
+  // The wrap-up: refused by name on each rule, counted from the stored rows.
+  const wrap = (over: Record<string, unknown>) => s5.gateway.wrapUpJob({
+    jobId: done, wrapUpId: `${RUN}-wrap-done`, outcome: "complete", submittedAt: at,
+    photoMutationIds: [`${RUN}-d1`, `${RUN}-d2`], signatureMutationId: `${RUN}-dsig`, notes: "Replaced the contactor.", ...over,
+  } as never);
+  await assert.rejects(wrap({ photoMutationIds: [`${RUN}-d1`] }), (e: unknown) => code(s5, e) === "too_few_photos");
+  await assert.rejects(wrap({ photoMutationIds: [`${RUN}-d1`, `${RUN}-never-sent`] }), (e: unknown) => code(s5, e) === "media_not_uploaded", "named but not stored is not a photo");
+  await assert.rejects(wrap({ signatureMutationId: undefined }), (e: unknown) => refusal(s5, e).kind === "bad_request", "the signature or why there is none");
+  await assert.rejects(wrap({ jobId: quoted, wrapUpId: `${RUN}-wrap-wrongjob` }), (e: unknown) => code(s5, e) === "media_not_uploaded", "photos are counted on the job they were sent to");
+  const ok = await wrap({});
+  assert.deepEqual([ok.state, ok.duplicate], ["complete", false]);
+  assert.equal((await wrap({})).duplicate, true, "a replayed submit finds the wrap-up it wrote");
+  const row = (await admin(`SELECT outcome, notes, measurements, signature_media_id, customer_absent_reason, crew_id, submitted_by FROM job_wrap_ups WHERE job_id = $1`, [done]))[0]!;
+  assert.deepEqual([row.outcome, row.notes, row.measurements, row.customer_absent_reason, row.crew_id, row.submitted_by], ["complete", "Replaced the contactor.", null, null, crewCleared, USER_TECH]);
+  assert.ok(row.signature_media_id);
+  assert.equal((await admin(`SELECT state FROM jobs WHERE id = $1`, [done]))[0]!.state, "complete");
+  const ev = (await admin(`SELECT from_state, to_state, surface_id FROM job_state_events WHERE job_id = $1 AND mutation_id = $2`, [done, `${RUN}-wrap-done`]))[0]!;
+  assert.deepEqual([ev.from_state, ev.to_state, ev.surface_id], ["in_progress", "complete", "S5"]);
+  await assert.rejects(s5.gateway.wrapUpJob({ jobId: done, wrapUpId: `${RUN}-wrap-again`, outcome: "complete", submittedAt: at, photoMutationIds: [], customerAbsentReason: "gone home" }),
+    (e: unknown) => code(s5, e) === "not_in_progress", "a completed job is not wrapped up twice");
+
+  // Quote needed: ten photos and the RTU set, or no submit; then the worker opens the QUOTE job.
+  for (let i = 0; i < 10; i++) await upload(quoted, `q${i}`);
+  const photos = Array.from({ length: 10 }, (_, i) => `${RUN}-q${i}`);
+  const measurements = { tonnage: 7.5, voltage: "460/3", fuel: "gas", unitLengthIn: 88, unitWidthIn: 58, unitHeightIn: 49, curbLengthIn: 80, curbWidthIn: 50, oldModel: "48TCED08", oldSerial: "1209G40112" };
+  const quote = (over: Record<string, unknown>) => s5.gateway.wrapUpJob({
+    jobId: quoted, wrapUpId: `${RUN}-wrap-quote`, outcome: "quote_needed", submittedAt: at, photoMutationIds: photos,
+    customerAbsentReason: "Tenant locked the roof hatch and left", notes: "Coil badly corroded; customer wants pricing.", measurements, ...over,
+  } as never);
+  await assert.rejects(quote({ photoMutationIds: photos.slice(0, 9) }), (e: unknown) => code(s5, e) === "too_few_photos");
+  await assert.rejects(quote({ measurements: { ...measurements, curbWidthIn: undefined } }), (e: unknown) => code(s5, e) === "measurements_incomplete" && /curbWidthIn/.test(refusal(s5, e).message));
+  await assert.rejects(quote({ customerAbsentReason: "x" }), (e: unknown) => code(s5, e) === "absent_needs_reason");
+  await quote({});
+  const w = (await admin(`SELECT id, measurements, quote_job_id FROM job_wrap_ups WHERE job_id = $1`, [quoted]))[0]!;
+  assert.deepEqual(w.measurements, measurements);
+  assert.equal(w.quote_job_id, null, "the device does not open the quote job");
+
+  const tx = await beginTx(pool, "ac_worker");
+  await tx.setLocal(workerScope());
+  const swept = await sweepQuoteJobs(tx, new Date());
+  assert.ok(swept.opened >= 1, `the worker opened the quote job: ${JSON.stringify(swept)}`);
+  const qj = (await admin(`SELECT w.quote_job_id, w.quote_error, j.service_code, j.state, j.site_id FROM job_wrap_ups w JOIN jobs j ON j.id = w.quote_job_id WHERE w.id = $1`, [w.id]))[0]!;
+  assert.deepEqual([qj.service_code, qj.state, qj.site_id, qj.quote_error], ["QUOTE", "quote_requested", site, null]);
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM sla_timers WHERE job_id = $1`, [qj.quote_job_id]))[0]!.n, 1, "the site's SLA, derived the way the office's jobs are");
+  const note = (await admin(`SELECT body, kind, author_id FROM job_notes WHERE job_id = $1`, [qj.quote_job_id]))[0]!;
+  assert.match(note.body, /Coil badly corroded/);
+  assert.deepEqual([note.kind, note.author_id], ["standing", WORKER_ACTOR]);
+  const authored = await admin(`SELECT DISTINCT surface_id, actor_id FROM audit_log WHERE entity_id = $1`, [qj.quote_job_id]);
+  assert.deepEqual(authored.map((a) => [a.surface_id, a.actor_id]), [["worker", WORKER_ACTOR]], "the worker is the quote job's author, not a surface it is not");
+
+  const again = await beginTx(pool, "ac_worker");
+  await again.setLocal(workerScope());
+  await sweepQuoteJobs(again, new Date());
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM jobs WHERE service_code = 'QUOTE' AND site_id = $1 AND id = $2`, [site, qj.quote_job_id]))[0]!.n, 1);
+  assert.equal((await admin(`SELECT quote_job_id FROM job_wrap_ups WHERE id = $1`, [w.id]))[0]!.quote_job_id, qj.quote_job_id, "a second sweep opens nothing more");
   await s5.logout();
 });
 

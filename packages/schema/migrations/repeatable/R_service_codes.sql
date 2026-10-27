@@ -5,9 +5,10 @@ INSERT INTO service_codes (code, label, work_class) VALUES
   ('HVAC-REPAIR', 'Repair', 'service'),
   ('PM-VISIT', 'Preventive maintenance', 'service'),
   ('WARRANTY-CALLBACK', 'Warranty callback', 'service'),
+  ('QUOTE', 'Quote', 'service'),
   ('EQUIPMENT-CHANGEOUT', 'Equipment changeout', 'install'),
   ('NEW-INSTALL', 'New installation', 'install'),
   ('DUCTWORK', 'Ductwork', 'install'),
   ('STARTUP-COMMISSIONING', 'Startup & commissioning', 'commissioning')
 ON CONFLICT (code) DO UPDATE SET label = EXCLUDED.label, work_class = EXCLUDED.work_class;
-DELETE FROM service_codes WHERE code NOT IN ('DIAGNOSTIC', 'HVAC-REPAIR', 'PM-VISIT', 'WARRANTY-CALLBACK', 'EQUIPMENT-CHANGEOUT', 'NEW-INSTALL', 'DUCTWORK', 'STARTUP-COMMISSIONING');
+DELETE FROM service_codes WHERE code NOT IN ('DIAGNOSTIC', 'HVAC-REPAIR', 'PM-VISIT', 'WARRANTY-CALLBACK', 'QUOTE', 'EQUIPMENT-CHANGEOUT', 'NEW-INSTALL', 'DUCTWORK', 'STARTUP-COMMISSIONING');
