@@ -1750,8 +1750,11 @@ export type ListDevicesInput = { readonly firmId?: string };
 export type ListDevicesOutput = { readonly devices: readonly DeviceWire[] };
 export type RegisterDeviceInput = {
   readonly hardwareId: string; readonly kind: DeviceKind;
-  /** The device-held public key a future challenge-response login would verify against. Base64. Not yet checked at login — see claude/19_S3_S5_Dispatch_and_Field.md. */
-  readonly publicKey: string;
+  /**
+   * The device-held public key a future challenge-response login would verify against. Base64. Not yet checked at login — see claude/19_S3_S5_Dispatch_and_Field.md.
+   * Required for hardware; optional for `web_fallback`, a browser that holds no key of its own (stored empty).
+   */
+  readonly publicKey?: string;
   /** Where this hardware is provisioned. Required — a device is an operational row and region_id is never null. */
   readonly regionId: string;
   /** Hardware the firm already owns (D-2a). Absent: the device is ours. */
@@ -1760,7 +1763,13 @@ export type RegisterDeviceInput = {
 export type RegisterDeviceOutput = { readonly id: string; readonly orgId: string; readonly regionId: string; readonly eventId: string };
 
 export type GrantShiftInput = {
-  readonly deviceId: string; readonly crewId: string; readonly technicianId: string;
+  readonly deviceId: string; readonly crewId: string;
+  /**
+   * The technician's login (users.id). Absent: the one active login on the crew — since 0024 a
+   * technician's unit is their own, so the unit names the person. Refused `not_crew_member` when
+   * the crew has no active login or more than one (a shared crew made before 0024).
+   */
+  readonly technicianId?: string;
   /** ISO datetime, inclusive. */
   readonly windowStart: string;
   /** ISO datetime, exclusive. */

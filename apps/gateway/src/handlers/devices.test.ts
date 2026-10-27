@@ -152,3 +152,28 @@ test("resolveDeviceLogin returns null for an unknown device, no live grant, or a
   ]);
   assert.equal(await resolveDeviceLogin(noCrew, "hw-001", TECH, new Date("2026-09-18T10:00:00Z")), null, "a crew stood down mid-shift does not get a token");
 });
+
+test("registerDevice: a web fallback needs no public key; hardware still does", async () => {
+  const s = scripted([["FROM regions", [region]]]);
+  await registerDevice(await uowFor(s.tx), { hardwareId: "web-001", kind: "web_fallback", regionId: REGION }, newId);
+  const insert = s.queries.find((q) => q.sql.includes("INSERT INTO devices"))!;
+  assert.equal((insert.params[5] as Buffer).length, 0, "a browser holds no key — stored empty, not invented");
+  const hw = await uowFor(scripted([["FROM regions", [region]]]).tx);
+  await assert.rejects(registerDevice(hw, { hardwareId: "tab-001", kind: "android_pilot", regionId: REGION }, newId), BadInput);
+});
+
+test("grantDeviceShift with no technicianId grants the unit's one active login, and refuses none or several", async () => {
+  const base: [string, unknown[]][] = [["FROM devices WHERE id", [{ id: DEVICE, active: true }]], ["FROM crews WHERE id", [crewRow]], ["FROM users WHERE id", [techRow]], ["FROM device_grants WHERE device_id", []]];
+  const one = scripted([["FROM users WHERE crew_id", [{ id: TECH }]], ...base]);
+  await grantDeviceShift(await uowFor(one.tx), U(9), { deviceId: DEVICE, crewId: CREW, ...window }, newId);
+  const insert = one.queries.find((q) => q.sql.includes("INSERT INTO device_grants"))!;
+  assert.equal(insert.params[5], TECH);
+
+  for (const members of [[], [{ id: TECH }, { id: U(6) }]]) {
+    const s = scripted([["FROM users WHERE crew_id", members], ...base]);
+    await assert.rejects(
+      grantDeviceShift(await uowFor(s.tx), U(9), { deviceId: DEVICE, crewId: CREW, ...window }, newId),
+      (e: unknown) => e instanceof InputRefused && e.code === "not_crew_member",
+    );
+  }
+});

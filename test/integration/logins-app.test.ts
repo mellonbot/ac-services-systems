@@ -508,6 +508,40 @@ test("a contractor technician signs in on S5", { skip }, async () => {
   await s2.logout();
 });
 
+test("S2 grants a shift by the technician's unit alone, on a web fallback registered with no key", { skip }, async () => {
+  const t = await tech("unit-only-tech", { type: "ours", regionId: REGION_SOUTH });
+  const unit = await unitOf(t.id);
+  const s2 = await as("owner", "S2");
+  const hardwareId = `web-unit-${RUN}`;
+  const deviceId = (await s2.gateway.registerDevice({ hardwareId, kind: "web_fallback", regionId: REGION_SOUTH })).id;
+  await s2.gateway.grantDeviceShift({ deviceId, crewId: unit, windowStart: new Date(Date.now() - 60_000).toISOString(), windowEnd: new Date(Date.now() + 3600_000).toISOString() });
+  const [g] = await admin(`SELECT technician_id FROM device_grants WHERE device_id = $1`, [deviceId]);
+  assert.equal(g.technician_id, t.id, "the unit's one active login is the one granted");
+  const s5 = await connectShell({ surfaceId: "S5", baseUrl: BASE, fetch, credentials: { hardwareId, email: email("unit-only-tech"), password: PASSWORD } });
+  assert.equal(s5.deviceCrew?.id, unit);
+  await s5.logout();
+  await s2.logout();
+});
+
+test("grantShift: the logins app registers a web fallback and grants the shift in one write, and the technician signs in on S5", { skip }, async () => {
+  const t = await tech("granted-tech", { type: "ours", regionId: REGION_SOUTH });
+  const hardwareId = `web-la-${RUN}`;
+  const window = { windowStart: new Date(Date.now() - 60_000).toISOString(), windowEnd: new Date(Date.now() + 3600_000).toISOString() };
+  const out = await db.grantShift({ userId: t.id, device: { hardwareId, kind: "web_fallback" }, ...window });
+  assert.ok((await db.listDevices()).some((d) => d.id === out.deviceId && d.hardwareId === hardwareId && d.kind === "web_fallback" && d.active));
+  const audits = await admin(`SELECT action FROM audit_log WHERE entity_id IN ($1,$2) AND actor_id = $3 ORDER BY action`, [out.deviceId, out.grantId, LOGINS_APP_ACTOR]);
+  assert.deepEqual(audits.map((a) => a.action), ["device.grant_shift", "device.register"]);
+
+  const s5 = await connectShell({ surfaceId: "S5", baseUrl: BASE, fetch, credentials: { hardwareId, email: email("granted-tech"), password: PASSWORD } });
+  assert.equal(s5.deviceCrew?.id, await unitOf(t.id));
+  await s5.logout();
+
+  // The gateway's own checks hold here too: an overlapping window is refused, and a taken device ID writes nothing.
+  await assert.rejects(db.grantShift({ userId: t.id, device: { id: out.deviceId }, ...window }), /overlapping this window/);
+  await assert.rejects(db.grantShift({ userId: t.id, device: { hardwareId, kind: "web_fallback" }, ...window }), /already registered/);
+  await assert.rejects(db.grantShift({ userId: dispatcherId, device: { id: out.deviceId }, ...window }), /Only a technician/);
+});
+
 test("a dropped idle connection is swallowed, and the next query still works", { skip }, async () => {
   const p = createPool(URL_!, "ac-logins-app-idle-test");
   try {

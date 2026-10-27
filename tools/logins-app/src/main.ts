@@ -87,6 +87,8 @@ const handlers: Handlers = {
   editLogin: async (db, userId, e) => (await use(db)).editLogin(userId, e),
   deactivate: async (db, userId) => (await use(db)).deactivate(userId),
   reactivate: async (db, userId) => (await use(db)).reactivate(userId),
+  listDevices: async (db) => (await use(db)).listDevices(),
+  grantShift: async (db, n) => (await use(db)).grantShift(n),
 };
 
 for (const [name, f] of Object.entries(handlers) as [string, (...a: unknown[]) => Promise<unknown>][]) {

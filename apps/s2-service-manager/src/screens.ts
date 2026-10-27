@@ -39,6 +39,10 @@ export const SCREENS = {
   "purchasing.po":     { path: "/purchasing/pos/:poId",                  uses: ["pos.detail", "pos.issue", "pos.cancel", "receipts.record", "rmas.request"] },
   // 0030: what was paid against each invoice. The invoice route before `billing`.
   "billing.invoice":   { path: "/billing/invoices/:invoiceId",           uses: ["invoices.list", "payments.list", "organizations.list"] },
+  // D-2a: the hardware S5 signs in with, and the shift grant that admits a technician to it. The forms before `devices`.
+  "devices.new":       { path: "/devices/new",                           uses: ["devices.register", "regions.list", "firms.list"] },
+  "devices.grant":     { path: "/devices/grant/:deviceId?",              uses: ["devices.grantShift", "devices.list", "crews.list"] },
+  "devices":           { path: "/devices",                               uses: ["devices.list", "firms.list"], title: "Field devices" },
   "billing":           { path: "/billing",                               uses: ["invoices.list", "organizations.list"], title: "Billing" },
   "purchasing":        { path: "/purchasing",                            uses: ["pos.list", "vendors.list", "vendors.create", "receivingPoints.list", "receivingPoints.create", "regions.list"], title: "Purchasing" },
 } as const satisfies Record<string, ScreenSpec>;
