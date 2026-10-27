@@ -451,7 +451,7 @@ export const OPERATIONS = {
   "jobs.transition": {
     id: "jobs.transition", method: "POST", path: "/s3/jobs/transition", kind: "mutation", auth: "bearer",
     surfaces: ["S3"], carrier: "body", sdkMethod: "transitionJob",
-    summary: "The office's hand on a job's state: waiting on the customer (quote requested, quote submitted, approved or declined; held mid-job and resumed), closing out a dispatched job the crew finished off-device (any field state to complete), and what blocks the invoice (needs pricing, waiting on a PO or pictures, an invoice kicked back). Only the edges OFFICE_JOB_TRANSITIONS lists; anything else is refused by name as an illegal transition.",
+    summary: "The office's hand on a job's state: waiting on the customer (quote requested, quote submitted, approved or declined; held mid-job and resumed), closing out a dispatched job the crew finished off-device (any field state to complete), cancelling one before the crew is on site (the crew is released with it), and what blocks the invoice (needs pricing, waiting on a PO or pictures, an invoice kicked back). Only the edges OFFICE_JOB_TRANSITIONS lists; anything else is refused by name as an illegal transition.",
   },
   "jobs.addNote": {
     id: "jobs.addNote", method: "POST", path: "/s3/jobs/note", kind: "mutation", auth: "bearer",
@@ -513,7 +513,7 @@ export const OPERATIONS = {
   "jobs.mine": {
     id: "jobs.mine", method: "GET", path: "/s5/jobs/mine", kind: "query", auth: "bearer",
     surfaces: ["S5"], carrier: "none", sdkMethod: "myJobs",
-    summary: "Jobs assigned to this shift's crew, unreleased. The field layer's own read — no employment shape, no compliance detail, no other crew's board.",
+    summary: "Jobs assigned to this shift's crew, unreleased and still open — finished, cancelled or aborted work drops off (FIELD_CLOSED_STATES). The field layer's own read — no employment shape, no compliance detail, no other crew's board.",
   },
   "sync.replay": {
     id: "sync.replay", method: "POST", path: "/s5/sync", kind: "mutation", auth: "bearer",
@@ -1481,14 +1481,19 @@ export const WORK_DONE_STATES: readonly JobStateWire[] = Object.freeze(["complet
  * in_progress → complete, these are the office's edges alone and deliberately
  * NOT in the domain's JOB_TRANSITIONS, which is what a device may take: a
  * technician still walks en route → on site → in progress → complete.
+ *
+ * Cancelling after dispatch: before the crew is on site (`assigned`,
+ * `en_route`) the office may cancel the job outright; the gateway releases the
+ * crew in the same unit of work. Once the crew is on site, stopping is an
+ * abort — the field's, with what it bills — not a cancellation.
  */
 export const OFFICE_JOB_TRANSITIONS: Readonly<Partial<Record<JobStateWire, readonly JobStateWire[]>>> = Object.freeze({
   created: ["quote_requested"],
   quote_requested: ["quote_submitted", "cancelled"],
   quote_submitted: ["created", "cancelled"],
-  // Closing out a dispatched job (OFFICE_CLOSE_OUT_FROM).
-  assigned: ["complete"],
-  en_route: ["complete"],
+  // Closing out a dispatched job (OFFICE_CLOSE_OUT_FROM), or cancelling it before the crew is on site.
+  assigned: ["complete", "cancelled"],
+  en_route: ["complete", "cancelled"],
   on_site: ["awaiting_customer", "complete"],
   in_progress: ["awaiting_customer", "complete"],
   awaiting_parts: ["complete"],
@@ -1501,6 +1506,9 @@ export const OFFICE_JOB_TRANSITIONS: Readonly<Partial<Record<JobStateWire, reado
   invoiced: ["invoice_trouble"],
   invoice_trouble: ["invoiced"],
 });
+
+/** What drops off a crew's list (`jobs.mine`): the work is done, cancelled or aborted. The assignment stays live on finished work, so the device's late time, parts and photos still apply. */
+export const FIELD_CLOSED_STATES: readonly JobStateWire[] = Object.freeze([...WORK_DONE_STATES, "cancelled", "aborted"]);
 
 /** The field states the office may close a dispatched job out of — each has `complete` in OFFICE_JOB_TRANSITIONS. */
 export const OFFICE_CLOSE_OUT_FROM: readonly JobStateWire[] = Object.freeze(["assigned", "en_route", "on_site", "in_progress", "awaiting_parts", "awaiting_customer"]);

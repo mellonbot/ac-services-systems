@@ -7,7 +7,7 @@ import type {
   FieldJobWire, MyJobsOutput, AddressWire, TransitionJobInput, TransitionJobOutput,
   AddJobNoteInput, AddJobNoteOutput, SetReturnTripInput, SetReturnTripOutput, CustomerSegment, JobWorkClass,
 } from "../../../../packages/contracts/src/operations.ts";
-import { OFFICE_JOB_TRANSITIONS, SERVICE_CATALOG, serviceOf } from "../../../../packages/contracts/src/operations.ts";
+import { OFFICE_JOB_TRANSITIONS, FIELD_CLOSED_STATES, SERVICE_CATALOG, serviceOf } from "../../../../packages/contracts/src/operations.ts";
 
 /**
  * ITEM 4 — THE JOB ITSELF. A job is created in Office & Dispatch (00 §2.2)
@@ -230,7 +230,8 @@ export const listJobs = async (uow: UnitOfWork, state?: string): Promise<ListJob
  * S5's own read. A device principal has no crew claim on the token — carrying
  * one would be a token that is wrong the moment a grant is revoked — so the
  * crew comes from the live shift grant, the same row `auth.deviceLogin` read
- * to mint this token in the first place.
+ * to mint this token in the first place. Finished, cancelled and aborted
+ * work drops off the list (FIELD_CLOSED_STATES).
  */
 export const listMyJobs = async (uow: UnitOfWork, shiftId: string): Promise<MyJobsOutput> => {
   const grant = (await uow.tx.query<{ crew_id: string }>(`SELECT crew_id FROM device_grants WHERE id = $1`, [shiftId]))[0];
@@ -240,9 +241,9 @@ export const listMyJobs = async (uow: UnitOfWork, shiftId: string): Promise<MyJo
             lower(j.service_window) AS ws, upper(j.service_window) AS we, j.version
        FROM jobs j
        JOIN assignments a ON a.job_id = j.id AND a.released_at IS NULL
-      WHERE a.crew_id = $1
+      WHERE a.crew_id = $1 AND j.state <> ALL($2::text[])
       ORDER BY lower(j.service_window)`,
-    [grant.crew_id],
+    [grant.crew_id, FIELD_CLOSED_STATES],
   );
   const jobs: FieldJobWire[] = rows.map((r) => ({
     id: r.id, siteId: r.site_id, serviceCode: r.service_code, priority: r.priority, state: r.state,
@@ -254,7 +255,8 @@ export const listMyJobs = async (uow: UnitOfWork, shiftId: string): Promise<MyJo
 /**
  * S3 → gateway: the office's hand on a job's state — waiting on the customer,
  * what blocks the invoice, and closing out a dispatched job the crew finished
- * off-device (OFFICE_JOB_TRANSITIONS). Assignment and release keep their
+ * off-device, and cancelling one before the crew is on site — which releases
+ * the crew in the same unit of work (OFFICE_JOB_TRANSITIONS). Assignment and release keep their
  * own doors; the field's moves arrive through sync.replay. The UPDATE names
  * the state it read, so a job the field moved in the meantime is refused as
  * a stale transition instead of being overwritten.
@@ -275,16 +277,21 @@ export const transitionJob = async (uow: UnitOfWork, actorId: string, input: Tra
   }
 
   const version = job.version + 1;
+  // A cancelled job keeps no crew. The field hears it on its own topic and drops the job.
+  const crewOn = input.to === "cancelled"
+    ? (await uow.tx.query<{ id: string }>(`SELECT id FROM assignments WHERE job_id = $1 AND released_at IS NULL FOR UPDATE`, [jobId]))[0] ?? null
+    : null;
   const eventId = await uow.apply(
     {
-      entity: "job_state", entityId: jobId, action: "job.transition", topic: "job.transitioned",
+      entity: "job_state", entityId: jobId, action: "job.transition", topic: crewOn ? "job.cancelled" : "job.transitioned",
       before: { state: job.state, version: job.version }, after: { state: input.to, version },
       orgId: job.org_id, regionId: job.region_id,
-      payload: { jobId, from: job.state, to: input.to },
+      payload: { jobId, from: job.state, to: input.to, ...(crewOn ? { releasedAssignmentId: crewOn.id } : {}) },
     },
     async (tx) => {
       const moved = await tx.query(`UPDATE jobs SET state = $2, version = $4 WHERE id = $1 AND state = $3 AND version = $5 RETURNING id`, [jobId, input.to, job.state, version, job.version]);
       if (moved.length === 0) throw new InputRefused(`job ${jobId} changed while this transition was in flight — read it again`, "illegal_transition");
+      if (crewOn) await tx.query(`UPDATE assignments SET released_at = $2, release_reason = 'cancelled' WHERE id = $1 AND released_at IS NULL`, [crewOn.id, at.toISOString()]);
       await tx.insert("job_state_events", {
         org_id: job.org_id, region_id: job.region_id, job_id: jobId, from_state: job.state, to_state: input.to,
         actor_id: actorId, surface_id: "S3", mutation_id: `office:v${version}`, occurred_at: at.toISOString(),

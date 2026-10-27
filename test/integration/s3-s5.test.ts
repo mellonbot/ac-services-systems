@@ -530,6 +530,42 @@ test("sync.replay after a release: a crew taken off a job cannot drive it — th
   await s5.logout();
 });
 
+test("after dispatch: a cancelled job releases its crew and leaves the crew's list; a closed-out job leaves the list too, but its crew's late time still lands", { skip }, async () => {
+  const dispatched = async (state: string) => {
+    const id = (await s2.gateway.createJob({ siteId: site, serviceCode: "HVAC-REPAIR", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;
+    const out = await s3.gateway.assignCrew({ jobId: id, crewId: crewCleared, orgId, regionId: REGION_SOUTH });
+    assert.equal(out.ok, true);
+    await admin(`UPDATE jobs SET state = $2 WHERE id = $1`, [id, state]);
+    return id;
+  };
+  const cancelled = await dispatched("en_route"), closed = await dispatched("on_site");
+  const s5 = await technician();
+  const mine = async () => (await s5.gateway.myJobs()).jobs.map((j) => j.id);
+  assert.ok((await mine()).includes(cancelled) && (await mine()).includes(closed));
+
+  await assert.rejects(
+    s3.gateway.transitionJob({ jobId: closed, orgId, regionId: REGION_SOUTH, to: "cancelled" }),
+    (e: unknown) => code(s3, e) === "illegal_transition", "the crew is on site: stopping now is an abort, not a cancellation",
+  );
+  const out = await s3.gateway.transitionJob({ jobId: cancelled, orgId, regionId: REGION_SOUTH, to: "cancelled" });
+  assert.equal(out.state, "cancelled");
+  assert.equal((await admin(`SELECT topic FROM outbox WHERE event_id = $1`, [out.eventId]))[0]!.topic, "job.cancelled", "the field's topic, so the device drops it");
+  const a = (await admin(`SELECT released_at, release_reason FROM assignments WHERE job_id = $1`, [cancelled]))[0]!;
+  assert.ok(a.released_at);
+  assert.equal(a.release_reason, "cancelled");
+  assert.equal((await s3.gateway.listJobs({})).jobs.find((j) => j.id === cancelled)!.currentCrewId, null, "the board shows no crew on it");
+
+  await s3.gateway.transitionJob({ jobId: closed, orgId, regionId: REGION_SOUTH, to: "complete" });
+  assert.deepEqual((await mine()).filter((id) => id === cancelled || id === closed), [], "neither is on the crew's list");
+
+  const at = new Date().toISOString();
+  const res = await s5.gateway.replaySync({ orgId, regionId: REGION_SOUTH, mutations: [
+    { mutationId: `${RUN}-late1`, deviceId, deviceSeq: 201, entityTable: "time_entries", entityId: closed, op: "insert", payload: { crew_id: crewCleared, start: at, end: at, kind: "labor" }, clientObservedVersion: null, deviceAt: at },
+  ] });
+  assert.deepEqual(res.outcomes.map((o) => o.outcome), ["applied"], "a closed-out job keeps its crew, so the crew's late time is not a conflict");
+  await s5.logout();
+});
+
 test("0029: a certificate's days are the region's — an evening job on its last day clears, in the dry run and at the table; a window ending at local midnight needs no next day", { skip }, async () => {
   // South is America/Chicago. The license's last day is D; 20:00–22:00 there
   // on D is already D+1 in UTC, and 22:00–midnight ends on the [) bound.

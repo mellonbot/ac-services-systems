@@ -32,7 +32,11 @@ export const STATE_LABEL: Readonly<Record<JobStateWire, string>> = {
 
 /** The button's word for a move — what the dispatcher is saying happened, not the state's name. */
 const moveLabel = (from: JobStateWire, to: JobStateWire): string =>
-  to === "complete" && OFFICE_CLOSE_OUT_FROM.includes(from) ? "Close out" : MOVE_LABEL[to] ?? STATE_LABEL[to];
+  to === "complete" && OFFICE_CLOSE_OUT_FROM.includes(from) ? "Close out"
+    : to === "cancelled" && dispatched(from) ? "Cancel job"
+    : MOVE_LABEL[to] ?? STATE_LABEL[to];
+/** A crew holds it: cancelling takes the crew off too, so it is a cancellation, not a declined quote. */
+const dispatched = (state: JobStateWire): boolean => state === "assigned" || state === "en_route";
 const MOVE_LABEL: Readonly<Partial<Record<JobStateWire, string>>> = {
   quote_requested: "Quote requested", quote_submitted: "Quote sent", created: "Approved", cancelled: "Declined",
   awaiting_customer: "Hold for customer", in_progress: "Resume",
@@ -126,8 +130,8 @@ const bucketCard = (bucket: (typeof BUCKETS)[number], jobs: readonly JobWire[]):
 };
 
 /**
- * A move in flight, or one waiting on its confirmation. Declining cancels the
- * job, and closing one out finishes it; nothing in OFFICE_JOB_TRANSITIONS leads
+ * A move in flight, or one waiting on its confirmation. Declining or
+ * cancelling ends the job, and closing one out finishes it; nothing in OFFICE_JOB_TRANSITIONS leads
  * back out of either, so those two ask first; the rest go on the click, one at
  * a time per row.
  */
@@ -142,6 +146,7 @@ const moveJob = async (ctx: ScreenContext, job: JobWire, to: JobStateWire): Prom
   try {
     await ctx.shell.gateway.transitionJob({ jobId: job.id, orgId: job.orgId, regionId: job.regionId, to });
     ctx.store.notice.value = [to === "created" ? `Job ${job.id}: approved — back to dispatch.`
+      : to === "cancelled" && dispatched(job.state) ? `Job ${job.id}: cancelled — ${job.currentCrewLabel ?? "the crew"} is off it.`
       : to === "complete" ? (OFFICE_CLOSE_OUT_FROM.includes(job.state) ? `Job ${job.id}: closed out — ready to invoice.` : `Job ${job.id}: ready to invoice.`)
       : `Job ${job.id}: ${STATE_LABEL[to].toLowerCase()}.`];
   } catch {
@@ -224,7 +229,9 @@ export const jobs: Screen = (ctx) => {
       const m = moving.value?.jobId === j.id ? moving.value : null;
       if (m && m.to === "cancelled" && !m.busy) {
         return html`<span class="s3-confirm s3-confirm--cell" role="group" aria-labelledby=${`decline-${j.id}`}>
-          <strong id=${`decline-${j.id}`}>Decline job ${j.id}? It is cancelled, and that cannot be undone here.</strong>
+          <strong id=${`decline-${j.id}`}>${dispatched(j.state)
+            ? `Cancel job ${j.id}? ${j.currentCrewLabel ?? "The crew"} comes off it, and that cannot be undone here.`
+            : `Decline job ${j.id}? It is cancelled, and that cannot be undone here.`}</strong>
           <span class="s3-row-actions">
             <button type="button" class="s3-act" id=${`move-${j.id}-cancelled-yes`} disabled=${ctx.degraded} onClick=${() => void moveJob(ctx, j, "cancelled")}>Cancel the job</button>
             <button type="button" class="s3-act" id=${`move-${j.id}-cancelled-keep`} onClick=${() => { moving.value = null; focusId(`move-${j.id}-cancelled`); }}>Keep it</button>

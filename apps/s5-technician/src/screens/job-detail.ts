@@ -51,20 +51,24 @@ export const jobDetail: Screen = (ctx, params) => {
     if (!job) return html`<p class="s5-empty">Job ${jobId} is not on this shift's board.</p>`;
 
     const projected = projectedJob(job, ctx.queue.pending.value);
-    const transition = (to: string) => { ctx.queue.enqueue("jobs", job.id, "transition", { state: to }, projected.version); flush(); };
     const markDone = (key: string) => { ctx.queue.enqueue("checklist_items", job.id, "insert", { item_key: key, response: { done: true, at: new Date().toISOString() } }, null); flush(); };
 
     const runningSince = ctx.clock.value[job.id];
+    const stopClock = () => {
+      ctx.queue.enqueue("time_entries", job.id, "insert", { crew_id: ctx.crew.id, start: runningSince!, end: new Date().toISOString(), kind: "labor" }, null);
+      const rest = { ...ctx.clock.value };
+      delete (rest as Record<string, string>)[job.id];
+      ctx.clock.value = rest;
+    };
     const clockToggle = () => {
-      if (runningSince) {
-        ctx.queue.enqueue("time_entries", job.id, "insert", { crew_id: ctx.crew.id, start: runningSince, end: new Date().toISOString(), kind: "labor" }, null);
-        const rest = { ...ctx.clock.value };
-        delete (rest as Record<string, string>)[job.id];
-        ctx.clock.value = rest;
-        flush();
-      } else {
-        ctx.clock.value = { ...ctx.clock.value, [job.id]: new Date().toISOString() };
-      }
+      if (runningSince) { stopClock(); flush(); }
+      else ctx.clock.value = { ...ctx.clock.value, [job.id]: new Date().toISOString() };
+    };
+    // A finished or aborted job drops off this list once it syncs, and the clock with it — so the clock stops first.
+    const transition = (to: string) => {
+      if (runningSince && (to === "complete" || to === "aborted")) stopClock();
+      ctx.queue.enqueue("jobs", job.id, "transition", { state: to }, projected.version);
+      flush();
     };
 
     const addPart = (e: Event) => {

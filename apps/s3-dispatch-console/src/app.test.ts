@@ -723,6 +723,27 @@ test("job dashboard: a dispatched job the crew finished off-device is closed out
   assert.match(render(app.view()), new RegExp(`Job ${U(42)}: closed out — ready to invoice\\.`));
 });
 
+test("job dashboard: a dispatched job is cancelled — named for the crew it takes off, asked first, then sent", async () => {
+  const enRoute: JobWire = { ...jobAssigned, id: U(43), state: "en_route" };
+  const moves: unknown[] = [];
+  const { app } = await ready({
+    [OPERATIONS["jobs.list"].path]: { status: 200, body: { jobs: [enRoute] } },
+    [OPERATIONS["jobs.transition"].path]: (init) => { moves.push(JSON.parse(String(init?.body))); return { status: 200, body: { jobId: U(43), state: "cancelled", version: 3, eventId: "e" } }; },
+  });
+  app.router.navigate("jobs", {});
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  (nodesIn(app.view()).find((n) => n.type === "button" && (n.props?.children as unknown[] | string | undefined)?.toString().includes("All open"))!.props!.onClick as () => void)();
+  assert.match(render(app.view()), new RegExp(`id="move-${U(43)}-cancelled"[^>]*>Cancel job<`), "not 'Declined' — there is no quote here");
+  const click = (id: string) => (nodesIn(app.view()).find((n) => n.props?.id === id)!.props!.onClick as () => void)();
+  click(`move-${U(43)}-cancelled`);
+  assert.match(render(app.view()), new RegExp(`Cancel job ${U(43)}\\? Crew A1 comes off it`));
+  assert.equal(moves.length, 0);
+  click(`move-${U(43)}-cancelled-yes`);
+  await settle(); await settle();
+  assert.equal((moves[0] as { to: string }).to, "cancelled");
+  assert.match(render(app.view()), new RegExp(`Job ${U(43)}: cancelled — Crew A1 is off it\\.`));
+});
+
 test("local preview is sample data only when no gateway answers, and says so on every screen", async () => {
   const down: FetchLike = async () => { throw new TypeError("fetch failed"); };
   const preview = createApp({ baseUrl: "http://127.0.0.1:8080", fetch: down, now: () => 1_000 });
