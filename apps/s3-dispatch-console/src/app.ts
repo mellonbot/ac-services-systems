@@ -74,6 +74,7 @@ type PreviewShell = ConnectedShell & {
     publishJobUpdate: (input: { updateId: string }) => Promise<unknown>;
     postJobMessage: (input: { jobId: string; body: string }) => Promise<unknown>;
     setReturnTrip: (input: { jobId: string; returnTrip: boolean }) => Promise<unknown>;
+    releaseAssignment: (input: { assignmentId: string }) => Promise<unknown>;
     managerOverview: () => Promise<unknown>;
     health: () => Promise<{ ok: boolean }>;
   };
@@ -249,6 +250,11 @@ const createPreviewShell = (): PreviewShell => {
       setReturnTrip: async (input: { jobId: string; returnTrip: boolean }) => {
         Object.assign(PREVIEW_JOBS.find((j) => j.id === input.jobId)!, { returnTrip: input.returnTrip });
         return { jobId: input.jobId, returnTrip: input.returnTrip, eventId: "preview" };
+      },
+      releaseAssignment: async (input: { assignmentId: string }) => {
+        const job = PREVIEW_JOBS.find((j) => j.currentAssignmentId === input.assignmentId)!;
+        Object.assign(job, { state: "created", currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null, version: job.version + 1, stateChangedAt: new Date().toISOString() });
+        return { jobId: job.id, eventId: "preview" };
       },
       transitionJob: async (input: { jobId: string; to: string }) => {
         const job = PREVIEW_JOBS.find((j) => j.id === input.jobId)!;

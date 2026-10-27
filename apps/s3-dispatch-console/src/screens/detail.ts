@@ -3,6 +3,8 @@ import { serviceLabel, WORK_DONE_STATES, type JobDetailOutput, type JobMediaWire
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, linkTo, submitAction, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL, initials, placeLine, daysInState } from "./jobs.ts";
+import { isDispatchable, isReleasable } from "./board.ts";
+import { perStore } from "./intake.ts";
 
 /**
  * ONE JOB, AS DISPATCH READS IT (0016) — the header the crew needs before it
@@ -74,6 +76,49 @@ const uiFor = (store: Store, jobId: string): Signal<UiState> => {
   return s;
 };
 
+/**
+ * Dispatch's own hand on this job: send a crew when nobody holds it, or take
+ * the crew back off it before they start (dispatch.release admits only
+ * "assigned"). The board's bars all open this page, so this is where it acts.
+ * Release asks first — it pulls a crew off work they may be rolling to.
+ */
+type Releasing = { readonly jobId: string; readonly busy: boolean } | null;
+const releasingFor = perStore<Releasing>(null);
+
+const release = async (ctx: ScreenContext, j: JobWire, crew: string): Promise<void> => {
+  const r = releasingFor(ctx.store);
+  r.value = { jobId: j.id, busy: true };
+  try {
+    await ctx.shell.gateway.releaseAssignment({ assignmentId: j.currentAssignmentId!, orgId: j.orgId, regionId: j.regionId, reason: "released from job detail" });
+    r.value = null;
+    ctx.store.notice.value = [`${crew} released from job ${j.id}. It is back to Unassigned for re-dispatch.`];
+  } catch (e) {
+    r.value = { jobId: j.id, busy: false };
+    const refusal = ctx.shell.refusalOf(e);
+    ctx.store.notice.value = [`The release did not go through${refusal && "message" in refusal && refusal.message ? ` — ${refusal.message}` : ""}. ${crew} is still assigned.`];
+  }
+  ctx.store.invalidate("jobs.detail");
+  ctx.store.invalidate("jobs.list");
+};
+
+const dispatchActions = (ctx: ScreenContext, j: JobWire): VNode | null => {
+  if (isDispatchable(j)) return html`<p class="s3-detail-actions">${linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch a crew", "ac-action s3-link-action")}</p>`;
+  if (!isReleasable(j)) return null;
+  const r = releasingFor(ctx.store).value;
+  const crew = j.currentCrewLabel ?? "The crew";
+  if (r?.jobId !== j.id) {
+    return html`<p class="s3-detail-actions">${submitAction(ctx, `Release ${crew}`, () => { releasingFor(ctx.store).value = { jobId: j.id, busy: false }; }, "release-open", "quiet")}</p>`;
+  }
+  return html`<div class="s3-confirm" role="group" aria-labelledby="release-title" id="release-confirm">
+    <strong id="release-title">Release ${crew} from job ${j.id}?</strong>
+    <p>The job goes back to Unassigned, to be dispatched again. A crew can only be released before they start.</p>
+    <span class="s3-row-actions">
+      ${submitAction(ctx, r.busy ? "Releasing…" : "Release crew", () => { if (!releasingFor(ctx.store).value?.busy) void release(ctx, j, crew); }, "release-yes", "danger")}
+      <button type="button" class="s3-act" id="release-keep" disabled=${r.busy} onClick=${() => { releasingFor(ctx.store).value = null; }}>Keep them on it</button>
+    </span>
+  </div>`;
+};
+
 const crewChip = (label: string): VNode => html`<span class="s3-tech"><span class="dispatch-board__avatar" aria-hidden="true">${initials(label)}</span>${label}</span>`;
 
 const photoTile = (m: JobMediaWire): VNode => html`<figure class="s3-photo" title=${m.storageKey}>
@@ -140,6 +185,7 @@ const header = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiState>): VN
     <p class="s3-eyebrow">Job # <span class="s3-num">${j.id}</span></p>
     <h2 class="s3-detail-head__site">${j.siteName ?? "Site name unavailable"}</h2>${homeMark(j.customerSegment)}
     <p class="s3-detail-head__where">${[street, place].filter(Boolean).join(", ") || "Address not recorded"}${d.contact ? html` · ${d.contact.name}${d.contact.phone ? html`, <span class="s3-num">${d.contact.phone}</span>` : null}` : null}</p>
+    ${dispatchActions(ctx, j)}
     <p class="s3-flags"><span class="s3-flag">${STATE_LABEL[j.state]}</span><span class="s3-flag">${j.priority[0]!.toUpperCase()}${j.priority.slice(1)} priority</span>${j.returnTrip ? html`<span class="s3-flag">Return trip</span>` : null}</p>
   </div>
   <dl class="s3-jobfacts">

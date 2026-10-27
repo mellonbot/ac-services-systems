@@ -640,3 +640,35 @@ test("a board bar is a link inside S3 — under /dispatch, through the router �
   assert.equal(app.router.current.value?.screen, "detail");
   assert.equal(pushed.at(-1), `/dispatch/jobs/${JOB_ASSIGNED}`);
 });
+
+const detailOf = (job: JobWire) => ({ job, contact: null, visits: [], media: [], notes: [], updates: [], messages: [] });
+
+test("job detail: an assigned job offers Release where the board's bars lead — asked first, then sent, then said", async () => {
+  let released: Record<string, unknown> | null = null;
+  const { app } = await ready({
+    [OPERATIONS["jobs.detail"].path]: { status: 200, body: detailOf(jobAssigned) },
+    [OPERATIONS["dispatch.release"].path]: (init) => { released = JSON.parse(String(init?.body)); return { status: 200, body: { jobId: JOB_ASSIGNED, eventId: "e" } }; },
+  });
+  app.router.navigate("detail", { jobId: JOB_ASSIGNED });
+  render(app.view()); await settle(); await settle();
+  let out = render(app.view());
+  assert.match(out, /id="release-open"[^>]*>Release Crew A1</, "Release is on the page the board opens, not in a hidden list");
+  const click = (id: string) => (nodesIn(app.view()).find((n) => n.props?.id === id)!.props!.onClick as () => void)();
+  click("release-open");
+  out = render(app.view());
+  assert.match(out, /Release Crew A1 from job/);
+  assert.equal(released, null, "nothing is sent until it is confirmed");
+  click("release-yes");
+  await settle(); await settle();
+  assert.deepEqual(released, { assignmentId: ASSIGNMENT, orgId: ORG, regionId: SOUTH, reason: "released from job detail" });
+  assert.match(render(app.view()), /Crew A1 released from job/);
+});
+
+test("job detail: an unassigned job offers Dispatch, and no Release", async () => {
+  const { app } = await ready({ [OPERATIONS["jobs.detail"].path]: { status: 200, body: detailOf(jobCreated) } });
+  app.router.navigate("detail", { jobId: JOB_CREATED });
+  render(app.view()); await settle(); await settle();
+  const out = render(app.view());
+  assert.match(out, /class="s3-detail-actions"><a class="ac-action s3-link-action" href="[^"]*\/job\/[^"]+">Dispatch a crew</);
+  assert.doesNotMatch(out, /release-open/);
+});

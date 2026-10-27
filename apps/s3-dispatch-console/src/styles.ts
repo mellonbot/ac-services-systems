@@ -11,6 +11,10 @@ export const S3_CSS = `
 .s3-notice__dismiss{min-height:var(--control-height);appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2)}
 .s3-loading,.s3-empty,.s3-muted{color:var(--color-text-muted)}
 .s3-row-actions{display:inline-flex;gap:var(--space-3);white-space:nowrap}
+.s3-detail-actions{margin:var(--space-2) 0 0;display:flex;gap:var(--space-3);align-items:center}
+.s3-link-action{display:inline-flex;align-items:center;text-decoration:none}
+.s3-confirm{display:flex;flex-direction:column;gap:var(--space-1);max-width:var(--measure-short);margin-top:var(--space-2);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface)}
+.s3-confirm p{margin:0;color:var(--color-text-muted)}
 .s3-login{max-width:var(--measure-narrow);margin:10vh auto 0}
 .s3-job-facts{display:grid;grid-template-columns:auto 1fr;gap:var(--space-2) var(--space-4);margin:0 0 var(--space-4);align-items:baseline}
 .s3-job-facts dt{color:var(--color-text-muted);font-size:var(--text-sm)}
