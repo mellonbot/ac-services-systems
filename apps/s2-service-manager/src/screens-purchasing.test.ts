@@ -145,3 +145,18 @@ test("ORDER: a quantity that is not a number is refused on screen, not swallowed
   assert.match(render(app.view()), /&quot;2 boxes&quot; is not a quantity/);
   assert.ok(!g.calls.some((c) => c.path === OPERATIONS["receipts.record"].path), "nothing is sent");
 });
+
+test("PURCHASING: regions that cannot be read show the refusal beside the form, not an empty Region select", async () => {
+  const g = gateway();
+  const fetch: FetchLike = async (url, init) => new URL(url).pathname === OPERATIONS["regions.list"].path
+    ? { status: 503, ok: false, json: async () => ({ error: "Unavailable", message: "regions are down" }), text: async () => "", body: null }
+    : g.fetch(url, init);
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("purchasing", {});
+  render(app.view()); await settle();
+  const out = render(app.view());
+  const vendorForm = out.split('id="vendor-form"')[1]!.split("</form>")[0]!;
+  assert.doesNotMatch(vendorForm, /name="regionId"/, "no select that can only be empty");
+  assert.match(vendorForm, /ac-refusal/, "the reason the regions are missing is in the form");
+});
