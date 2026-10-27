@@ -10,7 +10,7 @@
  * (term resolution, override admission, the compliance gate, context
  * resolution) the real module is imported and run.
  */
-import { OPERATIONS, OFFICE_JOB_TRANSITIONS, serviceOf, EMERGENCY_MULTIPLIER_DEFAULT, multiplierBp, multiplierOf, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, routeKey, mayReadTechnicianAddress, type OperationId } from "../../packages/contracts/src/operations.ts";
+import { OPERATIONS, OFFICE_JOB_TRANSITIONS, FIELD_CLOSED_STATES, serviceOf, EMERGENCY_MULTIPLIER_DEFAULT, multiplierBp, multiplierOf, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, routeKey, mayReadTechnicianAddress, type OperationId } from "../../packages/contracts/src/operations.ts";
 import type * as W from "../../packages/contracts/src/operations.ts";
 import { invoiceStatusOf } from "../../packages/contracts/src/operations.ts";
 import { SURFACES, type SurfaceId } from "../../packages/contracts/src/surfaces.ts";
@@ -1141,8 +1141,10 @@ const H: Partial<Record<OperationId, Handler>> = {
     need(j, `job ${i.jobId} not found in scope`, "unknown_job");
     const legal = OFFICE_JOB_TRANSITIONS[j!.state] ?? [];
     if (!legal.includes(i.to)) throw input422(`job ${i.jobId} is "${j!.state}" — the office may move it to ${legal.length ? legal.map((s) => `"${s}"`).join(" or ") : "nothing from here"}, not "${String(i.to)}"`, "illegal_transition");
+    const crewOn = i.to === "cancelled" ? liveAssignment(j!.id) : null;
+    if (crewOn) crewOn.releasedAt = new Date().toISOString();
     j!.state = i.to; j!.version++; j!.stateChangedAt = new Date().toISOString();
-    return { jobId: j!.id, state: j!.state, version: j!.version, eventId: publish(surface, "job.transitioned", "job", j!.id, j!.orgId, j!.regionId) };
+    return { jobId: j!.id, state: j!.state, version: j!.version, eventId: publish(surface, crewOn ? "job.cancelled" : "job.transitioned", "job", j!.id, j!.orgId, j!.regionId) };
   },
 
   "jobs.addNote": (i: W.AddJobNoteInput, { surface, session }) => {
@@ -1219,7 +1221,7 @@ const H: Partial<Record<OperationId, Handler>> = {
   "jobs.mine": (_i, { session }) => {
     const crewId = session?.user.crewId;
     return {
-      jobs: jobs.filter((j) => liveAssignment(j.id)?.crewId === crewId && ![...WORK_DONE_STATES, "cancelled"].includes(j.state))
+      jobs: jobs.filter((j) => liveAssignment(j.id)?.crewId === crewId && !FIELD_CLOSED_STATES.includes(j.state))
         .map((j) => ({ id: j.id, siteId: j.siteId, serviceCode: j.serviceCode, priority: j.priority, state: j.state, serviceWindowStart: j.serviceWindowStart, serviceWindowEnd: j.serviceWindowEnd, version: j.version })),
     };
   },
