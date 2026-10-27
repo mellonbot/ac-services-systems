@@ -1,7 +1,7 @@
 import { html, signal, StatusPill, pageHead, panel, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import { serviceLabel, WORK_DONE_STATES, type JobDetailOutput, type JobMediaWire, type JobNoteWire, type JobUpdateWire, type JobVisitWire, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
-import { whenReady, homeMark, linkTo, submitAction, perStore, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, homeMark, linkTo, submitAction, perStore, focusId, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL, initials, placeLine, daysInState } from "./jobs.ts";
 import { isDispatchable, isReleasable } from "./board.ts";
 
@@ -106,14 +106,14 @@ const dispatchActions = (ctx: ScreenContext, j: JobWire): VNode | null => {
   const r = releasingFor(ctx.store).value;
   const crew = j.currentCrewLabel ?? "The crew";
   if (r?.jobId !== j.id) {
-    return html`<p class="s3-detail-actions">${submitAction(ctx, `Release ${crew}`, () => { releasingFor(ctx.store).value = { jobId: j.id, busy: false }; }, "release-open", "quiet")}</p>`;
+    return html`<p class="s3-detail-actions">${submitAction(ctx, `Release ${crew}`, () => { releasingFor(ctx.store).value = { jobId: j.id, busy: false }; focusId("release-keep"); }, "release-open", "quiet")}</p>`;
   }
   return html`<div class="s3-confirm" role="group" aria-labelledby="release-title" id="release-confirm">
     <strong id="release-title">Release ${crew} from job ${j.id}?</strong>
     <p>The job goes back to Unassigned, to be dispatched again. A crew can only be released before they start.</p>
     <span class="s3-row-actions">
       ${submitAction(ctx, r.busy ? "Releasing…" : "Release crew", () => { if (!releasingFor(ctx.store).value?.busy) void release(ctx, j, crew); }, "release-yes", "danger")}
-      <button type="button" class="s3-act" id="release-keep" disabled=${r.busy} onClick=${() => { releasingFor(ctx.store).value = null; }}>Keep them on it</button>
+      <button type="button" class="s3-act" id="release-keep" disabled=${r.busy} onClick=${() => { releasingFor(ctx.store).value = null; focusId("release-open"); }}>Keep them on it</button>
     </span>
   </div>`;
 };
@@ -199,14 +199,14 @@ const header = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiState>): VN
   <section class="s3-standing" aria-labelledby="standing-title">
     <p class="s3-eyebrow" id="standing-title">Standing notes for techs</p>
     ${editing !== null
-      ? html`<textarea class="ac-input s3-draftbox" aria-label="Standing note for techs" maxlength="2000" value=${editing}
+      ? html`<textarea class="ac-input s3-draftbox" id="standing-input" aria-label="Standing note for techs" maxlength="2000" value=${editing}
           onInput=${(e: Event) => { ui.value = { ...ui.value, standing: (e.currentTarget as HTMLTextAreaElement).value }; }}></textarea>
         <span class="s3-row-actions">
           ${submitAction(ctx, busyLabel(ctx, "standing", "Save standing note", "Saving…"), () => { const body = (ui.value.standing ?? "").trim(); if (body) void act(ctx, "standing", () => ctx.shell.gateway.addJobNote({ jobId: j.id, orgId: j.orgId, regionId: j.regionId, body, kind: "standing" }), "Standing note saved.", () => { ui.value = { ...ui.value, standing: null }; }); }, "standing-save")}
-          <button type="button" class="s3-act" onClick=${() => { ui.value = { ...ui.value, standing: null }; }}>Cancel</button>
+          <button type="button" class="s3-act" onClick=${() => { ui.value = { ...ui.value, standing: null }; focusId("standing-edit"); }}>Cancel</button>
         </span>`
       : html`${standing ? html`<p class="s3-standing__body">${standing.body}</p><p class="s3-visit__by">${standing.authorName ?? "Office"} · <span class="s3-num">${stamp(standing.at)}</span></p>` : html`<p class="s3-muted">None. What should every tech know before rolling to this job?</p>`}
-        <button type="button" class="s3-act" id="standing-edit" onClick=${() => { ui.value = { ...ui.value, standing: standing?.body ?? "" }; }}>${standing ? "Replace" : "Write one"}</button>`}
+        <button type="button" class="s3-act" id="standing-edit" onClick=${() => { ui.value = { ...ui.value, standing: standing?.body ?? "" }; focusId("standing-input"); }}>${standing ? "Replace" : "Write one"}</button>`}
   </section>`, undefined, undefined, undefined, "job-head");
 };
 

@@ -1,7 +1,7 @@
 import { html, DataGrid, StatusPill, PrimaryAction, pageHead, statStrip, panel, shortRef, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import { TERMS, SERVICE_CATALOG, JOB_WORK_CLASS_LABEL, type ServiceRequestWire, type ServiceRequestPriority, type JobPriority, type Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, homeMark, linkTo, refusalView, perStore, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, homeMark, linkTo, refusalView, perStore, focusId, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL } from "./jobs.ts";
 
 /**
@@ -120,7 +120,7 @@ const openPanel = (ctx: ScreenContext, requests: readonly ServiceRequestWire[], 
           density: ctx.density, label: o.busy ? "Opening…" : "Open job", type: "submit", id: "intake-open-submit",
           ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : o.busy ? { disabledReason: "Opening…" } : {}),
         })}
-        <button type="button" class="s3-act" id="intake-open-cancel" onClick=${() => { opening.value = null; }}>Cancel</button>
+        <button type="button" class="s3-act" id="intake-open-cancel" onClick=${() => { opening.value = null; focusId(`open-${r.id}`); }}>Cancel</button>
       </span>
       ${o.refusal ? refusalView(ctx, o.refusal) : null}
     </form>`,
@@ -195,7 +195,7 @@ export const intake: Screen = (ctx) => {
       : html`<span class="s3-moves"><span class="s3-muted">Waiting — no job yet</span>
           <button type="button" class="s3-act" id=${`open-${r.id}`} aria-label=${`Open a job for request ${shortRef(r.id)} at ${r.siteName}`} disabled=${ctx.degraded}
             title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
-            onClick=${() => { viewing.value = null; opening.value = { requestId: r.id, busy: false, refusal: null }; }}>Open job</button></span>` },
+            onClick=${() => { viewing.value = null; opening.value = { requestId: r.id, busy: false, refusal: null }; focusId("intake-service"); }}>Open job</button></span>` },
   ];
 
   return html`<section class="s3-intake">

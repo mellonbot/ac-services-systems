@@ -793,3 +793,20 @@ test("a row's buttons are named for the row: Assign for the crew, the dashboard'
   assert.match(dash, new RegExp(`aria-label="Return trip owed on job ${JOB_CREATED}" aria-pressed="false"`));
   assert.match(await paint("intake"), /aria-label="Open a job for request [0-9A-F]{8} at [^"]+"/);
 });
+
+test("job dashboard: a note is saved with Enter from its box, and Escape puts it away unsaved", async () => {
+  const { app, gateway } = await ready({ [OPERATIONS["jobs.addNote"].path]: { status: 200, body: { id: "n1", jobId: JOB_CREATED, eventId: "e" } } });
+  app.router.navigate("jobs", {});
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  const node = (id: string) => nodesIn(app.view()).find((n) => n.props?.id === id)!;
+  (node(`note-${JOB_CREATED}`).props!.onClick as () => void)();
+  (node(`note-input-${JOB_CREATED}`).props!.onKeyDown as (e: unknown) => void)({ key: "Escape", preventDefault() {} });
+  assert.doesNotMatch(render(app.view()), new RegExp(`id="note-input-${JOB_CREATED}"`));
+  (node(`note-${JOB_CREATED}`).props!.onClick as () => void)();
+  (node(`note-input-${JOB_CREATED}`).props!.onInput as (e: unknown) => void)({ currentTarget: { value: "Customer asked for a call first" } });
+  (node(`note-input-${JOB_CREATED}`).props!.onKeyDown as (e: unknown) => void)({ key: "Enter", preventDefault() {} });
+  await settle(); await settle();
+  const sent = gateway.calls.filter((c) => c.path === OPERATIONS["jobs.addNote"].path);
+  assert.equal(sent.length, 1);
+  assert.equal(JSON.parse(String(sent[0]!.init?.body)).body, "Customer asked for a call first");
+});

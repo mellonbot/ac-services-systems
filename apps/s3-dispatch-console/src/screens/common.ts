@@ -42,6 +42,12 @@ export const submitAction = (ctx: ScreenContext, label: string, onClick: () => v
     ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : {}),
   }) ?? html``;
 
+/** Once the click's render has landed: move focus to what it opened. Nothing to do without a DOM (node --test). */
+export const afterRender = (fn: (doc: Document) => void): void => {
+  if (typeof document !== "undefined") setTimeout(() => fn(document), 0);
+};
+export const focusId = (id: string): void => afterRender((d) => (d.getElementById(id) as HTMLElement | null)?.focus());
+
 /** A signal per store: screen state that lives as long as the session's store, and no longer. */
 export const perStore = <T>(initial: T) => {
   const m = new WeakMap<Store, Signal<T>>();

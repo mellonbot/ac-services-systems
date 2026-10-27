@@ -1,7 +1,7 @@
 import { html, signal, DataGrid, StatusPill, pageHead, statStrip, panel, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import { serviceLabel, OFFICE_JOB_TRANSITIONS, JOB_WORK_CLASS_LABEL, type JobWire, type JobStateWire, type AddressWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
-import { whenReady, homeMark, linkTo, submitAction, perStore, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, homeMark, linkTo, submitAction, perStore, focusId, type Screen, type ScreenContext } from "./common.ts";
 import { slaStatus, isDispatchable } from "./board.ts";
 
 /**
@@ -177,11 +177,15 @@ export const jobs: Screen = (ctx) => {
     const d = draft.value;
     if (d && d.jobId === j.id) {
       return html`<span class="s3-note-edit">
-        <input class="ac-input" aria-label=${`Note on job ${j.id}`} maxlength="2000" value=${d.body} autofocus
-          onInput=${(e: Event) => { draft.value = { jobId: j.id, body: (e.currentTarget as HTMLInputElement).value }; }} />
+        <input class="ac-input" id=${`note-input-${j.id}`} aria-label=${`Note on job ${j.id}`} maxlength="2000" value=${d.body}
+          onInput=${(e: Event) => { draft.value = { jobId: j.id, body: (e.currentTarget as HTMLInputElement).value }; }}
+          onKeyDown=${(e: KeyboardEvent) => {
+            if (e.key === "Enter") { e.preventDefault(); const body = draft.value?.body.trim() ?? ""; if (body && !ctx.degraded) void saveNote(ctx, j, body, draft); }
+            else if (e.key === "Escape") { draft.value = null; focusId(`note-${j.id}`); }
+          }} />
         <span class="s3-row-actions">
           ${submitAction(ctx, "Save", () => { const body = draft.value?.body.trim() ?? ""; if (body) void saveNote(ctx, j, body, draft); }, `note-save-${j.id}`)}
-          <button type="button" class="s3-act" onClick=${() => { draft.value = null; }}>Cancel</button>
+          <button type="button" class="s3-act" onClick=${() => { draft.value = null; focusId(`note-${j.id}`); }}>Cancel</button>
         </span>
       </span>`;
     }
@@ -189,7 +193,7 @@ export const jobs: Screen = (ctx) => {
       ${j.latestNote
         ? html`<span class="s3-note__body" title=${`${j.latestNote.body} — ${new Date(j.latestNote.at).toLocaleString()}`}>${j.latestNote.body}</span>`
         : html`<span class="s3-muted">—</span>`}
-      <button type="button" class="s3-act" id=${`note-${j.id}`} aria-label=${`Add a note to job ${j.id}`} onClick=${() => { draft.value = { jobId: j.id, body: "" }; }}>Add note</button>
+      <button type="button" class="s3-act" id=${`note-${j.id}`} aria-label=${`Add a note to job ${j.id}`} onClick=${() => { draft.value = { jobId: j.id, body: "" }; focusId(`note-input-${j.id}`); }}>Add note</button>
     </span>`;
   };
 
@@ -216,14 +220,14 @@ export const jobs: Screen = (ctx) => {
           <strong id=${`decline-${j.id}`}>Decline job ${j.id}? It is cancelled, and that cannot be undone here.</strong>
           <span class="s3-row-actions">
             <button type="button" class="s3-act" id=${`move-${j.id}-cancelled-yes`} disabled=${ctx.degraded} onClick=${() => void moveJob(ctx, j, "cancelled")}>Cancel the job</button>
-            <button type="button" class="s3-act" id=${`move-${j.id}-cancelled-keep`} onClick=${() => { moving.value = null; }}>Keep it</button>
+            <button type="button" class="s3-act" id=${`move-${j.id}-cancelled-keep`} onClick=${() => { moving.value = null; focusId(`move-${j.id}-cancelled`); }}>Keep it</button>
           </span>
         </span>`;
       }
       return html`<span class="s3-moves">${isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act", `Dispatch job ${j.id}`) : null}${(OFFICE_JOB_TRANSITIONS[j.state] ?? []).map((to) =>
         html`<button type="button" class="s3-act" id=${`move-${j.id}-${to}`} aria-label=${`${MOVE_LABEL[to] ?? STATE_LABEL[to]} — job ${j.id}`} disabled=${ctx.degraded || m !== null}
           title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
-          onClick=${() => { if (to === "cancelled") moving.value = { jobId: j.id, to, busy: false }; else void moveJob(ctx, j, to); }}>${m?.busy && m.to === to ? "Saving…" : MOVE_LABEL[to] ?? STATE_LABEL[to]}</button>`)}</span>`;
+          onClick=${() => { if (to === "cancelled") { moving.value = { jobId: j.id, to, busy: false }; focusId(`move-${j.id}-cancelled-keep`); } else void moveJob(ctx, j, to); }}>${m?.busy && m.to === to ? "Saving…" : MOVE_LABEL[to] ?? STATE_LABEL[to]}</button>`)}</span>`;
     } },
     { key: "note", header: "Note", cell: noteCell },
     { key: "age", header: "Days in status", numeric: true, align: "end", cell: (j) => html`<span title=${`In this status since ${new Date(j.stateChangedAt).toLocaleString()}`}>${daysInState(j, now)}d</span>` },
