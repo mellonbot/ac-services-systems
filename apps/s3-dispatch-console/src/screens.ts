@@ -14,7 +14,7 @@ export const SCREENS = {
   "board":    { path: "/board",             uses: ["jobs.list", "crews.list", "technicians.list", "dispatch.release"], title: "Board" },
   "jobs":     { path: "/jobs",              uses: ["jobs.list", "jobs.transition", "jobs.addNote", "jobs.setReturnTrip"], title: "Job Dashboard" },
   "pick":     { path: "/detail",            uses: ["jobs.list"], title: "Job Detail" },
-  "intake":   { path: "/intake",            uses: ["serviceRequests.list", "media.get", "serviceRequests.openJob"], title: "Intake" },
+  "intake":   { path: "/portal-requests",   uses: ["serviceRequests.list", "media.get", "serviceRequests.openJob"], title: "Portal requests" },
   "new-job":  { path: "/new-job",           uses: ["sites.list", "jobs.create", "serviceRequests.hold", "projects.list"], title: "New job" },
   "manager":  { path: "/manager",           uses: ["manager.overview"], title: "Manager" },
 } as const satisfies Record<string, ScreenSpec>;

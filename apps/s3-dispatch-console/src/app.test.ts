@@ -524,7 +524,7 @@ test("INTAKE: the tab is in the header; requests read from serviceRequests.list,
     [OPERATIONS["serviceRequests.list"].path]: { status: 200, body: { requests: REQUESTS } },
     [OPERATIONS["media.get"].path]: (init) => ({ status: 200, body: { id: "x", contentType: "image/png", image: `data:image/png;base64,${init ? "QQ==" : ""}` } }),
   });
-  assert.match(render(app.view()), />Intake<\/a>/, "a tab, beside the board");
+  assert.match(render(app.view()), />Portal requests<\/a>/, "a tab, beside the board");
   app.router.navigate("intake", {});
   render(app.view()); await settle(); await settle();
   let out = render(app.view());
@@ -789,7 +789,7 @@ test("the Intake tab says what is waiting, and an emergency in a glyph and a wor
   const waiting = REQUESTS.filter((r) => r.jobId === null);
   const emergencies = waiting.filter((r) => r.priority === "emergency").length;
   assert.ok(emergencies > 0, "the fixture has an emergency waiting");
-  assert.match(out, new RegExp(`aria-label="Intake — ${waiting.length} waiting, ${emergencies} emergency"`));
+  assert.match(out, new RegExp(`aria-label="Portal requests — ${waiting.length} waiting, ${emergencies} emergency"`));
   assert.match(out, new RegExp(`id="intake-emergency"><span aria-hidden="true">[^<]+</span> ${emergencies} emergency<`));
 });
 
