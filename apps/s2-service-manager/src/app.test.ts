@@ -560,3 +560,26 @@ test("a row's actions are named for the row, so a screen reader's list of them i
   assert.match(out, /aria-label="Move Rooftop units"/);
   assert.match(out, /aria-label="Add a site under Amped Austin"/);
 });
+
+test("the map lets plain scroll through to the page; Ctrl + scroll zooms, a level per mouse notch however the travel arrives", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  recentreMap();
+  app.router.navigate("accounts.tree", { orgId: TURNER });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const zoom = () => /zoom <span class="s2-num">(\d+)<\/span>/.exec(render(app.view()))![1];
+  const wheel = (deltaY: number, ctrlKey: boolean) => {
+    let prevented = false;
+    (nodesIn(app.view()).find((n) => n.props?.role === "application")!.props!.onWheel as (e: unknown) => void)({ deltaY, ctrlKey, metaKey: false, preventDefault: () => { prevented = true; } });
+    return prevented;
+  };
+  const start = zoom();
+  assert.equal(wheel(-100, false), false, "plain scroll is the page's");
+  assert.equal(zoom(), start);
+  assert.equal(wheel(-40, true), true);
+  assert.equal(zoom(), start, "a pinch's small step does not jump a level");
+  wheel(-60, true);
+  assert.equal(Number(zoom()), Number(start) + 1);
+  recentreMap();
+});
