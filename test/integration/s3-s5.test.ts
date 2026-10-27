@@ -554,7 +554,7 @@ test("0034 wrap-up: media first, then the wrap-up, each idempotent; every rule i
     customerAbsentReason: "Tenant locked the roof hatch and left", notes: "Coil badly corroded; customer wants pricing.", measurements, ...over,
   } as never);
   await assert.rejects(quote({ photoMutationIds: photos.slice(0, 9) }), (e: unknown) => code(s5, e) === "too_few_photos");
-  await assert.rejects(quote({ measurements: { ...measurements, curbWidthIn: undefined } }), (e: unknown) => code(s5, e) === "measurements_incomplete" && /curbWidthIn/.test(refusal(s5, e).message));
+  await assert.rejects(quote({ measurements: { ...measurements, curbWidthIn: undefined } }), (e: unknown) => code(s5, e) === "measurements_incomplete" && /curb width/.test(refusal(s5, e).message));
   await assert.rejects(quote({ customerAbsentReason: "x" }), (e: unknown) => code(s5, e) === "absent_needs_reason");
   await quote({});
   const w = (await admin(`SELECT id, measurements, quote_job_id FROM job_wrap_ups WHERE job_id = $1`, [quoted]))[0]!;

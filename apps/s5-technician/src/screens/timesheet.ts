@@ -1,9 +1,8 @@
 import { html, pageHead, panel, PrimaryAction, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { FieldJobWire, MyPunchesOutput } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Resource } from "../state.ts";
-import { projectedJob } from "../offline.ts";
 import { mergedPunches, spansOf, runningSince, spanMs, weekOf, daysOf, hoursText, clockAction, type Span } from "../punches.ts";
-import { whenReady, flushQueue, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, flushQueue, deviceState, type Screen, type ScreenContext } from "./common.ts";
 
 /**
  * This week's punches — one read the clock panel, the timesheet and the job
@@ -43,7 +42,7 @@ export const shiftClock = (ctx: ScreenContext, jobs: readonly FieldJobWire[]): V
     const spans = spansOf(mergedPunches(out.punches, ctx.queue.pending.value));
     const since = runningSince(spans);
     const today = spans.filter((s) => isToday(new Date(s.start), ctx.now));
-    const action = clockAction(since !== null, jobs.map((j) => projectedJob(j, ctx.queue.pending.value).state));
+    const action = clockAction(since !== null, jobs.map((j) => deviceState(ctx, j)));
     const punch = (kind: "in" | "out") => {
       ctx.queue.enqueue("shift_punches", ctx.shell.principal.shiftId!, "insert", { kind, at: new Date().toISOString() }, null);
       flushQueue(ctx);

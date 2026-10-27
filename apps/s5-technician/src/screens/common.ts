@@ -2,7 +2,8 @@ import { html, RefusalNotice, type VNode, type Router, type Signal } from "../..
 import type { Shell } from "../../../../packages/shell/src/index.ts";
 import type { Refusal, DensityOf, AddressWire, FieldSiteWire } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
-import type { OfflineQueue } from "../offline.ts";
+import { projectedJob, type OfflineQueue } from "../offline.ts";
+import type { WrapUps } from "../wrap-ups.ts";
 import type { SCREENS } from "../screens.ts";
 export { linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
 
@@ -24,6 +25,8 @@ export type ScreenContext = {
   readonly shell: Shell;
   readonly store: Store;
   readonly queue: OfflineQueue;
+  /** Wrap-up drafts and the outbox that sends them (0034). */
+  readonly wrapUps: WrapUps;
   readonly crew: { readonly id: string; readonly label: string };
   readonly clock: Signal<Readonly<Record<string, string>>>;
   readonly router: Router<typeof SCREENS>;
@@ -71,6 +74,10 @@ export const ACTION_LABEL: Readonly<Record<string, string>> = {
 };
 
 export const stateText = (state: string): string => state.replace(/_/g, " ");
+
+/** Where a job stands on this device: the server's state with the queued moves applied, and complete once its wrap-up is in the outbox. */
+export const deviceState = (ctx: ScreenContext, job: { readonly id: string; readonly state: string; readonly version: number }): string =>
+  ctx.wrapUps.pendingFor(job.id) ? "complete" : projectedJob(job, ctx.queue.pending.value).state;
 
 export const addressLine = (a: AddressWire | null): string =>
   a ? [a.line1, a.line2, a.city, [a.state, a.postal].filter(Boolean).join(" ")].filter(Boolean).join(", ") : "";

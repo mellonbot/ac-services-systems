@@ -9,6 +9,8 @@ import type { Screen, ScreenContext } from "./screens/common.ts";
 import { jobList } from "./screens/job-list.ts";
 import { jobDetail } from "./screens/job-detail.ts";
 import { timesheet } from "./screens/timesheet.ts";
+import { wrapUp } from "./screens/wrap-up.ts";
+import { createWrapUps, indexedDbMedia, memoryMedia, type MediaStore, type WrapUps } from "./wrap-ups.ts";
 import { S5_CSS } from "./styles.ts";
 
 /**
@@ -39,13 +41,14 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   jobs: jobList,
   job: jobDetail,
   timesheet,
+  wrapup: wrapUp,
 };
 
 type Phase =
   | { kind: "login"; refusal: Refusal | null; busy: boolean }
-  | { kind: "ready"; shell: ConnectedShell; store: Store; queue: OfflineQueue; crew: { id: string; label: string }; clock: Signal<Readonly<Record<string, string>>>; account: AccountMenuState };
+  | { kind: "ready"; shell: ConnectedShell; store: Store; queue: OfflineQueue; wrapUps: WrapUps; crew: { id: string; label: string }; clock: Signal<Readonly<Record<string, string>>>; account: AccountMenuState };
 
-export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window; newId?: () => string; store?: QueueStore | null }) => {
+export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window; newId?: () => string; store?: QueueStore | null; media?: MediaStore }) => {
   const now = opts.now ?? (() => Date.now());
   const newId = opts.newId ?? (() => (globalThis.crypto?.randomUUID?.() ?? `${now()}-${Math.random()}`));
   const phase = signal<Phase>({ kind: "login", refusal: null, busy: false });
@@ -62,9 +65,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       // A device principal's subject is the technician who signed in (auth.deviceLogin's `sub`).
       const deviceId = shell.principal.deviceId ?? hardwareId;
       const queue = createOfflineQueue({ deviceId, subjectId: shell.principal.subjectId, newId, now, store: opts.store ?? null });
+      const wrapUps = createWrapUps({ deviceId, subjectId: shell.principal.subjectId, newId, now, store: opts.store ?? null, media: opts.media ?? memoryMedia() });
       const others = othersPending(opts.store, deviceId, shell.principal.subjectId);
       if (others > 0) store.notice.value = [...store.notice.value, `${others} change(s) another technician saved on this device are kept for them and will be sent when they sign in on it.`];
-      phase.value = { kind: "ready", shell, store, queue, crew: shell.deviceCrew, clock: queue.clock, account: createAccountMenu(shell.gateway, shell.refusalOf) };
+      phase.value = { kind: "ready", shell, store, queue, wrapUps, crew: shell.deviceCrew, clock: queue.clock, account: createAccountMenu(shell.gateway, shell.refusalOf) };
       router.navigate("jobs", {});
       // Envelopes carry no payload; a job assigned to or pulled off this
       // shift's crew, or a term change affecting the field ground, is a
@@ -85,6 +89,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   // minute while they do not — a dead zone is not a reason to send a request a second.
   let retryAt = 0;
   let retryDelay = 1000;
+  let wrapRetryAt = 0;
+  let wrapRetryDelay = 1000;
   const tick = () => {
     const p = phase.value;
     if (p.kind !== "ready") return;
@@ -93,6 +99,15 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     // Offline-first: a queue with something in it is retried on every tick
     // while the gateway is reachable, not only when a tech taps a button —
     // reconnecting after a dead zone should not need a second tap to notice.
+    // Wrap-ups go once the sync queue is empty: the moves that put the job in
+    // progress reach the office before the wrap-up that completes it.
+    if (p.queue.pending.value.length === 0 && p.wrapUps.outbox.value.some((e) => e.refused === null) && now() >= wrapRetryAt) {
+      void p.wrapUps.flush(p.shell.gateway, (e) => (e as { refusal?: Refusal })?.refusal ?? null).then((reached) => {
+        if (reached) { wrapRetryDelay = 1000; wrapRetryAt = 0; p.store.invalidate("jobs.mine"); return; }
+        wrapRetryAt = now() + wrapRetryDelay;
+        wrapRetryDelay = Math.min(wrapRetryDelay * 2, 60_000);
+      });
+    }
     if (p.queue.pending.value.length > 0 && now() >= retryAt && !p.queue.flushing.value) {
       void p.queue.flush((mutations) => p.shell.gateway.replaySync({ orgId: p.shell.principal.orgId, regionId: p.shell.principal.regionId, mutations }))
         .then((answered) => {
@@ -115,10 +130,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const view = (): VNode => {
     const p = phase.value;
     if (p.kind === "login") return loginView(p, login);
-    const ctx: ScreenContext = { shell: p.shell, store: p.store, queue: p.queue, crew: p.crew, clock: p.clock, router, density: DENSITY, degraded: degraded.value, now: now() };
+    const ctx: ScreenContext = { shell: p.shell, store: p.store, queue: p.queue, wrapUps: p.wrapUps, crew: p.crew, clock: p.clock, router, density: DENSITY, degraded: degraded.value, now: now() };
     void minute.value; // subscribe: a running shift clock moves on every minute
     void p.store.version.value; // subscribe: an invalidate re-renders the mounted screen, which re-reads its resources
-    void p.queue.pending.value; void p.queue.attention.value; // subscribe: enqueue/flush re-render the queued-count and any attention items
+    void p.queue.pending.value; void p.queue.attention.value; void p.wrapUps.drafts.value; void p.wrapUps.outbox.value; void p.wrapUps.previews.value; // subscribe: enqueue/flush re-render the queued-count and any attention items
     const loc = router.current.value;
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     const notice = p.store.notice.value;
@@ -169,7 +184,7 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
 
   let store: QueueStore | null = null;
   try { store = window.localStorage; } catch { /* site data blocked: the queue lives in memory */ }
-  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window, store });
+  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window, store, ...(typeof indexedDB !== "undefined" ? { media: indexedDbMedia("ac-s5-media") } : {}) });
   const el = document.getElementById("mount")!;
   const slot = document.querySelector("ac-degraded") as (HTMLElement | null);
   const Root = () => app.view();

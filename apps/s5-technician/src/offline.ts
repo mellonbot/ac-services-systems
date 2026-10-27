@@ -63,9 +63,13 @@ export const JOB_TRANSITIONS: Readonly<Record<string, readonly string[]>> = Obje
 /** Transitions a DEVICE may drive. Assignment and cancellation are the office's. */
 export const DEVICE_TRANSITIONS: readonly string[] = ["en_route", "on_site", "in_progress", "awaiting_parts", "awaiting_customer", "complete", "aborted"];
 
-/** What JOB_TRANSITIONS[state] ∩ DEVICE_TRANSITIONS permits from here — the buttons a job-detail screen may offer. */
+/**
+ * What JOB_TRANSITIONS[state] ∩ DEVICE_TRANSITIONS permits from here — the
+ * buttons a job-detail screen may offer. Never "complete": a job is completed
+ * by its wrap-up (0034), and sync.replay refuses the bare transition.
+ */
 export const nextDeviceStates = (state: string): readonly string[] => {
-  const allowed = new Set(DEVICE_TRANSITIONS);
+  const allowed = new Set(DEVICE_TRANSITIONS.filter((s) => s !== "complete"));
   return (JOB_TRANSITIONS[state] ?? []).filter((s) => allowed.has(s));
 };
 
