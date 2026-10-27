@@ -390,7 +390,7 @@ export const createGatewayClient = (transport: Transport) => ({
 
   /** `GET /s5/jobs/mine` · query · bearer · surfaces: S5
    *
-   * Jobs assigned to this shift's crew, unreleased and still open — finished, cancelled or aborted work drops off (FIELD_CLOSED_STATES). The field layer's own read — no employment shape, no compliance detail, no other crew's board. */
+   * Jobs assigned to this shift's crew, unreleased and still open — finished, cancelled or aborted work drops off (FIELD_CLOSED_STATES). Each carries what a crew needs at the curb — the job number, the site's name, address and primary contact — and the checklist items already done. The field layer's own read — no employment shape, no compliance detail, no other crew's board. */
   myJobs(): Promise<OperationIO["jobs.mine"]["output"]> {
     return transport.request(OPERATIONS["jobs.mine"], undefined) as Promise<OperationIO["jobs.mine"]["output"]>;
   },

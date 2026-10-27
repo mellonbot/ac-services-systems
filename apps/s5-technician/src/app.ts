@@ -119,7 +119,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const notice = p.store.notice.value;
     return html`<div class="s5-app">
       <nav class="ac-nav" aria-label="Screens">
-        <a class="ac-seg__item" data-current=${loc?.screen === "jobs" ? "true" : "false"} href=${router.href("jobs", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>My jobs</a>
+        <a class="ac-seg__item" data-current=${loc?.screen === "jobs" ? "true" : "false"} href=${router.href("jobs", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>Today</a>
         <span class="ac-nav__who">${p.crew.label}</span>
         ${AccountMenu({ density: DENSITY, menu: p.account })}
         <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>

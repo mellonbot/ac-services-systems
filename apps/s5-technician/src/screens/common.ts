@@ -1,6 +1,6 @@
 import { html, RefusalNotice, type VNode, type Router, type Signal } from "../../../../packages/ui/src/index.ts";
 import type { Shell } from "../../../../packages/shell/src/index.ts";
-import type { Refusal, DensityOf } from "../../../../packages/contracts/src/index.ts";
+import type { Refusal, DensityOf, AddressWire, FieldSiteWire } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
 import type { OfflineQueue } from "../offline.ts";
 import type { SCREENS } from "../screens.ts";
@@ -50,3 +50,42 @@ export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) =>
  */
 export const refusalView = (ctx: ScreenContext, refusal: Refusal): VNode =>
   RefusalNotice({ density: ctx.density, refusal }) ?? html``;
+
+/**
+ * Send what is queued, best-effort. An answer refetches jobs.mine; no answer
+ * leaves the work queued for app.ts's next tick — a tap never waits on the
+ * network.
+ */
+export const flushQueue = (ctx: ScreenContext): void => {
+  void ctx.queue.flush((mutations) =>
+    ctx.shell.gateway.replaySync({ orgId: ctx.shell.principal.orgId, regionId: ctx.shell.principal.regionId, mutations }),
+  ).then((answered) => { if (answered) ctx.store.invalidate("jobs.mine"); });
+};
+
+/** What a device's state change says on its button — the verb a crew would use, not the enum. */
+export const ACTION_LABEL: Readonly<Record<string, string>> = {
+  en_route: "Head out", on_site: "On site", in_progress: "Start work", awaiting_parts: "Waiting on parts",
+  awaiting_customer: "Waiting on customer", complete: "Complete", aborted: "Abort",
+};
+
+export const stateText = (state: string): string => state.replace(/_/g, " ");
+
+export const addressLine = (a: AddressWire | null): string =>
+  a ? [a.line1, a.line2, a.city, [a.state, a.postal].filter(Boolean).join(" ")].filter(Boolean).join(", ") : "";
+
+/** A maps link to the site: its coordinates when the record has them, else its street address; null when it has neither. */
+export const directionsHref = (site: FieldSiteWire | null): string | null => {
+  const a = site?.address ?? null;
+  const to = a?.lat !== undefined && a?.lng !== undefined ? `${a.lat},${a.lng}` : addressLine(a);
+  return to ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(to)}` : null;
+};
+
+export const telHref = (phone: string): string => `tel:${phone.replace(/[^\d+]/g, "")}`;
+
+const clock = (d: Date) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+/** "8:00 AM – 4:00 PM", with the day in front when the window does not open today. */
+export const windowText = (start: string, end: string, now: number): string => {
+  const s = new Date(start), e = new Date(end);
+  const day = s.toDateString() === new Date(now).toDateString() ? "" : `${s.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} `;
+  return `${day}${clock(s)} – ${clock(e)}`;
+};
