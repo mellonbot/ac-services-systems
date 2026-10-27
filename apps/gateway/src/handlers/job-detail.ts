@@ -4,7 +4,7 @@ import { JOB_SELECT, toWire, requireUuid, requireText, jobInScope, type JobRow }
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import type {
   JobDetailInput, JobDetailOutput, JobConversationInput, JobConversationOutput, JobVisitWire, JobMediaWire, JobNoteWire,
-  JobUpdateWire, JobMessageWire, JobContactWire, JobNoteKind, JobUpdateState,
+  JobUpdateWire, JobMessageWire, JobContactWire, JobNoteKind, JobUpdateState, JobWrapUpWire, WrapUpOutcome, WrapUpMeasurementsWire,
   SaveJobUpdateInput, SaveJobUpdateOutput, PublishJobUpdateInput, PublishJobUpdateOutput, PostJobMessageInput, PostJobMessageOutput,
 } from "../../../../packages/contracts/src/operations.ts";
 
@@ -90,7 +90,26 @@ export const jobDetail = async (uow: UnitOfWork, input: JobDetailInput): Promise
       WHERE n.job_id = $1 ORDER BY n.created_at, n.id`, [jobId],
   )).map((r): JobNoteWire => ({ id: r.id, body: r.body, kind: r.kind, at: r.at, authorName: r.author_name }));
 
-  return { job: toWire(row), contact, visits, media, notes, updates: await readUpdates(uow, jobId), messages: await readMessages(uow, jobId) };
+  const w = (await uow.tx.query<{
+    outcome: WrapUpOutcome; submitted_at: string; submitted_by: string | null; crew_label: string | null; notes: string | null;
+    measurements: WrapUpMeasurementsWire | null; signature_media_id: string | null; customer_absent_reason: string | null;
+    quote_job_id: string | null; quote_job_no: string | null; quote_error: string | null;
+  }>(
+    `SELECT w.outcome, ${TS("w.submitted_at")} AS submitted_at, u.display_name AS submitted_by, c.label AS crew_label, w.notes, w.measurements,
+            w.signature_media_id, w.customer_absent_reason, w.quote_job_id, q.job_no AS quote_job_no, w.quote_error
+       FROM job_wrap_ups w
+       LEFT JOIN users u ON u.id = w.submitted_by
+       LEFT JOIN crews c ON c.id = w.crew_id
+       LEFT JOIN jobs q ON q.id = w.quote_job_id
+      WHERE w.job_id = $1`, [jobId],
+  ))[0];
+  const wrapUp: JobWrapUpWire | null = w ? {
+    outcome: w.outcome, submittedAt: w.submitted_at, submittedByName: w.submitted_by, crewLabel: w.crew_label, notes: w.notes, measurements: w.measurements,
+    signatureMediaId: w.signature_media_id, customerAbsentReason: w.customer_absent_reason,
+    quoteJobId: w.quote_job_id, quoteJobNo: w.quote_job_no, quoteError: w.quote_error,
+  } : null;
+
+  return { job: toWire(row), contact, visits, media, notes, updates: await readUpdates(uow, jobId), messages: await readMessages(uow, jobId), wrapUp };
 };
 
 /** S6: a job the customer may see, and only what it may read about it. */

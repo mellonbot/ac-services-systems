@@ -451,7 +451,7 @@ export const OPERATIONS = {
   "media.get": {
     id: "media.get", method: "GET", path: "/media", kind: "query", auth: "bearer",
     surfaces: ["S2", "S3", "S6"], carrier: "query", sdkMethod: "getMedia",
-    summary: "One stored photo, returned inline as a data: URL — read through the gateway under the same row security as the request it was sent with. A surface never receives a bucket URL.",
+    summary: "One stored photo, returned inline as a data: URL — read through the gateway under the same row security as the request it was sent with. A job's photos and signature (0034) are the office's alone. A surface never receives a bucket URL.",
   },
   // ---- S3 ----
   "dispatch.assign": {
@@ -492,7 +492,7 @@ export const OPERATIONS = {
   "jobs.detail": {
     id: "jobs.detail", method: "GET", path: "/s3/jobs/detail", kind: "query", auth: "bearer",
     surfaces: ["S3"], carrier: "query", sdkMethod: "jobDetail",
-    summary: "One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — and the customer thread. RLS decides; nothing here filters.",
+    summary: "One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — the customer thread, and how the field wrapped it up (0034). RLS decides; nothing here filters.",
   },
   "jobs.conversation": {
     id: "jobs.conversation", method: "GET", path: "/jobs/conversation", kind: "query", auth: "bearer",
@@ -1886,6 +1886,18 @@ export type JobDetailOutput = {
   readonly notes: readonly JobNoteWire[];
   readonly updates: readonly JobUpdateWire[];
   readonly messages: readonly JobMessageWire[];
+  /** How the field closed the visit (0034), or null until it has. */
+  readonly wrapUp: JobWrapUpWire | null;
+};
+/** A wrap-up as the office reads it: what the technician sent, and the quote job the worker opened from it. */
+export type JobWrapUpWire = {
+  readonly outcome: WrapUpOutcome; readonly submittedAt: string; readonly submittedByName: string | null; readonly crewLabel: string | null;
+  readonly notes: string | null; readonly measurements: WrapUpMeasurementsWire | null;
+  /** A job_media id, readable through media.get. */
+  readonly signatureMediaId: string | null; readonly customerAbsentReason: string | null;
+  readonly quoteJobId: string | null; readonly quoteJobNo: string | null;
+  /** Why the worker has not opened the quote job yet; it keeps trying. */
+  readonly quoteError: string | null;
 };
 export type JobConversationInput = { readonly jobId: string };
 export type JobConversationOutput = { readonly jobId: string; readonly updates: readonly JobUpdateWire[]; readonly messages: readonly JobMessageWire[] };

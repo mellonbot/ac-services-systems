@@ -96,14 +96,24 @@ export const attachPhoto = async (
   return { id, requestId, contentType, bytes: bytes.length, eventId };
 };
 
-/** One photo, inline. The row decides visibility (0017 → service_requests' policy); the store is read only for a row this principal can see. */
-export const getMedia = async (uow: UnitOfWork, store: ObjectStore | null, input: GetMediaInput): Promise<GetMediaOutput> => {
+/**
+ * One photo, inline. The row decides visibility (0017 → service_requests'
+ * policy); the store is read only for a row this principal can see. A job's
+ * photos and signature (0034) are the office's alone: a customer may see the
+ * job, but the signature its staff gave and the rooftop photos are dispatch's
+ * record, not something the portal shows.
+ */
+export const getMedia = async (uow: UnitOfWork, store: ObjectStore | null, input: GetMediaInput, namespace: string): Promise<GetMediaOutput> => {
   const id = requireUuid(input.id, "id");
   const row = (await uow.tx.query<{ storage_key: string; content_type: PhotoContentType }>(
     `SELECT o.storage_key, o.content_type
        FROM service_request_media m JOIN storage_objects o ON o.id = m.storage_object_id
       WHERE m.id = $1`, [id],
-  ))[0];
+  ))[0] ?? (namespace === "internal" ? (await uow.tx.query<{ storage_key: string; content_type: PhotoContentType }>(
+    `SELECT o.storage_key, o.content_type
+       FROM job_media jm JOIN storage_objects o ON o.storage_key = jm.storage_key
+      WHERE jm.id = $1`, [id],
+  ))[0] : undefined);
   if (!row) throw new InputRefused(`no photo ${id} visible in this scope`, "unknown_photo");
   if (!store) throw new InputRefused("photo storage is not configured on this gateway", "storage_not_configured");
   let bytes: Uint8Array;

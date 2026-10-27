@@ -694,7 +694,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "serviceRequests.create": (req, input) => withUow(req, "serviceRequests.create", (uow, p) => createServiceRequest(uow, p.subjectId, input, randomUUID)),
   "serviceRequests.list": (req, input) => withRead(req, "serviceRequests.list", (uow, p) => listServiceRequests(uow, input, new Date(), p.namespace === "internal")),
   "serviceRequests.attachPhoto": (req, input) => withUow(req, "serviceRequests.attachPhoto", (uow, p) => attachPhoto(uow, p.subjectId, STORE, input, randomUUID)),
-  "media.get": (req, input) => withRead(req, "media.get", (uow) => getMedia(uow, STORE, input)),
+  "media.get": (req, input) => withRead(req, "media.get", (uow, p) => getMedia(uow, STORE, input, p.namespace)),
   "customers.createResidential": (req, input) => withUow(req, "customers.createResidential", async (uow, p) =>
     createResidential(uow, await buildContext(p, hierarchyReader(uow.tx)), input, randomUUID, new Date())),
   "leads.list": (req, input) => withRead(req, "leads.list", (uow) => listLeads(uow, input)),
