@@ -431,6 +431,19 @@ test("waiting on the customer, mid-job: the office holds an on-site job for the 
   assert.equal((await move("in_progress")).state, "in_progress");
 });
 
+test("closing out: a crew that finished off-device leaves the job dispatched; the office moves it to complete from a field state, logged as S3's", { skip }, async () => {
+  const move = (to: string) => s3.gateway.transitionJob({ jobId, orgId, regionId: REGION_SOUTH, to: to as never });
+  // A crew that never touched the tablet past "en route" — the paper ticket came back finished.
+  await admin(`UPDATE jobs SET state = 'en_route' WHERE id = $1`, [jobId]);
+  const out = await move("complete");
+  assert.equal(out.state, "complete");
+  assert.equal((await admin(`SELECT topic FROM outbox WHERE event_id = $1`, [out.eventId]))[0]!.topic, "job.transitioned");
+  const logged = (await admin(`SELECT from_state, surface_id, mutation_id FROM job_state_events WHERE job_id = $1 AND to_state = 'complete' ORDER BY recorded_at DESC LIMIT 1`, [jobId]))[0]!;
+  assert.deepEqual([logged.from_state, logged.surface_id, logged.mutation_id], ["en_route", "S3", `office:v${out.version}`]);
+  assert.equal((await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!.state, "complete", "the board reads it as finished work");
+  await assert.rejects(move("in_progress"), (e: unknown) => code(s3, e) === "illegal_transition", "a closed-out job does not reopen through the office's hand");
+});
+
 test("what blocks the invoice: a finished job goes to needs pricing, a PO or pictures and back to ready-to-invoice; a kicked-back invoice is fixed and re-sent", { skip }, async () => {
   const move = (to: string) => s3.gateway.transitionJob({ jobId, orgId, regionId: REGION_SOUTH, to: to as never });
   // The field finishing and billing invoicing have their own doors; this test starts on the far side of each.
@@ -514,6 +527,42 @@ test("sync.replay after a release: a crew taken off a job cannot drive it — th
   assert.equal(job.version, version);
   assert.equal((await admin(`SELECT count(*)::int AS n FROM time_entries WHERE job_id = $1`, [other]))[0]!.n, 0);
   assert.equal((await admin(`SELECT count(*)::int AS n FROM sync_conflicts WHERE entity_id = $1`, [other]))[0]!.n, 2, "both are a person's to judge");
+  await s5.logout();
+});
+
+test("after dispatch: a cancelled job releases its crew and leaves the crew's list; a closed-out job leaves the list too, but its crew's late time still lands", { skip }, async () => {
+  const dispatched = async (state: string) => {
+    const id = (await s2.gateway.createJob({ siteId: site, serviceCode: "HVAC-REPAIR", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;
+    const out = await s3.gateway.assignCrew({ jobId: id, crewId: crewCleared, orgId, regionId: REGION_SOUTH });
+    assert.equal(out.ok, true);
+    await admin(`UPDATE jobs SET state = $2 WHERE id = $1`, [id, state]);
+    return id;
+  };
+  const cancelled = await dispatched("en_route"), closed = await dispatched("on_site");
+  const s5 = await technician();
+  const mine = async () => (await s5.gateway.myJobs()).jobs.map((j) => j.id);
+  assert.ok((await mine()).includes(cancelled) && (await mine()).includes(closed));
+
+  await assert.rejects(
+    s3.gateway.transitionJob({ jobId: closed, orgId, regionId: REGION_SOUTH, to: "cancelled" }),
+    (e: unknown) => code(s3, e) === "illegal_transition", "the crew is on site: stopping now is an abort, not a cancellation",
+  );
+  const out = await s3.gateway.transitionJob({ jobId: cancelled, orgId, regionId: REGION_SOUTH, to: "cancelled" });
+  assert.equal(out.state, "cancelled");
+  assert.equal((await admin(`SELECT topic FROM outbox WHERE event_id = $1`, [out.eventId]))[0]!.topic, "job.cancelled", "the field's topic, so the device drops it");
+  const a = (await admin(`SELECT released_at, release_reason FROM assignments WHERE job_id = $1`, [cancelled]))[0]!;
+  assert.ok(a.released_at);
+  assert.equal(a.release_reason, "cancelled");
+  assert.equal((await s3.gateway.listJobs({})).jobs.find((j) => j.id === cancelled)!.currentCrewId, null, "the board shows no crew on it");
+
+  await s3.gateway.transitionJob({ jobId: closed, orgId, regionId: REGION_SOUTH, to: "complete" });
+  assert.deepEqual((await mine()).filter((id) => id === cancelled || id === closed), [], "neither is on the crew's list");
+
+  const at = new Date().toISOString();
+  const res = await s5.gateway.replaySync({ orgId, regionId: REGION_SOUTH, mutations: [
+    { mutationId: `${RUN}-late1`, deviceId, deviceSeq: 201, entityTable: "time_entries", entityId: closed, op: "insert", payload: { crew_id: crewCleared, start: at, end: at, kind: "labor" }, clientObservedVersion: null, deviceAt: at },
+  ] });
+  assert.deepEqual(res.outcomes.map((o) => o.outcome), ["applied"], "a closed-out job keeps its crew, so the crew's late time is not a conflict");
   await s5.logout();
 });
 

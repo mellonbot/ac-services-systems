@@ -85,11 +85,27 @@ test("every server-authoritative table in the policy is one the gate or the cont
   assert.deepEqual(sa, ["assignments", "compliance_clearances", "contract_term_overrides", "crew_credentials", "rate_cards"]);
 });
 
-test("the office's hand-moves are legal moves: every OFFICE_JOB_TRANSITIONS edge is in JOB_TRANSITIONS, and none is a device's", async () => {
+test("the office's hand-moves are legal moves: every OFFICE_JOB_TRANSITIONS edge but a close-out is in JOB_TRANSITIONS, and none is a device's", async () => {
   const { JOB_TRANSITIONS, DEVICE_TRANSITIONS } = await import("./index.ts");
-  const { OFFICE_JOB_TRANSITIONS } = await import("../../../contracts/src/operations.ts");
+  const { OFFICE_JOB_TRANSITIONS, OFFICE_CLOSE_OUT_FROM } = await import("../../../contracts/src/operations.ts");
   for (const [from, tos] of Object.entries(OFFICE_JOB_TRANSITIONS)) {
-    for (const to of tos ?? []) assert.ok((JOB_TRANSITIONS[from] ?? []).includes(to), `${from} → ${to} is offered to the office but is not a legal transition`);
+    for (const to of tos ?? []) {
+      if (to === "complete" && OFFICE_CLOSE_OUT_FROM.includes(from as never)) continue;
+      assert.ok((JOB_TRANSITIONS[from] ?? []).includes(to), `${from} → ${to} is offered to the office but is not a legal transition`);
+    }
   }
   for (const s of ["quote_requested", "quote_submitted", "needs_pricing", "awaiting_po", "awaiting_pictures", "invoice_trouble"]) assert.ok(!DEVICE_TRANSITIONS.includes(s), `${s} is the office's, not the field's`);
+});
+
+test("closing out is the office's: it reaches complete from every field state, and a device still walks to complete only from in_progress", async () => {
+  const { JOB_TRANSITIONS } = await import("./index.ts");
+  const { OFFICE_JOB_TRANSITIONS, OFFICE_CLOSE_OUT_FROM } = await import("../../../contracts/src/operations.ts");
+  for (const from of OFFICE_CLOSE_OUT_FROM) assert.ok(OFFICE_JOB_TRANSITIONS[from]?.includes("complete"), `the office cannot close a job out of ${from}`);
+  for (const from of OFFICE_CLOSE_OUT_FROM) {
+    if (from !== "in_progress") assert.ok(!(JOB_TRANSITIONS[from] ?? []).includes("complete"), `${from} → complete leaked into the device's machine`);
+  }
+  for (const from of ["assigned", "en_route", "on_site"]) {
+    const r = resolveMutation(m({ payload: { state: "complete" } }), { version: 3, state: from, fields: {} }, none);
+    assert.notEqual(r.outcome, "applied", `a device closed a job out of ${from}`);
+  }
 });

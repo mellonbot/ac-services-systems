@@ -364,6 +364,24 @@ test("a running time clock is saved with the queue: a new sign-in on the same de
   assert.match(render(second.app.view()), /Running since/);
 });
 
+test("finishing a job with the clock running stops the clock first: the span is sent ahead of the transition, because a finished job drops off this list", async () => {
+  const sent: SyncMutationWire[] = [];
+  const { app } = await ready({
+    jobs: [{ ...job, state: "in_progress" }],
+    syncHandler: (ms) => { sent.push(...ms); return { status: 200, body: { outcomes: ms.map((m) => ({ outcome: "applied", mutationId: m.mutationId, newVersion: 4 })) } }; },
+  });
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  app.router.navigate("job", { jobId: JOB });
+  render(app.view()); await settle(); await settle();
+  click(app.view(), "clock-toggle");
+  assert.ok(p.clock.value[JOB]);
+  click(app.view(), "to-complete");
+  for (let i = 0; i < 4; i++) await settle();
+  assert.deepEqual(sent.map((m) => m.entityTable), ["time_entries", "jobs"]);
+  assert.equal(p.clock.value[JOB], undefined, "the clock is not left running on a job the device can no longer open");
+});
+
 test("another technician's queue on this device is left alone and the signed-in tech is told it exists, not handed it", async () => {
   const store = memory();
   const otherKey = queueKey(DEVICE, "tech-2");
