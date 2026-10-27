@@ -222,14 +222,17 @@ async function main(): Promise<void> {
     // ── 4. a firm cannot be recorded without an OQ5 position
     await cdp.navigate(`${SITE}${SURFACE_PATHS.S2}/network/firms/new`);
     await cdp.waitFor(`document.getElementById("firm-form")`, "the firm form");
-    const disabled = await cdp.eval<boolean>(`!!document.getElementById("record-firm")?.disabled`);
+    // aria-disabled, not disabled: a natively disabled button is skipped by focus, and the reason beside it is the point.
+    const disabled = await cdp.eval<boolean>(`document.getElementById("record-firm")?.getAttribute("aria-disabled") === "true"`);
     must(disabled, "the record button should be disabled while OQ5 is unset");
+    const reason = await cdp.eval<string>(`document.querySelector("#record-firm + .ac-action__reason")?.textContent ?? ""`);
+    must(reason.includes("diagnostic data rights"), `the disabled button should say why beside it, got ${JSON.stringify(reason)}`);
     check(4, "OQ5 unstated — the record button is disabled, nothing is sent");
 
     // ── 5. stating it enables the form, and the firm is recorded
     const name = `Drive Mechanical ${RUN}`;
     await cdp.eval(`(() => { const r = document.querySelector('#firm-oq5 input[value="reserved"]'); r.click(); return true; })()`);
-    await cdp.waitFor(`!document.getElementById("record-firm")?.disabled`, "the record button to enable");
+    await cdp.waitFor(`document.getElementById("record-firm")?.getAttribute("aria-disabled") === "false"`, "the record button to enable");
     await cdp.eval(`(() => { const s = document.querySelector('#firm-form select[name="regionId"]'); s.selectedIndex = 0; s.dispatchEvent(new Event("change", {bubbles:true})); return true; })()`);
     await cdp.eval(fillAndSubmit("firm-form", { legalName: name, settlementTermsDays: "30" }));
     await cdp.waitFor(`${text}.includes(${JSON.stringify(name)})`, "the recorded firm");
