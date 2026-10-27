@@ -34,7 +34,11 @@ CREATE INDEX IF NOT EXISTS shift_punches_region_id_idx ON shift_punches (region_
 CREATE INDEX IF NOT EXISTS shift_punches_technician_id_punched_at_idx ON shift_punches (technician_id, punched_at);
 CREATE INDEX IF NOT EXISTS shift_punches_grant_id_idx ON shift_punches (grant_id);
 
--- 3. Read and add, never change.
+-- 3. Read and add, never change. On a fresh database 0002's GRANT ON ALL
+-- TABLES reached this table first (0001 creates it), so what it gave is
+-- taken back here rather than assumed absent (as 0010 does for its rollup).
+REVOKE UPDATE, DELETE, TRUNCATE ON shift_punches FROM ac_gateway, ac_worker, ac_readonly;
+REVOKE INSERT ON shift_punches FROM ac_worker, ac_readonly;
 GRANT SELECT, INSERT ON shift_punches TO ac_gateway;
 GRANT SELECT ON shift_punches TO ac_worker, ac_readonly;
 
