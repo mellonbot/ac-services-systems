@@ -758,3 +758,8 @@ test("job detail: a reply to the customer goes once for a double click, and its 
   assert.equal(gateway.calls.filter((c) => c.path === OPERATIONS["jobs.postMessage"].path).length, 1);
   assert.match(render(app.view()), /Reply posted to the customer thread\./);
 });
+
+test("nothing a dispatcher reads is set below the 12px floor", async () => {
+  const { S3_CSS } = await import("./styles.ts");
+  assert.doesNotMatch(S3_CSS, /font-size:var\(--text-xs\)/, "job bars, hours, legend and flags are read all day — 12px, not 11");
+});
