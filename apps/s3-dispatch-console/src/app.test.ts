@@ -703,3 +703,26 @@ test("Assign, clicked: a failed request says so instead of nothing, and a double
   assert.match(render(app.view()), /Crew A1 was not assigned/);
   assert.match(render(app.view()), new RegExp(`id="assign-${CREW_A}"[^>]*>Assign<`), "the button is back for another try");
 });
+
+test("job dashboard: Declined asks before it cancels the job; nothing is sent until it is confirmed", async () => {
+  const quoted: JobWire = { ...jobCreated, id: U(41), state: "quote_submitted" };
+  const moves: unknown[] = [];
+  const { app, gateway } = await ready({
+    [OPERATIONS["jobs.list"].path]: { status: 200, body: { jobs: [quoted] } },
+    [OPERATIONS["jobs.transition"].path]: (init) => { moves.push(JSON.parse(String(init?.body))); return { status: 200, body: { jobId: U(41), state: "cancelled", version: 2, eventId: "e" } }; },
+  });
+  app.router.navigate("jobs", {});
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  (nodesIn(app.view()).find((n) => n.type === "button" && (n.props?.children as unknown[] | string | undefined)?.toString().includes("Waiting on customer"))!.props!.onClick as () => void)();
+  const click = (id: string) => (nodesIn(app.view()).find((n) => n.props?.id === id)!.props!.onClick as () => void)();
+  click(`move-${U(41)}-cancelled`);
+  assert.match(render(app.view()), new RegExp(`Decline job ${U(41)}\\? It is cancelled, and that cannot be undone here\\.`));
+  assert.equal(moves.length, 0, "a click on Declined sends nothing yet");
+  click(`move-${U(41)}-cancelled-keep`);
+  assert.doesNotMatch(render(app.view()), /Decline job/);
+  click(`move-${U(41)}-cancelled`);
+  click(`move-${U(41)}-cancelled-yes`);
+  await settle(); await settle();
+  assert.equal(gateway.calls.filter((c) => c.path === OPERATIONS["jobs.transition"].path).length, 1);
+  assert.equal((moves[0] as { to: string }).to, "cancelled");
+});

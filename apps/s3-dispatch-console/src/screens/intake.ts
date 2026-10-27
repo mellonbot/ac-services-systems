@@ -1,7 +1,7 @@
-import { html, signal, DataGrid, StatusPill, PrimaryAction, pageHead, statStrip, panel, shortRef, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, DataGrid, StatusPill, PrimaryAction, pageHead, statStrip, panel, shortRef, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import { TERMS, SERVICE_CATALOG, JOB_WORK_CLASS_LABEL, type ServiceRequestWire, type ServiceRequestPriority, type JobPriority, type Refusal } from "../../../../packages/contracts/src/index.ts";
-import { keyOf, type Store } from "../state.ts";
-import { whenReady, homeMark, linkTo, refusalView, type Screen, type ScreenContext } from "./common.ts";
+import { keyOf } from "../state.ts";
+import { whenReady, homeMark, linkTo, refusalView, perStore, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL } from "./jobs.ts";
 
 /**
@@ -46,14 +46,6 @@ export const age = (iso: string, now: number): string => {
   return m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m / 60)}h` : `${Math.floor(m / 1440)}d`;
 };
 
-export const perStore = <T>(initial: T) => {
-  const m = new WeakMap<Store, Signal<T>>();
-  return (store: Store): Signal<T> => {
-    let s = m.get(store);
-    if (!s) { s = signal<T>(initial); m.set(store, s); }
-    return s;
-  };
-};
 const showFor = perStore<Show>("waiting");
 const viewingFor = perStore<Viewing>(null);
 type Opening = { readonly requestId: string; readonly busy: boolean; readonly refusal: Refusal | null } | null;

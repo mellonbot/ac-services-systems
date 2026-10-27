@@ -3,8 +3,7 @@ import { serviceLabel } from "../../../../packages/contracts/src/index.ts";
 import type { JobWire, CandidateCrewWire } from "../../../../packages/contracts/src/index.ts";
 import { JOB_WORK_CLASS_LABEL, CREW_KIND_LABEL, crewKindFor } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, type Screen } from "./common.ts";
-import { perStore } from "./intake.ts";
+import { whenReady, perStore, type Screen } from "./common.ts";
 
 /** The crew an Assign is in flight for — one at a time, so a second click cannot send a second assignment. */
 const assigningFor = perStore<string | null>(null);

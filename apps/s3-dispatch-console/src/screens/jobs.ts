@@ -1,7 +1,7 @@
 import { html, signal, DataGrid, StatusPill, pageHead, statStrip, panel, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import { serviceLabel, OFFICE_JOB_TRANSITIONS, JOB_WORK_CLASS_LABEL, type JobWire, type JobStateWire, type AddressWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
-import { whenReady, homeMark, linkTo, submitAction, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, homeMark, linkTo, submitAction, perStore, type Screen, type ScreenContext } from "./common.ts";
 import { slaStatus, isDispatchable } from "./board.ts";
 
 /**
@@ -122,12 +122,25 @@ const bucketCard = (bucket: (typeof BUCKETS)[number], jobs: readonly JobWire[]):
   </div>`;
 };
 
+/**
+ * A move in flight, or one waiting on its confirmation. Declining cancels the
+ * job, and nothing in OFFICE_JOB_TRANSITIONS leads back out of cancelled, so
+ * that one asks first; the rest go on the click, one at a time per row.
+ */
+type Moving = { readonly jobId: string; readonly to: JobStateWire; readonly busy: boolean } | null;
+const movingFor = perStore<Moving>(null);
+
 const moveJob = async (ctx: ScreenContext, job: JobWire, to: JobStateWire): Promise<void> => {
+  const moving = movingFor(ctx.store);
+  if (moving.value?.busy) return;
+  moving.value = { jobId: job.id, to, busy: true };
   try {
     await ctx.shell.gateway.transitionJob({ jobId: job.id, orgId: job.orgId, regionId: job.regionId, to });
     ctx.store.notice.value = [to === "created" ? `Job ${job.id}: approved — back to dispatch.` : to === "complete" ? `Job ${job.id}: ready to invoice.` : `Job ${job.id}: ${STATE_LABEL[to].toLowerCase()}.`];
   } catch {
     ctx.store.notice.value = [`Job ${job.id} did not move — it may have changed since this page loaded. The list has been refreshed.`];
+  } finally {
+    moving.value = null;
   }
   ctx.store.invalidate("jobs.list");
 };
@@ -157,6 +170,7 @@ export const jobs: Screen = (ctx) => {
   const list = ctx.store.read(keyOf("jobs.list", {}), () => ctx.shell.gateway.listJobs({}));
   const filter = filterFor(ctx.store);
   const draft = draftFor(ctx.store);
+  const moving = movingFor(ctx.store);
   const now = Date.now();
 
   const noteCell = (j: JobWire): VNode => {
@@ -195,10 +209,22 @@ export const jobs: Screen = (ctx) => {
     { key: "sla", header: "SLA", cell: (j) => j.slaDueAt && !j.slaSatisfiedAt
       ? StatusPill({ density: ctx.density, status: slaStatus(j, now) })
       : html`<span class="s3-muted">—</span>` },
-    { key: "move", header: "Move", cell: (j) => html`<span class="s3-moves">${isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act") : null}${(OFFICE_JOB_TRANSITIONS[j.state] ?? []).map((to) =>
-      html`<button type="button" class="s3-act" id=${`move-${j.id}-${to}`} disabled=${ctx.degraded}
-        title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
-        onClick=${() => void moveJob(ctx, j, to)}>${MOVE_LABEL[to] ?? STATE_LABEL[to]}</button>`)}</span>` },
+    { key: "move", header: "Move", cell: (j) => {
+      const m = moving.value?.jobId === j.id ? moving.value : null;
+      if (m && m.to === "cancelled" && !m.busy) {
+        return html`<span class="s3-confirm s3-confirm--cell" role="group" aria-labelledby=${`decline-${j.id}`}>
+          <strong id=${`decline-${j.id}`}>Decline job ${j.id}? It is cancelled, and that cannot be undone here.</strong>
+          <span class="s3-row-actions">
+            <button type="button" class="s3-act" id=${`move-${j.id}-cancelled-yes`} disabled=${ctx.degraded} onClick=${() => void moveJob(ctx, j, "cancelled")}>Cancel the job</button>
+            <button type="button" class="s3-act" id=${`move-${j.id}-cancelled-keep`} onClick=${() => { moving.value = null; }}>Keep it</button>
+          </span>
+        </span>`;
+      }
+      return html`<span class="s3-moves">${isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act") : null}${(OFFICE_JOB_TRANSITIONS[j.state] ?? []).map((to) =>
+        html`<button type="button" class="s3-act" id=${`move-${j.id}-${to}`} disabled=${ctx.degraded || m !== null}
+          title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
+          onClick=${() => { if (to === "cancelled") moving.value = { jobId: j.id, to, busy: false }; else void moveJob(ctx, j, to); }}>${m?.busy && m.to === to ? "Saving…" : MOVE_LABEL[to] ?? STATE_LABEL[to]}</button>`)}</span>`;
+    } },
     { key: "note", header: "Note", cell: noteCell },
     { key: "age", header: "Days in status", numeric: true, align: "end", cell: (j) => html`<span title=${`In this status since ${new Date(j.stateChangedAt).toLocaleString()}`}>${daysInState(j, now)}d</span>` },
   ];

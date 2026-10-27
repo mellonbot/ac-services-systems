@@ -1,4 +1,4 @@
-import { html, retryable, RefusalCard, PrimaryAction, type VNode, type Router } from "../../../../packages/ui/src/index.ts";
+import { html, signal, retryable, RefusalCard, PrimaryAction, type Signal, type VNode, type Router } from "../../../../packages/ui/src/index.ts";
 import type { Shell } from "../../../../packages/shell/src/index.ts";
 import type { Refusal, DensityOf, CustomerSegment } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
@@ -41,6 +41,16 @@ export const submitAction = (ctx: ScreenContext, label: string, onClick: () => v
     ...(id ? { id } : {}),
     ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : {}),
   }) ?? html``;
+
+/** A signal per store: screen state that lives as long as the session's store, and no longer. */
+export const perStore = <T>(initial: T) => {
+  const m = new WeakMap<Store, Signal<T>>();
+  return (store: Store): Signal<T> => {
+    let s = m.get(store);
+    if (!s) { s = signal<T>(initial); m.set(store, s); }
+    return s;
+  };
+};
 
 /** A homeowner, marked where the office reads a site (0019) — commercial is the default and carries no mark. */
 export const homeMark = (segment: CustomerSegment | null): VNode | null =>

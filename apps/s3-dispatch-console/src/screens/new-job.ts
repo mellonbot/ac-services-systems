@@ -2,8 +2,8 @@ import { html, PrimaryAction, pageHead, panel, shortRef, type VNode } from "../.
 import type { JobPriority, ProjectWire, Refusal, SiteWire } from "../../../../packages/contracts/src/index.ts";
 import { JOB_WORK_CLASSES, JOB_WORK_CLASS_LABEL, SERVICE_CATALOG, serviceLabel, serviceOf } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, type Screen, type ScreenContext } from "./common.ts";
-import { perStore, defaultWindow, JOB_PRIORITIES, PRIORITY_WORD } from "./intake.ts";
+import { whenReady, refusalView, perStore, type Screen, type ScreenContext } from "./common.ts";
+import { defaultWindow, JOB_PRIORITIES, PRIORITY_WORD } from "./intake.ts";
 
 /**
  * NEW JOB — a job with no portal request behind it: the customer phoned.
