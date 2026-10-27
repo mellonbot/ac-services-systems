@@ -175,8 +175,9 @@ export const purchasingVendor: Screen = (ctx, params) => {
     e.preventDefault();
     const form = e.currentTarget as HTMLFormElement;
     const v = formValues(form);
-    const lines = Object.entries(v).filter(([k, q]) => k.startsWith("qty:") && q).map(([k, q]) => ({ itemId: k.slice(4), quantityMilli: toMilli(q) }));
     void act(ctx, async () => {
+      // Parsed inside act, so "2 boxes" is a refusal on screen rather than an uncaught throw.
+      const lines = Object.entries(v).filter(([k, q]) => k.startsWith("qty:") && q).map(([k, q]) => ({ itemId: k.slice(4), quantityMilli: toMilli(q) }));
       if (lines.length === 0) throw new Error("Enter a quantity on at least one item.");
       const out = await shell.gateway.createPurchaseOrder({ vendorId, receivingPointId: v.receivingPointId ?? "", lines });
       ctx.router.navigate("purchasing.po", { poId: out.id });
@@ -257,8 +258,8 @@ export const purchasingPo: Screen = (ctx, params) => {
   const receive = (e: Event, lines: readonly PoLineWire[]) => {
     e.preventDefault();
     const v = formValues(e.currentTarget as HTMLFormElement);
-    const got = lines.filter((l) => v[`rcv:${l.id}`]).map((l) => ({ poLineId: l.id, quantityMilli: toMilli(v[`rcv:${l.id}`]!) }));
     void act(ctx, async () => {
+      const got = lines.filter((l) => v[`rcv:${l.id}`]).map((l) => ({ poLineId: l.id, quantityMilli: toMilli(v[`rcv:${l.id}`]!) }));
       if (got.length === 0) throw new Error("Enter what arrived on at least one line.");
       const out = await shell.gateway.recordReceipt({ poId, lines: got });
       return out.state === "received" ? "Received in full. The order is closed for receiving." : "Receipt recorded. The rest is still to come.";

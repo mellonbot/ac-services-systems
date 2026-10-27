@@ -122,3 +122,26 @@ test("ORDER: per-line ordered, shipped, received, invoiced; a receipt form for w
   assert.equal(out.match(/<h1/g)?.length, 1, "one page head per screen");
   for (const h of ["Receive goods", "Shipments", "Vendor invoices", "Returns"]) assert.match(out, new RegExp(`<h2 class="ac-panel__title">${h}</h2>`));
 });
+
+type TestNode = { readonly type?: unknown; readonly props?: Record<string, unknown> & { readonly children?: unknown } };
+const nodesIn = (node: unknown): TestNode[] => {
+  if (Array.isArray(node)) return node.flatMap(nodesIn);
+  if (!node || typeof node !== "object") return [];
+  const current = node as TestNode;
+  return [current, ...nodesIn(current.props?.children)];
+};
+
+test("ORDER: a quantity that is not a number is refused on screen, not swallowed", async () => {
+  const { app, g } = await ready();
+  app.router.navigate("purchasing.po", { poId: PO });
+  render(app.view()); await settle();
+  const values: Record<string, string> = { [`rcv:${LINE}`]: "2 boxes" };
+  const RealFormData = globalThis.FormData;
+  globalThis.FormData = class { forEach(f: (v: string, k: string) => void) { for (const [k, v] of Object.entries(values)) f(v, k); } } as unknown as typeof FormData;
+  try {
+    (nodesIn(app.view()).find((n) => n.type === "form" && n.props?.id === "receive-form")!.props!.onSubmit as (e: unknown) => void)({ preventDefault() {}, currentTarget: {} });
+    await settle();
+  } finally { globalThis.FormData = RealFormData; }
+  assert.match(render(app.view()), /&quot;2 boxes&quot; is not a quantity/);
+  assert.ok(!g.calls.some((c) => c.path === OPERATIONS["receipts.record"].path), "nothing is sent");
+});
