@@ -3,7 +3,7 @@ import type { Kind, KindId, UserRecord } from "../kinds.ts";
 import { ROLES, CUSTOMER_ROLES, type CustomerRole } from "../../../../packages/contracts/src/scope.ts";
 import type { Role } from "../../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../../packages/contracts/src/tiers.ts";
-import type { CustomerSegment } from "../../../../packages/contracts/src/operations.ts";
+import type { CustomerSegment, DeviceKind } from "../../../../packages/contracts/src/operations.ts";
 import type { Api } from "../preload.ts";
 import type { DbName } from "../connections.ts";
 import type { NewLogin } from "../rows.ts";
@@ -157,6 +157,7 @@ const renderTable = (): void => {
         ? [
           h("button", { type: "button", onclick: () => resetForm(u) }, "Reset password"),
           h("button", { type: "button", onclick: () => editForm(u) }, "Edit"),
+          kind.id === "S5" && h("button", { type: "button", onclick: () => void shiftForm(u) }, "Grant shift"),
           h("button", { type: "button", onclick: () => void remove(u) }, "Remove"),
         ]
         : [h("button", { type: "button", onclick: () => void reactivate(u) }, "Reactivate")]))))));
@@ -523,6 +524,42 @@ const addForm = async (): Promise<void> => {
 const resetForm = (u: UserRecord): void => {
   const db = state.db;
   openForm(`Reset password — ${u.email}`, passwordFields(), async (f) => (await api.resetPassword(db, u.id, str(f, "password"))).revokedSessions);
+};
+
+const NEW_DEVICE = "new";
+const DEVICE_KINDS: readonly [DeviceKind, string][] = [["web_fallback", "Web fallback (browser)"], ["android_pilot", "Android pilot"], ["yocto_tablet", "Field tablet"]];
+/** A datetime-local value in this machine's wall clock. */
+const localInput = (d: Date): string => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+
+/** S5 signs a technician in with a device ID plus their own login, only while a grant on that device covers now. */
+const shiftForm = async (u: UserRecord): Promise<void> => {
+  const db = state.db;
+  let devices;
+  try { devices = (await api.listDevices(db)).filter((d) => d.active); } catch (e) { if (!stale(db)) banner(message(e)); return; }
+  if (stale(db)) return;
+  const device = select("deviceId", [...devices.map((d): [string, string] => [d.id, d.hardwareId]), [NEW_DEVICE, "New device…"]]);
+  if (devices.length === 0) device.value = NEW_DEVICE;
+  const fresh = branch(
+    field("Device ID", input("hardwareId", { autocomplete: "off" })),
+    field("Kind", select("kind", DEVICE_KINDS)),
+  );
+  (fresh.querySelector("select[name=kind]") as HTMLSelectElement).value = "web_fallback";
+  const sync = (): void => showBranch(fresh, device.value === NEW_DEVICE);
+  device.addEventListener("change", sync);
+  sync();
+  const now = new Date();
+  openForm(`Grant shift — ${u.email}`, [
+    field("Device", device), fresh,
+    field("Shift starts", input("windowStart", { type: "datetime-local", value: localInput(now) })),
+    field("Shift ends", input("windowEnd", { type: "datetime-local", value: localInput(new Date(now.getTime() + 12 * 3_600_000)) })),
+    h("p", { class: "hint" }, "They sign in to the technician app with the device ID, their email and password, only inside this window."),
+  ], async (f) => {
+    await api.grantShift(db, {
+      userId: u.id,
+      device: str(f, "deviceId") === NEW_DEVICE ? { hardwareId: str(f, "hardwareId"), kind: str(f, "kind") as DeviceKind } : { id: str(f, "deviceId") },
+      windowStart: new Date(str(f, "windowStart")).toISOString(), windowEnd: new Date(str(f, "windowEnd")).toISOString(),
+    });
+  });
 };
 
 const editForm = async (u: UserRecord): Promise<void> => {

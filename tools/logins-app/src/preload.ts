@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DbName } from "./connections.ts";
 import type { UserRecord } from "./kinds.ts";
 import type { NewLogin } from "./rows.ts";
-import type { Region, Firm, Company, CustomerOrg, AccountNode, LoginEdit } from "./db.ts";
+import type { Region, Firm, Company, CustomerOrg, AccountNode, LoginEdit, Device, NewShift } from "./db.ts";
 import type { NewCompany } from "./companies.ts";
 
 export type Api = {
@@ -24,12 +24,15 @@ export type Api = {
   editLogin(db: DbName, userId: string, e: LoginEdit): Promise<{ revokedSessions: number }>;
   deactivate(db: DbName, userId: string): Promise<{ revokedSessions: number }>;
   reactivate(db: DbName, userId: string): Promise<void>;
+  listDevices(db: DbName): Promise<readonly Device[]>;
+  grantShift(db: DbName, n: NewShift): Promise<{ grantId: string; deviceId: string }>;
 };
 
 const METHODS = [
   "connections", "setConnection", "select", "listUsers", "listRegions", "listFirms",
   "listCompanies", "addCompany", "removeCompany", "reactivateCompany", "listCustomerOrgs",
   "listAccountTree", "addLogin", "resetPassword", "editLogin", "deactivate", "reactivate",
+  "listDevices", "grantShift",
 ] as const satisfies readonly (keyof Api)[];
 
 // Electron wraps a rejected handler as "Error invoking remote method 'x': Error: <message>"; the window shows only <message>.

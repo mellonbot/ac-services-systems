@@ -22,6 +22,7 @@ import { networkRates } from "./screens/network-rates.ts";
 import { networkTechnicianNew, networkTechnicianEdit } from "./screens/network-technicians.ts";
 import { purchasing, purchasingVendor, purchasingPo, refreshProcurement } from "./screens/purchasing.ts";
 import { billing, billingInvoice, refreshBilling } from "./screens/billing.ts";
+import { devices, devicesNew, devicesGrant } from "./screens/devices.ts";
 import { S2_CSS } from "./styles.ts";
 
 /**
@@ -71,6 +72,9 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "purchasing.po": purchasingPo,
   "billing": billing,
   "billing.invoice": billingInvoice,
+  "devices": devices,
+  "devices.new": devicesNew,
+  "devices.grant": devicesGrant,
 };
 
 const NAV_GROUPS = [
@@ -78,6 +82,7 @@ const NAV_GROUPS = [
   { label: "Technician Network", screens: ["network"] as const },
   { label: "Purchasing", screens: ["purchasing"] as const },
   { label: "Billing", screens: ["billing"] as const },
+  { label: "Field devices", screens: ["devices"] as const },
 ] as const;
 
 /** A terminated firm will field no more crews for us, so the picker does not offer it; it stays in the screen's firm list. */
@@ -120,6 +125,9 @@ const ROUTE_LABELS: Readonly<Record<Exclude<ScreenId, "login">, string>> = {
   "purchasing.po": "Purchase order",
   "billing": "Billing",
   "billing.invoice": "Invoice",
+  "devices": "Field devices",
+  "devices.new": "New device",
+  "devices.grant": "Grant a shift",
 };
 
 const navGroupFor = (screen: Exclude<ScreenId, "login">): (typeof NAV_GROUPS)[number] | undefined =>
@@ -129,7 +137,8 @@ const navGroupFor = (screen: Exclude<ScreenId, "login">): (typeof NAV_GROUPS)[nu
     (id === "contracts.list" && (screen.startsWith("contracts.") || screen.startsWith("terms."))) ||
     (id === "network" && screen.startsWith("network.")) ||
     (id === "purchasing" && screen.startsWith("purchasing.")) ||
-    (id === "billing" && screen.startsWith("billing."))));
+    (id === "billing" && screen.startsWith("billing.")) ||
+    (id === "devices" && screen.startsWith("devices."))));
 
 const navTargetFor = (screen: Exclude<ScreenId, "login">): Exclude<ScreenId, "login"> => {
   if (screen === "organizations.new" || screen.startsWith("accounts.")) return "accounts.tree";
@@ -137,6 +146,7 @@ const navTargetFor = (screen: Exclude<ScreenId, "login">): Exclude<ScreenId, "lo
   if (screen.startsWith("network.")) return "network";
   if (screen.startsWith("purchasing.")) return "purchasing";
   if (screen.startsWith("billing.")) return "billing";
+  if (screen.startsWith("devices.")) return "devices";
   return screen;
 };
 

@@ -8,7 +8,8 @@ import { buildUserRow, checkPassword, checkRoles, internalScope, accessChanged, 
 import type { NewLogin, Access, UsersRow, Employer, Unit } from "./rows.ts";
 import { hashPassword } from "../../../apps/gateway/src/auth.ts";
 import { summarizeDocuments } from "../../../apps/gateway/src/handlers/network.ts";
-import type { CredentialWire } from "../../../packages/contracts/src/operations.ts";
+import type { CredentialWire, DeviceKind } from "../../../packages/contracts/src/operations.ts";
+import { registerDevice, grantDeviceShift, type DeviceWriter } from "../../../apps/gateway/src/handlers/devices.ts";
 import { randomUUID } from "node:crypto";
 import { isTopic, type Topic } from "../../../packages/contracts/src/events.ts";
 import { buildCrewRow, buildFirmRows, documentsLabel, normaliseName } from "./companies.ts";
@@ -39,6 +40,15 @@ export type Company = {
 };
 export type CustomerOrg = { id: string; name: string; segment: CustomerSegment };
 export type AccountNode = { id: string; tier: "region" | "location" | "site"; name: string; parentId: string | null; regionId: string };
+/** Hardware a technician signs in to S5 with (D-2a). */
+export type Device = { id: string; hardwareId: string; kind: DeviceKind; active: boolean };
+/** A technician's shift on a device: an existing one, or one registered in the same transaction under the technician's employer. */
+export type NewShift = {
+  readonly userId: string;
+  readonly device: { readonly id: string } | { readonly hardwareId: string; readonly kind: DeviceKind };
+  /** ISO instants; the window is [start, end). */
+  readonly windowStart: string; readonly windowEnd: string;
+};
 export type LoginEdit = {
   readonly displayName: string;
   readonly roles?: readonly Role[];
@@ -59,6 +69,8 @@ export type LoginsDb = {
   listCustomerOrgs(): Promise<readonly CustomerOrg[]>;
   listAccountTree(orgId: string): Promise<readonly AccountNode[]>;
   addLogin(n: NewLogin): Promise<{ id: string }>;
+  listDevices(): Promise<readonly Device[]>;
+  grantShift(n: NewShift): Promise<{ grantId: string; deviceId: string }>;
   resetPassword(userId: string, password: string): Promise<{ revokedSessions: number }>;
   editLogin(userId: string, edit: LoginEdit): Promise<{ revokedSessions: number }>;
   deactivate(userId: string): Promise<{ revokedSessions: number }>;
@@ -142,7 +154,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
   type Q = <R>(sql: string, params?: readonly unknown[]) => Promise<readonly R[]>;
 
   type Change = { topic: Topic; action: string; entity: string; entityId: string; orgId: string; regionId: string; after: unknown };
-  const emit = async (q: Q, c: Change): Promise<void> => {
+  const emit = async (q: Q, c: Change): Promise<string> => {
     if (!isTopic(c.topic)) throw new LoginsDbError(`"${c.topic}" is not in the event catalogue`);
     const eventId = randomUUID();
     await q(
@@ -153,6 +165,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       `INSERT INTO outbox (event_id, topic, entity, entity_id, payload, actor_id, surface_id, region_id, org_id)
        VALUES ($1,$2,$3,$4,'{}'::jsonb,$5,'logins-app',$6,$7)`,
       [eventId, c.topic, c.entity, c.entityId, LOGINS_APP_ACTOR, c.regionId, c.orgId]);
+    return eventId;
   };
   /** Every user write ends here: one event, so S3's team list refetches. */
   const userChanged = async (q: Q, userId: string, topic: "user.created" | "user.updated", action: string): Promise<void> => {
@@ -457,6 +470,46 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
         return { revokedSessions: accessChanged(before, after) ? await revoke(q, userId) : 0 };
       });
     },
+
+    listDevices: async () => (await read<{ id: string; hardware_id: string; kind: DeviceKind; active: boolean }>(
+      `SELECT id, hardware_id, kind, active FROM devices ORDER BY hardware_id`)).map((d) => ({ id: d.id, hardwareId: d.hardware_id, kind: d.kind, active: d.active })),
+
+    // The checks are the gateway's own (devices.register, devices.grantShift), run in this
+    // transaction: one rule for who may hold which device when, whichever tool asks.
+    grantShift: (n) => attempt(async () => {
+      const tx = await beginTx(pool, "ac_logins");
+      try {
+        await tx.setLocal(INTERNAL_READ_BINDING as ScopeBinding);
+        const q: Q = (sql, params) => tx.query(sql, params);
+        const writer: DeviceWriter = {
+          tx,
+          apply: async (m, w) => {
+            await w(tx);
+            return emit(q, { topic: m.topic, action: m.action, entity: m.entity, entityId: m.entityId, orgId: m.orgId, regionId: m.regionId, after: m.after });
+          },
+        };
+        const [u] = await q<{ crew_id: string | null; active: boolean; home_region_id: string | null; firm_id: string | null }>(
+          `SELECT u.crew_id, u.active, c.home_region_id, c.firm_id FROM users u LEFT JOIN crews c ON c.id = u.crew_id WHERE u.id = $1`, [n.userId]);
+        if (!u) throw new LoginInputError(GONE);
+        if (!u.active) throw new LoginInputError("This login is removed. Reactivate it first.");
+        if (!u.crew_id || !u.home_region_id) throw new LoginInputError("Only a technician signs in on a device.");
+        let deviceId: string;
+        if ("id" in n.device) {
+          deviceId = n.device.id;
+        } else {
+          const taken = await q(`SELECT 1 FROM devices WHERE hardware_id = $1`, [n.device.hardwareId.trim()]);
+          if (taken.length > 0) throw new LoginInputError(`A device ${n.device.hardwareId.trim()} is already registered. Choose it from the list.`);
+          // A contractor's technician signs in on the firm's own hardware, as S2 records it.
+          deviceId = (await registerDevice(writer, { hardwareId: n.device.hardwareId, kind: n.device.kind, regionId: u.home_region_id, ...(u.firm_id ? { firmId: u.firm_id } : {}) }, randomUUID)).id;
+        }
+        const out = await grantDeviceShift(writer, LOGINS_APP_ACTOR, { deviceId, crewId: u.crew_id, technicianId: n.userId, windowStart: n.windowStart, windowEnd: n.windowEnd }, randomUUID);
+        await tx.commit();
+        return { grantId: out.id, deviceId };
+      } catch (e) {
+        await tx.rollback();
+        throw e;
+      }
+    }),
 
     deactivate: async (userId) => {
       const [who] = await read<{ crew_id: string | null }>(`SELECT crew_id FROM users WHERE id = $1`, [userId]);

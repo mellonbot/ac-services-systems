@@ -40,7 +40,10 @@ const requireOneOf = <T extends string>(v: unknown, field: string, legal: readon
 
 const DEVICE_KINDS: readonly DeviceKind[] = ["android_pilot", "yocto_tablet", "web_fallback"];
 
-const activeRegion = async (uow: UnitOfWork, regionId: string): Promise<{ id: string; code: string; name: string }> => {
+/** What the two writes below use of a unit of work. The logins app drives them through its own transaction (tools/logins-app/src/db.ts). */
+export type DeviceWriter = Pick<UnitOfWork, "tx" | "apply">;
+
+const activeRegion = async (uow: DeviceWriter, regionId: string): Promise<{ id: string; code: string; name: string }> => {
   const r = (await uow.tx.query<{ id: string; code: string; name: string; active: boolean }>("SELECT id, code, name, active FROM regions WHERE id = $1", [regionId]))[0];
   if (!r) throw new InputRefused(`no service region ${regionId}`, "unknown_region");
   if (!r.active) throw new InputRefused(`service region ${r.name} (${r.code}) is not active`, "unknown_region");
@@ -59,10 +62,11 @@ export const listDevices = async (uow: UnitOfWork, input: ListDevicesInput): Pro
   return { devices: rows.map(toWire) };
 };
 
-export const registerDevice = async (uow: UnitOfWork, input: RegisterDeviceInput, newId: () => string): Promise<RegisterDeviceOutput> => {
+export const registerDevice = async (uow: DeviceWriter, input: RegisterDeviceInput, newId: () => string): Promise<RegisterDeviceOutput> => {
   const hardwareId = requireText(input.hardwareId, "hardwareId");
   const kind = requireOneOf(input.kind, "kind", DEVICE_KINDS);
-  const publicKey = requireText(input.publicKey, "publicKey");
+  // A web fallback is a browser: there is no device-held key to record, so none is asked for.
+  const publicKey = kind === "web_fallback" && (input.publicKey === undefined || input.publicKey === "") ? "" : requireText(input.publicKey, "publicKey");
   const region = await activeRegion(uow, requireUuid(input.regionId, "regionId"));
 
   let firmId: string | null = null;
@@ -97,10 +101,9 @@ export const registerDevice = async (uow: UnitOfWork, input: RegisterDeviceInput
   return { id, orgId, regionId: region.id, eventId };
 };
 
-export const grantDeviceShift = async (uow: UnitOfWork, actorId: string, input: GrantShiftInput, newId: () => string): Promise<GrantShiftOutput> => {
+export const grantDeviceShift = async (uow: DeviceWriter, actorId: string, input: GrantShiftInput, newId: () => string): Promise<GrantShiftOutput> => {
   const deviceId = requireUuid(input.deviceId, "deviceId");
   const crewId = requireUuid(input.crewId, "crewId");
-  const technicianId = requireUuid(input.technicianId, "technicianId");
   const windowStart = requireIso(input.windowStart, "windowStart");
   const windowEnd = requireIso(input.windowEnd, "windowEnd");
   if (windowEnd.getTime() <= windowStart.getTime()) throw new InputRefused("windowEnd must be after windowStart — an empty shift grants nothing", "bad_window");
@@ -114,6 +117,22 @@ export const grantDeviceShift = async (uow: UnitOfWork, actorId: string, input: 
   ))[0];
   if (!crew) throw new InputRefused(`no crew ${crewId} visible in this scope`, "unknown_crew");
   if (!crew.active) throw new InputRefused(`crew ${crewId} is not active — a shift cannot be granted onto a crew nobody can dispatch`, "crew_inactive_for_grant");
+
+  // No technician named: since 0024 a technician's unit is theirs alone, so
+  // the unit's one active login is the person. None, or several on a shared
+  // crew made before 0024, and the grant is refused rather than guessed.
+  let technicianId: string;
+  if (input.technicianId === undefined) {
+    const members = await uow.tx.query<{ id: string }>(`SELECT id FROM users WHERE crew_id = $1 AND active`, [crewId]);
+    if (members.length !== 1) {
+      throw new InputRefused(members.length === 0
+        ? `crew ${crewId} has no active technician login — add one before granting a shift`
+        : `crew ${crewId} has ${members.length} active technician logins — name the technician`, "not_crew_member");
+    }
+    technicianId = members[0]!.id;
+  } else {
+    technicianId = requireUuid(input.technicianId, "technicianId");
+  }
 
   // The technician must actually be on this crew. Checked here, not trusted
   // from the input — a grant is a claim about who is holding the hardware.
