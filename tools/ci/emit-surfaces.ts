@@ -377,7 +377,7 @@ registry (\`src/screens.ts\`) checked against the operation catalogue.
  * source of truth and the second source is always the one people read.
  */
 export const renderBrandDoc = (): string => {
-  const light = semanticFor("comfort"), dark = semanticFor("field");
+  const light = semanticFor("comfort"), dark = semanticFor("plate");
   return `# ${BRAND.legalName} — brand
 
 > GENERATED from \`packages/tokens/\`. Edit the tokens, run
@@ -411,12 +411,14 @@ that fails the gate still falls behind, and the house is held to it.
 |---|---|---|
 ${(Object.keys(light) as (keyof typeof light)[]).map((k) => `| \`${k}\` | \`${light[k]}\` | light |`).join("\n")}
 
-## Field ground
+## The plate
 
-Not a dark theme — a second substrate. The tablet is read on a roof at 2pm in
-July, so this ground does not follow the viewer's preference. State is carried
-by form first — outline, outline, solid — and the garnet fill is the system's
-only solid chip, with the frost word on it at ${FIGURES.frostOnGarnet.measured.toFixed(2)}:1.
+The dark schedule, a region and not a theme: \`data-ground="plate"\` puts an
+element on it inside a light frame (the dispatch board's header bar). Rev D
+(2026-10-27) moved the field tier — S5, the tablet — onto the light stock, so
+the plate is the only place this schedule renders. State is carried by form
+first — outline, outline, solid — and the garnet fill is the system's only solid
+chip, with the frost word on it at ${FIGURES.frostOnGarnet.measured.toFixed(2)}:1.
 
 | Role | Value |
 |---|---|

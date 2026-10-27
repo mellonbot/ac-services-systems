@@ -69,23 +69,32 @@ export const SEMANTIC_DARK = Object.freeze({
   "color.status-breached-fill": P.plate.garnet,
 } as const satisfies Record<SemanticToken, string>);
 
-/** The semantic tier as a density sees it, before the brand layer is resolved. */
-export const semanticFor = (density: Density): Readonly<Record<SemanticToken, string>> =>
-  DENSITY[density].surface === "dark" ? SEMANTIC_DARK : SEMANTIC;
+/**
+ * What a schedule is measured on: a density's own frame, or the plate — the
+ * dark schedule a `data-ground="plate"` region puts inside a light frame.
+ * Rev D (2026-10-27) moved the field tier onto the light stock, so the plate
+ * is now the only place the dark schedule renders, and it is measured as a
+ * ground of its own rather than through a density that no longer wears it.
+ */
+export type Ground = Density | "plate";
+
+/** The semantic tier as a ground sees it, before the brand layer is resolved. */
+export const semanticFor = (ground: Ground): Readonly<Record<SemanticToken, string>> =>
+  ground === "plate" || DENSITY[ground].surface === "dark" ? SEMANTIC_DARK : SEMANTIC;
 
 /**
  * What the brand roles resolve to on a surface that renders a state ramp.
  *
  * Plate 04's verdict, applied to the house: an accent inside the state ramp's
  * hue range is admitted for the wordmark, the livery and marketing, and falls
- * back to Ink Black everywhere a state renders. In the field tier "Ink Black"
- * is frost — the plate ground's own ink.
+ * back to Ink Black everywhere a state renders. On the plate "Ink Black" is
+ * frost — the plate ground's own ink.
  */
 // `color.livery` and `color.livery-ink` are deliberately absent from what follows. They
 // are fenced by ELEMENT — the masthead lockup only — so the badge and the wordmark beside
 // it render as one mark on every surface. See LIVERY_ROLES in semantic.ts.
-export const neutralBrand = (density: Density): Readonly<Record<string, string>> => {
-  const sem = semanticFor(density);
+export const neutralBrand = (ground: Ground): Readonly<Record<string, string>> => {
+  const sem = semanticFor(ground);
   return {
     "color.brand": sem["color.text"],
     "color.brand-ink": sem["color.surface"],
@@ -104,10 +113,10 @@ export type FrameOptions = {
 
 /** The roles a frame emits, with the brand layer resolved for this surface. */
 export const rolesFor = (
-  density: Density,
+  ground: Ground,
   opts: FrameOptions = {},
 ): Readonly<Record<SemanticToken, string>> =>
-  opts.brandLayer ? semanticFor(density) : { ...semanticFor(density), ...neutralBrand(density) };
+  opts.brandLayer ? semanticFor(ground) : { ...semanticFor(ground), ...neutralBrand(ground) };
 
 /**
  * Everything the frame needs in one `:root` block: the semantic roles with the
@@ -166,11 +175,11 @@ const elevation = (dark: boolean): string[] => {
 };
 
 /**
- * THE PLATE, AS A REGION. `data-ground="plate"` puts an element on the field
- * ground inside a light frame — the dispatch board's header bar is the first.
- * It re-points the colour roles to the field schedule, which `contrastFailures
- * ("field")` already measures, so no ink is admitted here that is not measured
- * there; and it re-declares elevation, because a shadow resolved against the
+ * THE PLATE, AS A REGION. `data-ground="plate"` puts an element on the dark
+ * plate ground inside a light frame — the dispatch board's header bar is the
+ * first. It re-points the colour roles to the plate schedule, which
+ * `contrastFailures("plate")` measures, so no ink is admitted here that is not
+ * measured there; and it re-declares elevation, because a shadow resolved against the
  * light stock's ink would be a cream glow on this ground. Density does not
  * change: a plate region in a console is still console type and console hit
  * boxes. The brand layer resolves as the frame's does.
@@ -178,7 +187,7 @@ const elevation = (dark: boolean): string[] => {
 export const PLATE_SCOPE = `[data-ground="plate"]`;
 
 const plateScope = (opts: FrameOptions): string => {
-  const sem = rolesFor("field", opts);
+  const sem = rolesFor("plate", opts);
   const lines = (Object.keys(sem).sort() as SemanticToken[]).map((k) => `${cssVar(k)}:${sem[k]}`);
   lines.push(...elevation(true), "color:var(--color-text)");
   return `${PLATE_SCOPE}{${lines.join(";")}}`;
@@ -272,11 +281,11 @@ export const ON_FILL = Object.freeze([
  * resolutions of the brand layer, because a surface gets one or the other and
  * a schedule that only holds for one of them is half a schedule.
  */
-export const contrastFailures = (density: Density): readonly string[] => {
+export const contrastFailures = (ground: Ground): readonly string[] => {
   const out: string[] = [];
   for (const brandLayer of [true, false]) {
-    const sem = rolesFor(density, { brandLayer });
-    const tag = `${density}${brandLayer ? " (brand layer)" : ""}`;
+    const sem = rolesFor(ground, { brandLayer });
+    const tag = `${ground}${brandLayer ? " (brand layer)" : ""}`;
     const check = (fg: SemanticToken, bg: SemanticToken, min: number, what: string) => {
       if (sem[bg] === "transparent") return;
       const r = contrastRatio(sem[fg], sem[bg]);

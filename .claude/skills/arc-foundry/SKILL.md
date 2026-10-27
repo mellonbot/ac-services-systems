@@ -89,25 +89,29 @@ neutral.
 The arc — envelope `#0A4F66`, core `#7FE9FF` — survives as the focus ring alone. A focus ring
 in a hue no control is painted in is easier to find, not harder.
 
-## Field ground — fixed, never themed
+## The plate — the dark schedule, a region not a theme
 
-Not a dark theme. A **second substrate**: the tablet is read on a roof at 2pm in July, so
-this ground does not follow the viewer's preference, and it is computed rather than
-re-pointed because a light ramp measured here fails outright — and the worst failure is
-always the most urgent state.
+**Rev D (2026-10-27): the field tier is on the light stock.** S5 keeps every field-density
+rule — 56px targets, 18px body, 3px focus, no hover — and wears the light stock's inks, all
+measured against `--color-surface-sunken` like every other surface. Dark ink on a light ground
+holds up under glare on a glossy tablet; an emissive dark ground washes out to the
+reflection. The dark schedule below is now **the plate's alone**: `data-ground="plate"` puts
+a region on it inside a light frame (the dispatch board's header bar), and
+`contrastFailures("plate")` measures it as a ground of its own. It is not a theme a viewer
+picks, and a surface does not switch to it wholesale.
 
 page `#080D11` · surface `#111A20` · sunken `#050A0D` · border `#253039` ·
 border-hard `#55636F` · text `#E4ECF2` · text-muted `#91A1AE` (labels and units only, never
 a value) · action `#D91F11` (3.48:1, a fill) · action-ink `#FFFFFF` · action-text and
 brand-text `#F4796C` (6.54:1 — the red word here) · action-pressed `#A81208` · focus ring
 `#7FE9FF` · ok `#5FD39B` · at-risk `#E8B23C` · breached `#E4ECF2` (the **word**) ·
-breached-fill `#7A2A5E` garnet, the tier's only solid chip (frost on it 7.58:1).
+breached-fill `#7A2A5E` garnet, the plate's only solid chip (frost on it 7.58:1).
 
 State is encoded in **form** first — outline-mute nominal, outline-bright warning, solid
-fault — and hue only confirms. Greyscale the tier and the order still reads. E-14: the
+fault — and hue only confirms. Greyscale the plate and the order still reads. E-14: the
 breached word here is the same cream as body copy, correctly, because state has moved into
 form; a banner that draws its mark and rule in that role and carries **no fill** renders its
-alarm in body-copy cream on the one surface read in sunlight. Use all three channels.
+alarm in body-copy cream. Use all three channels.
 
 ## The accent gate — the only test a category colour has to pass
 
@@ -189,7 +193,7 @@ loads at all.
 |---|---|---|---|---|---|---|---|
 | Console | S2, S3, S4 | 36px | 32px | 14px | 2px | yes | light |
 | Comfort | S1, S6, S7, S8 | 44px | 40px | 15px | 2px | yes | light |
-| Field | S5, the tablet | 56px | 56px | 18px | 3px | **no** | dark |
+| Field | S5, the tablet | 56px | 56px | 18px | 3px | **no** | light (Rev D) |
 
 Three densities because there are three ergonomics problems. A dispatcher scanning forty rows
 with a mouse and a technician tapping with gloves in direct sun are opposite requirements;
@@ -236,7 +240,7 @@ edge. The system draws rounded corners at exactly three steps and one tight elev
 
 A shadow is never a new ink: it is the tier's darkest role mixed to a few per cent
 (`color-mix(in srgb, var(--color-text) 10%, transparent)` on the light stock, the sunken well
-on the field ground). `icon` 8px and `app` 16px stay artwork primitives and are not emitted
+on the plate). `icon` 8px and `app` 16px stay artwork primitives and are not emitted
 to a surface. Do not invent a fourth radius or a second shadow.
 
 **Widths.** A measure is a line length, set in `ch` so it scales with the density's type;
