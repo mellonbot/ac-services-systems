@@ -3,7 +3,8 @@ import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { admits, densityOf, seesManagerOverview, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
-import { createStore, type Store } from "./state.ts";
+import { createStore, keyOf, type Store } from "./state.ts";
+import { STATUS_GLYPH } from "../../../packages/tokens/src/index.ts";
 import type { Screen, ScreenContext } from "./screens/common.ts";
 import { board } from "./screens/board.ts";
 import { dispatch } from "./screens/dispatch.ts";
@@ -66,6 +67,7 @@ type PreviewShell = ConnectedShell & {
     openServiceRequestJob: (input: { requestId: string; serviceCode: string; priority?: string; serviceWindowStart: string; serviceWindowEnd: string }) => Promise<unknown>;
     holdServiceRequest: (input: { siteId: string; priority?: string; description: string }) => Promise<{ id: string; orgId: string; regionId: string; eventId: string }>;
     listSites: () => Promise<{ sites: unknown[] }>;
+    listProjects: (input: Record<string, unknown>) => Promise<{ projects: unknown[]; foremen: unknown[] }>;
     createJob: (input: { siteId: string; serviceCode: string; priority?: string; serviceWindowStart: string; serviceWindowEnd: string }) => Promise<unknown>;
     transitionJob: (input: { jobId: string; to: string }) => Promise<unknown>;
     addJobNote: (input: { jobId: string; body: string; kind?: "note" | "standing" }) => Promise<unknown>;
@@ -74,6 +76,7 @@ type PreviewShell = ConnectedShell & {
     publishJobUpdate: (input: { updateId: string }) => Promise<unknown>;
     postJobMessage: (input: { jobId: string; body: string }) => Promise<unknown>;
     setReturnTrip: (input: { jobId: string; returnTrip: boolean }) => Promise<unknown>;
+    releaseAssignment: (input: { assignmentId: string }) => Promise<unknown>;
     managerOverview: () => Promise<unknown>;
     health: () => Promise<{ ok: boolean }>;
   };
@@ -206,6 +209,8 @@ const createPreviewShell = (): PreviewShell => {
         PREVIEW_REQUESTS.unshift(r);
         return { id: r.id, orgId: r.orgId, regionId: r.regionId, eventId: `e-${r.id}` };
       },
+      // Nothing sold in the preview: an install has no project to open under, and New job says so.
+      listProjects: async () => ({ projects: [], foremen: [] }),
       listSites: async () => ({ sites: Object.entries(PREVIEW_PLACES).map(([name, a]) => ({ id: `site-${name}`, name, orgId: "org-preview", orgName: "AC Services", regionId: "region-preview", address: a })) }),
       createJob: async (input: { siteId: string; serviceCode: string; priority?: string; serviceWindowStart: string; serviceWindowEnd: string }) => {
         const job = previewJob(String(33400000 + PREVIEW_JOBS.length), input.siteId.replace(/^site-/, ""), input.serviceCode, input.priority ?? "routine", "created", null, 0, { due: 4, stage: 0 });
@@ -249,6 +254,11 @@ const createPreviewShell = (): PreviewShell => {
       setReturnTrip: async (input: { jobId: string; returnTrip: boolean }) => {
         Object.assign(PREVIEW_JOBS.find((j) => j.id === input.jobId)!, { returnTrip: input.returnTrip });
         return { jobId: input.jobId, returnTrip: input.returnTrip, eventId: "preview" };
+      },
+      releaseAssignment: async (input: { assignmentId: string }) => {
+        const job = PREVIEW_JOBS.find((j) => j.currentAssignmentId === input.assignmentId)!;
+        Object.assign(job, { state: "created", currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null, version: job.version + 1, stateChangedAt: new Date().toISOString() });
+        return { jobId: job.id, eventId: "preview" };
       },
       transitionJob: async (input: { jobId: string; to: string }) => {
         const job = PREVIEW_JOBS.find((j) => j.id === input.jobId)!;
@@ -314,16 +324,18 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
 
   const boot = async () => {
     const localPreview = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test((new URL(opts.baseUrl, "http://localhost")).hostname) || opts.baseUrl === "http://127.0.0.1:8080";
-    if (localPreview) {
-      const shell = createPreviewShell();
-      const store = createStore(shell, now);
-      phase.value = { kind: "preview", shell, store };
-      router.navigate("board", {});
-      return;
-    }
     try { become(await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { session: "cookie" } })); }
     catch (e) {
       const r = refusalOf(e);
+      // Sample data only on a local build with NO gateway answering. A real local gateway gets a real sign-in —
+      // a dispatcher testing against it must never be shown, or act on, jobs that do not exist.
+      if (localPreview && r.kind === "transport") {
+        const shell = createPreviewShell();
+        const store = createStore(shell, now);
+        phase.value = { kind: "preview", shell, store };
+        router.navigate("board", {});
+        return;
+      }
       phase.value = { kind: "login", refusal: r.kind === "token" ? null : r, busy: false };
     }
   };
@@ -363,6 +375,11 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     if (loc?.screen === "detail" && loc.params.jobId) lastDetail = loc.params.jobId;
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     const notice = p.store.notice.value;
+    // What is waiting at Intake, on the tab itself: a dispatcher on the Board must see an emergency arrive. The event
+    // subscription invalidates this list on every request, so the count is as live as the screen.
+    const requests = p.store.read(keyOf("serviceRequests.list", {}), () => p.shell.gateway.listServiceRequests({})).value;
+    const waiting = requests.state === "ready" ? requests.value.requests.filter((r) => r.jobId === null) : [];
+    const emergencies = waiting.filter((r) => r.priority === "emergency").length;
     return html`<div class="s3-app">
       <header class="dispatch-header" data-ground="plate">
         <nav class="ac-seg" aria-label="Dispatch navigation">
@@ -377,7 +394,9 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           <a class="ac-seg__item" href=${router.href("intake", {})}
              data-current=${loc?.screen === "intake" ? "true" : undefined}
              aria-current=${loc?.screen === "intake" ? "page" : undefined}
-             onClick=${(e: Event) => { e.preventDefault(); router.navigate("intake", {}); }}>Intake</a>
+             aria-label=${waiting.length ? `Intake — ${waiting.length} waiting${emergencies ? `, ${emergencies} emergency` : ""}` : undefined}
+             onClick=${(e: Event) => { e.preventDefault(); router.navigate("intake", {}); }}>Intake${waiting.length ? html`<span class="s3-nav-count" id="intake-count">${waiting.length}</span>` : null}${emergencies
+               ? html`<span class="s3-nav-count" data-tone="breached" id="intake-emergency"><span aria-hidden="true">${STATUS_GLYPH.breached.glyph}</span> ${emergencies} emergency</span>` : null}</a>
           <a class="ac-seg__item" href=${router.href("jobs", {})}
              data-current=${loc?.screen === "jobs" ? "true" : undefined}
              aria-current=${loc?.screen === "jobs" ? "page" : undefined}
@@ -389,9 +408,12 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         </nav>
         <div class="dispatch-header__tools">
           <span class="dispatch-header__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
-          <button type="button" class="dispatch-header__logout" onClick=${logout}>Sign out</button>
+          ${p.kind === "preview"
+            ? html`<span class="s3-flag" id="preview-flag">Preview</span>`
+            : html`<button type="button" class="dispatch-header__logout" onClick=${logout}>Sign out</button>`}
         </div>
       </header>
+      ${p.kind === "preview" ? html`<p class="s3-preview" role="note" id="preview-banner"><strong>Preview — sample data.</strong> No gateway answered at ${opts.baseUrl}, so these jobs, crews and requests are made up and nothing here is saved. Start the gateway and reload to sign in.</p>` : null}
       <div class="dispatch-actions">
         ${PrimaryAction({ density: DENSITY, label: "New customer", kind: "quiet", id: "new-customer",
           // Customers are an S2 write (organizations.create); S3 hands off to that screen.

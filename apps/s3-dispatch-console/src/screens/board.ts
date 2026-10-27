@@ -1,8 +1,9 @@
-import { html, signal, shortRef, StatusPill, pageHead, statStrip, panel, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
-import { serviceLabel, WORK_DONE_STATES, JOB_WORK_CLASS_LABEL, crewKindFor, crewKindForRole, type JobWire, type CrewWire, type CrewKind, type TechnicianWire } from "../../../../packages/contracts/src/index.ts";
+import { html, signal, shortRef, StatusPill, DataGrid, pageHead, statStrip, panel, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
+import { serviceLabel, WORK_DONE_STATES, crewKindFor, crewKindForRole, type JobWire, type CrewWire, type CrewKind, type TechnicianWire } from "../../../../packages/contracts/src/index.ts";
 import { STATUS_GLYPH } from "../../../../packages/tokens/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
-import { whenReady, homeMark, submitAction, linkTo, type Screen } from "./common.ts";
+import { whenReady, homeMark, linkTo, type Screen } from "./common.ts";
+import { STATE_LABEL } from "./jobs.ts";
 
 /**
  * THE BOARD — S3's home screen (09 §2.8 item 4). Every job region-locked RLS
@@ -30,7 +31,6 @@ export const isReleasable = (job: JobWire): boolean => job.state === "assigned" 
 export const isDispatchable = (job: JobWire): boolean => job.currentCrewId === null && (job.state === "created" || job.state === "reassigned");
 
 const CLOSED: readonly string[] = [...WORK_DONE_STATES, "cancelled", "aborted"];
-type BoardFilter = "all" | "unassigned" | "assigned";
 /** How far the board steps from today, either way: three days back, three days ahead. */
 export const DAY_REACH = 3;
 const boardDays = new WeakMap<Store, Signal<number>>();
@@ -42,94 +42,10 @@ const dayFor = (store: Store): Signal<number> => {
   }
   return day;
 };
-const boardFilters = new WeakMap<Store, Signal<BoardFilter>>();
-const filterFor = (store: Store): Signal<BoardFilter> => {
-  let filter = boardFilters.get(store);
-  if (!filter) {
-    filter = signal<BoardFilter>("all");
-    boardFilters.set(store, filter);
-  }
-  return filter;
-};
-/** The strip above the board: what a dispatcher reads before the rows. Counts of the rows the gateway returned — no filter of its own. */
-export const boardStats = (jobs: readonly JobWire[], now: number) => {
-  const open = jobs.filter((j) => !CLOSED.includes(j.state));
-  const unassigned = open.filter((j) => !j.currentCrewId).length;
-  const atRisk = open.filter((j) => j.slaDueAt && !j.slaSatisfiedAt && ((j.slaEscalationStage ?? 0) > 0 || Date.parse(j.slaDueAt) - now <= 60 * 60_000)).length;
-  const crews = new Set(open.map((j) => j.currentCrewId).filter(Boolean)).size;
-  return statStrip([
-    { n: open.length, label: "Open jobs" },
-    { n: unassigned, label: "Unassigned", ...(unassigned ? { tone: "at_risk" as const } : {}) },
-    { n: atRisk, label: "At risk now", ...(atRisk ? { tone: "at_risk" as const } : {}) },
-    { n: crews, label: "Crews out" },
-  ], "board-stats");
-};
 
-const shopModel = (): VNode => html`<svg class="s3-shop-model" viewBox="0 0 360 250" role="img" aria-labelledby="shop-model-title">
-  <title id="shop-model-title">Illustrative isometric AC Services dispatch shop, not a geographic location</title>
-  <ellipse cx="181" cy="222" rx="143" ry="15" fill="color-mix(in srgb,var(--color-text) 9%,transparent)" />
-  <polygon points="42,103 177,36 316,103 181,173" fill="var(--color-surface-sunken)" stroke="var(--color-border-hard)" />
-  <polygon points="42,103 181,173 181,225 42,155" fill="var(--color-surface)" stroke="var(--color-border-hard)" />
-  <polygon points="181,173 316,103 316,155 181,225" fill="var(--color-page)" stroke="var(--color-border-hard)" />
-  <polygon points="42,103 177,36 316,103 181,173" fill="var(--color-surface)" stroke="var(--color-text)" stroke-width="1.5" />
-  <path d="M49 101 177 39 309 102" fill="none" stroke="var(--color-action-text)" stroke-width="3" />
-  <polygon points="78,104 177,55 280,104 181,154" fill="var(--color-surface-sunken)" stroke="var(--color-border-hard)" />
-  <polygon points="78,104 181,154 181,169 78,119" fill="var(--color-page)" stroke="var(--color-border-hard)" />
-  <polygon points="181,154 280,104 280,119 181,169" fill="var(--color-surface)" stroke="var(--color-border-hard)" />
-  <polygon points="112,122 151,142 151,187 112,167" fill="var(--color-surface-sunken)" stroke="var(--color-text)" />
-  <polygon points="151,142 173,131 173,176 151,187" fill="var(--color-border)" stroke="var(--color-text)" />
-  <path d="M116 131 148 147M116 137 148 153M116 143 148 159M116 149 148 165" stroke="var(--color-border-hard)" stroke-width="2" />
-  <polygon points="207,127 252,104 252,150 207,173" fill="var(--color-surface-sunken)" stroke="var(--color-text)" />
-  <path d="M214 139 245 123M214 146 245 130M214 153 245 137" stroke="var(--color-border-hard)" stroke-width="2" />
-  <polygon points="235,62 259,74 259,95 235,83" fill="var(--color-page)" stroke="var(--color-border-hard)" />
-  <path d="M241 62v14m7-11v14m7-11v14" stroke="var(--color-text-muted)" stroke-width="2" />
-  <text x="195" y="202" class="s3-shop-model__sign" text-anchor="middle">AC SERVICES</text>
-</svg>`;
 
-const truckModel = (id: string): VNode => html`<svg class="s3-truck-model" viewBox="0 0 112 58" role="img" aria-labelledby=${`truck-title-${id}`}>
-  <title id=${`truck-title-${id}`}>AC Services truck model; technician location unavailable</title>
-  <ellipse cx="56" cy="49" rx="48" ry="5" fill="color-mix(in srgb,var(--color-text) 8%,transparent)" />
-  <polygon points="9,28 57,13 93,22 44,39" fill="var(--color-surface-sunken)" stroke="var(--color-text)" stroke-width="1.4" />
-  <polygon points="9,28 44,39 44,47 9,36" fill="var(--color-page)" stroke="var(--color-text)" stroke-width="1.4" />
-  <polygon points="44,39 93,22 93,31 44,47" fill="var(--color-surface)" stroke="var(--color-text)" stroke-width="1.4" />
-  <polygon points="61,20 78,15 90,18 73,24" fill="var(--color-surface)" stroke="var(--color-border-hard)" />
-  <path d="M14 31 39 39M49 39 88 26" stroke="var(--color-action-text)" stroke-width="2" />
-  <circle cx="27" cy="40" r="6" fill="var(--color-text)" /><circle cx="27" cy="40" r="2.5" fill="var(--color-surface)" />
-  <circle cx="76" cy="34" r="6" fill="var(--color-text)" /><circle cx="76" cy="34" r="2.5" fill="var(--color-surface)" />
-  <text x="29" y="34" class="s3-truck-model__mark" text-anchor="middle">AC</text>
-</svg>`;
 
-const jobRow = (ctx: Parameters<Screen>[0], job: JobWire, now: number): VNode => html`<li class="s3-map-job" data-state=${job.state}>
-  <div class="s3-map-job__main">
-    <span class="s3-map-job__site">${job.siteName ?? "Site name unavailable"}</span>${homeMark(job.customerSegment)}
-    <span class="s3-map-job__service">${JOB_WORK_CLASS_LABEL[job.workClass]} · ${serviceLabel(job.serviceCode)} · ${job.priority}</span>
-  </div>
-  <div class="s3-map-job__assignment">
-    ${job.currentCrewId && job.currentCrewLabel
-      ? html`<span class="s3-map-job__crew">${truckModel(job.id)}<span>${job.currentCrewLabel}</span></span>`
-      : html`<span class="s3-map-job__unassigned">Unassigned</span>`}
-    <span class="s3-map-job__location">Technician location unavailable</span>
-  </div>
-  <div class="s3-map-job__footer">
-    ${StatusPill({ density: ctx.density, status: slaStatus(job, now), label: job.slaSatisfiedAt ? "Satisfied" : job.slaDueAt ? new Date(job.slaDueAt).toLocaleString() : "No timer" })}
-    <span class="s3-map-job__state">${job.state}</span>
-    <span class="s3-row-actions">
-      ${isDispatchable(job) ? linkTo(ctx, "dispatch", { jobId: job.id }, "Dispatch") : null}
-      ${isReleasable(job) ? submitAction(ctx, "Release", () => void releaseJob(ctx, job), `release-${job.id}`, "quiet") : null}
-    </span>
-  </div>
-</li>`;
 
-const releaseJob = async (ctx: Parameters<Screen>[0], job: JobWire): Promise<void> => {
-  if (!job.currentAssignmentId) return;
-  try {
-    await ctx.shell.gateway.releaseAssignment({ assignmentId: job.currentAssignmentId, orgId: job.orgId, regionId: job.regionId, reason: "released from the board" });
-    ctx.store.notice.value = [`${serviceLabel(job.serviceCode)} at its site was released for re-dispatch.`];
-    ctx.store.invalidate("jobs.list");
-  } catch {
-    ctx.store.notice.value = ["The release did not go through. The board still shows the crew as assigned — try again."];
-  }
-};
 
 const HOUR_MS = 60 * 60_000;
 /** The board's working day, 7 AM to 5 PM: ten hour columns, as the reference layout draws it. */
@@ -248,7 +164,45 @@ export const boardModel = (jobs: readonly JobWire[], now: number, offset: number
   ];
   // The current time, as a share of the grid — null when the day shown is not today or the hour is off the grid.
   const nowAt = now >= from && now <= to ? ((now - from) / (to - from)) * 100 : null;
-  return { rows, place, stats, legend, dayStart, nowAt };
+  // What the grid cannot draw: work nobody holds (rows are crews), and a crew's work that day wholly before 7 AM or after 5 PM —
+  // the after-hours emergency is exactly the job a dispatcher must not lose. Most urgent SLA first, then by window.
+  const bySla = (a: JobWire, b: JobWire) => (a.slaDueAt && !a.slaSatisfiedAt ? Date.parse(a.slaDueAt) : Infinity) - (b.slaDueAt && !b.slaSatisfiedAt ? Date.parse(b.slaDueAt) : Infinity)
+    || Date.parse(a.serviceWindowStart) - Date.parse(b.serviceWindowStart);
+  const offGrid = rows.flatMap((r) => r.jobs.filter((j) => place(j).width <= 0).map((job) => ({ job, crew: r.name }))).sort((a, b) => bySla(a.job, b.job));
+  return { rows, place, stats, legend, dayStart, nowAt, unassigned: [...unassigned].sort(bySla), offGrid };
+};
+
+const windowText = (j: JobWire): string => {
+  const at = (iso: string) => new Date(iso).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
+  return `${at(j.serviceWindowStart)} – ${at(j.serviceWindowEnd)}`;
+};
+const offTimeline = (ctx: Parameters<Screen>[0], unassigned: readonly JobWire[], offGrid: readonly { job: JobWire; crew: string }[], now: number): VNode => {
+  const sla = (j: JobWire) => (j.slaDueAt && !j.slaSatisfiedAt ? StatusPill({ density: ctx.density, status: slaStatus(j, now) }) : html`<span class="s3-muted">—</span>`);
+  const jobLink = (j: JobWire) => linkTo(ctx, "detail", { jobId: j.id }, j.id);
+  return html`<div class="dispatch-board__off" id="board-off-timeline">
+    ${DataGrid({
+      density: "console", stack: true, caption: `Unassigned — ${unassigned.length} not on any crew's row`,
+      columns: [
+        { key: "id", header: "Job #", numeric: true, cell: jobLink },
+        { key: "site", header: "Site", cell: (j: JobWire) => html`${j.siteName ?? "Site name unavailable"}${homeMark(j.customerSegment)} <span class="s3-muted">· ${serviceLabel(j.serviceCode)} · ${j.priority}</span>` },
+        { key: "window", header: "Window", cell: (j: JobWire) => html`<span class="s3-num">${windowText(j)}</span>` },
+        { key: "sla", header: "SLA", cell: sla },
+        { key: "act", header: "", align: "end", cell: (j: JobWire) => isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act", `Dispatch job ${j.id} at ${j.siteName ?? "its site"}`) : html`<span class="s3-muted">${STATE_LABEL[j.state]}</span>` },
+      ],
+      rows: unassigned, rowKey: (j: JobWire) => j.id, emptyText: "Every open job is on a crew.",
+    })}
+    ${offGrid.length ? DataGrid({
+      density: "console", stack: true, caption: "Outside 7 AM – 5 PM on this day",
+      columns: [
+        { key: "id", header: "Job #", numeric: true, cell: (o: { job: JobWire }) => jobLink(o.job) },
+        { key: "crew", header: "Crew", cell: (o: { crew: string }) => o.crew },
+        { key: "site", header: "Site", cell: (o: { job: JobWire }) => html`${o.job.siteName ?? "Site name unavailable"} <span class="s3-muted">· ${serviceLabel(o.job.serviceCode)} · ${o.job.priority}</span>` },
+        { key: "window", header: "Window", cell: (o: { job: JobWire }) => html`<span class="s3-num">${windowText(o.job)}</span>` },
+        { key: "sla", header: "SLA", cell: (o: { job: JobWire }) => sla(o.job) },
+      ],
+      rows: offGrid, rowKey: (o: { job: JobWire }) => o.job.id,
+    }) : null}
+  </div>`;
 };
 
 export const board: Screen = (ctx) => {
@@ -256,7 +210,6 @@ export const board: Screen = (ctx) => {
   const jobs = ctx.store.read(jobsKey, () => ctx.shell.gateway.listJobs({}));
   const crews = ctx.store.read(keyOf("crews.list", {}), () => ctx.shell.gateway.listCrews({}));
   const technicians = ctx.store.read(keyOf("technicians.list", {}), () => ctx.shell.gateway.listTechnicians({}));
-  const filter = filterFor(ctx.store);
   const day = dayFor(ctx.store);
   const now = Date.now();
 
@@ -309,46 +262,10 @@ export const board: Screen = (ctx) => {
           </div>
         </div>`) : html`<p class="dispatch-board__empty">No crews or technicians on the roster.</p>`}
       </div>
-
+      ${offTimeline(ctx, m.unassigned, m.offGrid, now)}
       <div class="dispatch-dashboard__legend">
         ${m.legend.map((item) => html`<span class="dispatch-legend__item" data-tone=${item.tone}>${item.tone === "at_risk" || item.tone === "breached" ? html`<span class="dispatch-legend__mark" aria-hidden="true">${STATUS_GLYPH[item.tone].glyph}</span>` : null}${item.label}${"n" in item ? html` <span class="s3-num">${item.n}</span>` : null}</span>`)}
       </div>`);
     })}
-
-    <div class="dispatch-dashboard__legacy" style="display:none;">
-      ${whenReady(ctx, jobs.value, (out) => boardStats(out.jobs, now))}
-      ${whenReady(ctx, jobs.value, (out) => {
-        const visibleJobs = out.jobs.filter((job) => !CLOSED.includes(job.state) &&
-          (filter.value === "all" || (filter.value === "assigned" ? job.currentCrewId !== null : job.currentCrewId === null)));
-        return html`<div class="s3-map-layout">
-          ${panel(html`<div class="s3-map-scene__art">
-              <svg class="s3-map-lines" viewBox="0 0 960 560" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
-                <path d="M-60 120 275 290 1020-70M-45 490 410 250 1020 560M260-40 520 600M710-60 405 600M-60 310 1010 310" />
-                <path d="M-40 122 275 282 1015-74M-40 490 410 242 1010 555M260-40 512 600M710-60 397 600M-60 299 1010 299" />
-                <path d="M80 0v560M0 420h960M850 0v560" />
-              </svg>
-              <div class="s3-map-scene__blocks" aria-hidden="true">
-                <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-              </div>
-              <figure class="s3-shop">
-                ${shopModel()}
-                <figcaption><strong>AC Services</strong><span>Illustrative shop model · actual address not configured</span></figcaption>
-              </figure>
-              <div class="s3-map-notice" role="note">
-                <strong>No location pins yet</strong>
-                <span>Site coordinates and technician GPS are not in the dispatch feed. No routes or vehicle positions are being inferred.</span>
-              </div>
-              <div class="s3-map-scale" aria-hidden="true"><span></span>Not to scale</div>
-            </div>`, "Dispatch area", "Operational schematic · not geographic", html`<span class="s3-map-scene__badge">Locations unavailable</span>`)}
-          ${panel(visibleJobs.length
-              ? html`<ul class="s3-map-job-list">${visibleJobs.map((job) => jobRow(ctx, job, now))}</ul>`
-              : html`<div class="s3-map-empty"><strong>${filter.value === "unassigned" ? "No unassigned jobs" : filter.value === "assigned" ? "No active assignments" : "No open work"}</strong><span>New jobs will appear here when they enter this region's board.</span></div>`,
-            "Open work", html`<span class="s3-num">${visibleJobs.length}</span> ${visibleJobs.length === 1 ? "job" : "jobs"} in view`,
-            html`<div class="s3-map-filters" role="group" aria-label="Filter jobs">
-                ${(["all", "unassigned", "assigned"] as const).map((value) => html`<button type="button" data-current=${filter.value === value ? "true" : "false"} aria-pressed=${filter.value === value} onClick=${() => { filter.value = value; }}>${value === "all" ? "All" : value === "unassigned" ? "Unassigned" : "Assigned"}</button>`)}
-              </div>`)}
-        </div>`;
-      })}
-    </div>
   </section>`;
 };

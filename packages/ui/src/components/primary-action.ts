@@ -14,6 +14,8 @@ export type PrimaryActionProps = {
    */
   readonly disabledReason?: string;
   readonly id?: string;
+  /** The name a screen reader hears when the label repeats down a list ("Assign", "Assign", …). */
+  readonly ariaLabel?: string;
 };
 
 /**
@@ -34,7 +36,7 @@ export const PrimaryAction = component<typeof PrimaryActionSpec, PrimaryActionPr
   };
   return html`<span class="ac-action-wrap" data-density=${p.density}>
     <button class="ac-action" type=${p.type ?? "button"} data-kind=${p.kind ?? "primary"} data-density=${p.density}
-      id=${p.id} aria-disabled=${disabled ? "true" : "false"} onClick=${onClick}>${p.label}</button>
+      id=${p.id} aria-label=${p.ariaLabel} aria-disabled=${disabled ? "true" : "false"} onClick=${onClick}>${p.label}</button>
     ${disabled ? html`<span class="ac-action__reason" role="note">${p.disabledReason}</span>` : null}
   </span>`;
 });

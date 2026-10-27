@@ -131,29 +131,20 @@ test("isDispatchable / isReleasable follow the handlers' own admitted states, no
   assert.equal(isReleasable(jobCreated), false);
 });
 
-test("the board shows every job with its SLA glyph, its crew, and offers Dispatch or Release by state — never both", async () => {
+test("the board: one page head, no other surface's links, no coordinates — and Dispatch only for the job nobody holds", async () => {
   const { app } = await ready();
   app.router.navigate("board", {});
-  render(app.view()); await settle(); await settle();
-  const tree = app.view();
-  const out = render(tree);
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  const out = render(app.view());
   assert.match(out, /Repair/);
-  assert.match(out, /Unassigned/);
   assert.match(out, /Crew A1/);
-  assert.match(out, /s3-truck-model/);
-  assert.match(out, /Illustrative isometric AC Services dispatch shop, not a geographic location/);
-  assert.match(out, /Operational schematic · not geographic/);
-  assert.match(out, /Technician location unavailable/);
-  assert.match(out, /No routes or vehicle positions are being inferred/);
-  assert.match(out, /aria-label="Filter jobs"/);
   assert.equal((out.match(/class="ac-page-head"/g) ?? []).length, 1, "one page head");
   assert.match(out, /<h1 class="ac-page-head__title">Dispatch Board<\/h1>/);
   assert.doesNotMatch(out, />Field App</);
   assert.doesNotMatch(out, />Customer Portal</);
   assert.doesNotMatch(out, /data-latitude|data-longitude|latitude|longitude/i);
+  assert.doesNotMatch(out, /display:none/, "nothing on the board is drawn hidden");
   assert.match(out, new RegExp(`href="/job/${JOB_CREATED}"`));
-  assert.match(out, new RegExp(`id="release-${JOB_ASSIGNED}"`));
-  assert.doesNotMatch(out, new RegExp(`id="release-${JOB_CREATED}"`), "an unassigned job offers no release");
   assert.doesNotMatch(out, new RegExp(`href="/job/${JOB_ASSIGNED}"`), "an already-assigned job offers no dispatch link");
 });
 
@@ -214,33 +205,6 @@ test("the board steps three days either way from today and no further, and draws
   assert.equal((page.match(/class="dispatch-board__group"/g) ?? []).length, 2, "one band per half");
 });
 
-test("board filters persist across renders and show only the selected assignment state", async () => {
-  const { app } = await ready();
-  app.router.navigate("board", {});
-  render(app.view()); await settle(); await settle();
-  const findFilter = (label: string) => nodesIn(app.view()).find((node) =>
-    node.type === "button" && node.props?.children === label);
-
-  const unassigned = findFilter("Unassigned");
-  assert.equal(typeof unassigned?.props?.onClick, "function");
-  (unassigned!.props!.onClick as () => void)();
-  // The filters drive the open-work list, which sits after the board itself.
-  const list = (out: string) => out.slice(out.indexOf("s3-map-filters"));
-  const unassignedView = list(render(app.view()));
-  assert.match(unassignedView, /Austin — Roof/);
-  assert.match(unassignedView, /data-state="created"/);
-  assert.doesNotMatch(unassignedView, /data-state="assigned"/);
-  assert.doesNotMatch(unassignedView, /Crew A1/);
-  assert.match(unassignedView, /data-current="true"[^>]*aria-pressed="true"/);
-
-  const assigned = findFilter("Assigned");
-  assert.equal(typeof assigned?.props?.onClick, "function");
-  (assigned!.props!.onClick as () => void)();
-  const assignedView = list(render(app.view()));
-  assert.match(assignedView, /Crew A1/);
-  assert.match(assignedView, /data-state="assigned"/);
-  assert.doesNotMatch(assignedView, /data-state="created"/);
-});
 
 test("dispatch: the dry run renders as ComplianceBadge with the gate's own reason, and Assign is offered only where it cleared", async () => {
   const { app } = await ready();
@@ -273,21 +237,20 @@ test("0024: dispatch says what kind of work the job is and that only that kind o
   assert.match(out, /Install work goes to an install crew\./);
 });
 
-test("assigning navigates back to the board with a notice and refetches the board", async () => {
+test("assigning, clicked: the job's own page opens with a notice, read fresh", async () => {
   const { app, gateway } = await ready({
     [OPERATIONS["dispatch.assign"].path]: { status: 200, body: { ok: true, assignmentId: U(50), clearanceId: U(51), eventId: U(52) } },
+    [OPERATIONS["jobs.detail"].path]: { status: 200, body: detailOf(jobCreated) },
   });
   app.router.navigate("dispatch", { jobId: JOB_CREATED });
-  render(app.view()); await settle(); await settle();
-  if (app.phase.value.kind !== "ready") return assert.fail("not ready");
-  const before = gateway.calls.filter((c) => c.path === OPERATIONS["jobs.list"].path).length;
-  await (app.phase.value.shell.gateway.assignCrew({ jobId: JOB_CREATED, crewId: CREW_A, orgId: ORG, regionId: SOUTH }));
-  app.phase.value.store.notice.value = ["Crew A1 assigned to hvac_repair."];
-  app.phase.value.store.invalidate("jobs.list");
-  app.router.navigate("board", {});
-  render(app.view()); await settle();
-  assert.equal(gateway.calls.filter((c) => c.path === OPERATIONS["jobs.list"].path).length, before + 1, "the board refetches after a dispatch");
-  assert.match(render(app.view()), /Crew A1 assigned to hvac_repair\./);
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const before = gateway.calls.filter((c) => c.path === OPERATIONS["jobs.detail"].path).length;
+  (nodesIn(app.view()).find((n) => n.props?.id === `assign-${CREW_A}`)!.props!.onClick as (e: unknown) => void)({ preventDefault() {} });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  assert.equal(app.router.current.value?.screen, "detail");
+  assert.equal(app.router.current.value?.params.jobId, JOB_CREATED);
+  assert.ok(gateway.calls.filter((c) => c.path === OPERATIONS["jobs.detail"].path).length > before, "the job is read after the assignment");
+  assert.match(render(app.view()), /Crew A1 assigned to Repair\./);
 });
 
 test("a refusal at assignment renders the same reason the dry run showed — a race, not a surprise", async () => {
@@ -301,15 +264,17 @@ test("a refusal at assignment renders the same reason the dry run showed — a r
   assert.equal(out.ok, false);
 });
 
-test("degraded: Assign and Release render disabled with the surface's declared reason, and the board keeps its last value", async () => {
-  const { app } = await ready();
+test("degraded: the board keeps its last value, and Release on the job waits with the surface's declared reason", async () => {
+  const { app } = await ready({ [OPERATIONS["jobs.detail"].path]: { status: 200, body: detailOf(jobAssigned) } });
   app.router.navigate("board", {});
   render(app.view()); await settle(); await settle();
   app.degraded.value = true;
-  const out = render(app.view());
-  assert.match(out, /aria-disabled="true"/);
-  assert.match(out, /Offline — the board is frozen at its last update/);
-  assert.match(out, /Crew A1/, "the last server state is still on screen");
+  assert.match(render(app.view()), /Crew A1/, "the last server state is still on screen (the frame's own banner says it is offline)");
+  app.degraded.value = false;
+  app.router.navigate("detail", { jobId: JOB_ASSIGNED });
+  render(app.view()); await settle(); await settle();
+  app.degraded.value = true;
+  assert.match(render(app.view()), /id="release-open" aria-disabled="true">Release Crew A1<\/button><span class="ac-action__reason" role="note">Offline — the board is frozen at its last update/);
 });
 
 test("New customer and New job sit under the dispatch bar: New job opens the New job form, New customer hands off to S2 and says why when the role cannot", async () => {
@@ -639,4 +604,201 @@ test("a board bar is a link inside S3 — under /dispatch, through the router �
   (bar!.props!.onClick as (e: Event) => void)(new Event("click"));
   assert.equal(app.router.current.value?.screen, "detail");
   assert.equal(pushed.at(-1), `/dispatch/jobs/${JOB_ASSIGNED}`);
+});
+
+const detailOf = (job: JobWire) => ({ job, contact: null, visits: [], media: [], notes: [], updates: [], messages: [] });
+
+test("job detail: an assigned job offers Release where the board's bars lead — asked first, then sent, then said", async () => {
+  let released: Record<string, unknown> | null = null;
+  const { app } = await ready({
+    [OPERATIONS["jobs.detail"].path]: { status: 200, body: detailOf(jobAssigned) },
+    [OPERATIONS["dispatch.release"].path]: (init) => { released = JSON.parse(String(init?.body)); return { status: 200, body: { jobId: JOB_ASSIGNED, eventId: "e" } }; },
+  });
+  app.router.navigate("detail", { jobId: JOB_ASSIGNED });
+  render(app.view()); await settle(); await settle();
+  let out = render(app.view());
+  assert.match(out, /id="release-open"[^>]*>Release Crew A1</, "Release is on the page the board opens, not in a hidden list");
+  const click = (id: string) => (nodesIn(app.view()).find((n) => n.props?.id === id)!.props!.onClick as () => void)();
+  click("release-open");
+  out = render(app.view());
+  assert.match(out, /Release Crew A1 from job/);
+  assert.equal(released, null, "nothing is sent until it is confirmed");
+  click("release-yes");
+  await settle(); await settle();
+  assert.deepEqual(released, { assignmentId: ASSIGNMENT, orgId: ORG, regionId: SOUTH, reason: "released from job detail" });
+  assert.match(render(app.view()), /Crew A1 released from job/);
+});
+
+test("job detail: an unassigned job offers Dispatch, and no Release", async () => {
+  const { app } = await ready({ [OPERATIONS["jobs.detail"].path]: { status: 200, body: detailOf(jobCreated) } });
+  app.router.navigate("detail", { jobId: JOB_CREATED });
+  render(app.view()); await settle(); await settle();
+  const out = render(app.view());
+  assert.match(out, /class="s3-detail-actions"><a class="ac-action s3-link-action" href="[^"]*\/job\/[^"]+">Dispatch a crew</);
+  assert.doesNotMatch(out, /release-open/);
+});
+
+test("the board lists what its grid cannot draw: unassigned work with Dispatch, and a crew's after-hours job", async () => {
+  const now = Date.parse("2026-09-18T12:00:00.000Z");
+  const day = new Date(now); day.setHours(0, 0, 0, 0);
+  const at = (h: number) => new Date(day.getTime() + h * 3_600_000).toISOString();
+  const lateCall: JobWire = { ...jobAssigned, id: U(40), serviceWindowStart: at(19), serviceWindowEnd: at(21), slaSatisfiedAt: null, slaDueAt: at(20) };
+  const m = boardModel([jobCreated, jobAssigned, lateCall], now, 0);
+  assert.deepEqual(m.unassigned.map((j) => j.id), [JOB_CREATED]);
+  assert.deepEqual(m.offGrid.map((o) => o.job.id), [U(40)], "a 7 PM call is listed, not dropped for having no width on the grid");
+
+  const { app } = await ready({ [OPERATIONS["jobs.list"].path]: { status: 200, body: { jobs: [jobCreated, jobAssigned] } } });
+  app.router.navigate("board", {});
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  const out = render(app.view()).split('id="board-off-timeline"')[1]!.split('class="dispatch-dashboard__legend"')[0]!;
+  assert.match(out, /Unassigned — 1 not on any crew/);
+  assert.match(out, new RegExp(`aria-label="Dispatch job ${JOB_CREATED} at Austin — Roof"[^>]*>Dispatch<`));
+  const quoted = await ready({ [OPERATIONS["jobs.list"].path]: { status: 200, body: { jobs: [{ ...jobCreated, state: "quote_submitted" }] } } });
+  quoted.app.router.navigate("board", {});
+  for (let i = 0; i < 3; i++) { render(quoted.app.view()); await settle(); }
+  const q = render(quoted.app.view());
+  assert.match(q, /Quote submitted/, "a job not yet dispatchable says where it is in words");
+  assert.doesNotMatch(q, /quote_submitted/);
+});
+
+test("Assign, clicked: a failed request says so instead of nothing, and a double click sends one assignment", async () => {
+  const { app, gateway } = await ready({ [OPERATIONS["dispatch.assign"].path]: { status: 503, body: { error: "Unavailable", message: "gateway busy" } } });
+  app.router.navigate("dispatch", { jobId: JOB_CREATED });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const button = () => nodesIn(app.view()).find((n) => n.props?.id === `assign-${CREW_A}`)!;
+  const click = button().props!.onClick as (e: unknown) => void;
+  click({ preventDefault() {} }); click({ preventDefault() {} });
+  assert.match(render(app.view()), /Assigning…/);
+  for (let i = 0; i < 4; i++) await settle();
+  assert.equal(gateway.calls.filter((c) => c.path === OPERATIONS["dispatch.assign"].path).length, 1, "one assignment for two clicks");
+  assert.match(render(app.view()), /Crew A1 was not assigned/);
+  assert.match(render(app.view()), new RegExp(`id="assign-${CREW_A}"[^>]*>Assign<`), "the button is back for another try");
+});
+
+test("job dashboard: Declined asks before it cancels the job; nothing is sent until it is confirmed", async () => {
+  const quoted: JobWire = { ...jobCreated, id: U(41), state: "quote_submitted" };
+  const moves: unknown[] = [];
+  const { app, gateway } = await ready({
+    [OPERATIONS["jobs.list"].path]: { status: 200, body: { jobs: [quoted] } },
+    [OPERATIONS["jobs.transition"].path]: (init) => { moves.push(JSON.parse(String(init?.body))); return { status: 200, body: { jobId: U(41), state: "cancelled", version: 2, eventId: "e" } }; },
+  });
+  app.router.navigate("jobs", {});
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  (nodesIn(app.view()).find((n) => n.type === "button" && (n.props?.children as unknown[] | string | undefined)?.toString().includes("Waiting on customer"))!.props!.onClick as () => void)();
+  const click = (id: string) => (nodesIn(app.view()).find((n) => n.props?.id === id)!.props!.onClick as () => void)();
+  click(`move-${U(41)}-cancelled`);
+  assert.match(render(app.view()), new RegExp(`Decline job ${U(41)}\\? It is cancelled, and that cannot be undone here\\.`));
+  assert.equal(moves.length, 0, "a click on Declined sends nothing yet");
+  click(`move-${U(41)}-cancelled-keep`);
+  assert.doesNotMatch(render(app.view()), /Decline job/);
+  click(`move-${U(41)}-cancelled`);
+  click(`move-${U(41)}-cancelled-yes`);
+  await settle(); await settle();
+  assert.equal(gateway.calls.filter((c) => c.path === OPERATIONS["jobs.transition"].path).length, 1);
+  assert.equal((moves[0] as { to: string }).to, "cancelled");
+});
+
+test("local preview is sample data only when no gateway answers, and says so on every screen", async () => {
+  const down: FetchLike = async () => { throw new TypeError("fetch failed"); };
+  const preview = createApp({ baseUrl: "http://127.0.0.1:8080", fetch: down, now: () => 1_000 });
+  await preview.boot();
+  assert.equal(preview.phase.value.kind, "preview");
+  render(preview.view()); await settle();
+  const out = render(preview.view());
+  assert.match(out, /id="preview-banner"[^>]*><strong>Preview — sample data\.<\/strong> No gateway answered at http:\/\/127\.0\.0\.1:8080/);
+  assert.doesNotMatch(out, /Sign out/, "no Sign out that would do nothing");
+
+  // A real gateway on localhost answers (here: no session yet) — that is a sign-in, never the sample board.
+  const real = createApp({ baseUrl: "http://127.0.0.1:8080", fetch: fakeGateway().fetch, now: () => 1_000 });
+  await real.boot();
+  assert.equal(real.phase.value.kind, "login");
+});
+
+test("job detail: a reply to the customer goes once for a double click, and its button says it is sending", async () => {
+  const { app, gateway } = await ready({
+    [OPERATIONS["jobs.detail"].path]: { status: 200, body: detailOf(jobAssigned) },
+    [OPERATIONS["jobs.postMessage"].path]: { status: 200, body: { id: "m1", authorKind: "office", eventId: "e" } },
+  });
+  app.router.navigate("detail", { jobId: JOB_ASSIGNED });
+  render(app.view()); await settle(); await settle();
+  (nodesIn(app.view()).find((n) => n.props?.["aria-label"] === "Reply to the customer")!.props!.onInput as (e: unknown) => void)({ currentTarget: { value: "On our way at 2." } });
+  const send = () => (nodesIn(app.view()).find((n) => n.props?.id === "reply-send")!.props!.onClick as (e: unknown) => void)({ preventDefault() {} });
+  send(); send();
+  assert.match(render(app.view()), /Sending…/);
+  for (let i = 0; i < 3; i++) await settle();
+  assert.equal(gateway.calls.filter((c) => c.path === OPERATIONS["jobs.postMessage"].path).length, 1);
+  assert.match(render(app.view()), /Reply posted to the customer thread\./);
+});
+
+test("nothing a dispatcher reads is set below the 12px floor", async () => {
+  const { S3_CSS } = await import("./styles.ts");
+  assert.doesNotMatch(S3_CSS, /font-size:var\(--text-xs\)/, "job bars, hours, legend and flags are read all day — 12px, not 11");
+});
+
+test("the Intake tab says what is waiting, and an emergency in a glyph and a word — from any screen", async () => {
+  const { app } = await ready({ [OPERATIONS["serviceRequests.list"].path]: { status: 200, body: { requests: REQUESTS } } });
+  app.router.navigate("board", {});
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  const out = render(app.view());
+  const waiting = REQUESTS.filter((r) => r.jobId === null);
+  const emergencies = waiting.filter((r) => r.priority === "emergency").length;
+  assert.ok(emergencies > 0, "the fixture has an emergency waiting");
+  assert.match(out, new RegExp(`aria-label="Intake — ${waiting.length} waiting, ${emergencies} emergency"`));
+  assert.match(out, new RegExp(`id="intake-emergency"><span aria-hidden="true">[^<]+</span> ${emergencies} emergency<`));
+});
+
+test("a row's buttons are named for the row: Assign for the crew, the dashboard's moves and notes for the job, Open job for the request", async () => {
+  const { app } = await ready({
+    [OPERATIONS["serviceRequests.list"].path]: { status: 200, body: { requests: REQUESTS } },
+    [OPERATIONS["jobs.list"].path]: { status: 200, body: { jobs: [jobCreated, { ...jobCreated, id: U(42), state: "quote_requested" }] } },
+  });
+  const paint = async (screen: "dispatch" | "jobs" | "intake", params: Record<string, string> = {}) => {
+    app.router.navigate(screen, params);
+    for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+    return render(app.view());
+  };
+  assert.match(await paint("dispatch", { jobId: JOB_CREATED }), /aria-label="Assign Crew A1"/);
+  const dash = await paint("jobs");
+  assert.match(dash, new RegExp(`aria-label="Dispatch job ${JOB_CREATED}"`));
+  assert.match(dash, new RegExp(`aria-label="Add a note to job ${JOB_CREATED}"`));
+  assert.match(dash, new RegExp(`aria-label="Return trip owed on job ${JOB_CREATED}" aria-pressed="false"`));
+  assert.match(await paint("intake"), /aria-label="Open a job for request [0-9A-F]{8} at [^"]+"/);
+});
+
+test("job dashboard: a note is saved with Enter from its box, and Escape puts it away unsaved", async () => {
+  const { app, gateway } = await ready({ [OPERATIONS["jobs.addNote"].path]: { status: 200, body: { id: "n1", jobId: JOB_CREATED, eventId: "e" } } });
+  app.router.navigate("jobs", {});
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  const node = (id: string) => nodesIn(app.view()).find((n) => n.props?.id === id)!;
+  (node(`note-${JOB_CREATED}`).props!.onClick as () => void)();
+  (node(`note-input-${JOB_CREATED}`).props!.onKeyDown as (e: unknown) => void)({ key: "Escape", preventDefault() {} });
+  assert.doesNotMatch(render(app.view()), new RegExp(`id="note-input-${JOB_CREATED}"`));
+  (node(`note-${JOB_CREATED}`).props!.onClick as () => void)();
+  (node(`note-input-${JOB_CREATED}`).props!.onInput as (e: unknown) => void)({ currentTarget: { value: "Customer asked for a call first" } });
+  (node(`note-input-${JOB_CREATED}`).props!.onKeyDown as (e: unknown) => void)({ key: "Enter", preventDefault() {} });
+  await settle(); await settle();
+  const sent = gateway.calls.filter((c) => c.path === OPERATIONS["jobs.addNote"].path);
+  assert.equal(sent.length, 1);
+  assert.equal(JSON.parse(String(sent[0]!.init?.body)).body, "Customer asked for a call first");
+});
+
+test("New job: an install with no open project says why at the button instead of offering a refusal", async () => {
+  const sites = [{ id: U(30), name: "Roof North", orgId: ORG, orgName: "Shipman Co", regionId: SOUTH, address: null }];
+  const { app } = await ready({
+    [OPERATIONS["sites.list"].path]: { status: 200, body: { sites } },
+    [OPERATIONS["projects.list"].path]: { status: 200, body: { projects: [], foremen: [] } },
+  });
+  app.router.navigate("new-job", {});
+  render(app.view()); await settle(); await settle();
+  const change = (id: string, value: string) => (nodesIn(app.view()).find((n) => n.props?.id === id)!.props!.onChange as (e: unknown) => void)({ currentTarget: { value } });
+  change("new-job-service", "NEW-INSTALL");
+  let out = render(app.view());
+  assert.match(out, /id="new-job-submit" aria-disabled="true"/);
+  assert.match(out, /Choose the site first — an install opens under what was sold there\./);
+  change("new-job-site", U(30));
+  render(app.view()); await settle(); await settle();
+  out = render(app.view());
+  assert.match(out, /Nothing sold to this customer is open, so there is no project to open the install under\./);
+  change("new-job-service", "HVAC-REPAIR");
+  assert.match(render(app.view()), /id="new-job-submit" aria-disabled="false"/, "a service job needs no project");
 });

@@ -1,8 +1,9 @@
 import { html, signal, StatusPill, pageHead, panel, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import { serviceLabel, WORK_DONE_STATES, type JobDetailOutput, type JobMediaWire, type JobNoteWire, type JobUpdateWire, type JobVisitWire, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
-import { whenReady, homeMark, linkTo, submitAction, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, homeMark, linkTo, submitAction, perStore, focusId, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL, initials, placeLine, daysInState } from "./jobs.ts";
+import { isDispatchable, isReleasable } from "./board.ts";
 
 /**
  * ONE JOB, AS DISPATCH READS IT (0016) — the header the crew needs before it
@@ -74,6 +75,49 @@ const uiFor = (store: Store, jobId: string): Signal<UiState> => {
   return s;
 };
 
+/**
+ * Dispatch's own hand on this job: send a crew when nobody holds it, or take
+ * the crew back off it before they start (dispatch.release admits only
+ * "assigned"). The board's bars all open this page, so this is where it acts.
+ * Release asks first — it pulls a crew off work they may be rolling to.
+ */
+type Releasing = { readonly jobId: string; readonly busy: boolean } | null;
+const releasingFor = perStore<Releasing>(null);
+
+const release = async (ctx: ScreenContext, j: JobWire, crew: string): Promise<void> => {
+  const r = releasingFor(ctx.store);
+  r.value = { jobId: j.id, busy: true };
+  try {
+    await ctx.shell.gateway.releaseAssignment({ assignmentId: j.currentAssignmentId!, orgId: j.orgId, regionId: j.regionId, reason: "released from job detail" });
+    r.value = null;
+    ctx.store.notice.value = [`${crew} released from job ${j.id}. It is back to Unassigned for re-dispatch.`];
+  } catch (e) {
+    r.value = { jobId: j.id, busy: false };
+    const refusal = ctx.shell.refusalOf(e);
+    ctx.store.notice.value = [`The release did not go through${refusal && "message" in refusal && refusal.message ? ` — ${refusal.message}` : ""}. ${crew} is still assigned.`];
+  }
+  ctx.store.invalidate("jobs.detail");
+  ctx.store.invalidate("jobs.list");
+};
+
+const dispatchActions = (ctx: ScreenContext, j: JobWire): VNode | null => {
+  if (isDispatchable(j)) return html`<p class="s3-detail-actions">${linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch a crew", "ac-action s3-link-action")}</p>`;
+  if (!isReleasable(j)) return null;
+  const r = releasingFor(ctx.store).value;
+  const crew = j.currentCrewLabel ?? "The crew";
+  if (r?.jobId !== j.id) {
+    return html`<p class="s3-detail-actions">${submitAction(ctx, `Release ${crew}`, () => { releasingFor(ctx.store).value = { jobId: j.id, busy: false }; focusId("release-keep"); }, "release-open", "quiet")}</p>`;
+  }
+  return html`<div class="s3-confirm" role="group" aria-labelledby="release-title" id="release-confirm">
+    <strong id="release-title">Release ${crew} from job ${j.id}?</strong>
+    <p>The job goes back to Unassigned, to be dispatched again. A crew can only be released before they start.</p>
+    <span class="s3-row-actions">
+      ${submitAction(ctx, r.busy ? "Releasing…" : "Release crew", () => { if (!releasingFor(ctx.store).value?.busy) void release(ctx, j, crew); }, "release-yes", "danger")}
+      <button type="button" class="s3-act" id="release-keep" disabled=${r.busy} onClick=${() => { releasingFor(ctx.store).value = null; focusId("release-open"); }}>Keep them on it</button>
+    </span>
+  </div>`;
+};
+
 const crewChip = (label: string): VNode => html`<span class="s3-tech"><span class="dispatch-board__avatar" aria-hidden="true">${initials(label)}</span>${label}</span>`;
 
 const photoTile = (m: JobMediaWire): VNode => html`<figure class="s3-photo" title=${m.storageKey}>
@@ -140,6 +184,7 @@ const header = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiState>): VN
     <p class="s3-eyebrow">Job # <span class="s3-num">${j.id}</span></p>
     <h2 class="s3-detail-head__site">${j.siteName ?? "Site name unavailable"}</h2>${homeMark(j.customerSegment)}
     <p class="s3-detail-head__where">${[street, place].filter(Boolean).join(", ") || "Address not recorded"}${d.contact ? html` · ${d.contact.name}${d.contact.phone ? html`, <span class="s3-num">${d.contact.phone}</span>` : null}` : null}</p>
+    ${dispatchActions(ctx, j)}
     <p class="s3-flags"><span class="s3-flag">${STATE_LABEL[j.state]}</span><span class="s3-flag">${j.priority[0]!.toUpperCase()}${j.priority.slice(1)} priority</span>${j.returnTrip ? html`<span class="s3-flag">Return trip</span>` : null}</p>
   </div>
   <dl class="s3-jobfacts">
@@ -154,19 +199,25 @@ const header = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiState>): VN
   <section class="s3-standing" aria-labelledby="standing-title">
     <p class="s3-eyebrow" id="standing-title">Standing notes for techs</p>
     ${editing !== null
-      ? html`<textarea class="ac-input s3-draftbox" aria-label="Standing note for techs" maxlength="2000" value=${editing}
+      ? html`<textarea class="ac-input s3-draftbox" id="standing-input" aria-label="Standing note for techs" maxlength="2000" value=${editing}
           onInput=${(e: Event) => { ui.value = { ...ui.value, standing: (e.currentTarget as HTMLTextAreaElement).value }; }}></textarea>
         <span class="s3-row-actions">
-          ${submitAction(ctx, "Save standing note", () => { const body = (ui.value.standing ?? "").trim(); if (body) void act(ctx, () => ctx.shell.gateway.addJobNote({ jobId: j.id, orgId: j.orgId, regionId: j.regionId, body, kind: "standing" }), "Standing note saved.", () => { ui.value = { ...ui.value, standing: null }; }); }, "standing-save")}
-          <button type="button" class="s3-act" onClick=${() => { ui.value = { ...ui.value, standing: null }; }}>Cancel</button>
+          ${submitAction(ctx, busyLabel(ctx, "standing", "Save standing note", "Saving…"), () => { const body = (ui.value.standing ?? "").trim(); if (body) void act(ctx, "standing", () => ctx.shell.gateway.addJobNote({ jobId: j.id, orgId: j.orgId, regionId: j.regionId, body, kind: "standing" }), "Standing note saved.", () => { ui.value = { ...ui.value, standing: null }; }); }, "standing-save")}
+          <button type="button" class="s3-act" onClick=${() => { ui.value = { ...ui.value, standing: null }; focusId("standing-edit"); }}>Cancel</button>
         </span>`
       : html`${standing ? html`<p class="s3-standing__body">${standing.body}</p><p class="s3-visit__by">${standing.authorName ?? "Office"} · <span class="s3-num">${stamp(standing.at)}</span></p>` : html`<p class="s3-muted">None. What should every tech know before rolling to this job?</p>`}
-        <button type="button" class="s3-act" id="standing-edit" onClick=${() => { ui.value = { ...ui.value, standing: standing?.body ?? "" }; }}>${standing ? "Replace" : "Write one"}</button>`}
+        <button type="button" class="s3-act" id="standing-edit" onClick=${() => { ui.value = { ...ui.value, standing: standing?.body ?? "" }; focusId("standing-input"); }}>${standing ? "Replace" : "Write one"}</button>`}
   </section>`, undefined, undefined, undefined, "job-head");
 };
 
-/** Every write here: call, say what happened in the dispatcher's words, refetch the job. */
-const act = async (ctx: ScreenContext, call: () => Promise<unknown>, ok: string, after?: () => void): Promise<void> => {
+/** The write in flight on this page, by name — so a double click cannot post a customer the same reply twice. */
+const writingFor = perStore<string | null>(null);
+
+/** Every write here: one at a time; call, say what happened in the dispatcher's words, refetch the job. */
+const act = async (ctx: ScreenContext, what: string, call: () => Promise<unknown>, ok: string, after?: () => void): Promise<void> => {
+  const writing = writingFor(ctx.store);
+  if (writing.value) return;
+  writing.value = what;
   try {
     await call();
     after?.();
@@ -174,10 +225,14 @@ const act = async (ctx: ScreenContext, call: () => Promise<unknown>, ok: string,
   } catch (e) {
     const r = ctx.shell.refusalOf(e);
     ctx.store.notice.value = [`That did not go through${r && "message" in r && r.message ? ` — ${r.message}` : ""}. Nothing was lost; try again.`];
+  } finally {
+    writing.value = null;
   }
   ctx.store.invalidate("jobs.detail");
   ctx.store.invalidate("jobs.list");
 };
+
+const busyLabel = (ctx: ScreenContext, what: string, idle: string, busy: string): string => (writingFor(ctx.store).value === what ? busy : idle);
 
 const updateBlock = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiState>, note: JobNoteWire | null, u: JobUpdateWire | null): VNode => {
   const j = d.job;
@@ -207,8 +262,8 @@ const updateBlock = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiState>
     <p class="s3-update__foot">
       <span class="s3-flag">Draft — not visible to the customer</span>
       <span class="s3-row-actions">
-        ${submitAction(ctx, "Save draft", () => void act(ctx, save, "Draft saved. The customer cannot see it.", () => setDraft(undefined)), `save-${key}`, "quiet")}
-        ${submitAction(ctx, "Publish to customer", () => void act(ctx, async () => { const id = await save(); if (id) await ctx.shell.gateway.publishJobUpdate({ updateId: id }); }, "Published — the customer will see it in their portal.", () => setDraft(undefined)), `publish-${key}`)}
+        ${submitAction(ctx, busyLabel(ctx, `save-${key}`, "Save draft", "Saving…"), () => void act(ctx, `save-${key}`, save, "Draft saved. The customer cannot see it.", () => setDraft(undefined)), `save-${key}`, "quiet")}
+        ${submitAction(ctx, busyLabel(ctx, `publish-${key}`, "Publish to customer", "Publishing…"), () => void act(ctx, `publish-${key}`, async () => { const id = await save(); if (id) await ctx.shell.gateway.publishJobUpdate({ updateId: id }); }, "Published — the customer will see it in their portal.", () => setDraft(undefined)), `publish-${key}`)}
       </span>
     </p>`;
 };
@@ -220,11 +275,11 @@ const communication = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiStat
   const updateFor = (n: JobNoteWire) => [...d.updates].reverse().find((u) => u.sourceNoteId === n.id) ?? null;
   const send = () => {
     const body = ui.value.reply.trim();
-    if (body) void act(ctx, () => ctx.shell.gateway.postJobMessage({ jobId: j.id, body }), "Reply posted to the customer thread.", () => { ui.value = { ...ui.value, reply: "" }; });
+    if (body) void act(ctx, "send", () => ctx.shell.gateway.postJobMessage({ jobId: j.id, body }), "Reply posted to the customer thread.", () => { ui.value = { ...ui.value, reply: "" }; });
   };
   const addNote = () => {
     const body = ui.value.note.trim();
-    if (body) void act(ctx, () => ctx.shell.gateway.addJobNote({ jobId: j.id, orgId: j.orgId, regionId: j.regionId, body }), "Internal note added.", () => { ui.value = { ...ui.value, note: "" }; });
+    if (body) void act(ctx, "note", () => ctx.shell.gateway.addJobNote({ jobId: j.id, orgId: j.orgId, regionId: j.regionId, body }), "Internal note added.", () => { ui.value = { ...ui.value, note: "" }; });
   };
   return panel(html`<div class="s3-comms">
     <section class="s3-comms__col" aria-labelledby="updates-title">
@@ -246,7 +301,7 @@ const communication = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiStat
         <form class="s3-thread__reply" onSubmit=${(e: Event) => { e.preventDefault(); send(); }}>
           <input class="ac-input s3-grow" aria-label="Reply to the customer" placeholder=${`Reply${d.contact ? ` to ${d.contact.name.split(" ")[0]}` : ""} (they will see this)`} maxlength="2000" value=${ui.value.reply}
             onInput=${(e: Event) => { ui.value = { ...ui.value, reply: (e.currentTarget as HTMLInputElement).value }; }} />
-          ${submitAction(ctx, "Send", send, "reply-send")}
+          ${submitAction(ctx, busyLabel(ctx, "send", "Send", "Sending…"), send, "reply-send")}
         </form>
         <label class="s3-notify"><input type="checkbox" disabled /> <span>Also notify by email and push<small>Not available yet — there is no email or push delivery. The customer sees the reply the next time they open the portal.</small></span></label>
       </div>
@@ -256,7 +311,7 @@ const communication = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiStat
         <form class="s3-thread__reply" onSubmit=${(e: Event) => { e.preventDefault(); addNote(); }}>
           <input class="ac-input s3-grow" aria-label="Internal note" placeholder="Add an internal note (staff only)" maxlength="2000" value=${ui.value.note}
             onInput=${(e: Event) => { ui.value = { ...ui.value, note: (e.currentTarget as HTMLInputElement).value }; }} />
-          ${submitAction(ctx, "Add note", addNote, "note-add", "quiet")}
+          ${submitAction(ctx, busyLabel(ctx, "note", "Add note", "Adding…"), addNote, "note-add", "quiet")}
         </form>
       </section>
     </section>

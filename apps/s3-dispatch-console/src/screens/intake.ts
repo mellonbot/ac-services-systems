@@ -1,7 +1,7 @@
-import { html, signal, DataGrid, StatusPill, PrimaryAction, pageHead, statStrip, panel, shortRef, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, DataGrid, StatusPill, PrimaryAction, pageHead, statStrip, panel, shortRef, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import { TERMS, SERVICE_CATALOG, JOB_WORK_CLASS_LABEL, type ServiceRequestWire, type ServiceRequestPriority, type JobPriority, type Refusal } from "../../../../packages/contracts/src/index.ts";
-import { keyOf, type Store } from "../state.ts";
-import { whenReady, homeMark, linkTo, refusalView, type Screen, type ScreenContext } from "./common.ts";
+import { keyOf } from "../state.ts";
+import { whenReady, homeMark, linkTo, refusalView, perStore, focusId, boundEnd, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL } from "./jobs.ts";
 
 /**
@@ -46,14 +46,6 @@ export const age = (iso: string, now: number): string => {
   return m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m / 60)}h` : `${Math.floor(m / 1440)}d`;
 };
 
-export const perStore = <T>(initial: T) => {
-  const m = new WeakMap<Store, Signal<T>>();
-  return (store: Store): Signal<T> => {
-    let s = m.get(store);
-    if (!s) { s = signal<T>(initial); m.set(store, s); }
-    return s;
-  };
-};
 const showFor = perStore<Show>("waiting");
 const viewingFor = perStore<Viewing>(null);
 type Opening = { readonly requestId: string; readonly busy: boolean; readonly refusal: Refusal | null } | null;
@@ -120,15 +112,15 @@ const openPanel = (ctx: ScreenContext, requests: readonly ServiceRequestWire[], 
           ${JOB_PRIORITIES.map((p) => html`<option value=${p} defaultSelected=${p === r.priority}>${PRIORITY_WORD[p]}${p === r.priority ? " — as the customer declared" : ""}</option>`)}
         </select>
       </label>
-      <label class="ac-field"><span>Window from</span><input class="ac-input" type="datetime-local" name="start" id="intake-start" required defaultValue=${w.start} /></label>
-      <label class="ac-field"><span>Window to</span><input class="ac-input" type="datetime-local" name="end" id="intake-end" required defaultValue=${w.end} /></label>
+      <label class="ac-field"><span>Window from</span><input class="ac-input" type="datetime-local" name="start" id="intake-start" required defaultValue=${w.start} onInput=${boundEnd("end")} /></label>
+      <label class="ac-field"><span>Window to</span><input class="ac-input" type="datetime-local" name="end" id="intake-end" required defaultValue=${w.end} min=${w.start} /></label>
       <p class="s3-muted">The response time is the site's agreed term — it is derived when the job opens, not chosen here.</p>
       <span class="s3-row-actions">
         ${PrimaryAction({
           density: ctx.density, label: o.busy ? "Opening…" : "Open job", type: "submit", id: "intake-open-submit",
           ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : o.busy ? { disabledReason: "Opening…" } : {}),
         })}
-        <button type="button" class="s3-act" id="intake-open-cancel" onClick=${() => { opening.value = null; }}>Cancel</button>
+        <button type="button" class="s3-act" id="intake-open-cancel" onClick=${() => { opening.value = null; focusId(`open-${r.id}`); }}>Cancel</button>
       </span>
       ${o.refusal ? refusalView(ctx, o.refusal) : null}
     </form>`,
@@ -201,9 +193,9 @@ export const intake: Screen = (ctx) => {
       : r.waitingOnTerm
       ? html`<span class="s3-moves">${StatusPill({ density: ctx.density, status: "blocked", label: "Waiting on Contracts" })}<span class="s3-muted">No ${termWord(r.waitingOnTerm)} on the agreement</span></span>`
       : html`<span class="s3-moves"><span class="s3-muted">Waiting — no job yet</span>
-          <button type="button" class="s3-act" id=${`open-${r.id}`} disabled=${ctx.degraded}
+          <button type="button" class="s3-act" id=${`open-${r.id}`} aria-label=${`Open a job for request ${shortRef(r.id)} at ${r.siteName}`} disabled=${ctx.degraded}
             title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
-            onClick=${() => { viewing.value = null; opening.value = { requestId: r.id, busy: false, refusal: null }; }}>Open job</button></span>` },
+            onClick=${() => { viewing.value = null; opening.value = { requestId: r.id, busy: false, refusal: null }; focusId("intake-service"); }}>Open job</button></span>` },
   ];
 
   return html`<section class="s3-intake">

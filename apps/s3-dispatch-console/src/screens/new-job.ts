@@ -2,8 +2,8 @@ import { html, PrimaryAction, pageHead, panel, shortRef, type VNode } from "../.
 import type { JobPriority, ProjectWire, Refusal, SiteWire } from "../../../../packages/contracts/src/index.ts";
 import { JOB_WORK_CLASSES, JOB_WORK_CLASS_LABEL, SERVICE_CATALOG, serviceLabel, serviceOf } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, type Screen, type ScreenContext } from "./common.ts";
-import { perStore, defaultWindow, JOB_PRIORITIES, PRIORITY_WORD } from "./intake.ts";
+import { whenReady, refusalView, perStore, boundEnd, type Screen, type ScreenContext } from "./common.ts";
+import { defaultWindow, JOB_PRIORITIES, PRIORITY_WORD } from "./intake.ts";
 
 /**
  * NEW JOB — a job with no portal request behind it: the customer phoned.
@@ -95,10 +95,16 @@ const form = (ctx: ScreenContext, sites: readonly SiteWire[]): VNode => {
   const work = serviceOf(code)?.workClass;
   const orgOfSite = sites.find((x) => x.id === siteId)?.orgId;
   // Only an install asks for the projects; the list waits until it does.
+  const listed = work === "install" ? ctx.store.read(keyOf("projects.list", {}), () => ctx.shell.gateway.listProjects({})) : null;
+  const openFor = (projects: readonly ProjectWire[]) => projects.filter((p) => p.orgId === orgOfSite && p.foremanId && (p.state === "planned" || p.state === "active"));
+  // An install with no project to sit under can only be refused — say why at the button instead.
+  const noProject = work !== "install" ? null
+    : !orgOfSite ? "Choose the site first — an install opens under what was sold there."
+    : listed?.value.state === "ready" && openFor(listed.value.value.projects).length === 0 ? "Nothing sold to this customer is open, so there is no project to open the install under."
+    : null;
   const projectField = (): VNode => {
-    const listed = ctx.store.read(keyOf("projects.list", {}), () => ctx.shell.gateway.listProjects({}));
-    return whenReady(ctx, listed.value, (out) => {
-      const open = out.projects.filter((p: ProjectWire) => p.orgId === orgOfSite && p.foremanId && (p.state === "planned" || p.state === "active"));
+    return whenReady(ctx, listed!.value, (out) => {
+      const open = openFor(out.projects);
       if (!orgOfSite) return html`<p class="s3-muted">Choose the site first — the project is what was sold to that customer.</p>`;
       if (open.length === 0) return html`<p class="s3-muted">Nothing sold to this customer is open. An install is opened under the project it was sold as — Service Manager records the sale.</p>`;
       return html`<label class="ac-field"><span>Project</span>
@@ -134,13 +140,13 @@ const form = (ctx: ScreenContext, sites: readonly SiteWire[]): VNode => {
           ${JOB_PRIORITIES.filter((p) => !(work === "install" && p === "emergency")).map((p) => html`<option value=${p} defaultSelected=${p === "routine"}>${PRIORITY_WORD[p]}</option>`)}
         </select>
       </label>
-      <label class="ac-field"><span>Window from</span><input class="ac-input" type="datetime-local" name="start" id="new-job-start" required defaultValue=${w.start} /></label>
-      <label class="ac-field"><span>Window to</span><input class="ac-input" type="datetime-local" name="end" id="new-job-end" required defaultValue=${w.end} /></label>
+      <label class="ac-field"><span>Window from</span><input class="ac-input" type="datetime-local" name="start" id="new-job-start" required defaultValue=${w.start} onInput=${boundEnd("end")} /></label>
+      <label class="ac-field"><span>Window to</span><input class="ac-input" type="datetime-local" name="end" id="new-job-end" required defaultValue=${w.end} min=${w.start} /></label>
       <p class="s3-muted">The response time is the site's agreed term — it is derived when the job opens, not chosen here.</p>
       <span class="s3-row-actions">
         ${PrimaryAction({
           density: ctx.density, label: s.busy ? "Opening…" : "Open job", type: "submit", id: "new-job-submit",
-          ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : s.busy ? { disabledReason: "Opening…" } : {}),
+          ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : s.busy ? { disabledReason: "Opening…" } : noProject ? { disabledReason: noProject } : {}),
         })}
         <button type="button" class="s3-act" id="new-job-cancel" onClick=${() => { submittingFor(ctx.store).value = { busy: false, refusal: null, call: null }; choice.value = { code: "", siteId: "" }; ctx.router.navigate("board", {}); }}>Cancel</button>
       </span>

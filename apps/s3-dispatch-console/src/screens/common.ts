@@ -1,4 +1,4 @@
-import { html, retryable, RefusalCard, PrimaryAction, type VNode, type Router } from "../../../../packages/ui/src/index.ts";
+import { html, signal, retryable, RefusalCard, PrimaryAction, type Signal, type VNode, type Router } from "../../../../packages/ui/src/index.ts";
 import type { Shell } from "../../../../packages/shell/src/index.ts";
 import type { Refusal, DensityOf, CustomerSegment } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
@@ -41,6 +41,29 @@ export const submitAction = (ctx: ScreenContext, label: string, onClick: () => v
     ...(id ? { id } : {}),
     ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : {}),
   }) ?? html``;
+
+/** Once the click's render has landed: move focus to what it opened. Nothing to do without a DOM (node --test). */
+export const afterRender = (fn: (doc: Document) => void): void => {
+  if (typeof document !== "undefined") setTimeout(() => fn(document), 0);
+};
+export const focusId = (id: string): void => afterRender((d) => (d.getElementById(id) as HTMLElement | null)?.focus());
+
+/** On a window's start: hold its end to it, so a reversed window is stopped at the field rather than refused after it. */
+export const boundEnd = (endName: string) => (e: Event): void => {
+  const start = e.currentTarget as HTMLInputElement;
+  const end = start.form?.elements.namedItem(endName);
+  if (end && "min" in end) end.min = start.value;
+};
+
+/** A signal per store: screen state that lives as long as the session's store, and no longer. */
+export const perStore = <T>(initial: T) => {
+  const m = new WeakMap<Store, Signal<T>>();
+  return (store: Store): Signal<T> => {
+    let s = m.get(store);
+    if (!s) { s = signal<T>(initial); m.set(store, s); }
+    return s;
+  };
+};
 
 /** A homeowner, marked where the office reads a site (0019) — commercial is the default and carries no mark. */
 export const homeMark = (segment: CustomerSegment | null): VNode | null =>

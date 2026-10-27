@@ -3,7 +3,10 @@ import { serviceLabel } from "../../../../packages/contracts/src/index.ts";
 import type { JobWire, CandidateCrewWire } from "../../../../packages/contracts/src/index.ts";
 import { JOB_WORK_CLASS_LABEL, CREW_KIND_LABEL, crewKindFor } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, type Screen } from "./common.ts";
+import { whenReady, perStore, type Screen } from "./common.ts";
+
+/** The crew an Assign is in flight for — one at a time, so a second click cannot send a second assignment. */
+const assigningFor = perStore<string | null>(null);
 
 /**
  * THE ONE GATED DOOR, at a screen. `dispatch.candidates` is read here for
@@ -27,13 +30,29 @@ export const dispatch: Screen = (ctx, params) => {
     const candidatesKey = keyOf("dispatch.candidates", { jobId });
     const candidates = ctx.store.read(candidatesKey, () => ctx.shell.gateway.candidateCrews({ jobId, orgId: job.orgId, regionId: job.regionId }));
 
+    const assigning = assigningFor(ctx.store);
     const assign = async (crew: CandidateCrewWire) => {
       if (!crew.cleared) return; // the button for an uncleared crew is not rendered; this is belt-and-suspenders against a stale re-render
-      const out = await ctx.shell.gateway.assignCrew({ jobId: job.id, crewId: crew.crewId, orgId: job.orgId, regionId: job.regionId });
+      if (assigning.value) return;
+      assigning.value = crew.crewId;
+      let out: Awaited<ReturnType<typeof ctx.shell.gateway.assignCrew>>;
+      try {
+        out = await ctx.shell.gateway.assignCrew({ jobId: job.id, crewId: crew.crewId, orgId: job.orgId, regionId: job.regionId });
+      } catch (e) {
+        // Not the gate's verdict (that comes back as ok:false) — the request itself failed or was refused. Say so; nothing was assigned.
+        const r = ctx.shell.refusalOf(e);
+        ctx.store.notice.value = [`${crew.label} was not assigned${r && "message" in r && r.message ? ` — ${r.message}` : ""}. Nothing changed; try again.`];
+        ctx.store.invalidate(candidatesKey);
+        return;
+      } finally {
+        assigning.value = null;
+      }
       if (out.ok) {
         ctx.store.notice.value = [`${crew.label} assigned to ${serviceLabel(job.serviceCode)}.`];
         ctx.store.invalidate("jobs.list");
-        ctx.router.navigate("board", {});
+        ctx.store.invalidate("jobs.detail");
+        // The job's own page, not the board: it shows the crew now on it (and Release), where the board may not draw it at all.
+        ctx.router.navigate("detail", { jobId: job.id });
       } else {
         // The same verdict candidateCrews already showed — a race (someone else assigned in the meantime, or a
         // document expired between the read and the click) rather than a surprise, but it is reported the same way.
@@ -61,8 +80,8 @@ export const dispatch: Screen = (ctx, params) => {
               })}
               ${c.cleared
                 ? PrimaryAction({
-                    density: ctx.density, label: "Assign", id: `assign-${c.crewId}`, onClick: () => void assign(c),
-                    ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : {}),
+                    density: ctx.density, label: assigning.value === c.crewId ? "Assigning…" : "Assign", id: `assign-${c.crewId}`, ariaLabel: `Assign ${c.label}`, onClick: () => void assign(c),
+                    ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : assigning.value && assigning.value !== c.crewId ? { disabledReason: "Another assignment is being sent." } : {}),
                   })
                 : null}
             </li>`)}
