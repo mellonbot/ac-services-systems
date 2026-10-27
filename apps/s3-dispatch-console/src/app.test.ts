@@ -775,3 +775,21 @@ test("the Intake tab says what is waiting, and an emergency in a glyph and a wor
   assert.match(out, new RegExp(`aria-label="Intake — ${waiting.length} waiting, ${emergencies} emergency"`));
   assert.match(out, new RegExp(`id="intake-emergency"><span aria-hidden="true">[^<]+</span> ${emergencies} emergency<`));
 });
+
+test("a row's buttons are named for the row: Assign for the crew, the dashboard's moves and notes for the job, Open job for the request", async () => {
+  const { app } = await ready({
+    [OPERATIONS["serviceRequests.list"].path]: { status: 200, body: { requests: REQUESTS } },
+    [OPERATIONS["jobs.list"].path]: { status: 200, body: { jobs: [jobCreated, { ...jobCreated, id: U(42), state: "quote_requested" }] } },
+  });
+  const paint = async (screen: "dispatch" | "jobs" | "intake", params: Record<string, string> = {}) => {
+    app.router.navigate(screen, params);
+    for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+    return render(app.view());
+  };
+  assert.match(await paint("dispatch", { jobId: JOB_CREATED }), /aria-label="Assign Crew A1"/);
+  const dash = await paint("jobs");
+  assert.match(dash, new RegExp(`aria-label="Dispatch job ${JOB_CREATED}"`));
+  assert.match(dash, new RegExp(`aria-label="Add a note to job ${JOB_CREATED}"`));
+  assert.match(dash, new RegExp(`aria-label="Return trip owed on job ${JOB_CREATED}" aria-pressed="false"`));
+  assert.match(await paint("intake"), /aria-label="Open a job for request [0-9A-F]{8} at [^"]+"/);
+});

@@ -78,7 +78,7 @@ export const dispatch: Screen = (ctx, params) => {
               })}
               ${c.cleared
                 ? PrimaryAction({
-                    density: ctx.density, label: assigning.value === c.crewId ? "Assigning…" : "Assign", id: `assign-${c.crewId}`, onClick: () => void assign(c),
+                    density: ctx.density, label: assigning.value === c.crewId ? "Assigning…" : "Assign", id: `assign-${c.crewId}`, ariaLabel: `Assign ${c.label}`, onClick: () => void assign(c),
                     ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : assigning.value && assigning.value !== c.crewId ? { disabledReason: "Another assignment is being sent." } : {}),
                   })
                 : null}

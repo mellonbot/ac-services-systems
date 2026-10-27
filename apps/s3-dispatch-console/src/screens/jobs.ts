@@ -189,7 +189,7 @@ export const jobs: Screen = (ctx) => {
       ${j.latestNote
         ? html`<span class="s3-note__body" title=${`${j.latestNote.body} — ${new Date(j.latestNote.at).toLocaleString()}`}>${j.latestNote.body}</span>`
         : html`<span class="s3-muted">—</span>`}
-      <button type="button" class="s3-act" id=${`note-${j.id}`} onClick=${() => { draft.value = { jobId: j.id, body: "" }; }}>Add note</button>
+      <button type="button" class="s3-act" id=${`note-${j.id}`} aria-label=${`Add a note to job ${j.id}`} onClick=${() => { draft.value = { jobId: j.id, body: "" }; }}>Add note</button>
     </span>`;
   };
 
@@ -202,7 +202,7 @@ export const jobs: Screen = (ctx) => {
     { key: "state", header: "Status", cell: (j) => STATE_LABEL[j.state] },
     { key: "flags", header: "Flags", cell: (j) => html`<span class="s3-flags">
       ${j.returnTrip ? html`<span class="s3-flag">Return trip</span>` : null}
-      <button type="button" class="s3-act" id=${`flag-${j.id}`} aria-pressed=${j.returnTrip ? "true" : "false"} disabled=${ctx.degraded}
+      <button type="button" class="s3-act" id=${`flag-${j.id}`} aria-label=${`Return trip owed on job ${j.id}`} aria-pressed=${j.returnTrip ? "true" : "false"} disabled=${ctx.degraded}
         title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
         onClick=${() => void flagReturnTrip(ctx, j, !j.returnTrip)}>${j.returnTrip ? "Clear" : "Flag return trip"}</button>
     </span>` },
@@ -220,8 +220,8 @@ export const jobs: Screen = (ctx) => {
           </span>
         </span>`;
       }
-      return html`<span class="s3-moves">${isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act") : null}${(OFFICE_JOB_TRANSITIONS[j.state] ?? []).map((to) =>
-        html`<button type="button" class="s3-act" id=${`move-${j.id}-${to}`} disabled=${ctx.degraded || m !== null}
+      return html`<span class="s3-moves">${isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act", `Dispatch job ${j.id}`) : null}${(OFFICE_JOB_TRANSITIONS[j.state] ?? []).map((to) =>
+        html`<button type="button" class="s3-act" id=${`move-${j.id}-${to}`} aria-label=${`${MOVE_LABEL[to] ?? STATE_LABEL[to]} — job ${j.id}`} disabled=${ctx.degraded || m !== null}
           title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
           onClick=${() => { if (to === "cancelled") moving.value = { jobId: j.id, to, busy: false }; else void moveJob(ctx, j, to); }}>${m?.busy && m.to === to ? "Saving…" : MOVE_LABEL[to] ?? STATE_LABEL[to]}</button>`)}</span>`;
     } },

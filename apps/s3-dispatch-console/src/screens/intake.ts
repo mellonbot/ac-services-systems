@@ -193,7 +193,7 @@ export const intake: Screen = (ctx) => {
       : r.waitingOnTerm
       ? html`<span class="s3-moves">${StatusPill({ density: ctx.density, status: "blocked", label: "Waiting on Contracts" })}<span class="s3-muted">No ${termWord(r.waitingOnTerm)} on the agreement</span></span>`
       : html`<span class="s3-moves"><span class="s3-muted">Waiting — no job yet</span>
-          <button type="button" class="s3-act" id=${`open-${r.id}`} disabled=${ctx.degraded}
+          <button type="button" class="s3-act" id=${`open-${r.id}`} aria-label=${`Open a job for request ${shortRef(r.id)} at ${r.siteName}`} disabled=${ctx.degraded}
             title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
             onClick=${() => { viewing.value = null; opening.value = { requestId: r.id, busy: false, refusal: null }; }}>Open job</button></span>` },
   ];
