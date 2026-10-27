@@ -79,7 +79,6 @@ export const S2_CSS = `
 .s2-trace__note{grid-column:1/-1;color:var(--color-text-muted)}
 .s2-trace-table{width:100%;border-collapse:collapse}
 .s2-field-error{color:var(--color-status-at-risk);font-size:var(--text-sm)}
-.s2-app .ac-input[aria-invalid="true"]{border-color:var(--color-status-at-risk)}
 .s2-refused{margin:var(--space-3) 0 0;padding-inline-start:var(--space-4);color:var(--color-status-at-risk)}
 @media (max-width:760px){
   .s2-address-row{grid-template-columns:1fr}
