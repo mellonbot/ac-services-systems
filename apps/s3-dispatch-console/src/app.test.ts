@@ -237,21 +237,20 @@ test("0024: dispatch says what kind of work the job is and that only that kind o
   assert.match(out, /Install work goes to an install crew\./);
 });
 
-test("assigning navigates back to the board with a notice and refetches the board", async () => {
+test("assigning, clicked: the job's own page opens with a notice, read fresh", async () => {
   const { app, gateway } = await ready({
     [OPERATIONS["dispatch.assign"].path]: { status: 200, body: { ok: true, assignmentId: U(50), clearanceId: U(51), eventId: U(52) } },
+    [OPERATIONS["jobs.detail"].path]: { status: 200, body: detailOf(jobCreated) },
   });
   app.router.navigate("dispatch", { jobId: JOB_CREATED });
-  render(app.view()); await settle(); await settle();
-  if (app.phase.value.kind !== "ready") return assert.fail("not ready");
-  const before = gateway.calls.filter((c) => c.path === OPERATIONS["jobs.list"].path).length;
-  await (app.phase.value.shell.gateway.assignCrew({ jobId: JOB_CREATED, crewId: CREW_A, orgId: ORG, regionId: SOUTH }));
-  app.phase.value.store.notice.value = ["Crew A1 assigned to hvac_repair."];
-  app.phase.value.store.invalidate("jobs.list");
-  app.router.navigate("board", {});
-  render(app.view()); await settle();
-  assert.equal(gateway.calls.filter((c) => c.path === OPERATIONS["jobs.list"].path).length, before + 1, "the board refetches after a dispatch");
-  assert.match(render(app.view()), /Crew A1 assigned to hvac_repair\./);
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const before = gateway.calls.filter((c) => c.path === OPERATIONS["jobs.detail"].path).length;
+  (nodesIn(app.view()).find((n) => n.props?.id === `assign-${CREW_A}`)!.props!.onClick as (e: unknown) => void)({ preventDefault() {} });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  assert.equal(app.router.current.value?.screen, "detail");
+  assert.equal(app.router.current.value?.params.jobId, JOB_CREATED);
+  assert.ok(gateway.calls.filter((c) => c.path === OPERATIONS["jobs.detail"].path).length > before, "the job is read after the assignment");
+  assert.match(render(app.view()), /Crew A1 assigned to Repair\./);
 });
 
 test("a refusal at assignment renders the same reason the dry run showed — a race, not a surprise", async () => {

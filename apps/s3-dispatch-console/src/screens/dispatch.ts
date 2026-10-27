@@ -50,7 +50,9 @@ export const dispatch: Screen = (ctx, params) => {
       if (out.ok) {
         ctx.store.notice.value = [`${crew.label} assigned to ${serviceLabel(job.serviceCode)}.`];
         ctx.store.invalidate("jobs.list");
-        ctx.router.navigate("board", {});
+        ctx.store.invalidate("jobs.detail");
+        // The job's own page, not the board: it shows the crew now on it (and Release), where the board may not draw it at all.
+        ctx.router.navigate("detail", { jobId: job.id });
       } else {
         // The same verdict candidateCrews already showed — a race (someone else assigned in the meantime, or a
         // document expired between the read and the click) rather than a surprise, but it is reported the same way.
