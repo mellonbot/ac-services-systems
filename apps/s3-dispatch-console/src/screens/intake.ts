@@ -1,7 +1,7 @@
 import { html, DataGrid, StatusPill, PrimaryAction, pageHead, statStrip, panel, shortRef, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import { TERMS, SERVICE_CATALOG, JOB_WORK_CLASS_LABEL, type ServiceRequestWire, type ServiceRequestPriority, type JobPriority, type Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, homeMark, linkTo, refusalView, perStore, focusId, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, homeMark, linkTo, refusalView, perStore, focusId, boundEnd, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL } from "./jobs.ts";
 
 /**
@@ -112,8 +112,8 @@ const openPanel = (ctx: ScreenContext, requests: readonly ServiceRequestWire[], 
           ${JOB_PRIORITIES.map((p) => html`<option value=${p} defaultSelected=${p === r.priority}>${PRIORITY_WORD[p]}${p === r.priority ? " — as the customer declared" : ""}</option>`)}
         </select>
       </label>
-      <label class="ac-field"><span>Window from</span><input class="ac-input" type="datetime-local" name="start" id="intake-start" required defaultValue=${w.start} /></label>
-      <label class="ac-field"><span>Window to</span><input class="ac-input" type="datetime-local" name="end" id="intake-end" required defaultValue=${w.end} /></label>
+      <label class="ac-field"><span>Window from</span><input class="ac-input" type="datetime-local" name="start" id="intake-start" required defaultValue=${w.start} onInput=${boundEnd("end")} /></label>
+      <label class="ac-field"><span>Window to</span><input class="ac-input" type="datetime-local" name="end" id="intake-end" required defaultValue=${w.end} min=${w.start} /></label>
       <p class="s3-muted">The response time is the site's agreed term — it is derived when the job opens, not chosen here.</p>
       <span class="s3-row-actions">
         ${PrimaryAction({

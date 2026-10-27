@@ -810,3 +810,24 @@ test("job dashboard: a note is saved with Enter from its box, and Escape puts it
   assert.equal(sent.length, 1);
   assert.equal(JSON.parse(String(sent[0]!.init?.body)).body, "Customer asked for a call first");
 });
+
+test("New job: an install with no open project says why at the button instead of offering a refusal", async () => {
+  const sites = [{ id: U(30), name: "Roof North", orgId: ORG, orgName: "Shipman Co", regionId: SOUTH, address: null }];
+  const { app } = await ready({
+    [OPERATIONS["sites.list"].path]: { status: 200, body: { sites } },
+    [OPERATIONS["projects.list"].path]: { status: 200, body: { projects: [], foremen: [] } },
+  });
+  app.router.navigate("new-job", {});
+  render(app.view()); await settle(); await settle();
+  const change = (id: string, value: string) => (nodesIn(app.view()).find((n) => n.props?.id === id)!.props!.onChange as (e: unknown) => void)({ currentTarget: { value } });
+  change("new-job-service", "NEW-INSTALL");
+  let out = render(app.view());
+  assert.match(out, /id="new-job-submit" aria-disabled="true"/);
+  assert.match(out, /Choose the site first — an install opens under what was sold there\./);
+  change("new-job-site", U(30));
+  render(app.view()); await settle(); await settle();
+  out = render(app.view());
+  assert.match(out, /Nothing sold to this customer is open, so there is no project to open the install under\./);
+  change("new-job-service", "HVAC-REPAIR");
+  assert.match(render(app.view()), /id="new-job-submit" aria-disabled="false"/, "a service job needs no project");
+});

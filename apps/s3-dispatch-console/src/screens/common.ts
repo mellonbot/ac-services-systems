@@ -48,6 +48,13 @@ export const afterRender = (fn: (doc: Document) => void): void => {
 };
 export const focusId = (id: string): void => afterRender((d) => (d.getElementById(id) as HTMLElement | null)?.focus());
 
+/** On a window's start: hold its end to it, so a reversed window is stopped at the field rather than refused after it. */
+export const boundEnd = (endName: string) => (e: Event): void => {
+  const start = e.currentTarget as HTMLInputElement;
+  const end = start.form?.elements.namedItem(endName);
+  if (end && "min" in end) end.min = start.value;
+};
+
 /** A signal per store: screen state that lives as long as the session's store, and no longer. */
 export const perStore = <T>(initial: T) => {
   const m = new WeakMap<Store, Signal<T>>();
