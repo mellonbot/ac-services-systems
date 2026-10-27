@@ -140,7 +140,7 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
       <label class="ac-field"><span>Identifier</span><input class="ac-input" name="identifier" required placeholder="policy or licence number" /></label>
       <label class="ac-field"><span>Valid from</span><input class="ac-input" type="date" name="validFrom" required /></label>
       <label class="ac-field"><span>Valid to</span><input class="ac-input" type="date" name="validTo" required /><small>The gate checks the whole service window against this, never today — a certificate that expires on Tuesday does not clear a job on Thursday.</small></label>
-      <label class="ac-field"><span>Scan</span><input class="ac-input" name="documentKey" placeholder="storage key of the PDF" /></label>
+      <label class="ac-field"><span>Scan</span><input class="ac-input" name="documentKey" /><small>The storage key of the scanned PDF.</small></label>
       <div class="s2-form__actions">
         ${submitAction(ctx, outcome.value.busy === "record" ? "Recording…" : "Put on file (unverified)", "record-credential")}
       </div>

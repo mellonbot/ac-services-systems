@@ -236,6 +236,8 @@ test("hovering a customer shows S6's card for it: a commercial account's sites a
   assert.match(home, /Trane XR15/);
   assert.match(home, /Premium Cool Club<\/strong> · member since/);
 
+  showCustomerCard(ORG);
+  assert.match(render(app.view()), /class="s2-hovercard" role="tooltip" aria-hidden="true"/, "a preview for the eye; read out on every focus it buried the list");
   showCustomerCard(null);
   assert.doesNotMatch(render(app.view()), /role="tooltip"/);
   // The name carries the hover AND the focus handlers — keyboard users get the card too.

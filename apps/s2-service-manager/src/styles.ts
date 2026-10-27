@@ -24,7 +24,7 @@ export const S2_CSS = `
 .s2-node__count{color:var(--color-text-muted);font-size:var(--text-sm);white-space:nowrap}
 .s2-node[data-tier="region"] .s2-node__name{font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
 .s2-node[data-tier="location"] .s2-node__name{font-weight:600}
-.s2-tier{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
+.s2-tier{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-sm);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
 .s2-row-actions{display:inline-flex;gap:var(--space-3);white-space:nowrap}
 .s2-doc-summary{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3)}
 .s2-link--action{display:inline-flex;align-items:center;text-decoration:none}

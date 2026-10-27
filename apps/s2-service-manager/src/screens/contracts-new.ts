@@ -156,7 +156,7 @@ export const contractsNew: Screen = (ctx, params) => {
       <label class="ac-field"><span>Signed</span><input class="ac-input" type="date" name="signedAt" required /></label>
       <label class="ac-field"><span>Effective from</span><input class="ac-input" type="date" name="effectiveFrom" required onInput=${boundEnd("effectiveTo")} /></label>
       <label class="ac-field"><span>Effective to</span><input class="ac-input" type="date" name="effectiveTo" /><small>Leave empty for evergreen.</small></label>
-      <label class="ac-field"><span>Signed document</span><input class="ac-input" name="documentKey" placeholder="storage key of the PDF" /></label>
+      <label class="ac-field"><span>Signed document</span><input class="ac-input" name="documentKey" /><small>The storage key of the signed PDF.</small></label>
       ${oq5Field()}
       <div class="s2-form__actions">
         ${oq5Submit(ctx, f, blocked)}

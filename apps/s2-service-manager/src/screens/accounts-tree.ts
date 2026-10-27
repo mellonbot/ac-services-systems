@@ -24,7 +24,8 @@ export const SEGMENT_WORD: Readonly<Record<CustomerSegment, string>> = { residen
  * what the customer sees without leaving the list. Opens after a short pause
  * so a pointer crossing the list does not flash a card per row; Escape or
  * leaving closes it. Fixed-positioned beside the name, so the grid's own
- * container never clips it.
+ * container never clips it. Hidden from screen readers: read out on every
+ * focus it buried the list, and opening the customer gives the same card.
  */
 const hover = signal<{ readonly orgId: string; readonly left: number; readonly top: number } | null>(null);
 let openTimer: ReturnType<typeof setTimeout> | undefined;
@@ -153,7 +154,6 @@ export const accountsTree: Screen = (ctx, params) => {
         {
           key: "name", header: "Customer",
           cell: (o: OrganizationWire) => html`<a class="ac-link" href=${ctx.router.href("accounts.tree", { orgId: o.id })}
-            aria-describedby=${hover.value?.orgId === o.id ? "customer-card" : undefined}
             onClick=${(e: Event) => { e.preventDefault(); closeCard(); ctx.router.navigate("accounts.tree", { orgId: o.id }); }}
             onMouseEnter=${openCard(o)} onMouseLeave=${closeCard} onFocusIn=${openCard(o)} onFocusOut=${closeCard}
             onKeyDown=${(e: KeyboardEvent) => { if (e.key === "Escape") closeCard(); }}>${o.name}</a>`,
@@ -200,7 +200,7 @@ export const accountsTree: Screen = (ctx, params) => {
   const selected = orgId && orgs.value.state === "ready" ? orgs.value.value.organizations.find((o) => o.id === orgId) : undefined;
   const selectedHome = selected?.segment === "residential" ? selected : undefined;
   const hovered = hover.value && orgs.value.state === "ready" ? orgs.value.value.organizations.find((o) => o.id === hover.value!.orgId) : undefined;
-  return html`${hovered ? html`<div class="s2-hovercard" role="tooltip" style=${`left:${hover.value!.left}px;top:${hover.value!.top}px`}>${customerCard(ctx, hovered)}</div>` : null}${pageHead("Accounts", "Every customer and its tree of regions, locations and sites, against the regions we serve them from. Pick a customer to see its tree.", linkTo(ctx, "organizations.new", {}, "+ New customer", "ac-action s2-link--action"))}<div class="s2-two-col s2-two-col--wide-side">
+  return html`${hovered ? html`<div class="s2-hovercard" role="tooltip" aria-hidden="true" style=${`left:${hover.value!.left}px;top:${hover.value!.top}px`}>${customerCard(ctx, hovered)}</div>` : null}${pageHead("Accounts", "Every customer and its tree of regions, locations and sites, against the regions we serve them from. Pick a customer to see its tree.", linkTo(ctx, "organizations.new", {}, "+ New customer", "ac-action s2-link--action"))}<div class="s2-two-col s2-two-col--wide-side">
     <aside class="s2-col s2-col--orgs">
       ${panel(whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations), () => store.invalidate("organizations.list")), "Customers", undefined,
         html`<div class="s2-chips" role="group" aria-label="Customer type" id="customer-type">

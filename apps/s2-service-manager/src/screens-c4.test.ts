@@ -229,7 +229,7 @@ test("OQ5 firm-side blocks the firm form with ZERO gateway calls while it is uns
   const html = await paint(app, "network.firm.new", {});
   assert.match(html, /Diagnostic data rights \(OQ5, firm side\)/);
   assert.match(html, /Not stated\./);
-  assert.match(html, /id="record-firm"[^>]*disabled/);
+  assert.match(html, /id="record-firm" aria-disabled="true">Record firm<\/button><span class="ac-action__reason" role="note">State the diagnostic data rights position first\./, "the reason is on screen, not in a title a keyboard cannot reach");
   const posts = gateway.calls.filter((c) => c.path === OPERATIONS["firms.create"].path && (c.init.method ?? "GET").toUpperCase() === "POST").length;
   assert.equal(posts, 0);
   assert.equal(canSubmitFirm({ oq5: "unset", busy: false }, false), false);

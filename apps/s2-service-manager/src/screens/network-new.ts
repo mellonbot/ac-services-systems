@@ -80,12 +80,12 @@ export const networkFirmNew: Screen = (ctx) => {
       <details class="s2-help"><summary>How this region is used</summary><p>Our region. The firm's crews are dispatched from here and its rows live in this shard.</p></details>
       <label class="ac-field"><span>Settlement terms (days)</span><input class="ac-input" type="number" name="settlementTermsDays" min="0" defaultValue="30" required /><small>D13 — measured from day one.</small></label>
       <label class="ac-field"><span>MSA signed</span><input class="ac-input" type="date" name="msaSignedAt" /><small>Leave empty until it is signed; the firm cannot be activated without it.</small></label>
-      <label class="ac-field"><span>W-9</span><input class="ac-input" name="w9DocumentKey" placeholder="storage key of the W-9" /></label>
+      <label class="ac-field"><span>W-9</span><input class="ac-input" name="w9DocumentKey" /><small>The storage key of the scanned W-9.</small></label>
       <label class="ac-field"><span>External reference</span><input class="ac-input" name="externalRef" /></label>
       ${oq5Field()}
       <div class="s2-form__actions">
         ${f.oq5 === "unset" && !ctx.degraded
-          ? html`<button type="submit" class="ac-action" id="record-firm" disabled aria-disabled="true" title="State the diagnostic data rights position first">Record firm</button>`
+          ? html`<span class="ac-action-wrap"><button type="button" class="ac-action" id="record-firm" aria-disabled="true">Record firm</button><span class="ac-action__reason" role="note">State the diagnostic data rights position first.</span></span>`
           : submitAction(ctx, f.busy ? "Recording…" : "Record firm", "record-firm", noActiveRegion(regions.value))}
         ${linkTo(ctx, "network", {}, "Cancel")}
       </div>
