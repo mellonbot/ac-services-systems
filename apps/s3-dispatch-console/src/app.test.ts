@@ -653,6 +653,12 @@ test("the board lists what its grid cannot draw: unassigned work with Dispatch, 
   const out = render(app.view()).split('id="board-off-timeline"')[1]!.split('class="dispatch-dashboard__legend"')[0]!;
   assert.match(out, /Unassigned — 1 not on any crew/);
   assert.match(out, new RegExp(`aria-label="Dispatch job ${JOB_CREATED} at Austin — Roof"[^>]*>Dispatch<`));
+  const quoted = await ready({ [OPERATIONS["jobs.list"].path]: { status: 200, body: { jobs: [{ ...jobCreated, state: "quote_submitted" }] } } });
+  quoted.app.router.navigate("board", {});
+  for (let i = 0; i < 3; i++) { render(quoted.app.view()); await settle(); }
+  const q = render(quoted.app.view());
+  assert.match(q, /Quote submitted/, "a job not yet dispatchable says where it is in words");
+  assert.doesNotMatch(q, /quote_submitted/);
 });
 
 test("Assign, clicked: a failed request says so instead of nothing, and a double click sends one assignment", async () => {

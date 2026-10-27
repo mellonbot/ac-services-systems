@@ -3,6 +3,7 @@ import { serviceLabel, WORK_DONE_STATES, crewKindFor, crewKindForRole, type JobW
 import { STATUS_GLYPH } from "../../../../packages/tokens/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, linkTo, type Screen } from "./common.ts";
+import { STATE_LABEL } from "./jobs.ts";
 
 /**
  * THE BOARD — S3's home screen (09 §2.8 item 4). Every job region-locked RLS
@@ -186,7 +187,7 @@ const offTimeline = (ctx: Parameters<Screen>[0], unassigned: readonly JobWire[],
         { key: "site", header: "Site", cell: (j: JobWire) => html`${j.siteName ?? "Site name unavailable"}${homeMark(j.customerSegment)} <span class="s3-muted">· ${serviceLabel(j.serviceCode)} · ${j.priority}</span>` },
         { key: "window", header: "Window", cell: (j: JobWire) => html`<span class="s3-num">${windowText(j)}</span>` },
         { key: "sla", header: "SLA", cell: sla },
-        { key: "act", header: "", align: "end", cell: (j: JobWire) => isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act", `Dispatch job ${j.id} at ${j.siteName ?? "its site"}`) : html`<span class="s3-muted">${j.state}</span>` },
+        { key: "act", header: "", align: "end", cell: (j: JobWire) => isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act", `Dispatch job ${j.id} at ${j.siteName ?? "its site"}`) : html`<span class="s3-muted">${STATE_LABEL[j.state]}</span>` },
       ],
       rows: unassigned, rowKey: (j: JobWire) => j.id, emptyText: "Every open job is on a crew.",
     })}

@@ -67,6 +67,7 @@ type PreviewShell = ConnectedShell & {
     openServiceRequestJob: (input: { requestId: string; serviceCode: string; priority?: string; serviceWindowStart: string; serviceWindowEnd: string }) => Promise<unknown>;
     holdServiceRequest: (input: { siteId: string; priority?: string; description: string }) => Promise<{ id: string; orgId: string; regionId: string; eventId: string }>;
     listSites: () => Promise<{ sites: unknown[] }>;
+    listProjects: (input: Record<string, unknown>) => Promise<{ projects: unknown[]; foremen: unknown[] }>;
     createJob: (input: { siteId: string; serviceCode: string; priority?: string; serviceWindowStart: string; serviceWindowEnd: string }) => Promise<unknown>;
     transitionJob: (input: { jobId: string; to: string }) => Promise<unknown>;
     addJobNote: (input: { jobId: string; body: string; kind?: "note" | "standing" }) => Promise<unknown>;
@@ -208,6 +209,8 @@ const createPreviewShell = (): PreviewShell => {
         PREVIEW_REQUESTS.unshift(r);
         return { id: r.id, orgId: r.orgId, regionId: r.regionId, eventId: `e-${r.id}` };
       },
+      // Nothing sold in the preview: an install has no project to open under, and New job says so.
+      listProjects: async () => ({ projects: [], foremen: [] }),
       listSites: async () => ({ sites: Object.entries(PREVIEW_PLACES).map(([name, a]) => ({ id: `site-${name}`, name, orgId: "org-preview", orgName: "AC Services", regionId: "region-preview", address: a })) }),
       createJob: async (input: { siteId: string; serviceCode: string; priority?: string; serviceWindowStart: string; serviceWindowEnd: string }) => {
         const job = previewJob(String(33400000 + PREVIEW_JOBS.length), input.siteId.replace(/^site-/, ""), input.serviceCode, input.priority ?? "routine", "created", null, 0, { due: 4, stage: 0 });
