@@ -131,29 +131,20 @@ test("isDispatchable / isReleasable follow the handlers' own admitted states, no
   assert.equal(isReleasable(jobCreated), false);
 });
 
-test("the board shows every job with its SLA glyph, its crew, and offers Dispatch or Release by state — never both", async () => {
+test("the board: one page head, no other surface's links, no coordinates — and Dispatch only for the job nobody holds", async () => {
   const { app } = await ready();
   app.router.navigate("board", {});
-  render(app.view()); await settle(); await settle();
-  const tree = app.view();
-  const out = render(tree);
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  const out = render(app.view());
   assert.match(out, /Repair/);
-  assert.match(out, /Unassigned/);
   assert.match(out, /Crew A1/);
-  assert.match(out, /s3-truck-model/);
-  assert.match(out, /Illustrative isometric AC Services dispatch shop, not a geographic location/);
-  assert.match(out, /Operational schematic · not geographic/);
-  assert.match(out, /Technician location unavailable/);
-  assert.match(out, /No routes or vehicle positions are being inferred/);
-  assert.match(out, /aria-label="Filter jobs"/);
   assert.equal((out.match(/class="ac-page-head"/g) ?? []).length, 1, "one page head");
   assert.match(out, /<h1 class="ac-page-head__title">Dispatch Board<\/h1>/);
   assert.doesNotMatch(out, />Field App</);
   assert.doesNotMatch(out, />Customer Portal</);
   assert.doesNotMatch(out, /data-latitude|data-longitude|latitude|longitude/i);
+  assert.doesNotMatch(out, /display:none/, "nothing on the board is drawn hidden");
   assert.match(out, new RegExp(`href="/job/${JOB_CREATED}"`));
-  assert.match(out, new RegExp(`id="release-${JOB_ASSIGNED}"`));
-  assert.doesNotMatch(out, new RegExp(`id="release-${JOB_CREATED}"`), "an unassigned job offers no release");
   assert.doesNotMatch(out, new RegExp(`href="/job/${JOB_ASSIGNED}"`), "an already-assigned job offers no dispatch link");
 });
 
@@ -214,33 +205,6 @@ test("the board steps three days either way from today and no further, and draws
   assert.equal((page.match(/class="dispatch-board__group"/g) ?? []).length, 2, "one band per half");
 });
 
-test("board filters persist across renders and show only the selected assignment state", async () => {
-  const { app } = await ready();
-  app.router.navigate("board", {});
-  render(app.view()); await settle(); await settle();
-  const findFilter = (label: string) => nodesIn(app.view()).find((node) =>
-    node.type === "button" && node.props?.children === label);
-
-  const unassigned = findFilter("Unassigned");
-  assert.equal(typeof unassigned?.props?.onClick, "function");
-  (unassigned!.props!.onClick as () => void)();
-  // The filters drive the open-work list, which sits after the board itself.
-  const list = (out: string) => out.slice(out.indexOf("s3-map-filters"));
-  const unassignedView = list(render(app.view()));
-  assert.match(unassignedView, /Austin — Roof/);
-  assert.match(unassignedView, /data-state="created"/);
-  assert.doesNotMatch(unassignedView, /data-state="assigned"/);
-  assert.doesNotMatch(unassignedView, /Crew A1/);
-  assert.match(unassignedView, /data-current="true"[^>]*aria-pressed="true"/);
-
-  const assigned = findFilter("Assigned");
-  assert.equal(typeof assigned?.props?.onClick, "function");
-  (assigned!.props!.onClick as () => void)();
-  const assignedView = list(render(app.view()));
-  assert.match(assignedView, /Crew A1/);
-  assert.match(assignedView, /data-state="assigned"/);
-  assert.doesNotMatch(assignedView, /data-state="created"/);
-});
 
 test("dispatch: the dry run renders as ComplianceBadge with the gate's own reason, and Assign is offered only where it cleared", async () => {
   const { app } = await ready();
@@ -301,15 +265,17 @@ test("a refusal at assignment renders the same reason the dry run showed — a r
   assert.equal(out.ok, false);
 });
 
-test("degraded: Assign and Release render disabled with the surface's declared reason, and the board keeps its last value", async () => {
-  const { app } = await ready();
+test("degraded: the board keeps its last value, and Release on the job waits with the surface's declared reason", async () => {
+  const { app } = await ready({ [OPERATIONS["jobs.detail"].path]: { status: 200, body: detailOf(jobAssigned) } });
   app.router.navigate("board", {});
   render(app.view()); await settle(); await settle();
   app.degraded.value = true;
-  const out = render(app.view());
-  assert.match(out, /aria-disabled="true"/);
-  assert.match(out, /Offline — the board is frozen at its last update/);
-  assert.match(out, /Crew A1/, "the last server state is still on screen");
+  assert.match(render(app.view()), /Crew A1/, "the last server state is still on screen (the frame's own banner says it is offline)");
+  app.degraded.value = false;
+  app.router.navigate("detail", { jobId: JOB_ASSIGNED });
+  render(app.view()); await settle(); await settle();
+  app.degraded.value = true;
+  assert.match(render(app.view()), /id="release-open" aria-disabled="true">Release Crew A1<\/button><span class="ac-action__reason" role="note">Offline — the board is frozen at its last update/);
 });
 
 test("New customer and New job sit under the dispatch bar: New job opens the New job form, New customer hands off to S2 and says why when the role cannot", async () => {
