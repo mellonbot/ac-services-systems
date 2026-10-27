@@ -218,3 +218,94 @@ test("a refused read is the heading and the gateway's words", async () => {
   const out = render(app.view());
   assert.match(out, /role dispatcher is not admitted to S4/);
 });
+
+// ---------------------------------------------------------------------------
+// Office and Dispatch: S2's and S3's reads, served to S4, and nothing else.
+// ---------------------------------------------------------------------------
+const ORG = U(10), SITE = U(11), JOB = U(12), INV = U(13), PO = U(14);
+const job = {
+  id: JOB, siteId: SITE, siteName: "Amped HQ", siteAddress: { line1: "1 Main St", city: "Austin", state: "TX" }, contractId: null, projectId: null,
+  serviceCode: "repair", priority: "urgent", state: "assigned", workClass: "service",
+  serviceWindowStart: "2026-09-27T14:00:00.000Z", serviceWindowEnd: "2026-09-27T18:00:00.000Z", version: 2, openedAt: "2026-09-27T13:00:00.000Z",
+  stateChangedAt: "2026-09-27T13:30:00.000Z", regionId: SOUTH, orgId: ORG, customerSegment: "commercial",
+  currentCrewId: U(20), currentCrewLabel: "South Crew 1", currentAssignmentId: U(21),
+  slaDueAt: "2026-09-27T16:00:00.000Z", slaEscalationStage: 1, slaSatisfiedAt: null, returnTrip: false, latestNote: null,
+};
+const RECORDS: Record<string, unknown> = {
+  [OPERATIONS["regions.list"].path]: { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 3, active: true }] },
+  [OPERATIONS["organizations.list"].path]: { organizations: [{ id: ORG, name: "Amped Fitness", kind: "customer", segment: "commercial", externalRef: null, active: true, regionNodeCount: 1 }] },
+  [OPERATIONS["accounts.list"].path]: { nodes: [{ id: SITE, tier: "site", name: "Amped HQ", parentId: null, regionId: SOUTH, customerGroup: null, externalRef: null, timezone: null, active: true, path: [SOUTH, SITE], address: null }] },
+  [OPERATIONS["contracts.list"].path]: { contracts: [] },
+  [OPERATIONS["projects.list"].path]: { projects: [], foremen: [] },
+  [OPERATIONS["leads.list"].path]: { leads: [{ id: U(30), source: "web_form", contact: { name: "Pat Doe", phone: "555-0100" }, requestedMetro: "Austin", createdAt: "2026-09-26T10:00:00.000Z", convertedAccountId: null }] },
+  [OPERATIONS["firms.list"].path]: { firms: [] },
+  [OPERATIONS["crews.list"].path]: { crews: [] },
+  [OPERATIONS["technicians.list"].path]: { technicians: [] },
+  [OPERATIONS["pos.list"].path]: { orders: [{ id: PO, number: "PO-0001", vendorId: U(40), vendorName: "Ferguson", receivingPointId: U(41), receivingPointCode: "AUS-1", receivingTier: "region", regionId: SOUTH, state: "issued", currency: "USD", totalMinor: "125000", issuedAt: "2026-09-20T00:00:00.000Z", acknowledgedAt: null, promisedShipOn: null, createdAt: "2026-09-20T00:00:00.000Z" }] },
+  [OPERATIONS["vendors.list"].path]: { vendors: [] },
+  [OPERATIONS["invoices.list"].path]: { invoices: [{ id: INV, billToTier: "parent", billToId: ORG, contractId: U(50), billingPath: "consolidated", periodStart: null, periodEnd: null, totalMinor: "200000", currency: "USD", issuedAt: "2026-08-01T00:00:00.000Z", dueAt: "2026-09-01T00:00:00.000Z", status: "partially_paid", paidMinor: "50000", voidedAt: null, voidReason: null, lines: [], subtotalMinor: "200000" }] },
+  [OPERATIONS["payments.list"].path]: { payments: [] },
+  [OPERATIONS["devices.list"].path]: { devices: [] },
+  [OPERATIONS["jobs.list"].path]: { jobs: [job, { ...job, id: U(15), state: "invoiced", slaDueAt: null, slaEscalationStage: null }] },
+  [OPERATIONS["jobs.detail"].path]: { job, contact: { name: "Front desk", phone: "555-0199", email: null }, visits: [], media: [], notes: [], updates: [], messages: [] },
+  [OPERATIONS["serviceRequests.list"].path]: { requests: [{ id: U(60), siteId: SITE, siteName: "Amped HQ", priority: "urgent", description: "No cooling", requestedBy: "Front desk", createdAt: "2026-09-27T12:00:00.000Z", jobId: null, jobState: null, orgId: ORG, regionId: SOUTH, customerSegment: "commercial", photos: [], waitingOnTerm: null }] },
+};
+const records = Object.fromEntries(Object.entries(RECORDS).map(([p, body]) => [p, { status: 200, body }]));
+const visit = async (app: Awaited<ReturnType<typeof ready>>["app"], screen: Parameters<typeof app.router.navigate>[0], params: Record<string, string> = {}) => {
+  app.router.navigate(screen, params);
+  render(app.view()); await settle();
+  return render(app.view());
+};
+
+test("every Office and Dispatch screen reads through an operation S2 or S3 also reads", () => {
+  for (const [id, s] of Object.entries(SCREENS)) {
+    if (!/^(office|dispatch)\./.test(id)) continue;
+    for (const op of s.uses) {
+      const surfaces = OPERATIONS[op].surfaces as readonly string[];
+      assert.ok(surfaces.includes("S2") || surfaces.includes("S3"), `${id} uses ${op}, which neither S2 nor S3 reads`);
+    }
+  }
+});
+
+test("OFFICE: customers, a customer's tree, leads, purchasing and billing, each read only", async () => {
+  const { app, gateway } = await ready(records);
+  let out = await visit(app, "office.customers");
+  assert.match(out, /Amped Fitness/);
+  assert.match(out, /Read only/);
+  out = await visit(app, "office.customer", { orgId: ORG });
+  assert.match(out, /Account tree/);
+  assert.match(out, /Amped HQ/);
+  out = await visit(app, "office.leads");
+  assert.match(out, /Pat Doe/);
+  out = await visit(app, "office.purchasing");
+  assert.match(out, /PO-0001/);
+  assert.match(out, /Ferguson/);
+  out = await visit(app, "office.billing");
+  assert.match(out, /Past due/, "open with its due date behind now");
+  assert.match(out, /1,500/);
+  for (const s of ["office.projects", "office.network", "office.devices"] as const) assert.match(await visit(app, s), /Read only/, s);
+  assert.ok(gateway.calls.every((c) => c.method === "GET" || c.path === OPERATIONS["auth.login"].path), "nothing but reads after sign-in");
+});
+
+test("DISPATCH: the board counts open jobs only and derives SLA as S3 does; a job opens to its detail; intake shows what waits", async () => {
+  const { app, gateway } = await ready(records);
+  let out = await visit(app, "dispatch.board");
+  assert.match(out, /Open jobs/);
+  assert.match(out, /South Crew 1/);
+  assert.match(out, /data-status="at_risk"/);
+  assert.doesNotMatch(out, /Invoiced/, "a finished job is not on the board");
+  out = await visit(app, "dispatch.jobs");
+  assert.match(out, /Invoiced/);
+  out = await visit(app, "dispatch.job", { jobId: JOB });
+  assert.match(out, /Front desk/);
+  assert.match(out, /Dispatched/);
+  out = await visit(app, "dispatch.intake");
+  assert.match(out, /No cooling/);
+  assert.match(out, /Not opened/);
+  assert.ok(gateway.calls.every((c) => c.method === "GET" || c.path === OPERATIONS["auth.login"].path), "nothing but reads after sign-in");
+});
+
+test("the Manager view refused by role is the gateway's words, not an empty page", async () => {
+  const { app } = await ready({ ...records, [OPERATIONS["manager.overview"].path]: { status: 403, body: { error: "HttpError", message: "The Manager Dashboard is for leadership" } } });
+  assert.match(await visit(app, "dispatch.manager"), /The Manager Dashboard is for leadership/);
+});

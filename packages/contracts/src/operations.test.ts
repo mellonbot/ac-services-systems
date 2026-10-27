@@ -65,9 +65,9 @@ test("S4 can call no mutation — read-only by construction reaches the catalogu
   }
 });
 
-test("surfacesFor narrows by namespace — an internal principal resolving terms is S2, a customer is S6", () => {
+test("surfacesFor narrows by namespace — an internal principal resolving terms is S2 or HQ, a customer is S6", () => {
   const ns = (s: (typeof SURFACE_IDS)[number]) => SURFACES[s].namespace;
-  assert.deepEqual([...surfacesFor("terms.resolved", ns, "internal")], ["S2"]);
+  assert.deepEqual([...surfacesFor("terms.resolved", ns, "internal")], ["S2", "S4"], "HQ reads what the office reads");
   assert.deepEqual([...surfacesFor("terms.resolved", ns, "customer")], ["S6"]);
   assert.deepEqual([...surfacesFor("terms.resolved", ns, "subcontractor")], []);
 });
