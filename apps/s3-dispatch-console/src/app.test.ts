@@ -606,7 +606,7 @@ test("a board bar is a link inside S3 — under /dispatch, through the router �
   assert.equal(pushed.at(-1), `/dispatch/jobs/${JOB_ASSIGNED}`);
 });
 
-const detailOf = (job: JobWire) => ({ job, contact: null, visits: [], media: [], notes: [], updates: [], messages: [] });
+const detailOf = (job: JobWire) => ({ job, contact: null, visits: [], media: [], notes: [], updates: [], messages: [], wrapUp: null });
 
 test("job detail: an assigned job offers Release where the board's bars lead — asked first, then sent, then said", async () => {
   let released: Record<string, unknown> | null = null;
@@ -847,4 +847,46 @@ test("New job: an install with no open project says why at the button instead of
   assert.match(out, /Nothing sold to this customer is open, so there is no project to open the install under\./);
   change("new-job-service", "HVAC-REPAIR");
   assert.match(render(app.view()), /id="new-job-submit" aria-disabled="false"/, "a service job needs no project");
+});
+
+// ---- 0034: how the field closed the visit, as the office reads it ----
+const wrapUp = {
+  outcome: "quote_needed", submittedAt: "2026-10-27T14:00:00.000Z", submittedByName: "Herberto Vega", crewLabel: "Crew A1",
+  notes: "Coil badly corroded; customer wants pricing.",
+  measurements: { tonnage: 7.5, voltage: "460/3", fuel: "heat_pump", unitLengthIn: 88, unitWidthIn: 58, unitHeightIn: 49, curbLengthIn: 80, curbWidthIn: 50, oldModel: "48TCED08", oldSerial: "1209G40112" },
+  signatureMediaId: null, customerAbsentReason: "Tenant locked the roof hatch and left",
+  quoteJobId: "a0000000-0000-0000-0000-0000000000q1", quoteJobNo: "SOUTH-2610-1501-7", quoteError: null,
+};
+
+test("job detail: a wrap-up leads with the outcome, who sent it, the quote job by its number, the notes, the measurements and why there is no signature", async () => {
+  const { app } = await ready({ [OPERATIONS["jobs.detail"].path]: { status: 200, body: { ...detailOf(jobAssigned), wrapUp } } });
+  app.router.navigate("detail", { jobId: JOB_ASSIGNED });
+  render(app.view()); await settle(); await settle();
+  const out = render(app.view());
+  assert.match(out, /id="wrapup-outcome">Quote needed</);
+  assert.match(out, /Herberto Vega · Crew A1/);
+  assert.match(out, /Quote job <a[^>]*href="[^"]*\/jobs\/a0000000-0000-0000-0000-0000000000q1"[^>]*>SOUTH-2610-1501-7<\/a> is open for pricing/);
+  assert.match(out, /Coil badly corroded/);
+  assert.match(out, /<dt>Fuel<\/dt><dd>Heat pump<\/dd>/);
+  assert.match(out, /<dt>Tonnage<\/dt><dd class="s3-num">7.5<\/dd>/);
+  assert.match(out, /id="wrapup-absent">No signature — Tenant locked the roof hatch and left</);
+});
+
+test("job detail: a quote the worker could not open yet says why; a signature and the job's photos are read through media.get", async () => {
+  const PNG = "data:image/png;base64,iVBORw0K";
+  const { app, gateway } = await ready({
+    [OPERATIONS["jobs.detail"].path]: { status: 200, body: {
+      ...detailOf(jobAssigned),
+      media: [{ id: "a0000000-0000-0000-0000-0000000000m1", kind: "photo", storageKey: "r/o/job_photo/m1", label: null, capturedAt: "2026-10-27T13:00:00.000Z" }],
+      wrapUp: { ...wrapUp, outcome: "quote_needed", quoteJobId: null, quoteJobNo: null, quoteError: "cannot open a job at this site: no sla_response", signatureMediaId: "a0000000-0000-0000-0000-0000000000s1", customerAbsentReason: null },
+    } },
+    [OPERATIONS["media.get"].path]: { status: 200, body: { id: "x", contentType: "image/png", image: PNG } },
+  });
+  app.router.navigate("detail", { jobId: JOB_ASSIGNED });
+  render(app.view()); await settle(); await settle(); render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, /The quote job is not open yet — cannot open a job at this site: no sla_response\. The worker keeps trying\./);
+  assert.match(out, new RegExp(`id="wrapup-signature" src="${PNG.replace(/[+/]/g, "\\$&")}"`));
+  assert.match(out, /<img class="s3-photo__well" src="data:image\/png/, "a job photo is an image now, not a placeholder");
+  assert.ok(gateway.calls.filter((c) => c.path === OPERATIONS["media.get"].path).length >= 2);
 });

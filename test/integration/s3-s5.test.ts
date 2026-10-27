@@ -579,6 +579,18 @@ test("0034 wrap-up: media first, then the wrap-up, each idempotent; every rule i
   await sweepQuoteJobs(again, new Date());
   assert.equal((await admin(`SELECT count(*)::int AS n FROM jobs WHERE service_code = 'QUOTE' AND site_id = $1 AND id = $2`, [site, qj.quote_job_id]))[0]!.n, 1);
   assert.equal((await admin(`SELECT quote_job_id FROM job_wrap_ups WHERE id = $1`, [w.id]))[0]!.quote_job_id, qj.quote_job_id, "a second sweep opens nothing more");
+
+  // The office reads both wrap-ups on the job, and the photo and signature through media.get.
+  const qd = (await s3.gateway.jobDetail({ jobId: quoted })).wrapUp!;
+  assert.deepEqual([qd.outcome, qd.quoteJobId, qd.measurements, qd.customerAbsentReason, qd.signatureMediaId, qd.crewLabel],
+    ["quote_needed", qj.quote_job_id, measurements, "Tenant locked the roof hatch and left", null, `Crew Cleared ${RUN}`]);
+  assert.equal(qd.quoteJobNo, (await admin(`SELECT job_no FROM jobs WHERE id = $1`, [qj.quote_job_id]))[0]!.job_no);
+  const dd = await s3.gateway.jobDetail({ jobId: done });
+  assert.deepEqual([dd.wrapUp!.outcome, dd.wrapUp!.notes, dd.wrapUp!.submittedByName], ["complete", "Replaced the contactor.", "Technician"]);
+  const sig = await s3.gateway.getMedia({ id: dd.wrapUp!.signatureMediaId! });
+  assert.equal(sig.image, `data:image/png;base64,${png}`, "the signature the device sent, read back by the office");
+  const photo = dd.media.find((m) => m.kind === "photo")!;
+  assert.equal((await s3.gateway.getMedia({ id: photo.id })).contentType, "image/jpeg");
   await s5.logout();
 });
 

@@ -1,4 +1,4 @@
-import type { JobContactWire, JobMediaWire, JobMessageWire, JobNoteWire, JobUpdateWire, JobVisitWire } from "../../../packages/contracts/src/index.ts";
+import type { JobContactWire, JobMediaWire, JobMessageWire, JobNoteWire, JobUpdateWire, JobVisitWire, JobWrapUpWire } from "../../../packages/contracts/src/index.ts";
 
 /**
  * Local preview only: what jobs.detail would return for the preview board's
@@ -11,6 +11,7 @@ type PreviewJob = { id: string; openedAt: string; siteName: string | null; curre
 export type PreviewDetail = {
   contact: JobContactWire | null;
   visits: JobVisitWire[]; media: JobMediaWire[]; notes: JobNoteWire[]; updates: JobUpdateWire[]; messages: JobMessageWire[];
+  wrapUp: JobWrapUpWire | null;
 };
 
 const DAY = 86_400_000;
@@ -25,7 +26,7 @@ const CONTACTS: Readonly<Record<string, JobContactWire>> = {
   "Meridian Plaza": { name: "Front desk", phone: "(817) 555-0110", email: null },
 };
 
-const featured = (): Omit<PreviewDetail, "contact"> => {
+const featured = (): Omit<PreviewDetail, "contact" | "wrapUp"> => {
   const v1 = at(58, 8), v2 = at(52, 9), v3 = at(41, 10), v4 = at(9, 8);
   const media = (id: string, label: string, key: string, when: string): JobMediaWire => ({ id, kind: "photo", storageKey: `jobs/33187801/${key}.jpg`, label, capturedAt: when });
   return {
@@ -69,7 +70,7 @@ export const previewDetail = (job: PreviewJob): PreviewDetail => {
   let d = cache.get(job.id);
   if (d) return d;
   const contact = (job.siteName && CONTACTS[job.siteName]) || null;
-  if (job.id === "33187801") d = { contact, ...featured() };
+  if (job.id === "33187801") d = { contact, ...featured(), wrapUp: null };
   else {
     const start = new Date(Math.max(Date.parse(job.openedAt) + DAY, Date.now() - 2 * DAY)).toISOString();
     d = {
@@ -77,7 +78,7 @@ export const previewDetail = (job: PreviewJob): PreviewDetail => {
       visits: job.currentCrewLabel ? [{ id: job.currentAssignmentId ?? `a-${job.id}`, crewId: job.currentCrewId ?? "", crewLabel: job.currentCrewLabel, assignedAt: start, releasedAt: null, workStart: null, workEnd: null }] : [],
       media: [],
       notes: job.latestNote ? [{ id: `n-${job.id}`, body: job.latestNote.body, kind: "note", at: job.latestNote.at, authorName: "Dana" }] : [],
-      updates: [], messages: [],
+      updates: [], messages: [], wrapUp: null,
     };
   }
   cache.set(job.id, d);

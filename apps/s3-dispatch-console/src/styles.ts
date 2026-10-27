@@ -144,6 +144,10 @@ export const S3_CSS = `
 .s3-photos{display:flex;flex-wrap:wrap;gap:var(--space-2)}
 .s3-photo{display:flex;flex-direction:column;gap:2px;width:6.5rem;margin:0}
 .s3-photo__well{display:block;height:3.5rem;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface-sunken)}
+img.s3-photo__well{width:100%;object-fit:cover}
+.s3-wrapup{display:flex;flex-direction:column;gap:var(--space-2)}
+.s3-wrapup p{margin:0}
+.s3-wrapup__signature{display:block;max-width:100%;height:5rem;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
 .s3-photo figcaption{display:flex;flex-direction:column;font-size:var(--text-sm);min-width:0}
 .s3-photo figcaption strong,.s3-photo figcaption span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .s3-photo figcaption span{color:var(--color-text-muted)}

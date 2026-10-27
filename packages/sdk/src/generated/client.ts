@@ -383,7 +383,7 @@ export const createGatewayClient = (transport: Transport) => ({
 
   /** `GET /s3/jobs/detail` · query · bearer · surfaces: S3
    *
-   * One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — and the customer thread. RLS decides; nothing here filters. */
+   * One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — the customer thread, and how the field wrapped it up (0034). RLS decides; nothing here filters. */
   jobDetail(input: OperationIO["jobs.detail"]["input"]): Promise<OperationIO["jobs.detail"]["output"]> {
     return transport.request(OPERATIONS["jobs.detail"], input) as Promise<OperationIO["jobs.detail"]["output"]>;
   },
@@ -474,7 +474,7 @@ export const createGatewayClient = (transport: Transport) => ({
 
   /** `GET /media` · query · bearer · surfaces: S2, S3, S6
    *
-   * One stored photo, returned inline as a data: URL — read through the gateway under the same row security as the request it was sent with. A surface never receives a bucket URL. */
+   * One stored photo, returned inline as a data: URL — read through the gateway under the same row security as the request it was sent with. A job's photos and signature (0034) are the office's alone. A surface never receives a bucket URL. */
   getMedia(input: OperationIO["media.get"]["input"]): Promise<OperationIO["media.get"]["output"]> {
     return transport.request(OPERATIONS["media.get"], input) as Promise<OperationIO["media.get"]["output"]>;
   },
