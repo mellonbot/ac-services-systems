@@ -214,6 +214,38 @@ export const shift_punches = operationalTable("shift_punches", {
   uniques: [["grant_id", "mutation_id"]],
 });
 
+/**
+ * 0034 — how a technician closed a visit: the outcome, the notes, the
+ * signature (or why there is none), and for "Quote needed" the measurements
+ * the office prices from. One per job, written once by the device through
+ * jobs.wrapUp; the worker fills in the quote job it opened from it, and
+ * nothing else ever changes.
+ */
+export const job_wrap_ups = operationalTable("job_wrap_ups", {
+  columns: [
+    { name: "job_id", type: "uuid", references: "jobs(id)" },
+    { name: "wrap_up_id", type: "text", comment: "Minted on the device, once per wrap-up: a replay of the same submit finds this row instead of writing a second." },
+    { name: "crew_id", type: "uuid", references: "crews(id)" },
+    { name: "submitted_by", type: "uuid", references: "users(id)" },
+    { name: "submitted_at", type: "timestamptz", comment: "The device's clock at Submit — it may have synced hours later." },
+    { name: "outcome", type: "text", check: "outcome IN ('complete','quote_needed')" },
+    { name: "notes", type: "text", nullable: true, check: "notes IS NULL OR length(btrim(notes)) BETWEEN 1 AND 4000" },
+    { name: "measurements", type: "jsonb", nullable: true, comment: "The RTU set (WRAP_UP_MEASUREMENTS), present exactly when the outcome is quote_needed." },
+    { name: "signature_media_id", type: "uuid", nullable: true, references: "job_media(id)" },
+    { name: "customer_absent_reason", type: "text", nullable: true, comment: "Why there is no signature. Exactly one of this and the signature is set." },
+    { name: "quote_job_id", type: "uuid", nullable: true, references: "jobs(id)", comment: "The QUOTE job the worker opened from this wrap-up." },
+    { name: "quote_error", type: "text", nullable: true, comment: "Why the worker could not open the quote job yet — retried, and visible to the office meanwhile." },
+  ],
+  indexes: [["quote_job_id"]],
+  uniques: [["job_id"], ["wrap_up_id"]],
+  constraints: [
+    { name: "job_wrap_ups_measured_quote", sql: "CHECK ((outcome = 'quote_needed') = (measurements IS NOT NULL))" },
+    { name: "job_wrap_ups_signed_or_absent", sql: "CHECK ((signature_media_id IS NULL) <> (customer_absent_reason IS NULL))" },
+    { name: "job_wrap_ups_absent_says_why", sql: "CHECK (customer_absent_reason IS NULL OR length(btrim(customer_absent_reason)) BETWEEN 3 AND 500)" },
+    { name: "job_wrap_ups_quote_only_from_quote", sql: "CHECK (quote_job_id IS NULL OR outcome = 'quote_needed')" },
+  ],
+});
+
 /** Checklist responses — device-authoritative under sync (the tech was standing in front of it). */
 export const checklist_items = operationalTable("checklist_items", {
   columns: [

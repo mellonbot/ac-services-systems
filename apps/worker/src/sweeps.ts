@@ -36,7 +36,7 @@ export const workerScope = (regionId?: string): ScopeBinding => ({
   "ac.surface_id": "worker",
 });
 
-const emit = async (tx: RelayTx, e: { topic: string; entity: string; entityId: string; payload: Record<string, unknown>; orgId: string; regionId: string; action: string; before?: unknown; after?: unknown }, at: Date) => {
+export const emit = async (tx: RelayTx, e: { topic: string; entity: string; entityId: string; payload: Record<string, unknown>; orgId: string; regionId: string; action: string; before?: unknown; after?: unknown }, at: Date) => {
   if (!isTopic(e.topic)) throw new Error(`worker: "${e.topic}" is not in the event catalogue`);
   const eventId = randomUUID();
   await tx.query(

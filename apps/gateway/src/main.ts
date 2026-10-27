@@ -24,6 +24,7 @@ import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMes
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
 import { createServiceRequest, listServiceRequests, openJobFromRequest } from "./handlers/service-requests.ts";
 import { attachPhoto, getMedia } from "./handlers/photos.ts";
+import { attachJobMedia, wrapUpJob } from "./handlers/wrap-up.ts";
 import { createResidential, listLeads, convertLead } from "./handlers/residential.ts";
 import { storeFromEnv } from "../../../packages/storage/src/index.ts";
 import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
@@ -168,7 +169,7 @@ const PHOTO_BODY_BYTES = Math.ceil(PHOTO_MAX_BYTES / 3) * 4 + 64 * 1024;
 const SIGNED_IN_BODY_BYTES = 1024 * 1024;
 const OPEN_DOOR_BODY_BYTES = 64 * 1024;
 const bodyLimitOf = (opId: OperationId): number =>
-  opId === "serviceRequests.attachPhoto" ? PHOTO_BODY_BYTES
+  opId === "serviceRequests.attachPhoto" || opId === "jobs.attachMedia" ? PHOTO_BODY_BYTES
     : OPERATIONS[opId].auth === "none" || OPERATIONS[opId].surfaces.every((s) => SURFACES[s].namespace === "anonymous") ? OPEN_DOOR_BODY_BYTES
       : SIGNED_IN_BODY_BYTES;
 const readJson = (req: IncomingMessage, limit: number): Promise<Json> =>
@@ -734,6 +735,14 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
     if (!p.shiftId) throw new HttpError(403, "punches.mine is a device principal's operation");
     return listMyPunches(uow, p.subjectId, input);
   }),
+  "jobs.attachMedia": (req, input) => withUow(req, "jobs.attachMedia", (uow, p) => {
+    if (!p.shiftId) throw new HttpError(403, "jobs.attachMedia is a device principal's operation");
+    return attachJobMedia(uow, p.subjectId, p.shiftId, STORE, input, randomUUID);
+  }),
+  "jobs.wrapUp": (req, input) => withUow(req, "jobs.wrapUp", (uow, p) => {
+    if (!p.shiftId) throw new HttpError(403, "jobs.wrapUp is a device principal's operation");
+    return wrapUpJob(uow, p.subjectId, p.shiftId, input);
+  }),
   "sync.replay": (req, input) => withUow(req, "sync.replay", async (uow, p) => {
     if (!p.deviceId || !p.shiftId) throw new HttpError(403, "sync is a device principal's operation");
     // input.orgId / input.regionId are not read: tenancy is the grant's and the job's, never the body's.
@@ -868,7 +877,7 @@ const ROUTES: ReadonlyMap<string, OperationId> = new Map(OPERATION_IDS.map((id) 
 
 /**
  * What is checked before a body is read: the per-address throttle on the doors
- * anyone can knock on, and the token on the one route that takes megabytes.
+ * anyone can knock on, and the token on the routes that take megabytes.
  * Read first, a body is held in memory by a request that was going to be refused.
  */
 const beforeBody: Partial<Record<OperationId, (req: IncomingMessage) => void>> = {
@@ -878,6 +887,7 @@ const beforeBody: Partial<Record<OperationId, (req: IncomingMessage) => void>> =
   "leads.submit": (req) => throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"),
   "callRecords.record": (req) => throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"),
   "serviceRequests.attachPhoto": (req) => { callerOf(req); },
+  "jobs.attachMedia": (req) => { callerOf(req); },
 };
 
 /** Read an operation's input from where the catalogue says it travels. */
