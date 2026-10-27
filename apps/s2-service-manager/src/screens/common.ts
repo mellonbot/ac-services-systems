@@ -44,6 +44,11 @@ export const submitAction = (ctx: ScreenContext, label: string, id?: string, blo
 export const noActiveRegion = (r: Resource<{ readonly regions: readonly { readonly active: boolean }[] }>): string | null =>
   r.state === "ready" && !r.value.regions.some((x) => x.active) ? "No region of ours is active to choose." : null;
 
+/** Once the click's render has landed: focus or reveal what it opened. Nothing to do without a DOM (node --test). */
+export const afterRender = (fn: (doc: Document) => void): void => {
+  if (typeof document !== "undefined") setTimeout(() => fn(document), 0);
+};
+
 /** A required choice with nothing to choose, said where the select would be — an empty required select can only fail. */
 export const noChoice = (label: string, why: string, fix?: VNode | null): VNode =>
   html`<div class="ac-field"><span>${label}</span><p class="s2-empty">${why}${fix ? html` ${fix}` : null}</p></div>`;

@@ -1,7 +1,7 @@
 import { html, pageHead, panel, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, ResolutionWire, ResolvedTermsOutput, TraceStepWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, linkTo, type Screen } from "./common.ts";
+import { whenReady, linkTo, afterRender, type Screen } from "./common.ts";
 
 /**
  * C2 — every term resolved at a node as of a date, WITH THE TRACE.
@@ -81,7 +81,14 @@ export const termsResolved: Screen = (ctx, params) => {
           { key: "wonAt", header: "Won at", cell: (r: ResolutionWire) => (r.wonAt === "fallback" ? "register fallback" : `${r.wonAt.tier}`) },
           {
             key: "trace", header: "", align: "end",
-            cell: (r: ResolutionWire) => html`<button type="button" class="ac-link ac-link--button" aria-label=${`${q.value.open === r.termKey ? "Hide the trace" : "Trace"} for ${r.termKey}`} onClick=${() => { q.value = { ...q.value, open: q.value.open === r.termKey ? "" : r.termKey }; }}>
+            cell: (r: ResolutionWire) => html`<button type="button" class="ac-link ac-link--button" aria-label=${`${q.value.open === r.termKey ? "Hide the trace" : "Trace"} for ${r.termKey}`}
+              aria-expanded=${q.value.open === r.termKey ? "true" : "false"} aria-controls=${q.value.open === r.termKey ? "term-trace" : undefined}
+              onClick=${() => {
+                const opening = q.value.open !== r.termKey;
+                q.value = { ...q.value, open: opening ? r.termKey : "" };
+                // The trace is drawn under the whole table; bring it to the reader rather than leave it below the fold.
+                if (opening) afterRender((d) => d.getElementById("term-trace")?.scrollIntoView({ block: "nearest" }));
+              }}>
               ${q.value.open === r.termKey ? "Hide trace" : "Trace"}
             </button>`,
           },
@@ -89,7 +96,7 @@ export const termsResolved: Screen = (ctx, params) => {
         rows, rowKey: (r: ResolutionWire) => r.termKey,
         emptyText: "Nothing resolves here.",
       })}
-      ${s.open && out.resolved[s.open] ? html`<table class="s2-trace-table"><tbody>${tracePanel(out.resolved[s.open]!)}</tbody></table>` : null}
+      ${s.open && out.resolved[s.open] ? html`<table class="s2-trace-table" id="term-trace"><caption class="ac-grid__caption">Trace for ${s.open}</caption><tbody>${tracePanel(out.resolved[s.open]!)}</tbody></table>` : null}
       ${refused.length
         ? html`<ul class="s2-refused">${refused.map(([k, e]) => html`<li><strong>${k}</strong> — ${e.message} <small>(${e.code})</small></li>`)}</ul>`
         : null}`);
