@@ -320,16 +320,18 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
 
   const boot = async () => {
     const localPreview = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test((new URL(opts.baseUrl, "http://localhost")).hostname) || opts.baseUrl === "http://127.0.0.1:8080";
-    if (localPreview) {
-      const shell = createPreviewShell();
-      const store = createStore(shell, now);
-      phase.value = { kind: "preview", shell, store };
-      router.navigate("board", {});
-      return;
-    }
     try { become(await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { session: "cookie" } })); }
     catch (e) {
       const r = refusalOf(e);
+      // Sample data only on a local build with NO gateway answering. A real local gateway gets a real sign-in —
+      // a dispatcher testing against it must never be shown, or act on, jobs that do not exist.
+      if (localPreview && r.kind === "transport") {
+        const shell = createPreviewShell();
+        const store = createStore(shell, now);
+        phase.value = { kind: "preview", shell, store };
+        router.navigate("board", {});
+        return;
+      }
       phase.value = { kind: "login", refusal: r.kind === "token" ? null : r, busy: false };
     }
   };
@@ -395,9 +397,12 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         </nav>
         <div class="dispatch-header__tools">
           <span class="dispatch-header__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
-          <button type="button" class="dispatch-header__logout" onClick=${logout}>Sign out</button>
+          ${p.kind === "preview"
+            ? html`<span class="s3-flag" id="preview-flag">Preview</span>`
+            : html`<button type="button" class="dispatch-header__logout" onClick=${logout}>Sign out</button>`}
         </div>
       </header>
+      ${p.kind === "preview" ? html`<p class="s3-preview" role="note" id="preview-banner"><strong>Preview — sample data.</strong> No gateway answered at ${opts.baseUrl}, so these jobs, crews and requests are made up and nothing here is saved. Start the gateway and reload to sign in.</p>` : null}
       <div class="dispatch-actions">
         ${PrimaryAction({ density: DENSITY, label: "New customer", kind: "quiet", id: "new-customer",
           // Customers are an S2 write (organizations.create); S3 hands off to that screen.

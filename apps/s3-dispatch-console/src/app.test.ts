@@ -726,3 +726,19 @@ test("job dashboard: Declined asks before it cancels the job; nothing is sent un
   assert.equal(gateway.calls.filter((c) => c.path === OPERATIONS["jobs.transition"].path).length, 1);
   assert.equal((moves[0] as { to: string }).to, "cancelled");
 });
+
+test("local preview is sample data only when no gateway answers, and says so on every screen", async () => {
+  const down: FetchLike = async () => { throw new TypeError("fetch failed"); };
+  const preview = createApp({ baseUrl: "http://127.0.0.1:8080", fetch: down, now: () => 1_000 });
+  await preview.boot();
+  assert.equal(preview.phase.value.kind, "preview");
+  render(preview.view()); await settle();
+  const out = render(preview.view());
+  assert.match(out, /id="preview-banner"[^>]*><strong>Preview — sample data\.<\/strong> No gateway answered at http:\/\/127\.0\.0\.1:8080/);
+  assert.doesNotMatch(out, /Sign out/, "no Sign out that would do nothing");
+
+  // A real gateway on localhost answers (here: no session yet) — that is a sign-in, never the sample board.
+  const real = createApp({ baseUrl: "http://127.0.0.1:8080", fetch: fakeGateway().fetch, now: () => 1_000 });
+  await real.boot();
+  assert.equal(real.phase.value.kind, "login");
+});

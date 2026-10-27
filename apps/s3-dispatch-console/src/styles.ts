@@ -15,6 +15,7 @@ export const S3_CSS = `
 .s3-link-action{display:inline-flex;align-items:center;text-decoration:none}
 .s3-confirm{display:flex;flex-direction:column;gap:var(--space-1);max-width:var(--measure-short);margin-top:var(--space-2);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface)}
 .s3-confirm p{margin:0;color:var(--color-text-muted)}
+.s3-preview{margin:0;padding:var(--space-2) var(--space-3);border:1px dashed var(--color-status-at-risk);border-radius:var(--radius-control);background:var(--color-surface)}
 .s3-confirm--cell{margin:0;max-width:var(--measure-narrow);white-space:normal}
 .s3-login{max-width:var(--measure-narrow);margin:10vh auto 0}
 .s3-job-facts{display:grid;grid-template-columns:auto 1fr;gap:var(--space-2) var(--space-4);margin:0 0 var(--space-4);align-items:baseline}
