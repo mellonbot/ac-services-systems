@@ -763,3 +763,15 @@ test("nothing a dispatcher reads is set below the 12px floor", async () => {
   const { S3_CSS } = await import("./styles.ts");
   assert.doesNotMatch(S3_CSS, /font-size:var\(--text-xs\)/, "job bars, hours, legend and flags are read all day — 12px, not 11");
 });
+
+test("the Intake tab says what is waiting, and an emergency in a glyph and a word — from any screen", async () => {
+  const { app } = await ready({ [OPERATIONS["serviceRequests.list"].path]: { status: 200, body: { requests: REQUESTS } } });
+  app.router.navigate("board", {});
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  const out = render(app.view());
+  const waiting = REQUESTS.filter((r) => r.jobId === null);
+  const emergencies = waiting.filter((r) => r.priority === "emergency").length;
+  assert.ok(emergencies > 0, "the fixture has an emergency waiting");
+  assert.match(out, new RegExp(`aria-label="Intake — ${waiting.length} waiting, ${emergencies} emergency"`));
+  assert.match(out, new RegExp(`id="intake-emergency"><span aria-hidden="true">[^<]+</span> ${emergencies} emergency<`));
+});

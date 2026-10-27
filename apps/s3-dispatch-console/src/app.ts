@@ -3,7 +3,8 @@ import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { admits, densityOf, seesManagerOverview, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
-import { createStore, type Store } from "./state.ts";
+import { createStore, keyOf, type Store } from "./state.ts";
+import { STATUS_GLYPH } from "../../../packages/tokens/src/index.ts";
 import type { Screen, ScreenContext } from "./screens/common.ts";
 import { board } from "./screens/board.ts";
 import { dispatch } from "./screens/dispatch.ts";
@@ -371,6 +372,11 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     if (loc?.screen === "detail" && loc.params.jobId) lastDetail = loc.params.jobId;
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     const notice = p.store.notice.value;
+    // What is waiting at Intake, on the tab itself: a dispatcher on the Board must see an emergency arrive. The event
+    // subscription invalidates this list on every request, so the count is as live as the screen.
+    const requests = p.store.read(keyOf("serviceRequests.list", {}), () => p.shell.gateway.listServiceRequests({})).value;
+    const waiting = requests.state === "ready" ? requests.value.requests.filter((r) => r.jobId === null) : [];
+    const emergencies = waiting.filter((r) => r.priority === "emergency").length;
     return html`<div class="s3-app">
       <header class="dispatch-header" data-ground="plate">
         <nav class="ac-seg" aria-label="Dispatch navigation">
@@ -385,7 +391,9 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           <a class="ac-seg__item" href=${router.href("intake", {})}
              data-current=${loc?.screen === "intake" ? "true" : undefined}
              aria-current=${loc?.screen === "intake" ? "page" : undefined}
-             onClick=${(e: Event) => { e.preventDefault(); router.navigate("intake", {}); }}>Intake</a>
+             aria-label=${waiting.length ? `Intake — ${waiting.length} waiting${emergencies ? `, ${emergencies} emergency` : ""}` : undefined}
+             onClick=${(e: Event) => { e.preventDefault(); router.navigate("intake", {}); }}>Intake${waiting.length ? html`<span class="s3-nav-count" id="intake-count">${waiting.length}</span>` : null}${emergencies
+               ? html`<span class="s3-nav-count" data-tone="breached" id="intake-emergency"><span aria-hidden="true">${STATUS_GLYPH.breached.glyph}</span> ${emergencies} emergency</span>` : null}</a>
           <a class="ac-seg__item" href=${router.href("jobs", {})}
              data-current=${loc?.screen === "jobs" ? "true" : undefined}
              aria-current=${loc?.screen === "jobs" ? "page" : undefined}

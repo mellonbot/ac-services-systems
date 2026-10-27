@@ -15,6 +15,8 @@ export const S3_CSS = `
 .s3-link-action{display:inline-flex;align-items:center;text-decoration:none}
 .s3-confirm{display:flex;flex-direction:column;gap:var(--space-1);max-width:var(--measure-short);margin-top:var(--space-2);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface)}
 .s3-confirm p{margin:0;color:var(--color-text-muted)}
+.s3-nav-count{display:inline-flex;align-items:center;gap:var(--space-1);margin-inline-start:var(--space-2);padding:0 var(--space-2);border:1px solid currentColor;border-radius:var(--radius-pill);font-family:var(--font-instrument);font-variant-numeric:tabular-nums;font-size:var(--text-sm);line-height:1.5}
+.s3-nav-count[data-tone="breached"]{color:var(--color-status-breached);border-color:var(--color-status-breached);background:var(--color-status-breached-fill)}
 .s3-preview{margin:0;padding:var(--space-2) var(--space-3);border:1px dashed var(--color-status-at-risk);border-radius:var(--radius-control);background:var(--color-surface)}
 .s3-confirm--cell{margin:0;max-width:var(--measure-narrow);white-space:normal}
 .s3-login{max-width:var(--measure-narrow);margin:10vh auto 0}
