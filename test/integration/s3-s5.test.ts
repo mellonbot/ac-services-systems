@@ -446,7 +446,7 @@ test("sync.replay: the device log replays in device order, a duplicate replay is
   await s5.logout();
 });
 
-test("0032 shift punches: a punch is made on the device's own shift, as the grant's technician and crew, append-only; the timesheet reads the technician's own", { skip }, async () => {
+test("0033 shift punches: a punch is made on the device's own shift, as the grant's technician and crew, append-only; the timesheet reads the technician's own", { skip }, async () => {
   const s5 = await technician();
   const t0 = Date.now();
   const at = (min: number) => new Date(t0 + min * 60_000).toISOString();

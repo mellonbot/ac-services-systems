@@ -26,11 +26,18 @@ export const users = operationalTable("users", {
     { name: "external_idp_subject", type: "text", nullable: true, comment: "Customer IdP subject — S6 federates, it does not hold passwords." },
     { name: "password_hash", type: "text", nullable: true, comment: "scrypt, internal + subcontractor only." },
     { name: "active", type: "boolean", default: "true" },
+    // 0032 — what a person sets about themselves from the Account button.
+    { name: "presence", type: "text", default: "'available'", check: "presence IN ('available','busy','away','off')" },
+    { name: "status_note", type: "text", nullable: true, check: "char_length(status_note) <= 80" },
+    { name: "avatar", type: "bytea", nullable: true, check: "octet_length(avatar) <= 65536", comment: "A small square JPEG or PNG the browser scaled before sending." },
+    { name: "avatar_type", type: "text", nullable: true, check: "avatar_type IN ('image/jpeg','image/png')" },
+    { name: "password_changed_at", type: "timestamptz", nullable: true },
   ],
   indexes: [["namespace", "email"], ["firm_id"], ["scope_tier", "scope_id"]],
   uniques: [["email"]],
   constraints: [
     { name: "users_subcontractor_have_firm", sql: "CHECK ((namespace = 'subcontractor') = (firm_id IS NOT NULL))" },
+    { name: "users_avatar_has_type", sql: "CHECK ((avatar IS NULL) = (avatar_type IS NULL))" },
   ],
 });
 

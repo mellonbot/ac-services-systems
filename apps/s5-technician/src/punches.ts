@@ -2,7 +2,7 @@ import type { ShiftPunchWire } from "../../../packages/contracts/src/index.ts";
 import type { QueueEntry } from "./offline.ts";
 
 /**
- * THE SHIFT CLOCK'S ARITHMETIC (0032). Pure, so the timesheet a technician is
+ * THE SHIFT CLOCK'S ARITHMETIC (0033). Pure, so the timesheet a technician is
  * paid from is tested without a screen. The server keeps punches, never
  * spans: spans are derived here, from the server's punches plus the ones this
  * device has queued, so a clock-in made in a dead zone is already running.

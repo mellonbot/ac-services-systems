@@ -482,7 +482,7 @@ test("attention survives a reload until it is dismissed", async () => {
   assert.equal(p3.queue.attention.value.length, 0, "a dismissed item stays dismissed");
 });
 
-// ---- the shift clock (0032) and its partner rule: in before the first job, out after the last ----
+// ---- the shift clock (0033) and its partner rule: in before the first job, out after the last ----
 const NOW = Date.parse("2026-10-27T15:00:00Z");
 const down = () => ({ status: 503, body: { error: "Unavailable", message: "down" } });
 

@@ -89,6 +89,27 @@ export const OPERATIONS = {
     surfaces: AUTHENTICATED, carrier: "none", sdkMethod: "me",
     summary: "The principal and its hierarchy context, re-resolved. What the shell reads at boot.",
   },
+  // ---- 0032: the Account button — the caller's own row, on every signed-in surface ----
+  "account.me": {
+    id: "account.me", method: "GET", path: "/account", kind: "query", auth: "bearer",
+    surfaces: AUTHENTICATED, carrier: "none", sdkMethod: "myAccount",
+    summary: "The caller's own name, email, picture, status and when they last set their password. A device principal reads the technician behind the shift.",
+  },
+  "account.update": {
+    id: "account.update", method: "POST", path: "/account", kind: "mutation", auth: "bearer",
+    surfaces: AUTHENTICATED, carrier: "body", sdkMethod: "updateMyAccount",
+    summary: "Set the caller's own display name, presence and one-line status. Fields left out are left as they are.",
+  },
+  "account.setAvatar": {
+    id: "account.setAvatar", method: "POST", path: "/account/avatar", kind: "mutation", auth: "bearer",
+    surfaces: AUTHENTICATED, carrier: "body", sdkMethod: "setAccountAvatar",
+    summary: "Set or clear the caller's own picture: a JPEG or PNG by its own bytes, at most AVATAR_MAX_BYTES, as base64 in the body. Null clears it.",
+  },
+  "account.changePassword": {
+    id: "account.changePassword", method: "POST", path: "/account/password", kind: "mutation", auth: "bearer",
+    surfaces: AUTHENTICATED, carrier: "body", sdkMethod: "changePassword",
+    summary: "Change the caller's own password, given the current one. Wrong guesses count against sign-in's throttle. Ends every other session the person holds; this one stays.",
+  },
   "terms.authorOverride": {
     id: "terms.authorOverride", method: "POST", path: "/s2/terms/override", kind: "mutation", auth: "bearer",
     surfaces: ["S2"], carrier: "body", sdkMethod: "authorTermOverride",
@@ -518,7 +539,7 @@ export const OPERATIONS = {
   "punches.mine": {
     id: "punches.mine", method: "GET", path: "/s5/punches/mine", kind: "query", auth: "bearer",
     surfaces: ["S5"], carrier: "query", sdkMethod: "myPunches",
-    summary: "The signed-in technician's own shift punches between two instants (at most 35 days apart), oldest first — every shift and every device they punched on, and nobody else's (0032). What the timesheet pairs into spans.",
+    summary: "The signed-in technician's own shift punches between two instants (at most 35 days apart), oldest first — every shift and every device they punched on, and nobody else's (0033). What the timesheet pairs into spans.",
   },
   "sync.replay": {
     id: "sync.replay", method: "POST", path: "/s5/sync", kind: "mutation", auth: "bearer",
@@ -733,6 +754,13 @@ export type OperationId = keyof typeof OPERATIONS;
 export type Operation = (typeof OPERATIONS)[OperationId];
 export const OPERATION_IDS = Object.freeze(Object.keys(OPERATIONS)) as readonly OperationId[];
 
+/**
+ * The mutations that write the caller's own session or users row and nothing
+ * of the business's: ending a session, and the Account button (0033). The
+ * only writes a read-only surface (S4) is served.
+ */
+export const OWN_IDENTITY_MUTATIONS: readonly OperationId[] = ["auth.logout", "account.update", "account.setAvatar", "account.changePassword"];
+
 export const isOperationId = (s: string): s is OperationId => Object.hasOwn(OPERATIONS, s);
 
 /** `METHOD /path` → operation. The gateway's dispatcher and the generator both index by this. */
@@ -763,6 +791,36 @@ export type LoginOutput = {
   readonly context: Pick<HierarchyContext, "path" | "parent" | "regions" | "activeRegionId" | "segment">;
 };
 export type LogoutOutput = { readonly ok: true; readonly sessionId: string };
+
+/**
+ * 0033 — THE ACCOUNT BUTTON. What a person sets about themselves. Presence is
+ * what they say, never a state the system derived, so a surface draws it as a
+ * word and never in a state ink.
+ */
+export const PRESENCES = ["available", "busy", "away", "off"] as const;
+export type Presence = (typeof PRESENCES)[number];
+export const PRESENCE_LABEL: Readonly<Record<Presence, string>> = { available: "Available", busy: "Busy", away: "Away", off: "Off shift" };
+export const STATUS_NOTE_MAX = 80;
+export const DISPLAY_NAME_MAX = 80;
+/** A thumbnail, not a photo: the browser scales the picture to a small square before sending it. */
+export const AVATAR_MAX_BYTES = 64 * 1024;
+export const ACCOUNT_PASSWORD_MIN = 12;
+export const ACCOUNT_PASSWORD_MAX = 256;
+export type AvatarContentType = "image/jpeg" | "image/png";
+export type MyAccountWire = {
+  readonly userId: string;
+  readonly email: string;
+  readonly displayName: string;
+  readonly presence: Presence;
+  readonly statusNote: string | null;
+  /** Base64 bytes and their type, or null for no picture. */
+  readonly avatar: { readonly contentType: AvatarContentType; readonly image: string } | null;
+  readonly passwordChangedAt: string | null;
+};
+export type UpdateMyAccountInput = { readonly displayName?: string; readonly presence?: Presence; readonly statusNote?: string | null };
+export type SetAvatarInput = { readonly dataBase64: string | null };
+export type ChangePasswordInput = { readonly currentPassword: string; readonly newPassword: string };
+export type ChangePasswordOutput = { readonly ok: true; readonly passwordChangedAt: string; readonly endedSessions: number };
 
 /**
  * A technician's own credential plus the hardware in their hands. Unlike
@@ -1714,7 +1772,7 @@ export type FieldJobWire = {
 };
 export type MyJobsOutput = { readonly jobs: readonly FieldJobWire[] };
 export type MyPunchesInput = { readonly from: string; readonly to: string };
-/** One tap of the shift clock (0032). `at` is the device's clock at the tap. */
+/** One tap of the shift clock (0033). `at` is the device's clock at the tap. */
 export type ShiftPunchWire = { readonly id: string; readonly kind: "in" | "out"; readonly at: string };
 export type MyPunchesOutput = { readonly punches: readonly ShiftPunchWire[] };
 
@@ -2095,6 +2153,10 @@ export type OperationIO = {
   "auth.logout": { input: void; output: LogoutOutput };
   "auth.deviceLogin": { input: DeviceLoginInput; output: DeviceLoginOutput };
   "session.me": { input: void; output: HierarchyContext };
+  "account.me": { input: void; output: MyAccountWire };
+  "account.update": { input: UpdateMyAccountInput; output: MyAccountWire };
+  "account.setAvatar": { input: SetAvatarInput; output: MyAccountWire };
+  "account.changePassword": { input: ChangePasswordInput; output: ChangePasswordOutput };
   "terms.authorOverride": { input: AuthorOverrideInput; output: AuthorOverrideOutput };
   "terms.resolved": { input: ResolvedTermsInput; output: ResolvedTermsOutput };
   "regions.list": { input: void; output: ListRegionsOutput };

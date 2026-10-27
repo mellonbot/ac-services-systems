@@ -1,4 +1,4 @@
-import { html, pageHead, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, pageHead, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, type VNode, AccountMenu, createAccountMenu, type AccountMenuState } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type AccountWire, type CrewWire, type FirmWire, type OrganizationWire, type PurchaseOrderDetailOutput, type Refusal, type TechnicianWire, type VendorWire } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -186,7 +186,7 @@ const activeEntity = (params: Readonly<Record<string, string>>, store: Store): s
   return null;
 };
 
-type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
+type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store; account: AccountMenuState };
 
 export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window }) => {
   const now = opts.now ?? (() => Date.now());
@@ -196,7 +196,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
 
   const become = (shell: ConnectedShell) => {
     const store = createStore(shell, now);
-    phase.value = { kind: "ready", shell, store };
+    phase.value = { kind: "ready", shell, store, account: createAccountMenu(shell.gateway, shell.refusalOf) };
     // "/" and "/login" are not screens once signed in; the tree is home.
     const at = router.current.value;
     if (!at || at.screen === "login") router.navigate("accounts.tree", {});
@@ -320,6 +320,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         <div class="ac-nav__end">
           <span class="ac-nav__group-label">Signed-in scope</span>
           <span class="ac-nav__who"><span class="s2-scope">${path.map((node) => html`<span>${node.name ?? node.tier}</span>`)}</span> · ${p.shell.principal.roles.join(", ")}</span>
+          ${AccountMenu({ density: DENSITY, menu: p.account })}
           <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
         </div>
         <div class="ac-nav__groups">

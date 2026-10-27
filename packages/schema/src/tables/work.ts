@@ -195,7 +195,7 @@ export const time_entries = operationalTable("time_entries", {
 });
 
 /**
- * 0032 — a technician's shift clock: one row per clock-in or clock-out, never
+ * 0033 — a technician's shift clock: one row per clock-in or clock-out, never
  * edited and never deleted. Payroll time, not job time: time_entries costs a
  * job, this pays a person, and a crew clocks in before its first job and
  * keeps the clock running between jobs. The timesheet pairs each in with the

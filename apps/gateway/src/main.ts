@@ -17,6 +17,7 @@ import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, l
 import { listSettlements, listSettlementLines, acknowledgeSettlement, disputeSettlement } from "./handlers/settlements.ts";
 import { ingestSync } from "./handlers/sync.ts";
 import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
+import { readMyAccount, updateMyAccount, setMyAvatar, changeMyPassword, type AccountActor } from "./handlers/account.ts";
 import { createJob, listJobs, listMyJobs, listMyPunches, transitionJob, addJobNote, setReturnTrip, requireUuid } from "./handlers/jobs.ts";
 import { createProject, listProjects } from "./handlers/projects.ts";
 import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "./handlers/job-detail.ts";
@@ -338,6 +339,25 @@ const withRead = async <T>(req: IncomingMessage, opId: OperationId, fn: (uow: Aw
   } finally { await tx.rollback().catch(() => {}); }
 };
 
+/**
+ * The caller's own account (0032): the same session check and surface
+ * admission as every route, then the gateway's own transaction — bound to
+ * `system` by the session check, as logout's is — because the row is the
+ * caller's identity, which no surface's write allowlist owns. Every statement
+ * the handler runs names the token's subject; nothing in the input does.
+ */
+const withSelf = async <T>(req: IncomingMessage, opId: OperationId, write: boolean, fn: (tx: Tx, actor: AccountActor) => Promise<T>): Promise<T> => {
+  const caller = callerOf(req);
+  const surfaceId = surfaceOf(req, opId, caller);
+  const tx = await beginTx(pool, "ac_gateway");
+  try {
+    await assertSessionLive(tx, caller.principal);
+    const out = await fn(tx, { principal: caller.principal, surfaceId, requestId: String(req.headers["x-request-id"] ?? randomUUID()) });
+    if (write) await tx.commit();
+    return out;
+  } finally { await tx.rollback().catch(() => {}); }
+};
+
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
@@ -534,6 +554,15 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   },
 
   "session.me": (req) => withRead(req, "session.me", (uow, p) => buildContext(p, hierarchyReader(uow.tx))),
+
+  // 0032 — the Account button: the caller's own picture, status and password.
+  "account.me": (req) => withSelf(req, "account.me", false, readMyAccount),
+  "account.update": (req, input) => withSelf(req, "account.update", true, (tx, a) => updateMyAccount(tx, a, input)),
+  "account.setAvatar": (req, input) => withSelf(req, "account.setAvatar", true, (tx, a) => setMyAvatar(tx, a, input)),
+  "account.changePassword": (req, input) => withSelf(req, "account.changePassword", true, (tx, a) => changeMyPassword(tx, a, input, {
+    allowed: (who) => signInAllowed(req, who),
+    failed: (who) => signInFailed(req, who),
+  })),
 
   // S2 — author a contract term override. Refusals come back as 422 with the reason.
   "terms.authorOverride": (req, input) => withUow(req, "terms.authorOverride", async (uow, p) => {

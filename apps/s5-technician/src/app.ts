@@ -1,4 +1,4 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -43,7 +43,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
 
 type Phase =
   | { kind: "login"; refusal: Refusal | null; busy: boolean }
-  | { kind: "ready"; shell: ConnectedShell; store: Store; queue: OfflineQueue; crew: { id: string; label: string }; clock: Signal<Readonly<Record<string, string>>> };
+  | { kind: "ready"; shell: ConnectedShell; store: Store; queue: OfflineQueue; crew: { id: string; label: string }; clock: Signal<Readonly<Record<string, string>>>; account: AccountMenuState };
 
 export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window; newId?: () => string; store?: QueueStore | null }) => {
   const now = opts.now ?? (() => Date.now());
@@ -64,7 +64,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       const queue = createOfflineQueue({ deviceId, subjectId: shell.principal.subjectId, newId, now, store: opts.store ?? null });
       const others = othersPending(opts.store, deviceId, shell.principal.subjectId);
       if (others > 0) store.notice.value = [...store.notice.value, `${others} change(s) another technician saved on this device are kept for them and will be sent when they sign in on it.`];
-      phase.value = { kind: "ready", shell, store, queue, crew: shell.deviceCrew, clock: queue.clock };
+      phase.value = { kind: "ready", shell, store, queue, crew: shell.deviceCrew, clock: queue.clock, account: createAccountMenu(shell.gateway, shell.refusalOf) };
       router.navigate("jobs", {});
       // Envelopes carry no payload; a job assigned to or pulled off this
       // shift's crew, or a term change affecting the field ground, is a
@@ -127,6 +127,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         <a class="ac-seg__item" data-current=${loc?.screen === "jobs" ? "true" : "false"} href=${router.href("jobs", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>Today</a>
         <a class="ac-seg__item" data-current=${loc?.screen === "timesheet" ? "true" : "false"} href=${router.href("timesheet", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("timesheet", {}); }}>Timesheet</a>
         <span class="ac-nav__who">${p.crew.label}</span>
+        ${AccountMenu({ density: DENSITY, menu: p.account })}
         <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
       </nav>
       ${notice.length ? html`<div class="s5-notice" role="status">${notice.map((n) => html`<p>${n}</p>`)}<button type="button" class="s5-notice__dismiss" onClick=${() => { p.store.notice.value = []; }} aria-label="Dismiss">×</button></div>` : null}

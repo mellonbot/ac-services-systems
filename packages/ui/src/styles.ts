@@ -345,11 +345,36 @@ ac-degraded[hidden]{display:none}
 .ac-facts>div{padding:var(--space-2) var(--space-3);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 .ac-facts dt{font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
 .ac-facts dd{margin:var(--space-1) 0 0;font-weight:600}
+/* ---- The Account button (0032) ----
+   A nav control like Sign out: the person's picture or initials and one word.
+   The picture is a square on the control radius — there is no round corner in
+   the system outside a chip. The dialog is a panel in the top layer; its
+   backdrop is the text role mixed thin, as a shadow is, never a new ink. */
+.ac-account-wrap{display:inline-flex}
+.ac-account{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;gap:var(--space-2);margin:0;padding:var(--space-1) var(--space-3) var(--space-1) var(--space-1);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit;font-weight:600;font-size:var(--text-sm);min-height:var(--control-height);cursor:pointer;transition:border-color var(--motion-fast) var(--ease)}
+.ac-account:hover{border-color:color-mix(in srgb,var(--color-border-hard) calc(100% * var(--hover)),var(--color-border))}
+.ac-account__avatar{display:inline-flex;align-items:center;justify-content:center;flex:none;width:calc(var(--control-height) - var(--space-3));height:calc(var(--control-height) - var(--space-3));border-radius:var(--radius-control);background:var(--color-surface-sunken);color:var(--color-text);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);object-fit:cover}
+.ac-account__avatar--large{width:calc(var(--control-height) * 2);height:calc(var(--control-height) * 2);font-size:var(--text-lg)}
+.ac-account__dialog{width:var(--measure-text);max-width:calc(100% - 2 * var(--gutter));max-height:calc(100% - 2 * var(--gutter));overflow:auto;padding:var(--space-4);background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border-hard);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.ac-account__dialog::backdrop{background:color-mix(in srgb,var(--color-text) 40%,transparent)}
+.ac-account__head{display:flex;align-items:center;gap:var(--space-4);padding:0 0 var(--space-3);border-bottom:1px solid var(--color-border)}
+.ac-account__title{margin:0;font-family:var(--font-display);font-size:var(--text-xl);font-weight:700}
+.ac-account__meta{margin:0;color:var(--color-text-muted);font-size:var(--text-sm)}
+.ac-account__section{margin:0;padding:var(--space-4) 0;border-bottom:1px solid var(--color-border)}
+.ac-account__dialog .ac-form{max-width:none;padding:var(--space-4) 0;background:transparent;border:0;border-bottom:1px solid var(--color-border);border-radius:var(--radius-none);box-shadow:none}
+.ac-account__section-title{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-md);font-weight:700}
+.ac-account__row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-4)}
+.ac-account__file{position:relative;display:inline-flex;align-items:center;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--color-border-control);border-radius:var(--radius-control);font-weight:600;cursor:pointer}
+.ac-account__file>input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.ac-account__file:focus-within{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}
+.ac-account__foot{display:flex;justify-content:flex-end;padding:var(--space-3) 0 0}
+.ac-account__close{appearance:none;-webkit-appearance:none;margin:0;padding:0 var(--space-3);border:1px solid var(--color-border-control);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit;font-weight:600;min-height:var(--control-height);cursor:pointer}
+@media (max-width:760px){.ac-account__label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.ac-account{padding:var(--space-1)}}
 /* ---- Motion ----
    110/170/260ms on one curve, from the tokens: a control's state change
    moves, data does not. A reader who asked for reduced motion gets none —
    the same selectors, stilled, declared last so they win on source order. */
-@media (prefers-reduced-motion:reduce){.ac-action,.ac-seg__item,.ac-seg__pick,.ac-chip,.ac-link{transition:none}}
+@media (prefers-reduced-motion:reduce){.ac-action,.ac-seg__item,.ac-seg__pick,.ac-chip,.ac-link,.ac-account{transition:none}}
 `;
 
 /** Every `var(--name)` the stylesheet reads. The test checks each is defined by tokenCss for every density. */

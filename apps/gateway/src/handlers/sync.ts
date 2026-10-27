@@ -217,7 +217,7 @@ const ingestOne = async (uow: UnitOfWork, actorId: string, batch: SyncBatch, rec
 };
 
 /**
- * A shift punch (0032) hangs off the shift, not a job: entityId is the grant,
+ * A shift punch (0033) hangs off the shift, not a job: entityId is the grant,
  * and only the batch's own — the device, crew and technician are the grant's,
  * never the payload's. Append-only: a punch made offline is applied when it
  * arrives, at the time the device recorded the tap.

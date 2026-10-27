@@ -5,11 +5,39 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 115 today. There is no
+ * One method per operation in the catalogue — 119 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
 export const createGatewayClient = (transport: Transport) => ({
+  /** `POST /account/password` · mutation · bearer · surfaces: S2, S3, S4, S5, S6, S7, S8
+   *
+   * Change the caller's own password, given the current one. Wrong guesses count against sign-in's throttle. Ends every other session the person holds; this one stays. */
+  changePassword(input: OperationIO["account.changePassword"]["input"]): Promise<OperationIO["account.changePassword"]["output"]> {
+    return transport.request(OPERATIONS["account.changePassword"], input) as Promise<OperationIO["account.changePassword"]["output"]>;
+  },
+
+  /** `GET /account` · query · bearer · surfaces: S2, S3, S4, S5, S6, S7, S8
+   *
+   * The caller's own name, email, picture, status and when they last set their password. A device principal reads the technician behind the shift. */
+  myAccount(): Promise<OperationIO["account.me"]["output"]> {
+    return transport.request(OPERATIONS["account.me"], undefined) as Promise<OperationIO["account.me"]["output"]>;
+  },
+
+  /** `POST /account/avatar` · mutation · bearer · surfaces: S2, S3, S4, S5, S6, S7, S8
+   *
+   * Set or clear the caller's own picture: a JPEG or PNG by its own bytes, at most AVATAR_MAX_BYTES, as base64 in the body. Null clears it. */
+  setAccountAvatar(input: OperationIO["account.setAvatar"]["input"]): Promise<OperationIO["account.setAvatar"]["output"]> {
+    return transport.request(OPERATIONS["account.setAvatar"], input) as Promise<OperationIO["account.setAvatar"]["output"]>;
+  },
+
+  /** `POST /account` · mutation · bearer · surfaces: S2, S3, S4, S5, S6, S7, S8
+   *
+   * Set the caller's own display name, presence and one-line status. Fields left out are left as they are. */
+  updateMyAccount(input: OperationIO["account.update"]["input"]): Promise<OperationIO["account.update"]["output"]> {
+    return transport.request(OPERATIONS["account.update"], input) as Promise<OperationIO["account.update"]["output"]>;
+  },
+
   /** `POST /s2/accounts` · mutation · bearer · surfaces: S2
    *
    * Author a region node, location or site. region_id is an input for a region node only; below that it derives from the parent edge. D14 is checked for a location. */
@@ -551,7 +579,7 @@ export const createGatewayClient = (transport: Transport) => ({
 
   /** `GET /s5/punches/mine` · query · bearer · surfaces: S5
    *
-   * The signed-in technician's own shift punches between two instants (at most 35 days apart), oldest first — every shift and every device they punched on, and nobody else's (0032). What the timesheet pairs into spans. */
+   * The signed-in technician's own shift punches between two instants (at most 35 days apart), oldest first — every shift and every device they punched on, and nobody else's (0033). What the timesheet pairs into spans. */
   myPunches(input: OperationIO["punches.mine"]["input"]): Promise<OperationIO["punches.mine"]["output"]> {
     return transport.request(OPERATIONS["punches.mine"], input) as Promise<OperationIO["punches.mine"]["output"]>;
   },
@@ -819,4 +847,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "myPunches", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);
+export const GENERATED_METHODS = Object.freeze(["changePassword", "myAccount", "setAccountAvatar", "updateMyAccount", "createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "myPunches", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);

@@ -228,10 +228,16 @@ CREATE TABLE IF NOT EXISTS users (
   external_idp_subject text,
   password_hash text,
   active boolean NOT NULL DEFAULT true,
+  presence text NOT NULL DEFAULT 'available' CHECK (presence IN ('available','busy','away','off')),
+  status_note text CHECK (char_length(status_note) <= 80),
+  avatar bytea CHECK (octet_length(avatar) <= 65536),
+  avatar_type text CHECK (avatar_type IN ('image/jpeg','image/png')),
+  password_changed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (id),
   UNIQUE (email),
-  CONSTRAINT users_subcontractor_have_firm CHECK ((namespace = 'subcontractor') = (firm_id IS NOT NULL))
+  CONSTRAINT users_subcontractor_have_firm CHECK ((namespace = 'subcontractor') = (firm_id IS NOT NULL)),
+  CONSTRAINT users_avatar_has_type CHECK ((avatar IS NULL) = (avatar_type IS NULL))
 );
 CREATE INDEX IF NOT EXISTS users_region_id_idx ON users (region_id);
 CREATE INDEX IF NOT EXISTS users_namespace_email_idx ON users (namespace, email);
