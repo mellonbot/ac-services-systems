@@ -4,7 +4,7 @@ import { deriveDueAt } from "../../../../packages/domain/src/sla/index.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type {
   CreateJobInput, CreateJobOutput, JobPriority, JobStateWire, JobWire, ListJobsOutput,
-  FieldJobWire, MyJobsOutput, AddressWire, TransitionJobInput, TransitionJobOutput,
+  FieldJobWire, MyJobsOutput, MyPunchesInput, MyPunchesOutput, AddressWire, TransitionJobInput, TransitionJobOutput,
   AddJobNoteInput, AddJobNoteOutput, SetReturnTripInput, SetReturnTripOutput, CustomerSegment, JobWorkClass,
 } from "../../../../packages/contracts/src/operations.ts";
 import { OFFICE_JOB_TRANSITIONS, FIELD_CLOSED_STATES, SERVICE_CATALOG, serviceOf } from "../../../../packages/contracts/src/operations.ts";
@@ -267,6 +267,21 @@ export const listMyJobs = async (uow: UnitOfWork, shiftId: string): Promise<MyJo
     serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version, checklistDone: r.checklist_done,
   }));
   return { jobs };
+};
+
+const PUNCH_WINDOW_MS = 35 * 24 * 3600_000;
+/** S5's timesheet read (0033): this technician's punches, whatever shift or device made them. RLS holds the same line. */
+export const listMyPunches = async (uow: UnitOfWork, technicianId: string, input: MyPunchesInput): Promise<MyPunchesOutput> => {
+  const from = Date.parse(String(input.from ?? "")), to = Date.parse(String(input.to ?? ""));
+  if (Number.isNaN(from) || Number.isNaN(to)) throw new BadInput("from and to must be timestamps");
+  if (to <= from || to - from > PUNCH_WINDOW_MS) throw new BadInput("to must come after from, at most 35 days later");
+  const rows = await uow.tx.query<{ id: string; kind: "in" | "out"; punched_at: Date }>(
+    `SELECT id, kind, punched_at FROM shift_punches
+      WHERE technician_id = $1 AND punched_at >= $2 AND punched_at < $3
+      ORDER BY punched_at, created_at`,
+    [technicianId, new Date(from).toISOString(), new Date(to).toISOString()],
+  );
+  return { punches: rows.map((r) => ({ id: r.id, kind: r.kind, at: new Date(r.punched_at).toISOString() })) };
 };
 
 /**

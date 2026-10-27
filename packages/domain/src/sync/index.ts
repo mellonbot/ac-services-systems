@@ -40,6 +40,7 @@ export type ConflictPolicy = "append_only" | "device_authoritative" | "server_au
 export const CONFLICT_POLICIES: Readonly<Record<string, ConflictPolicy>> = Object.freeze({
   job_media: "append_only",
   time_entries: "append_only",
+  shift_punches: "append_only",
   parts_used: "append_only",
   checklist_items: "device_authoritative",
   jobs: "state_machine",

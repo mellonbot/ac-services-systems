@@ -29,6 +29,8 @@ export type ScreenContext = {
   readonly router: Router<typeof SCREENS>;
   readonly density: DensityOf<"S5">;
   readonly degraded: boolean;
+  /** The app's clock, read once per render and moved on every minute — what a running shift clock counts to. */
+  readonly now: number;
 };
 
 export type Params = Readonly<Record<string, string>>;
@@ -59,7 +61,7 @@ export const refusalView = (ctx: ScreenContext, refusal: Refusal): VNode =>
 export const flushQueue = (ctx: ScreenContext): void => {
   void ctx.queue.flush((mutations) =>
     ctx.shell.gateway.replaySync({ orgId: ctx.shell.principal.orgId, regionId: ctx.shell.principal.regionId, mutations }),
-  ).then((answered) => { if (answered) ctx.store.invalidate("jobs.mine"); });
+  ).then((answered) => { if (answered) { ctx.store.invalidate("jobs.mine"); ctx.store.invalidate("punches.mine"); } });
 };
 
 /** What a device's state change says on its button — the verb a crew would use, not the enum. */

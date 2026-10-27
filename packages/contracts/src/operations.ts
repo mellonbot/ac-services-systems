@@ -536,6 +536,11 @@ export const OPERATIONS = {
     surfaces: ["S5"], carrier: "none", sdkMethod: "myJobs",
     summary: "Jobs assigned to this shift's crew, unreleased and still open — finished, cancelled or aborted work drops off (FIELD_CLOSED_STATES). Each carries what a crew needs at the curb — the job number, the site's name, address and primary contact — and the checklist items already done. The field layer's own read — no employment shape, no compliance detail, no other crew's board.",
   },
+  "punches.mine": {
+    id: "punches.mine", method: "GET", path: "/s5/punches/mine", kind: "query", auth: "bearer",
+    surfaces: ["S5"], carrier: "query", sdkMethod: "myPunches",
+    summary: "The signed-in technician's own shift punches between two instants (at most 35 days apart), oldest first — every shift and every device they punched on, and nobody else's (0033). What the timesheet pairs into spans.",
+  },
   "sync.replay": {
     id: "sync.replay", method: "POST", path: "/s5/sync", kind: "mutation", auth: "bearer",
     surfaces: ["S5"], carrier: "body", sdkMethod: "replaySync",
@@ -751,7 +756,7 @@ export const OPERATION_IDS = Object.freeze(Object.keys(OPERATIONS)) as readonly 
 
 /**
  * The mutations that write the caller's own session or users row and nothing
- * of the business's: ending a session, and the Account button (0032). The
+ * of the business's: ending a session, and the Account button (0033). The
  * only writes a read-only surface (S4) is served.
  */
 export const OWN_IDENTITY_MUTATIONS: readonly OperationId[] = ["auth.logout", "account.update", "account.setAvatar", "account.changePassword"];
@@ -788,7 +793,7 @@ export type LoginOutput = {
 export type LogoutOutput = { readonly ok: true; readonly sessionId: string };
 
 /**
- * 0032 — THE ACCOUNT BUTTON. What a person sets about themselves. Presence is
+ * 0033 — THE ACCOUNT BUTTON. What a person sets about themselves. Presence is
  * what they say, never a state the system derived, so a surface draws it as a
  * word and never in a state ink.
  */
@@ -1766,6 +1771,10 @@ export type FieldJobWire = {
   readonly checklistDone: readonly string[];
 };
 export type MyJobsOutput = { readonly jobs: readonly FieldJobWire[] };
+export type MyPunchesInput = { readonly from: string; readonly to: string };
+/** One tap of the shift clock (0033). `at` is the device's clock at the tap. */
+export type ShiftPunchWire = { readonly id: string; readonly kind: "in" | "out"; readonly at: string };
+export type MyPunchesOutput = { readonly punches: readonly ShiftPunchWire[] };
 
 export type ComplianceRefusalWireItem = { readonly reason: "missing" | "expired_in_window" | "unverified" | "crew_inactive"; readonly credentialKind: string; readonly detail: string };
 /** 0024: only crews of the kind the job's work needs are candidates (`crewKindFor`). */
@@ -2210,6 +2219,7 @@ export type OperationIO = {
   "serviceRequests.hold": { input: CreateServiceRequestInput; output: CreateServiceRequestOutput };
   "media.get": { input: GetMediaInput; output: GetMediaOutput };
   "jobs.mine": { input: void; output: MyJobsOutput };
+  "punches.mine": { input: MyPunchesInput; output: MyPunchesOutput };
   "dispatch.assign": { input: AssignInput; output: AssignOutput };
   "dispatch.candidates": { input: CandidateCrewsInput; output: CandidateCrewsOutput };
   "dispatch.release": { input: ReleaseAssignmentInput; output: ReleaseAssignmentOutput };

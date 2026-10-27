@@ -9,9 +9,11 @@ import { STATUS_GLYPH } from "./whitelabel.ts";
 import { contrastRatio } from "./whitelabel.ts";
 
 const DENSITIES = Object.keys(DENSITY) as Density[];
+/** Every ground an ink renders on: the three frames and the plate region (Rev D). */
+const MEASURED = [...DENSITIES, "plate"] as const;
 
 test("every density's ink schedule clears WCAG against every ground it is permitted on", () => {
-  for (const d of DENSITIES) assert.deepEqual(contrastFailures(d), [], d);
+  for (const d of MEASURED) assert.deepEqual(contrastFailures(d), [], d);
 });
 
 test("a ratio is stated against the WORST ground, not the paper — errata E-01", () => {
@@ -56,14 +58,14 @@ test("a control's edge carries shape, so it clears 3:1 on every ground in both s
 });
 
 test("Form R-4: the word is measured against its own fill, and the fill is free", () => {
-  const field = semanticFor("field");
+  const plate = semanticFor("plate");
   // The garnet fault fill is 1.95:1 against the plate ground and that is correct:
   // it carries neither the word nor the shape.
-  assert.ok(contrastRatio(field["color.status-breached-fill"], field["color.surface"]) < 3);
+  assert.ok(contrastRatio(plate["color.status-breached-fill"], plate["color.surface"]) < 3);
   // The word on it is what has to clear AA.
-  assert.ok(contrastRatio(field["color.status-breached"], field["color.status-breached-fill"]) >= 4.5);
+  assert.ok(contrastRatio(plate["color.status-breached"], plate["color.status-breached-fill"]) >= 4.5);
   for (const [ink, fill] of ON_FILL) {
-    for (const d of DENSITIES) {
+    for (const d of MEASURED) {
       const sem = semanticFor(d);
       if (sem[fill] === "transparent") continue;
       assert.ok(contrastRatio(sem[ink], sem[fill]) >= 4.5, `${d}: ${ink} on ${fill}`);
@@ -84,11 +86,11 @@ test("a role is a CSS variable by mechanical renaming, for every semantic token"
   }
 });
 
-test("the field surface is the plate ground and the other two are light; the roles are the same set", () => {
-  assert.equal(semanticFor("field"), SEMANTIC_DARK);
-  assert.equal(semanticFor("console"), SEMANTIC);
+test("Rev D: every density is on the light stock and the plate is the only dark ground; the roles are the same set", () => {
+  for (const d of DENSITIES) assert.equal(semanticFor(d), SEMANTIC, d);
+  assert.equal(semanticFor("plate"), SEMANTIC_DARK);
   assert.deepEqual(Object.keys(SEMANTIC_DARK).sort(), Object.keys(SEMANTIC).sort());
-  assert.match(tokenCss("field"), /--color-scheme:dark/);
+  assert.match(tokenCss("field"), /--color-scheme:light/);
   assert.match(tokenCss("field"), /--hover:0/);
   assert.match(tokenCss("console"), /--hover:1/);
 });
@@ -210,7 +212,9 @@ test("the frame carries its own density's scale, Rev B's three radii and its ele
     assert.match(css, /--elevation-card:[^;]*color-mix\(in srgb,var\(--color-(text|surface-sunken)\)/, "a shadow is an existing role, mixed — never a new ink");
     assert.doesNotMatch(css.match(/--elevation-card:[^;]+/)![0], /#|\brgba?\(/i);
   }
-  assert.match(tokenCss("field"), /--elevation-card:[^;]*--color-surface-sunken/, "the field ground's shadow is its well, not a cream glow");
+  const field = tokenCss("field");
+  assert.match(field.slice(0, field.indexOf(`${PLATE_SCOPE}{`)), /--elevation-card:[^;]*--color-text\)/, "Rev D: the field frame's shadow is the light stock's ink, mixed");
+  assert.match(field.slice(field.indexOf(`${PLATE_SCOPE}{`)), /--elevation-card:[^;]*--color-surface-sunken/, "the plate's shadow is its well, not a cream glow");
   assert.notEqual(tokenCss("field").match(/--text-xs:[^;]+/)?.[0], tokenCss("console").match(/--text-xs:[^;]+/)?.[0]);
 });
 
@@ -238,12 +242,12 @@ test("motion is a token: three durations and one easing reach every density, and
   }
 });
 
-test("a plate region inside a light frame carries the field schedule's colour roles and nothing unmeasured", () => {
+test("a plate region inside a light frame carries the plate schedule's colour roles and nothing unmeasured", () => {
   for (const d of DENSITIES) for (const brandLayer of [false, true]) {
     const css = tokenCss(d, { brandLayer });
     const block = css.slice(css.indexOf(`${PLATE_SCOPE}{`));
-    const field = rolesFor("field", { brandLayer });
-    for (const k of Object.keys(field) as SemanticToken[]) assert.ok(block.includes(`${cssVar(k)}:${field[k]}`), `${d} ${k}`);
+    const plate = rolesFor("plate", { brandLayer });
+    for (const k of Object.keys(plate) as SemanticToken[]) assert.ok(block.includes(`${cssVar(k)}:${plate[k]}`), `${d} ${k}`);
     assert.ok(!/--text-|--control-height|--density/.test(block), `${d}: the plate re-points colour, never density`);
   }
 });

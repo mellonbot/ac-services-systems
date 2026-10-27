@@ -25,13 +25,15 @@ export const DENSITY = Object.freeze({
     focusRing: "2px solid", hoverAffordances: true, surface: "light",
   },
   /**
-   * S5 and the tablet. 56px targets for gloves, 18px body, amber focus ring and
-   * a dark surface for direct sunlight, and NO hover-dependent affordance
-   * anywhere — there is no cursor, so a hover-only control is an invisible one.
+   * S5 and the tablet. 56px targets for gloves, 18px body, a 3px focus ring,
+   * and NO hover-dependent affordance anywhere — there is no cursor, so a
+   * hover-only control is an invisible one. Rev D (2026-10-27): on the light
+   * stock. Dark ink on a light ground is what holds up under glare on a
+   * glossy tablet; the dark schedule is now the plate's alone (css.ts).
    */
   field: {
     controlHeight: "56px", rowHeight: "56px", bodyText: "18px", gutter: "16px",
-    focusRing: "3px solid", hoverAffordances: false, surface: "dark",
+    focusRing: "3px solid", hoverAffordances: false, surface: "light",
   },
 });
 
@@ -52,7 +54,7 @@ export type TypeStep = keyof typeof P.text;
  * So every step moves with the tier, and `FLOOR` is the promise: nothing in a
  * density is set below its floor, checked in css.test.ts. The field floor is
  * 15px because that is the smallest uppercase instrument label that survives a
- * roof at 2pm — the same argument that chose the ground it sits on.
+ * roof at 2pm.
  *
  * Rev B (2026-10-22) spread the ramp. The console's caption and body sat 1px
  * apart (12/13) and the field's xs/sm likewise (15/16) — a caption and body

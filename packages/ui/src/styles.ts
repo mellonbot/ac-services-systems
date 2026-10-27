@@ -98,8 +98,8 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
    toward the surface, so the word keeps its ink and the fill adds salience
    without adding a hue. FORM still carries the order before hue does: ok is
    fill only, at-risk adds an outline in its ink, breached adds a solid
-   outline and the strongest fill — and on the field ground the breached fill
-   is garnet (--color-status-breached-fill), the tier's only solid chip. The
+   outline and the strongest fill — and on the plate the breached fill
+   is garnet (--color-status-breached-fill), the plate's only solid chip. The
    glyph stays: colour never carries alone. An outline is drawn in the state's
    OWN ink, never in --color-border: a chip's rule carries SHAPE, and the border
    role measures 2.22:1 (errata E-08). */
@@ -114,7 +114,7 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
 /* ---- PrimaryAction: a red fill, sized by the density ----
    The label is --color-action-ink, white at 5.05:1 on the fill, NOT
    --color-surface: the fill is never a small word, so the ink that sits on it
-   is its own role. The rule carries the control's shape; on the field ground
+   is its own role. The rule carries the control's shape; on the plate
    the fill reads 3.48:1 and the press deepens to the text-safe red. */
 .ac-action-wrap{display:inline-flex;flex-direction:column;gap:var(--space-1);align-items:flex-start}
 .ac-action{min-height:var(--control-height);min-width:var(--control-height);padding:0 var(--space-4);border-radius:var(--radius-control);border:1px solid var(--color-action-text);background:var(--color-action);color:var(--color-action-ink);font-family:var(--font-label);font-size:var(--text-md);font-weight:700;letter-spacing:var(--track-tight);cursor:pointer;transition:background-color var(--motion-fast) var(--ease),border-color var(--motion-fast) var(--ease),color var(--motion-fast) var(--ease),filter var(--motion-fast) var(--ease)}

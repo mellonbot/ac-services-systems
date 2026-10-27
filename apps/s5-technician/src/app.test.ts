@@ -7,7 +7,7 @@ import { priorityStatus, forwardState } from "./screens/job-list.ts";
 import { CHECKLIST, PART_SOURCES } from "./screens/job-detail.ts";
 import { nextDeviceStates, JOB_TRANSITIONS, DEVICE_TRANSITIONS, queueKey, type QueueStore } from "./offline.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import type { HierarchyContext, FieldJobWire, SyncMutationWire, SyncOutcomeWire } from "../../../packages/contracts/src/index.ts";
+import type { HierarchyContext, FieldJobWire, ShiftPunchWire, SyncMutationWire, SyncOutcomeWire } from "../../../packages/contracts/src/index.ts";
 import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
 
 /**
@@ -41,7 +41,7 @@ const job: FieldJobWire = {
 type Reply = { status: number; body: unknown };
 type SyncHandler = (mutations: readonly SyncMutationWire[]) => Reply;
 
-const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJobWire[] } = {}) => {
+const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJobWire[]; punches?: readonly ShiftPunchWire[] } = {}) => {
   let session = false;
   const calls: { path: string; init: Parameters<FetchLike>[1] }[] = [];
   const reply = (status: number, body: unknown) => ({ status, ok: status < 300, json: async () => body, text: async () => JSON.stringify(body), body: null });
@@ -52,6 +52,8 @@ const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJob
     if (!session) return reply(401, { error: "AuthError", code: "malformed", message: "no session" });
     if (path === OPERATIONS["session.me"].path) return reply(200, deviceContext);
     if (path === OPERATIONS["jobs.mine"].path) return reply(200, { jobs: opts.jobs ?? [job] });
+    // Clocked in by default: a job does not move until the shift clock is in (partner rule, 2026-10-27).
+    if (path === OPERATIONS["punches.mine"].path) return reply(200, { punches: opts.punches ?? [{ id: "p-default", kind: "in", at: "1970-01-01T00:00:00.000Z" }] });
     if (path === OPERATIONS["sync.replay"].path) {
       const body = JSON.parse(init!.body as string) as { mutations: readonly SyncMutationWire[] };
       if (opts.syncHandler) { const r = opts.syncHandler(body.mutations); return reply(r.status, r.body); }
@@ -83,9 +85,9 @@ const memory = (): QueueStore & { map: Map<string, string> } => {
   return { map, getItem: (k) => map.get(k) ?? null, setItem: (k, v) => { map.set(k, v); }, get length() { return map.size; }, key: (i) => [...map.keys()][i] ?? null };
 };
 let seq = 0;
-const ready = async (opts?: Parameters<typeof fakeGateway>[0] & { store?: QueueStore }) => {
+const ready = async (opts?: Parameters<typeof fakeGateway>[0] & { store?: QueueStore; now?: number }) => {
   const g = fakeGateway(opts);
-  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000, newId: () => `mut-${++seq}`, store: opts?.store ?? null });
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => opts?.now ?? 1_000, newId: () => `mut-${++seq}`, store: opts?.store ?? null });
   await app.login("hw-001", "tech@ac.test", "pw");
   return { app, gateway: g };
 };
@@ -478,4 +480,99 @@ test("attention survives a reload until it is dismissed", async () => {
   const p3 = third.app.phase.value;
   if (p3.kind !== "ready") return assert.fail("not ready");
   assert.equal(p3.queue.attention.value.length, 0, "a dismissed item stays dismissed");
+});
+
+// ---- the shift clock (0033) and its partner rule: in before the first job, out after the last ----
+const NOW = Date.parse("2026-10-27T15:00:00Z");
+const down = () => ({ status: 503, body: { error: "Unavailable", message: "down" } });
+
+test("before the first job, Today offers Clock in; the tap queues a punch on this shift's grant and the clock runs at once", async () => {
+  const { app } = await ready({ now: NOW, syncHandler: down, punches: [] });
+  render(app.view()); await settle(); await settle(); render(app.view()); await settle();
+  let out = render(app.view());
+  assert.match(out, /Clocked out/);
+  assert.match(out, /id="clock-in"/);
+  assert.doesNotMatch(out, /id="clock-out"/);
+
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  click(app.view(), "clock-in"); await settle();
+  const m = p.queue.pending.value.at(-1)!.mutation;
+  assert.deepEqual([m.entityTable, m.entityId, m.op, m.payload.kind], ["shift_punches", SHIFT, "insert", "in"], "the punch names the shift grant, never a job");
+  out = render(app.view());
+  assert.match(out, /Clocked in/);
+  assert.match(out, /waiting to sync/);
+  assert.doesNotMatch(out, /id="clock-in"/);
+  assert.doesNotMatch(out, /id="clock-out"/, "the job is still open");
+  assert.match(out, /Clock out opens when every job is complete or on hold/);
+});
+
+test("no job moves until the shift clock is in: the card and the detail say so on the control, and Clock in lifts it", async () => {
+  const { app } = await ready({ now: NOW, syncHandler: down, punches: [] });
+  render(app.view()); await settle(); await settle(); render(app.view()); await settle();
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  let out = render(app.view());
+  assert.match(out, new RegExp(`id="card-${JOB}-en_route" aria-disabled="true"`));
+  assert.match(out, /Clock in first/);
+  click(app.view(), `card-${JOB}-en_route`); await settle();
+  assert.equal(p.queue.pending.value.length, 0, "a tap on a gated move queues nothing");
+
+  app.router.navigate("job", { jobId: JOB });
+  render(app.view()); await settle();
+  assert.match(render(app.view()), /id="to-en_route" aria-disabled="true"/);
+
+  app.router.navigate("jobs", {});
+  click(app.view(), "clock-in"); await settle();
+  out = render(app.view());
+  assert.match(out, new RegExp(`id="card-${JOB}-en_route" aria-disabled="false"`), "a queued clock-in counts at once");
+});
+
+test("a job already under way with the clock stopped is not a dead end: Clock in is offered and lifts the gate", async () => {
+  const { app } = await ready({ now: NOW, jobs: [{ ...job, state: "en_route" }], punches: [], syncHandler: down });
+  render(app.view()); await settle(); await settle(); render(app.view()); await settle();
+  let out = render(app.view());
+  assert.match(out, /id="clock-in"/);
+  assert.match(out, new RegExp(`id="card-${JOB}-on_site" aria-disabled="true"`));
+  click(app.view(), "clock-in"); await settle();
+  out = render(app.view());
+  assert.match(out, new RegExp(`id="card-${JOB}-on_site" aria-disabled="false"`));
+});
+
+test("clocked in with every job finished or on hold — off the list, completed on this device, or waiting on parts — Today offers Clock out", async () => {
+  const punches = [{ id: "p1", kind: "in" as const, at: "2026-10-27T13:00:00Z" }];
+  const empty = await ready({ now: NOW, jobs: [], punches });
+  render(empty.app.view()); await settle(); await settle(); render(empty.app.view()); await settle();
+  let out = render(empty.app.view());
+  assert.match(out, /id="clock-out"/);
+  assert.match(out, />2h 00m</, "two hours on the clock at 15:00");
+
+  const { app } = await ready({ now: NOW, jobs: [{ ...job, state: "in_progress" }], punches, syncHandler: down });
+  render(app.view()); await settle(); await settle(); render(app.view()); await settle();
+  assert.doesNotMatch(render(app.view()), /id="clock-out"/);
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  p.queue.enqueue("jobs", JOB, "transition", { state: "complete" }, job.version);
+  out = render(app.view());
+  assert.match(out, /id="clock-out"/, "a completion still waiting to sync counts");
+
+  const held = await ready({ now: NOW, jobs: [{ ...job, state: "awaiting_parts" }], punches });
+  render(held.app.view()); await settle(); await settle(); render(held.app.view()); await settle();
+  assert.match(render(held.app.view()), /id="clock-out"/, "a job waiting on parts does not keep the crew on the clock");
+});
+
+test("the timesheet lists the week's punches by day with each day's total and the week's, and a running span says so", async () => {
+  const punches = [
+    { id: "p1", kind: "in" as const, at: "2026-10-26T12:58:00Z" }, { id: "p2", kind: "out" as const, at: "2026-10-26T21:32:00Z" },
+    { id: "p3", kind: "in" as const, at: "2026-10-27T13:00:00Z" },
+  ];
+  const { app } = await ready({ now: NOW, punches });
+  app.router.navigate("timesheet", {});
+  render(app.view()); await settle(); await settle(); render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, /id="week-total"[^>]*>10h 34m</, "8h 34m Monday and 2h 00m running today");
+  assert.match(out, /Mon/);
+  assert.match(out, /→ <span class="s5-nowrap">running</);
+  assert.match(out, /data-today="true"/);
+  assert.equal((out.match(/class="s5-day"/g) ?? []).length, 7);
 });

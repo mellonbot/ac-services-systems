@@ -48,6 +48,9 @@ export const TOPICS = [
   // item 4 — D-2a's primitive, recorded. No subscriber yet; added when a
   // screen needs to react rather than in anticipation of one.
   "device.registered", "device.shift_granted",
+  // 0033: a technician clocked in or out. No subscriber yet — S2's payroll
+  // view will be the first; added there rather than in anticipation.
+  "shift.punched",
   // money
   "invoice.issued", "invoice.paid", "invoice.voided", "settlement.statement_issued",
   // 0030: a part payment, and a payment that came back. invoice.paid is the one that settles it.
