@@ -53,12 +53,14 @@ that fails the gate still falls behind, and the house is held to it.
 | `color.status-blocked` | `#3C4A55` | light |
 | `color.status-breached-fill` | `transparent` | light |
 
-## Field ground
+## The plate
 
-Not a dark theme — a second substrate. The tablet is read on a roof at 2pm in
-July, so this ground does not follow the viewer's preference. State is carried
-by form first — outline, outline, solid — and the garnet fill is the system's
-only solid chip, with the frost word on it at 7.58:1.
+The dark schedule, a region and not a theme: `data-ground="plate"` puts an
+element on it inside a light frame (the dispatch board's header bar). Rev D
+(2026-10-27) moved the field tier — S5, the tablet — onto the light stock, so
+the plate is the only place this schedule renders. State is carried by form
+first — outline, outline, solid — and the garnet fill is the system's only solid
+chip, with the frost word on it at 7.58:1.
 
 | Role | Value |
 |---|---|
