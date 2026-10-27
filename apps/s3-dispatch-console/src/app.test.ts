@@ -672,3 +672,20 @@ test("job detail: an unassigned job offers Dispatch, and no Release", async () =
   assert.match(out, /class="s3-detail-actions"><a class="ac-action s3-link-action" href="[^"]*\/job\/[^"]+">Dispatch a crew</);
   assert.doesNotMatch(out, /release-open/);
 });
+
+test("the board lists what its grid cannot draw: unassigned work with Dispatch, and a crew's after-hours job", async () => {
+  const now = Date.parse("2026-09-18T12:00:00.000Z");
+  const day = new Date(now); day.setHours(0, 0, 0, 0);
+  const at = (h: number) => new Date(day.getTime() + h * 3_600_000).toISOString();
+  const lateCall: JobWire = { ...jobAssigned, id: U(40), serviceWindowStart: at(19), serviceWindowEnd: at(21), slaSatisfiedAt: null, slaDueAt: at(20) };
+  const m = boardModel([jobCreated, jobAssigned, lateCall], now, 0);
+  assert.deepEqual(m.unassigned.map((j) => j.id), [JOB_CREATED]);
+  assert.deepEqual(m.offGrid.map((o) => o.job.id), [U(40)], "a 7 PM call is listed, not dropped for having no width on the grid");
+
+  const { app } = await ready({ [OPERATIONS["jobs.list"].path]: { status: 200, body: { jobs: [jobCreated, jobAssigned] } } });
+  app.router.navigate("board", {});
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  const out = render(app.view()).split('id="board-off-timeline"')[1]!.split('class="dispatch-dashboard__legend"')[0]!;
+  assert.match(out, /Unassigned — 1 not on any crew/);
+  assert.match(out, new RegExp(`aria-label="Dispatch job ${JOB_CREATED} at Austin — Roof"[^>]*>Dispatch<`));
+});

@@ -105,6 +105,7 @@ export const S3_CSS = `
 .dispatch-board__segment[data-tone="at_risk"] .dispatch-board__state{color:var(--color-status-at-risk)}
 .dispatch-board__segment[data-tone="breached"] .dispatch-board__state{color:var(--color-status-breached)}
 .dispatch-board__empty{margin:0;padding:var(--space-4);color:var(--color-text-muted)}
+.dispatch-board__off{display:flex;flex-direction:column;gap:var(--space-4);margin-top:var(--space-4)}
 
 /* ---- Job Dashboard: four action buckets and the stalled-jobs table ---- */
 .s3-buckets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:var(--space-3);margin:0 0 var(--space-4)}

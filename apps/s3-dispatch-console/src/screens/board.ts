@@ -1,4 +1,4 @@
-import { html, signal, shortRef, StatusPill, pageHead, statStrip, panel, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, signal, shortRef, StatusPill, DataGrid, pageHead, statStrip, panel, type Signal, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
 import { serviceLabel, WORK_DONE_STATES, JOB_WORK_CLASS_LABEL, crewKindFor, crewKindForRole, type JobWire, type CrewWire, type CrewKind, type TechnicianWire } from "../../../../packages/contracts/src/index.ts";
 import { STATUS_GLYPH } from "../../../../packages/tokens/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
@@ -248,7 +248,45 @@ export const boardModel = (jobs: readonly JobWire[], now: number, offset: number
   ];
   // The current time, as a share of the grid — null when the day shown is not today or the hour is off the grid.
   const nowAt = now >= from && now <= to ? ((now - from) / (to - from)) * 100 : null;
-  return { rows, place, stats, legend, dayStart, nowAt };
+  // What the grid cannot draw: work nobody holds (rows are crews), and a crew's work that day wholly before 7 AM or after 5 PM —
+  // the after-hours emergency is exactly the job a dispatcher must not lose. Most urgent SLA first, then by window.
+  const bySla = (a: JobWire, b: JobWire) => (a.slaDueAt && !a.slaSatisfiedAt ? Date.parse(a.slaDueAt) : Infinity) - (b.slaDueAt && !b.slaSatisfiedAt ? Date.parse(b.slaDueAt) : Infinity)
+    || Date.parse(a.serviceWindowStart) - Date.parse(b.serviceWindowStart);
+  const offGrid = rows.flatMap((r) => r.jobs.filter((j) => place(j).width <= 0).map((job) => ({ job, crew: r.name }))).sort((a, b) => bySla(a.job, b.job));
+  return { rows, place, stats, legend, dayStart, nowAt, unassigned: [...unassigned].sort(bySla), offGrid };
+};
+
+const windowText = (j: JobWire): string => {
+  const at = (iso: string) => new Date(iso).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
+  return `${at(j.serviceWindowStart)} – ${at(j.serviceWindowEnd)}`;
+};
+const offTimeline = (ctx: Parameters<Screen>[0], unassigned: readonly JobWire[], offGrid: readonly { job: JobWire; crew: string }[], now: number): VNode => {
+  const sla = (j: JobWire) => (j.slaDueAt && !j.slaSatisfiedAt ? StatusPill({ density: ctx.density, status: slaStatus(j, now) }) : html`<span class="s3-muted">—</span>`);
+  const jobLink = (j: JobWire) => linkTo(ctx, "detail", { jobId: j.id }, j.id);
+  return html`<div class="dispatch-board__off" id="board-off-timeline">
+    ${DataGrid({
+      density: "console", stack: true, caption: `Unassigned — ${unassigned.length} not on any crew's row`,
+      columns: [
+        { key: "id", header: "Job #", numeric: true, cell: jobLink },
+        { key: "site", header: "Site", cell: (j: JobWire) => html`${j.siteName ?? "Site name unavailable"}${homeMark(j.customerSegment)} <span class="s3-muted">· ${serviceLabel(j.serviceCode)} · ${j.priority}</span>` },
+        { key: "window", header: "Window", cell: (j: JobWire) => html`<span class="s3-num">${windowText(j)}</span>` },
+        { key: "sla", header: "SLA", cell: sla },
+        { key: "act", header: "", align: "end", cell: (j: JobWire) => isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act", `Dispatch job ${j.id} at ${j.siteName ?? "its site"}`) : html`<span class="s3-muted">${j.state}</span>` },
+      ],
+      rows: unassigned, rowKey: (j: JobWire) => j.id, emptyText: "Every open job is on a crew.",
+    })}
+    ${offGrid.length ? DataGrid({
+      density: "console", stack: true, caption: "Outside 7 AM – 5 PM on this day",
+      columns: [
+        { key: "id", header: "Job #", numeric: true, cell: (o: { job: JobWire }) => jobLink(o.job) },
+        { key: "crew", header: "Crew", cell: (o: { crew: string }) => o.crew },
+        { key: "site", header: "Site", cell: (o: { job: JobWire }) => html`${o.job.siteName ?? "Site name unavailable"} <span class="s3-muted">· ${serviceLabel(o.job.serviceCode)} · ${o.job.priority}</span>` },
+        { key: "window", header: "Window", cell: (o: { job: JobWire }) => html`<span class="s3-num">${windowText(o.job)}</span>` },
+        { key: "sla", header: "SLA", cell: (o: { job: JobWire }) => sla(o.job) },
+      ],
+      rows: offGrid, rowKey: (o: { job: JobWire }) => o.job.id,
+    }) : null}
+  </div>`;
 };
 
 export const board: Screen = (ctx) => {
@@ -309,7 +347,7 @@ export const board: Screen = (ctx) => {
           </div>
         </div>`) : html`<p class="dispatch-board__empty">No crews or technicians on the roster.</p>`}
       </div>
-
+      ${offTimeline(ctx, m.unassigned, m.offGrid, now)}
       <div class="dispatch-dashboard__legend">
         ${m.legend.map((item) => html`<span class="dispatch-legend__item" data-tone=${item.tone}>${item.tone === "at_risk" || item.tone === "breached" ? html`<span class="dispatch-legend__mark" aria-hidden="true">${STATUS_GLYPH[item.tone].glyph}</span>` : null}${item.label}${"n" in item ? html` <span class="s3-num">${item.n}</span>` : null}</span>`)}
       </div>`);
