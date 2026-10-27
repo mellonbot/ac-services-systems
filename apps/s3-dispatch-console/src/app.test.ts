@@ -689,3 +689,17 @@ test("the board lists what its grid cannot draw: unassigned work with Dispatch, 
   assert.match(out, /Unassigned — 1 not on any crew/);
   assert.match(out, new RegExp(`aria-label="Dispatch job ${JOB_CREATED} at Austin — Roof"[^>]*>Dispatch<`));
 });
+
+test("Assign, clicked: a failed request says so instead of nothing, and a double click sends one assignment", async () => {
+  const { app, gateway } = await ready({ [OPERATIONS["dispatch.assign"].path]: { status: 503, body: { error: "Unavailable", message: "gateway busy" } } });
+  app.router.navigate("dispatch", { jobId: JOB_CREATED });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const button = () => nodesIn(app.view()).find((n) => n.props?.id === `assign-${CREW_A}`)!;
+  const click = button().props!.onClick as (e: unknown) => void;
+  click({ preventDefault() {} }); click({ preventDefault() {} });
+  assert.match(render(app.view()), /Assigning…/);
+  for (let i = 0; i < 4; i++) await settle();
+  assert.equal(gateway.calls.filter((c) => c.path === OPERATIONS["dispatch.assign"].path).length, 1, "one assignment for two clicks");
+  assert.match(render(app.view()), /Crew A1 was not assigned/);
+  assert.match(render(app.view()), new RegExp(`id="assign-${CREW_A}"[^>]*>Assign<`), "the button is back for another try");
+});

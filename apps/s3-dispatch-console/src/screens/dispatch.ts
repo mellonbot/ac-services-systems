@@ -4,6 +4,10 @@ import type { JobWire, CandidateCrewWire } from "../../../../packages/contracts/
 import { JOB_WORK_CLASS_LABEL, CREW_KIND_LABEL, crewKindFor } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, type Screen } from "./common.ts";
+import { perStore } from "./intake.ts";
+
+/** The crew an Assign is in flight for — one at a time, so a second click cannot send a second assignment. */
+const assigningFor = perStore<string | null>(null);
 
 /**
  * THE ONE GATED DOOR, at a screen. `dispatch.candidates` is read here for
@@ -27,9 +31,23 @@ export const dispatch: Screen = (ctx, params) => {
     const candidatesKey = keyOf("dispatch.candidates", { jobId });
     const candidates = ctx.store.read(candidatesKey, () => ctx.shell.gateway.candidateCrews({ jobId, orgId: job.orgId, regionId: job.regionId }));
 
+    const assigning = assigningFor(ctx.store);
     const assign = async (crew: CandidateCrewWire) => {
       if (!crew.cleared) return; // the button for an uncleared crew is not rendered; this is belt-and-suspenders against a stale re-render
-      const out = await ctx.shell.gateway.assignCrew({ jobId: job.id, crewId: crew.crewId, orgId: job.orgId, regionId: job.regionId });
+      if (assigning.value) return;
+      assigning.value = crew.crewId;
+      let out: Awaited<ReturnType<typeof ctx.shell.gateway.assignCrew>>;
+      try {
+        out = await ctx.shell.gateway.assignCrew({ jobId: job.id, crewId: crew.crewId, orgId: job.orgId, regionId: job.regionId });
+      } catch (e) {
+        // Not the gate's verdict (that comes back as ok:false) — the request itself failed or was refused. Say so; nothing was assigned.
+        const r = ctx.shell.refusalOf(e);
+        ctx.store.notice.value = [`${crew.label} was not assigned${r && "message" in r && r.message ? ` — ${r.message}` : ""}. Nothing changed; try again.`];
+        ctx.store.invalidate(candidatesKey);
+        return;
+      } finally {
+        assigning.value = null;
+      }
       if (out.ok) {
         ctx.store.notice.value = [`${crew.label} assigned to ${serviceLabel(job.serviceCode)}.`];
         ctx.store.invalidate("jobs.list");
@@ -61,8 +79,8 @@ export const dispatch: Screen = (ctx, params) => {
               })}
               ${c.cleared
                 ? PrimaryAction({
-                    density: ctx.density, label: "Assign", id: `assign-${c.crewId}`, onClick: () => void assign(c),
-                    ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : {}),
+                    density: ctx.density, label: assigning.value === c.crewId ? "Assigning…" : "Assign", id: `assign-${c.crewId}`, onClick: () => void assign(c),
+                    ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : assigning.value && assigning.value !== c.crewId ? { disabledReason: "Another assignment is being sent." } : {}),
                   })
                 : null}
             </li>`)}
