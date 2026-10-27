@@ -161,3 +161,25 @@ test("PURCHASING: regions that cannot be read show the refusal beside the form, 
   assert.doesNotMatch(vendorForm, /name="regionId"/, "no select that can only be empty");
   assert.match(vendorForm, /ac-refusal/, "the reason the regions are missing is in the form");
 });
+
+test("PURCHASING: while a vendor is being added, its own button says so — and only its own", async () => {
+  const g = gateway();
+  let release: () => void = () => {};
+  const fetch: FetchLike = async (url, init) => new URL(url).pathname === OPERATIONS["vendors.create"].path
+    ? new Promise((resolve) => { release = () => resolve({ status: 200, ok: true, json: async () => ({ id: U(50), eventId: U(51) }), text: async () => "", body: null }); })
+    : g.fetch(url, init);
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("purchasing", {});
+  render(app.view()); await settle();
+  const values: Record<string, string> = { legalName: "Frostline", regionId: SOUTH, paymentTermsDays: "30" };
+  const RealFormData = globalThis.FormData;
+  globalThis.FormData = class { forEach(f: (v: string, k: string) => void) { for (const [k, v] of Object.entries(values)) f(v, k); } } as unknown as typeof FormData;
+  try {
+    (nodesIn(app.view()).find((n) => n.type === "form" && n.props?.id === "vendor-form")!.props!.onSubmit as (e: unknown) => void)({ preventDefault() {}, currentTarget: {} });
+  } finally { globalThis.FormData = RealFormData; }
+  const out = render(app.view());
+  assert.match(out, /id="add-vendor"[^>]*>Adding…</);
+  assert.match(out, /id="add-point"[^>]*>Add receiving point</, "the other forms' buttons keep their words");
+  release(); await settle();
+});

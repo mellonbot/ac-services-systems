@@ -27,7 +27,8 @@ type PendingConfirmation =
   | { readonly kind: "order"; readonly owner: string; readonly action: "issue" | "cancel"; readonly number: string }
   | { readonly kind: "return"; readonly owner: string; readonly lineId: string; readonly lineNo: number; readonly sku: string; readonly quantity: string; readonly quantityMilli: string; readonly reason: string };
 
-const outcome = signal<{ readonly refusal: Refusal | null; readonly busy: boolean; readonly pending: PendingConfirmation | null }>({ refusal: null, busy: false, pending: null });
+/** `busy` names the action in flight ("" when none), so only its own button says it is working. */
+const outcome = signal<{ readonly refusal: Refusal | null; readonly busy: string; readonly pending: PendingConfirmation | null }>({ refusal: null, busy: "", pending: null });
 
 export const refreshProcurement = (store: Store): void => {
   for (const k of ["vendors.list", "receivingPoints.list", "catalog.list", "pos.", "vendorInvoices.list", "rmas.list"]) store.invalidate(k);
@@ -46,22 +47,22 @@ export const PO_STATE: Readonly<Record<PoState, { tone: "pending" | "held" | "li
 };
 const TIER_WORD = { location_stock: "Location stock", regional_hub: "Regional hub", national: "National" } as const;
 
-const act = async (ctx: ScreenContext, fn: () => Promise<string>): Promise<boolean> => {
+const act = async (ctx: ScreenContext, doing: string, fn: () => Promise<string>): Promise<boolean> => {
   if (ctx.degraded || outcome.value.busy) return false;
-  outcome.value = { ...outcome.value, refusal: null, busy: true };
+  outcome.value = { ...outcome.value, refusal: null, busy: doing };
   try {
     const msg = await fn();
     refreshProcurement(ctx.store);
     ctx.store.notice.value = [msg];
-    outcome.value = { refusal: null, busy: false, pending: null };
+    outcome.value = { refusal: null, busy: "", pending: null };
     return true;
   } catch (err) {
-    outcome.value = { refusal: ctx.shell.refusalOf(err) ?? { kind: "bad_request", message: err instanceof Error ? err.message : String(err) }, busy: false, pending: null };
+    outcome.value = { refusal: ctx.shell.refusalOf(err) ?? { kind: "bad_request", message: err instanceof Error ? err.message : String(err) }, busy: "", pending: null };
     return false;
   }
 };
 const refusal = (ctx: ScreenContext): VNode | null =>
-  outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: false, pending: null }; } }]) : null;
+  outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: "", pending: null }; } }]) : null;
 const pill = (_ctx: ScreenContext, s: PoState): VNode => html`<span class="s2-state" data-tone=${PO_STATE[s].tone}>${PO_STATE[s].word}</span>`;
 
 // ---------------------------------------------------------------------------
@@ -78,7 +79,7 @@ export const purchasing: Screen = (ctx) => {
     e.preventDefault();
     const form = e.currentTarget as HTMLFormElement;
     const v = formValues(form);
-    void act(ctx, async () => {
+    void act(ctx, "add-vendor", async () => {
       await shell.gateway.createVendor({ legalName: v.legalName ?? "", regionId: v.regionId ?? "", paymentTermsDays: Number(v.paymentTermsDays || "30"), ...(v.contactEmail ? { contactEmail: v.contactEmail } : {}) });
       return `Vendor ${v.legalName} recorded. Add its catalogue next; a vendor sees its orders once they are issued.`;
     });
@@ -86,7 +87,7 @@ export const purchasing: Screen = (ctx) => {
   const newPoint = (e: Event) => {
     e.preventDefault();
     const v = formValues(e.currentTarget as HTMLFormElement);
-    void act(ctx, async () => {
+    void act(ctx, "add-point", async () => {
       await shell.gateway.createReceivingPoint({ code: v.code ?? "", tier: (v.tier ?? "regional_hub") as ReceivingPointWire["tier"], regionId: v.regionId ?? "", address: { line1: v.line1 ?? "", city: v.city ?? "", state: v.state ?? "", postal: v.postal ?? "" } });
       return `Receiving point ${v.code?.toUpperCase()} recorded.`;
     });
@@ -123,7 +124,7 @@ export const purchasing: Screen = (ctx) => {
       ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice("Administered from", "No region of ours is active.") : html`<label class="ac-field"><span>Administered from</span><select class="ac-input" name="regionId" required>${regionOptions(r.regions)}</select></label>`, () => store.invalidate("regions.list"))}
       <label class="ac-field"><span>Payment terms (days)</span><input class="ac-input" name="paymentTermsDays" type="number" min="0" step="1" required defaultValue="30" /></label>
       <label class="ac-field"><span>Contact email</span><input class="ac-input" name="contactEmail" type="email" /></label>
-      <div class="s2-form__actions">${submitAction(ctx, "Add vendor", "add-vendor", noActiveRegion(regions.value))}</div>
+      <div class="s2-form__actions">${submitAction(ctx, outcome.value.busy === "add-vendor" ? "Adding…" : "Add vendor", "add-vendor", noActiveRegion(regions.value))}</div>
     </form>`, "Vendors")}
 
     ${panel(html`${whenReady(ctx, points.value, (p) => DataGrid({
@@ -143,7 +144,7 @@ export const purchasing: Screen = (ctx) => {
       <label class="ac-field"><span>Street</span><input class="ac-input" name="line1" required /></label>
       <label class="ac-field"><span>City</span><input class="ac-input" name="city" required /></label>
       <label class="ac-field"><span>State</span><input class="ac-input" name="state" /></label>
-      <div class="s2-form__actions">${submitAction(ctx, "Add receiving point", "add-point", noActiveRegion(regions.value))}</div>
+      <div class="s2-form__actions">${submitAction(ctx, outcome.value.busy === "add-point" ? "Adding…" : "Add receiving point", "add-point", noActiveRegion(regions.value))}</div>
     </form>`, "Receiving points")}
     ${refusal(ctx)}
   </section>`;
@@ -159,14 +160,14 @@ export const purchasingVendor: Screen = (ctx, params) => {
   const catalog = store.read(keyOf("catalog.list", { vendorId }), () => shell.gateway.listCatalog({ vendorId }));
   const points = store.read(keyOf("receivingPoints.list"), () => shell.gateway.listReceivingPoints());
 
-  const decide = (priceId: string, decision: "accepted" | "rejected") => void act(ctx, async () => {
+  const decide = (priceId: string, decision: "accepted" | "rejected") => void act(ctx, "decide-price", async () => {
     const out = await shell.gateway.decidePrice({ priceId, decision });
     return decision === "accepted" ? `Price accepted${out.closedId ? "; the price it replaces now ends the day before" : ""}. New orders take it from its first day.` : "Price rejected. The vendor sees the decision.";
   });
   const addItem = (e: Event) => {
     e.preventDefault();
     const v = formValues(e.currentTarget as HTMLFormElement);
-    void act(ctx, async () => {
+    void act(ctx, "add-item", async () => {
       await shell.gateway.addCatalogItem({ vendorId, vendorSku: v.vendorSku ?? "", description: v.description ?? "", ...(v.uom ? { uom: v.uom } : {}) });
       return `${v.vendorSku} added. It has no price until the vendor proposes one and you accept it.`;
     });
@@ -175,7 +176,7 @@ export const purchasingVendor: Screen = (ctx, params) => {
     e.preventDefault();
     const form = e.currentTarget as HTMLFormElement;
     const v = formValues(form);
-    void act(ctx, async () => {
+    void act(ctx, "raise-po", async () => {
       // Parsed inside act, so "2 boxes" is a refusal on screen rather than an uncaught throw.
       const lines = Object.entries(v).filter(([k, q]) => k.startsWith("qty:") && q).map(([k, q]) => ({ itemId: k.slice(4), quantityMilli: toMilli(q) }));
       if (lines.length === 0) throw new Error("Enter a quantity on at least one item.");
@@ -219,7 +220,7 @@ export const purchasingVendor: Screen = (ctx, params) => {
                   : `${money(pending.amount, pending.currency)} from ${pending.effectiveFrom}. The vendor will see the rejection.`,
                 confirmLabel: pending.decision === "accepted" ? "Accept proposed price" : "Reject proposed price",
                 danger: pending.decision === "rejected",
-                busy: outcome.value.busy,
+                busy: Boolean(outcome.value.busy),
                 disabled: ctx.degraded,
                 onConfirm: () => { void decide(p.id, pending.decision); },
                 onCancel: () => { outcome.value = { ...outcome.value, pending: null }; },
@@ -235,13 +236,13 @@ export const purchasingVendor: Screen = (ctx, params) => {
         ${c.items.filter((i) => i.current).map((i) => html`<label class="ac-field"><span>${i.vendorSku} — ${i.description} at ${money(i.current!.priceMinor, i.current!.currency)}</span>
           <input class="ac-input" name=${`qty:${i.id}`} inputmode="decimal" placeholder="Quantity (${i.uom})" /></label>`)}
         ${c.items.some((i) => i.current) ? null : html`<p class="s2-muted">No item has an accepted price yet, so nothing can be ordered.</p>`}
-        <div class="s2-form__actions">${submitAction(ctx, "Raise draft", "raise-po", points.value.state === "ready" && !points.value.value.receivingPoints.some((r) => r.active) ? "No receiving point is active to deliver to." : null)}</div>
+        <div class="s2-form__actions">${submitAction(ctx, outcome.value.busy === "raise-po" ? "Raising…" : "Raise draft", "raise-po", points.value.state === "ready" && !points.value.value.receivingPoints.some((r) => r.active) ? "No receiving point is active to deliver to." : null)}</div>
       </form>`, "Raise a purchase order")}`)}
     ${panel(html`<form class="ac-form ac-form--inline" onSubmit=${addItem} id="item-form">
       <label class="ac-field"><span>Vendor SKU</span><input class="ac-input" name="vendorSku" required /></label>
       <label class="ac-field"><span>Description</span><input class="ac-input" name="description" required /></label>
       <label class="ac-field"><span>Unit</span><input class="ac-input" name="uom" placeholder="each" /></label>
-      <div class="s2-form__actions">${submitAction(ctx, "Add item", "add-item")}</div>
+      <div class="s2-form__actions">${submitAction(ctx, outcome.value.busy === "add-item" ? "Adding…" : "Add item", "add-item")}</div>
     </form>`, "Add an item")}
     ${refusal(ctx)}
   </section>`;
@@ -258,7 +259,7 @@ export const purchasingPo: Screen = (ctx, params) => {
   const receive = (e: Event, lines: readonly PoLineWire[]) => {
     e.preventDefault();
     const v = formValues(e.currentTarget as HTMLFormElement);
-    void act(ctx, async () => {
+    void act(ctx, "record-receipt", async () => {
       const got = lines.filter((l) => v[`rcv:${l.id}`]).map((l) => ({ poLineId: l.id, quantityMilli: toMilli(v[`rcv:${l.id}`]!) }));
       if (got.length === 0) throw new Error("Enter what arrived on at least one line.");
       const out = await shell.gateway.recordReceipt({ poId, lines: got });
@@ -275,7 +276,7 @@ export const purchasingPo: Screen = (ctx, params) => {
       const quantityMilli = toMilli(v.quantity ?? "");
       outcome.value = { ...outcome.value, pending: { kind: "return", owner: poId, lineId: line.id, lineNo: line.lineNo, sku: line.vendorSku, quantity: qty(quantityMilli), quantityMilli, reason: v.reason ?? "" } };
     } catch (err) {
-      outcome.value = { refusal: { kind: "bad_request", message: err instanceof Error ? err.message : String(err) }, busy: false, pending: null };
+      outcome.value = { refusal: { kind: "bad_request", message: err instanceof Error ? err.message : String(err) }, busy: "", pending: null };
     }
   };
 
@@ -298,12 +299,12 @@ export const purchasingPo: Screen = (ctx, params) => {
               : `Current state: ${o.state}. Confirm that this order should no longer proceed.`,
             confirmLabel: outcome.value.pending.action === "issue" ? "Issue order" : "Cancel order",
             danger: outcome.value.pending.action === "cancel",
-            busy: outcome.value.busy,
+            busy: Boolean(outcome.value.busy),
             disabled: ctx.degraded,
             onConfirm: () => {
               const action = outcome.value.pending;
               if (action?.kind !== "order" || action.owner !== poId) return;
-              void act(ctx, async () => {
+              void act(ctx, "order", async () => {
                 if (action.action === "issue") {
                   await shell.gateway.issuePurchaseOrder({ poId });
                   return `${o.number} issued. The vendor can see it now.`;
@@ -331,7 +332,7 @@ export const purchasingPo: Screen = (ctx, params) => {
         })}`)}
         ${o.state === "acknowledged" && open.length ? panel(html`<form class="ac-form ac-form--inline" onSubmit=${(e: Event) => receive(e, open)} id="receive-form">
             ${open.map((l) => html`<label class="ac-field"><span>Line ${l.lineNo}: ${qty((BigInt(l.quantityMilli) - BigInt(l.receivedMilli)).toString())} outstanding</span><input class="ac-input" name=${`rcv:${l.id}`} inputmode="decimal" /></label>`)}
-            <div class="s2-form__actions">${submitAction(ctx, "Record receipt", "record-receipt")}</div>
+            <div class="s2-form__actions">${submitAction(ctx, outcome.value.busy === "record-receipt" ? "Recording…" : "Record receipt", "record-receipt")}</div>
           </form>`, "Receive goods") : null}
         ${d.shipments.length ? panel(html`<ul class="s2-list">${d.shipments.map((s) => html`<li>${s.shippedOn} · ${s.carrier}${s.tracking ? ` ${s.tracking}` : ""} · ${s.lines.map((l) => `line ${d.lines.find((x) => x.id === l.poLineId)?.lineNo}: ${qty(l.quantityMilli)}`).join(", ")}</li>`)}</ul>`, "Shipments") : null}
         ${panel(DataGrid({
@@ -357,19 +358,19 @@ export const purchasingPo: Screen = (ctx, params) => {
           <label class="ac-field"><span>Line</span><select class="ac-input" name="poLineId">${d.lines.filter((l) => BigInt(l.receivedMilli) > BigInt(l.returnedMilli)).map((l) => html`<option value=${l.id}>${l.lineNo} — ${l.vendorSku}</option>`)}</select></label>
           <label class="ac-field"><span>Quantity</span><input class="ac-input" name="quantity" inputmode="decimal" pattern="[0-9]+(\\.[0-9]{1,3})?" required /></label>
           <label class="ac-field"><span>Reason</span><input class="ac-input" name="reason" required /></label>
-          <div class="s2-form__actions">${submitAction(ctx, "Request return", "request-return")}</div>
+          <div class="s2-form__actions">${submitAction(ctx, outcome.value.busy === "request-return" ? "Requesting…" : "Request return", "request-return")}</div>
         </form>` : null}
         ${outcome.value.pending?.kind === "return" && outcome.value.pending.owner === poId ? confirmPanel({
           id: `confirm-return-${poId}`,
           title: `Request a return for line ${outcome.value.pending.lineNo}?`,
           detail: `${outcome.value.pending.quantity} ${outcome.value.pending.sku} · ${outcome.value.pending.reason}. The vendor will review this request and respond with an RMA number or a reason.`,
           confirmLabel: "Send return request",
-          busy: outcome.value.busy,
+          busy: Boolean(outcome.value.busy),
           disabled: ctx.degraded,
           onConfirm: () => {
             const request = outcome.value.pending;
             if (request?.kind !== "return" || request.owner !== poId) return;
-            void act(ctx, async () => {
+            void act(ctx, "request-return", async () => {
               await shell.gateway.requestReturn({ poId, poLineId: request.lineId, quantityMilli: request.quantityMilli, reason: request.reason });
               return "Return requested. The vendor answers with an RMA number or a reason.";
             });
