@@ -1,7 +1,7 @@
 import { html, pageHead, panel, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { ContractWire, ForemanWire, ListProjectsOutput, OrganizationWire, ProjectWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen } from "./common.ts";
+import { whenReady, refusalView, submitAction, formValues, linkTo, boundEnd, type Screen } from "./common.ts";
 
 /**
  * 0024 — WHAT AN INSTALL WAS SOLD UNDER. Every install job sits under one of
@@ -175,7 +175,7 @@ export const projects: Screen = (ctx, params) => {
         <small>Agreements in force only.</small>
       </label>
       <div class="s2-address-row">
-        <label class="ac-field"><span>First day</span><input class="ac-input" type="date" name="from" required /></label>
+        <label class="ac-field"><span>First day</span><input class="ac-input" type="date" name="from" required onInput=${boundEnd("to")} /></label>
         <label class="ac-field"><span>Last day</span><input class="ac-input" type="date" name="to" required /></label>
       </div>
       <div class="s2-form__actions">${submitAction(ctx, form.value.busy ? "Recording…" : "Record project", "record-project")}</div>

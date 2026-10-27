@@ -2,7 +2,7 @@ import { html, localDay, pageHead, panel, signal, DataGrid, type VNode } from ".
 import type { RateCardWire, FirmWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { EMERGENCY_MULTIPLIER_DEFAULT, JOB_WORK_CLASSES, JOB_WORK_CLASS_LABEL, SERVICE_CATALOG, serviceLabel } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen } from "./common.ts";
+import { whenReady, refusalView, submitAction, formValues, linkTo, boundEnd, type Screen } from "./common.ts";
 
 /**
  * C4 — a firm's rate card, as a timeline rather than a value.
@@ -113,13 +113,13 @@ export const networkRates: Screen = (ctx, params) => {
         <input class="ac-input" name="rateMinor" required inputmode="numeric" pattern="[0-9]*" placeholder="9500" />
         <small>Integer minor units — 9500 is ninety-five dollars. Never a decimal: the money path carries no floats.</small>
       </label>
-      <label class="ac-field"><span>Currency</span><input class="ac-input" name="currency" defaultValue="USD" required /></label>
+      <label class="ac-field"><span>Currency</span><input class="ac-input" name="currency" defaultValue="USD" required pattern="[A-Z]{3}" maxlength="3" autocapitalize="characters" title="The three-letter code, in capitals — USD" /><small>The three-letter code, such as USD.</small></label>
       <label class="ac-field">
         <span>Emergency multiplier</span>
         <input class="ac-input" name="emergencyMultiplier" defaultValue=${EMERGENCY_MULTIPLIER_DEFAULT} required inputmode="decimal" pattern="[0-9]{1,2}([.][0-9]{1,2})?" />
         <small>An emergency job is settled at the rate times this. 1.5 is time and a half; at least 1, two places at most.</small>
       </label>
-      <label class="ac-field"><span>Effective from</span><input class="ac-input" type="date" name="effectiveFrom" required /><small>The row in effect that day is closed at it. Both are audited.</small></label>
+      <label class="ac-field"><span>Effective from</span><input class="ac-input" type="date" name="effectiveFrom" required onInput=${boundEnd("effectiveTo")} /><small>The row in effect that day is closed at it. Both are audited.</small></label>
       <label class="ac-field"><span>Effective to</span><input class="ac-input" type="date" name="effectiveTo" /><small>Leave empty for open-ended. A window that would sit on top of a later row is refused — two prices on one day is a settlement nobody can check.</small></label>
       <div class="s2-form__actions">
         ${submitAction(ctx, outcome.value.busy ? "Setting…" : "Set rate", "set-rate")}

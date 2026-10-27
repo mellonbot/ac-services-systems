@@ -121,7 +121,7 @@ export const purchasing: Screen = (ctx) => {
     <form class="ac-form ac-form--inline" onSubmit=${newVendor} id="vendor-form">
       <label class="ac-field"><span>Legal name</span><input class="ac-input" name="legalName" required /></label>
       ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice("Administered from", "No region of ours is active.") : html`<label class="ac-field"><span>Administered from</span><select class="ac-input" name="regionId" required>${regionOptions(r.regions)}</select></label>`, () => store.invalidate("regions.list"))}
-      <label class="ac-field"><span>Payment terms (days)</span><input class="ac-input" name="paymentTermsDays" inputmode="numeric" defaultValue="30" /></label>
+      <label class="ac-field"><span>Payment terms (days)</span><input class="ac-input" name="paymentTermsDays" type="number" min="0" step="1" required defaultValue="30" /></label>
       <label class="ac-field"><span>Contact email</span><input class="ac-input" name="contactEmail" type="email" /></label>
       <div class="s2-form__actions">${submitAction(ctx, "Add vendor", "add-vendor", noActiveRegion(regions.value))}</div>
     </form>`, "Vendors")}

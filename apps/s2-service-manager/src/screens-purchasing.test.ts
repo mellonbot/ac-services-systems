@@ -84,6 +84,7 @@ test("PURCHASING: orders with their state in words, vendors, and receiving point
   assert.match(out, /Acknowledged/);
   assert.match(out, /Coolair Supply/);
   assert.match(out, /id="vendor-form"/);
+  assert.match(out, /name="paymentTermsDays" type="number" min="0" step="1" required/, "payment terms are a whole number of days, not text");
   assert.equal(out.match(/<h1/g)?.length, 1, "one page head per screen");
   assert.match(out, /<h2 class="ac-panel__title">Purchase orders<\/h2>/);
   assert.match(out, /<h2 class="ac-panel__title">Vendors<\/h2>/);

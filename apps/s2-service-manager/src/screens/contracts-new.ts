@@ -1,7 +1,7 @@
 import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import { COOL_CLUB, type AccountWire, type ContractWire, type CreateContractInput, type Refusal, type RegionWire, type Tier } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, noChoice, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, refusalView, submitAction, noChoice, formValues, linkTo, boundEnd, type Screen, type ScreenContext } from "./common.ts";
 
 /**
  * C2 — record an agreement. The form's whole job is to offer only what the
@@ -154,7 +154,7 @@ export const contractsNew: Screen = (ctx, params) => {
       </label>
       <details class="s2-help"><summary>How billing path is used</summary><p>Choose one of the four paths at signature. It defines how the agreement bills; it is not a flag on one function.</p></details>
       <label class="ac-field"><span>Signed</span><input class="ac-input" type="date" name="signedAt" required /></label>
-      <label class="ac-field"><span>Effective from</span><input class="ac-input" type="date" name="effectiveFrom" required /></label>
+      <label class="ac-field"><span>Effective from</span><input class="ac-input" type="date" name="effectiveFrom" required onInput=${boundEnd("effectiveTo")} /></label>
       <label class="ac-field"><span>Effective to</span><input class="ac-input" type="date" name="effectiveTo" /><small>Leave empty for evergreen.</small></label>
       <label class="ac-field"><span>Signed document</span><input class="ac-input" name="documentKey" placeholder="storage key of the PDF" /></label>
       ${oq5Field()}

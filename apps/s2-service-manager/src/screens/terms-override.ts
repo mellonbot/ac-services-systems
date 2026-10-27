@@ -1,7 +1,7 @@
 import { html, pageHead, panel, signal, DataGrid, RefusalCard, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, ContractWire, Refusal, TermOverrideWire, TermPolicy, Tier } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, submitAction, noChoice, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, submitAction, noChoice, formValues, linkTo, boundEnd, type Screen, type ScreenContext } from "./common.ts";
 
 /**
  * C2 — author a term override, with the form DRAWN FROM THE REGISTER.
@@ -50,7 +50,7 @@ export const valueControl = (policy: TermPolicy, current?: unknown): VNode => {
         <option value="false" selected=${v === "false"}>false</option>
       </select>`;
     case "money":
-      return html`<input class="ac-input" name="termValue" inputmode="numeric" pattern="-?[0-9]+" required value=${v} placeholder="integer minor units, e.g. 18500" />`;
+      return html`<input class="ac-input" name="termValue" inputmode="numeric" pattern="-?[0-9]+" required value=${v} placeholder="e.g. 18500 for $185.00" />`;
     case "text":
       return html`<input class="ac-input" name="termValue" required value=${v} />`;
   }
@@ -177,8 +177,8 @@ export const termsOverride: Screen = (ctx, params) => {
             <small>Only the tiers the register admits for this term. A tier it does not admit is a row that can never be right, so it is not offered.</small>
           </label>`}
           ${tier ? scopeOptions(policy, nodes, tier as Tier) : null}
-          <label class="ac-field"><span>Value</span>${valueControl(policy)}</label>
-          <label class="ac-field"><span>Effective from</span><input class="ac-input" type="date" name="effectiveFrom" required /></label>
+          <label class="ac-field"><span>Value${policy.valueKind === "money" ? " (whole cents)" : ""}</span>${valueControl(policy)}</label>
+          <label class="ac-field"><span>Effective from</span><input class="ac-input" type="date" name="effectiveFrom" required onInput=${boundEnd("effectiveTo")} /></label>
           <label class="ac-field"><span>Effective to</span><input class="ac-input" type="date" name="effectiveTo" /><small>Leave empty for open-ended.</small></label>
           <details class="s2-help"><summary>Why overlapping dates are refused</summary><p>Two rows in effect at once are refused — there is no tie-break that produces an invoice anyone can check.</p></details>
           <div class="s2-form__actions">

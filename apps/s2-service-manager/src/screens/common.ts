@@ -49,6 +49,13 @@ export const afterRender = (fn: (doc: Document) => void): void => {
   if (typeof document !== "undefined") setTimeout(() => fn(document), 0);
 };
 
+/** On a window's first day: hold its last day to it, so a reversed window is the browser's word at the field, not a refusal after it. */
+export const boundEnd = (endName: string) => (e: Event): void => {
+  const start = e.currentTarget as HTMLInputElement;
+  const end = start.form?.elements.namedItem(endName);
+  if (end && "min" in end) end.min = start.value;
+};
+
 /** A required choice with nothing to choose, said where the select would be — an empty required select can only fail. */
 export const noChoice = (label: string, why: string, fix?: VNode | null): VNode =>
   html`<div class="ac-field"><span>${label}</span><p class="s2-empty">${why}${fix ? html` ${fix}` : null}</p></div>`;
