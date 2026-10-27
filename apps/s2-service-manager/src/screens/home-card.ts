@@ -20,6 +20,9 @@ const START_ZOOM = 17;
 type View = { readonly siteId: string; readonly z: number; readonly cx: number; readonly cy: number };
 const view = signal<View | null>(null);
 let drag: { readonly id: number; x: number; y: number } | null = null;
+/** Wheel travel toward the next zoom level: a mouse notch (100) is one level, a trackpad pinch adds up its small steps. */
+let wheelTravel = 0;
+const WHEEL_PER_LEVEL = 100;
 
 const homeAt = (lat: number, lng: number, z: number) => { const t = tileOf(lat, lng, z); return { x: t.x * TILE, y: t.y * TILE }; };
 /** Hold the centre inside the tiles the gateway will serve at this zoom. */
@@ -126,7 +129,15 @@ const homeMap = (ctx: ScreenContext, site: AccountWire): VNode => {
     panMap(site, lat, lng, dx, dy);
   };
   const up = (e: PointerEvent) => { if (drag?.id === e.pointerId) drag = null; };
-  const wheel = (e: WheelEvent) => { e.preventDefault(); zoomMap(site, lat, lng, e.deltaY < 0 ? 1 : -1); };
+  // Plain scroll is the page's — a map under the pointer must not trap it. Ctrl/⌘ + scroll zooms, which is also what a trackpad pinch sends.
+  const wheel = (e: WheelEvent) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    wheelTravel += e.deltaY;
+    if (Math.abs(wheelTravel) < WHEEL_PER_LEVEL) return;
+    zoomMap(site, lat, lng, wheelTravel < 0 ? 1 : -1);
+    wheelTravel = 0;
+  };
   const key = (e: KeyboardEvent) => {
     const d = PAN_KEYS[e.key];
     if (d) { e.preventDefault(); panMap(site, lat, lng, d[0], d[1]); }
@@ -136,7 +147,7 @@ const homeMap = (ctx: ScreenContext, site: AccountWire): VNode => {
 
   return html`<figure class="s2-map" id="home-map" data-basemap=${basemap ? "tiles" : "grid"}>
     <div class="s2-map__view" tabindex="0" role="application" aria-roledescription="map"
-      aria-label=${`Map of ${site.name}. Arrow keys pan, plus and minus zoom.`}
+      aria-label=${`Map of ${site.name}. Arrow keys pan, plus and minus zoom.`} title="Drag to pan · Ctrl + scroll to zoom"
       onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${up} onWheel=${wheel} onKeyDown=${key}>
       ${cells}
       <svg class="s2-map__pin" viewBox="0 0 24 32" width="24" height="32" aria-hidden="true"

@@ -1,7 +1,7 @@
 import { html, pageHead, panel, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { ContractWire, ForemanWire, ListProjectsOutput, OrganizationWire, ProjectWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen } from "./common.ts";
+import { whenReady, refusalView, submitAction, formValues, linkTo, boundEnd, type Screen } from "./common.ts";
 
 /**
  * 0024 — WHAT AN INSTALL WAS SOLD UNDER. Every install job sits under one of
@@ -79,6 +79,7 @@ export const projects: Screen = (ctx, params) => {
     ],
     rows: list.filter((o) => matches(o.name, pick.accountQ)), rowKey: (o: OrganizationWire) => o.id, selectedKey: orgId ?? "",
     onSelect: (o: OrganizationWire) => ctx.router.navigate("projects", { orgId: o.id }),
+    linked: true,
     emptyText: pick.accountQ ? "No customer account matches." : "No customers yet.",
   });
 
@@ -142,7 +143,8 @@ export const projects: Screen = (ctx, params) => {
   const submit = async (e: Event) => {
     e.preventDefault();
     if (ctx.degraded || form.value.busy) return;
-    const v = formValues(e.currentTarget as HTMLFormElement);
+    const formEl = e.currentTarget as HTMLFormElement;
+    const v = formValues(formEl);
     form.value = { refusal: null, busy: true };
     try {
       await shell.gateway.createProject({
@@ -152,7 +154,7 @@ export const projects: Screen = (ctx, params) => {
       store.invalidate(keyOf("projects.list", {}));
       store.notice.value = [`${v.name} recorded. Install work can now be opened under it.`];
       form.value = { refusal: null, busy: false };
-      (e.currentTarget as HTMLFormElement).reset();
+      formEl.reset();
     } catch (err) {
       form.value = { refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: false };
     }
@@ -173,7 +175,7 @@ export const projects: Screen = (ctx, params) => {
         <small>Agreements in force only.</small>
       </label>
       <div class="s2-address-row">
-        <label class="ac-field"><span>First day</span><input class="ac-input" type="date" name="from" required /></label>
+        <label class="ac-field"><span>First day</span><input class="ac-input" type="date" name="from" required onInput=${boundEnd("to")} /></label>
         <label class="ac-field"><span>Last day</span><input class="ac-input" type="date" name="to" required /></label>
       </div>
       <div class="s2-form__actions">${submitAction(ctx, form.value.busy ? "Recording…" : "Record project", "record-project")}</div>

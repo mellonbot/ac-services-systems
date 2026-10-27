@@ -56,6 +56,13 @@ const fakeGateway = (): FetchLike => {
 };
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
+type TestNode = { readonly type?: unknown; readonly props?: Record<string, unknown> & { readonly children?: unknown } };
+const nodesIn = (node: unknown): TestNode[] => {
+  if (Array.isArray(node)) return node.flatMap(nodesIn);
+  if (!node || typeof node !== "object") return [];
+  const current = node as TestNode;
+  return [current, ...nodesIn(current.props?.children)];
+};
 const screenAt = async (screen: "network" | "network.crew.new" | "network.technician.new" | "projects", params: Record<string, string>) => {
   const app = createApp({ baseUrl: "https://api.ac.test", fetch: fakeGateway(), now: () => 1_000 });
   await app.login("o@ac.test", "pw");
@@ -110,4 +117,28 @@ test("Projects reads by foreman, searches the customers they sold to, and search
   assert.match(sold, /Sold by/);
   assert.match(sold, /Austin roof — RTU changeout/);
   assert.match(sold, /Find the customer under Customer accounts to record a sale/);
+});
+
+test("a project that is recorded says so — the form is reset from a reference held across the await, not from the event", async () => {
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: fakeGateway(), now: () => 1_000 });
+  await app.login("o@ac.test", "pw");
+  app.router.navigate("projects", { orgId: ORG });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+
+  const values: Record<string, string> = { contractId: ACTIVE, name: "Austin roof — phase 2", foremanId: FOREMAN, from: "2026-11-02", to: "2026-11-06" };
+  const RealFormData = globalThis.FormData;
+  globalThis.FormData = class { forEach(f: (v: string, k: string) => void) { for (const [k, v] of Object.entries(values)) f(v, k); } } as unknown as typeof FormData;
+  let resets = 0;
+  // A browser clears currentTarget once dispatch returns, which is the handler's first await.
+  const e = { preventDefault() {}, currentTarget: { reset() { resets += 1; } } as unknown };
+  try {
+    (nodesIn(app.view()).find((n) => n.type === "form" && n.props?.id === "project-form")!.props!.onSubmit as (e: unknown) => void)(e);
+    e.currentTarget = null;
+    for (let i = 0; i < 4; i++) await settle();
+  } finally { globalThis.FormData = RealFormData; }
+
+  const out = render(app.view());
+  assert.match(out, /Austin roof — phase 2 recorded/);
+  assert.doesNotMatch(out, /ac-refusal/, "a saved project is not shown as refused");
+  assert.equal(resets, 1);
 });

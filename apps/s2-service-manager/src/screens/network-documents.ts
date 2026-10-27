@@ -96,7 +96,7 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
           cell: (c: CredentialWire) => c.verifiedAt
             ? html`<small class="s2-muted">verified — a correction is a new document</small>`
             : html`<div class="s2-row-actions">
-              <button type="button" class="s2-mutation" id=${`verify-${c.id}`} aria-expanded=${outcome.value.confirming === c.id} aria-controls=${outcome.value.confirming === c.id ? `confirm-credential-${c.id}` : undefined} disabled=${ctx.degraded || Boolean(outcome.value.busy) || Boolean(outcome.value.confirming)} onClick=${() => { outcome.value = { ...outcome.value, confirming: c.id }; }}>Verify</button>
+              <button type="button" class="s2-mutation" id=${`verify-${c.id}`} aria-label=${`Verify the ${c.kind.replace(/_/g, " ")} document`} aria-expanded=${outcome.value.confirming === c.id} aria-controls=${outcome.value.confirming === c.id ? `confirm-credential-${c.id}` : undefined} disabled=${ctx.degraded || Boolean(outcome.value.busy) || Boolean(outcome.value.confirming)} onClick=${() => { outcome.value = { ...outcome.value, confirming: c.id }; }}>Verify</button>
               ${outcome.value.confirming === c.id ? confirmPanel({
                 id: `confirm-credential-${c.id}`,
                 title: "Verify this document?",
@@ -140,7 +140,7 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
       <label class="ac-field"><span>Identifier</span><input class="ac-input" name="identifier" required placeholder="policy or licence number" /></label>
       <label class="ac-field"><span>Valid from</span><input class="ac-input" type="date" name="validFrom" required /></label>
       <label class="ac-field"><span>Valid to</span><input class="ac-input" type="date" name="validTo" required /><small>The gate checks the whole service window against this, never today — a certificate that expires on Tuesday does not clear a job on Thursday.</small></label>
-      <label class="ac-field"><span>Scan</span><input class="ac-input" name="documentKey" placeholder="storage key of the PDF" /></label>
+      <label class="ac-field"><span>Scan</span><input class="ac-input" name="documentKey" /><small>The storage key of the scanned PDF.</small></label>
       <div class="s2-form__actions">
         ${submitAction(ctx, outcome.value.busy === "record" ? "Recording…" : "Put on file (unverified)", "record-credential")}
       </div>

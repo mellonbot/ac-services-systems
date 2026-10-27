@@ -29,13 +29,36 @@ export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) =>
 export const refusalView = (ctx: ScreenContext, refusal: Refusal, routes: readonly { label: string; onSelect: () => void; primary?: boolean }[] = []): VNode =>
   RefusalCard({ density: ctx.density, refusal, routes }) ?? html``;
 
-/** The mutation button: disabled with the declared reason while degraded — S2 is read-only from last server state. */
-export const submitAction = (ctx: ScreenContext, label: string, id?: string): VNode =>
+/**
+ * The mutation button: disabled with the declared reason while degraded — S2 is read-only from last server state.
+ * `blocked` is the other reason a form cannot go: a required choice with nothing to choose.
+ */
+export const submitAction = (ctx: ScreenContext, label: string, id?: string, blocked?: string | null): VNode =>
   PrimaryAction({
     density: ctx.density, label, type: "submit",
     ...(id ? { id } : {}),
-    ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : {}),
+    ...(ctx.degraded ? { disabledReason: ctx.shell.degradedNotice } : blocked ? { disabledReason: blocked } : {}),
   }) ?? html``;
+
+/** Once the regions are read and none of ours is active, why a form that needs one cannot go. */
+export const noActiveRegion = (r: Resource<{ readonly regions: readonly { readonly active: boolean }[] }>): string | null =>
+  r.state === "ready" && !r.value.regions.some((x) => x.active) ? "No region of ours is active to choose." : null;
+
+/** Once the click's render has landed: focus or reveal what it opened. Nothing to do without a DOM (node --test). */
+export const afterRender = (fn: (doc: Document) => void): void => {
+  if (typeof document !== "undefined") setTimeout(() => fn(document), 0);
+};
+
+/** On a window's first day: hold its last day to it, so a reversed window is the browser's word at the field, not a refusal after it. */
+export const boundEnd = (endName: string) => (e: Event): void => {
+  const start = e.currentTarget as HTMLInputElement;
+  const end = start.form?.elements.namedItem(endName);
+  if (end && "min" in end) end.min = start.value;
+};
+
+/** A required choice with nothing to choose, said where the select would be — an empty required select can only fail. */
+export const noChoice = (label: string, why: string, fix?: VNode | null): VNode =>
+  html`<div class="ac-field"><span>${label}</span><p class="s2-empty">${why}${fix ? html` ${fix}` : null}</p></div>`;
 
 /** Read a form as strings. Uncontrolled inputs, read at submit (09 §3.5). */
 export const confirmPanel = (p: {

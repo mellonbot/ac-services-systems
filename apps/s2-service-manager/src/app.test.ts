@@ -236,6 +236,8 @@ test("hovering a customer shows S6's card for it: a commercial account's sites a
   assert.match(home, /Trane XR15/);
   assert.match(home, /Premium Cool Club<\/strong> · member since/);
 
+  showCustomerCard(ORG);
+  assert.match(render(app.view()), /class="s2-hovercard" role="tooltip" aria-hidden="true"/, "a preview for the eye; read out on every focus it buried the list");
   showCustomerCard(null);
   assert.doesNotMatch(render(app.view()), /role="tooltip"/);
   // The name carries the hover AND the focus handlers — keyboard users get the card too.
@@ -534,4 +536,52 @@ test("ACCOUNTS: an address the geocoder cannot find says so, and is not asked ab
   assert.match(render(app.view()), /could not find this exact address/);
   assert.equal(located, 1);
   forgetLocating();
+});
+
+test("a required choice with nothing to choose says so where the select would be, and the submit says why it cannot go", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  // The Turner home is the only site under the only location: there is nowhere to move it.
+  app.router.navigate("accounts.move", { orgId: TURNER, id: HOME });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const out = render(app.view());
+  assert.doesNotMatch(out, /name="newParentId"/, "no required select that can only be empty");
+  assert.match(out, /There is no other location in this tree to move under\./);
+  assert.match(out, /id="move" aria-disabled="true"/);
+  assert.match(out, /class="ac-action__reason" role="note">There is no other location to move under\./);
+});
+
+test("a row's actions are named for the row, so a screen reader's list of them is not 'Move, Move, Move'", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("accounts.tree", { orgId: ORG });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const out = render(app.view());
+  assert.match(out, /aria-label="Move Rooftop units"/);
+  assert.match(out, /aria-label="Add a site under Amped Austin"/);
+});
+
+test("the map lets plain scroll through to the page; Ctrl + scroll zooms, a level per mouse notch however the travel arrives", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  recentreMap();
+  app.router.navigate("accounts.tree", { orgId: TURNER });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const zoom = () => /zoom <span class="s2-num">(\d+)<\/span>/.exec(render(app.view()))![1];
+  const wheel = (deltaY: number, ctrlKey: boolean) => {
+    let prevented = false;
+    (nodesIn(app.view()).find((n) => n.props?.role === "application")!.props!.onWheel as (e: unknown) => void)({ deltaY, ctrlKey, metaKey: false, preventDefault: () => { prevented = true; } });
+    return prevented;
+  };
+  const start = zoom();
+  assert.equal(wheel(-100, false), false, "plain scroll is the page's");
+  assert.equal(zoom(), start);
+  assert.equal(wheel(-40, true), true);
+  assert.equal(zoom(), start, "a pinch's small step does not jump a level");
+  wheel(-60, true);
+  assert.equal(Number(zoom()), Number(start) + 1);
+  recentreMap();
 });

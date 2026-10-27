@@ -74,6 +74,7 @@ export const network: Screen = (ctx, params) => {
       ],
       rows: list, rowKey: (f: FirmWire) => f.id, selectedKey: firmId ?? "",
       onSelect: (f: FirmWire) => ctx.router.navigate("network", { firmId: f.id }),
+      linked: true,
       emptyText: "No firms recorded yet.",
     })}
     <p class="s2-muted">${linkTo(ctx, "network", {}, OWN_CREWS_LABEL)}</p>`,
@@ -118,7 +119,7 @@ export const network: Screen = (ctx, params) => {
           key: "documents", header: "Documents (today)",
           cell: (c: CrewWire) => { const s = documentStatus(c.documents, today); return html`<span class="s2-row-actions">${StatusPill({ density: ctx.density, status: s.status, label: s.label })}</span>`; },
         },
-        { key: "actions", header: "", align: "end", cell: (c: CrewWire) => linkTo(ctx, "network.crew.documents", { crewId: c.id }, "Documents") },
+        { key: "actions", header: "", align: "end", cell: (c: CrewWire) => linkTo(ctx, "network.crew.documents", { crewId: c.id }, "Documents", undefined, `Documents for ${c.label}`) },
       ],
       rows: crews, rowKey: (c: CrewWire) => c.id, emptyText,
     });

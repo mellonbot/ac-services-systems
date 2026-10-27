@@ -1,7 +1,7 @@
 import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { Refusal, RegionWire, CustomerSegment, AddressWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen } from "./common.ts";
+import { whenReady, refusalView, submitAction, noChoice, formValues, linkTo, type Screen } from "./common.ts";
 
 /**
  * C1 — a new customer parent, WITH its first region node. One form, one
@@ -68,7 +68,8 @@ export const organizationsNew: Screen = (ctx) => {
     }
   };
 
-  const regionSelect = (list: readonly RegionWire[]): VNode => html`<label class="ac-field">
+  const noRegion = (list: readonly RegionWire[]): string | null => list.some((r) => r.active) ? null : "No region of ours is active to serve this customer from.";
+  const regionSelect = (list: readonly RegionWire[]): VNode => noRegion(list) ? noChoice("Our service region", "No region of ours is active.") : html`<label class="ac-field">
       <span>Our service region</span>
       <select class="ac-input" name="regionId" required>${list.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}</select>
     </label>`;
@@ -94,7 +95,7 @@ export const organizationsNew: Screen = (ctx) => {
       <small>Recorded as the household's primary contact when a phone or an email is given — the person a crew calls ahead.</small>
     </fieldset>
     <div class="s2-form__actions">
-      ${submitAction(ctx, outcome.value.busy ? "Creating…" : "Create home", "create-org")}
+      ${submitAction(ctx, outcome.value.busy ? "Creating…" : "Create home", "create-org", noRegion(list))}
       ${linkTo(ctx, "accounts.tree", {}, "Cancel")}
     </div>
   </form>`;
@@ -105,15 +106,12 @@ export const organizationsNew: Screen = (ctx) => {
     <label class="ac-field"><span>Customer's reference (optional)</span><input class="ac-input" name="externalRef" /></label>
     <fieldset class="s2-fieldset">
       <legend>First region node</legend>
-      <label class="ac-field">
-        <span>Our service region</span>
-        <select class="ac-input" name="regionId" required>${list.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}</select>
-      </label>
+      ${regionSelect(list)}
       <label class="ac-field"><span>Node name</span><input class="ac-input" name="nodeName" placeholder="e.g. Amped / South" /></label>
       <small>A parent never exists without a place we serve it from. Both rows are written in one transaction, or neither is.</small>
     </fieldset>
     <div class="s2-form__actions">
-      ${submitAction(ctx, outcome.value.busy ? "Creating…" : "Create customer", "create-org")}
+      ${submitAction(ctx, outcome.value.busy ? "Creating…" : "Create customer", "create-org", noRegion(list))}
       ${linkTo(ctx, "accounts.tree", {}, "Cancel")}
     </div>
   </form>`;

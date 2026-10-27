@@ -158,3 +158,28 @@ test("an account owner reads the history and is told whose the writes are — no
   assert.doesNotMatch(out, /id="record-payment-form"|id="return-payment-form"|id="void-invoice-form"/);
   signedIn = finance;
 });
+
+type TestNode = { readonly type?: unknown; readonly props?: Record<string, unknown> & { readonly children?: unknown } };
+const nodesIn = (node: unknown): TestNode[] => {
+  if (Array.isArray(node)) return node.flatMap(nodesIn);
+  if (!node || typeof node !== "object") return [];
+  const current = node as TestNode;
+  return [current, ...nodesIn(current.props?.children)];
+};
+
+test("an amount the form turns down is said under the Amount field, not in a card below every form", async () => {
+  signedIn = finance;
+  const { app } = await ready();
+  app.router.navigate("billing.invoice", { invoiceId: INVOICE });
+  render(app.view()); await settle();
+  const RealFormData = globalThis.FormData;
+  globalThis.FormData = class { forEach(f: (v: string, k: string) => void) { f("99999", "amount"); } } as unknown as typeof FormData;
+  try {
+    (nodesIn(app.view()).find((n) => n.type === "form" && n.props?.id === "record-payment-form")!.props!.onSubmit as (e: unknown) => void)({ preventDefault() {}, currentTarget: {} });
+  } finally { globalThis.FormData = RealFormData; }
+  const out = render(app.view());
+  const recordForm = /id="record-payment-form"(.*?)<\/form>/s.exec(out)![1]!;
+  assert.match(recordForm, /name="amount"[^>]*aria-invalid="true"[^>]*aria-describedby="amount-error-/);
+  assert.match(recordForm, /class="s2-field-error" id="amount-error-[^"]+">Only \$?284\.50/);
+  assert.doesNotMatch(out, /ac-refusal/, "a typing mistake is not a refusal");
+});

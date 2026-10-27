@@ -205,3 +205,20 @@ test("the resolution screen says what each rung did, including the rung the regi
     "'not walked' has to say WHY, or the trace is as unfalsifiable as the bare value",
   );
 });
+
+test("Trace says whether it is open and which table it opened, and the trace is captioned with its term", async () => {
+  const policy = Object.values(TERMS)[0]!;
+  const resolution = { termKey: policy.key, value: 4, wonAt: "fallback", policy, trace: [{ tier: "location", id: AUSTIN, outcome: "no_override" }], asOf: "2026-03-01" };
+  const { app } = await ready({ [OPERATIONS["terms.resolved"].path]: { status: 200, body: { resolved: { [policy.key]: resolution }, refused: {} } } });
+  await paint(app, "terms.resolved", { orgId: ORG, nodeId: AUSTIN });
+  render(app.view()); await settle(); await settle();
+  let out = render(app.view());
+  assert.match(out, new RegExp(`aria-label="Trace for ${policy.key}" aria-expanded="false"`));
+  type TestNode = { readonly type?: unknown; readonly props?: Record<string, unknown> & { readonly children?: unknown } };
+  const nodesIn = (node: unknown): TestNode[] => Array.isArray(node) ? node.flatMap(nodesIn)
+    : !node || typeof node !== "object" ? [] : [node as TestNode, ...nodesIn((node as TestNode).props?.children)];
+  (nodesIn(app.view()).find((n) => n.props?.["aria-label"] === `Trace for ${policy.key}`)!.props!.onClick as () => void)();
+  out = render(app.view());
+  assert.match(out, new RegExp(`aria-label="Hide the trace for ${policy.key}" aria-expanded="true" aria-controls="term-trace"`));
+  assert.match(out, new RegExp(`<table class="s2-trace-table" id="term-trace"><caption class="ac-grid__caption">Trace for ${policy.key}</caption>`));
+});

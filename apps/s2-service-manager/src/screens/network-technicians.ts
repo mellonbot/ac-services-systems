@@ -4,7 +4,7 @@ import {
   type AddressWire, type CrewWire, type FirmWire, type Refusal, type RegionWire, type TechnicianRole, type TechnicianSpecialty, type TechnicianWire,
 } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, linkTo, submitAction, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, refusalView, linkTo, submitAction, noChoice, noActiveRegion, type Screen, type ScreenContext } from "./common.ts";
 import { OWN_CREWS_LABEL } from "./network.ts";
 
 /**
@@ -40,7 +40,7 @@ export const technicianPanel = (ctx: ScreenContext, firmId: string | null): VNod
       { key: "phone", header: "Phone", cell: (x: TechnicianWire) => x.phone ? html`<a class="ac-link" href=${`tel:${x.phone.replace(/[^\d+]/g, "")}`}><span class="s2-num">${x.phone}</span></a>` : html`<span class="s2-muted">—</span>` },
       { key: "specialties", header: "Specialty", cell: (x: TechnicianWire) => x.specialties.length ? x.specialties.map((s) => SPECIALTY_WORD[s]).join(", ") : html`<span class="s2-muted">none recorded</span>` },
       { key: "crewId", header: "Crew", cell: (x: TechnicianWire) => crewLabel(x.crewId) },
-      { key: "actions", header: "", align: "end", cell: (x: TechnicianWire) => linkTo(ctx, "network.technician.edit", { technicianId: x.id }, "Edit") },
+      { key: "actions", header: "", align: "end", cell: (x: TechnicianWire) => linkTo(ctx, "network.technician.edit", { technicianId: x.id }, "Edit", undefined, `Edit ${x.name}`) },
     ],
     rows: t.technicians.filter((x) => x.firmId === firmId),
     rowKey: (x: TechnicianWire) => x.id,
@@ -147,12 +147,12 @@ const technicianForm = (ctx: ScreenContext, mode: { readonly firmId: string | nu
       ${whenReady(ctx, crews.value, (c) => crewField(c.crews))}
       ${t
         ? html`<label class="s2-radio"><input type="checkbox" name="active" checked=${t.active} /> Active — works our jobs</label>`
-        : whenReady(ctx, regions.value, (r) => html`<label class="ac-field">
+        : whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice("Works from", "No region of ours is active.") : html`<label class="ac-field">
             <span>Works from</span>
             <select name="homeRegionId" required class="ac-input">${r.regions.filter((x: RegionWire) => x.active).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
           </label>`)}
       <div class="s2-form__actions">
-        ${submitAction(ctx, f.busy ? "Saving…" : t ? "Save technician" : "Add technician", "save-technician")}
+        ${submitAction(ctx, f.busy ? "Saving…" : t ? "Save technician" : "Add technician", "save-technician", t ? null : noActiveRegion(regions.value))}
         ${linkTo(ctx, "network", firmId ? { firmId } : {}, "Cancel")}
       </div>
     </form>

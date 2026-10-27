@@ -151,7 +151,10 @@ type Pending =
   | { readonly kind: "return"; readonly payment: PaymentWire; readonly reason: string }
   | { readonly kind: "void"; readonly reason: string };
 const outcome = signal<{ readonly refusal: Refusal | null; readonly busy: boolean; readonly pending: Pending | null; readonly owner: string | null }>({ refusal: null, busy: false, pending: null, owner: null });
-const clear = () => { outcome.value = { refusal: null, busy: false, pending: null, owner: null }; };
+/** A typed value the form itself turns down, said under the field it is about rather than below every form. */
+type FieldId = "amount" | "return-reason" | "void-reason";
+const fieldError = signal<{ readonly owner: string; readonly field: FieldId; readonly message: string } | null>(null);
+const clear = () => { outcome.value = { refusal: null, busy: false, pending: null, owner: null }; fieldError.value = null; };
 const failed = (err: unknown): Refusal => ({ kind: "bad_request", message: err instanceof Error ? err.message : String(err) });
 
 const send = async (ctx: ScreenContext, fn: () => Promise<string>): Promise<void> => {
@@ -175,7 +178,11 @@ const writes = (ctx: ScreenContext, inv: InvoiceWire, payments: readonly Payment
   }
   const mine = outcome.value.owner === inv.id ? outcome.value.pending : null;
   const blocked = ctx.degraded || outcome.value.busy || outcome.value.pending !== null;
-  const ask = (pending: Pending) => { outcome.value = { refusal: null, busy: false, pending, owner: inv.id }; };
+  const ask = (pending: Pending) => { fieldError.value = null; outcome.value = { refusal: null, busy: false, pending, owner: inv.id }; };
+  const turnDown = (field: FieldId, err: unknown) => { clear(); fieldError.value = { owner: inv.id, field, message: err instanceof Error ? err.message : String(err) }; };
+  const errorOf = (field: FieldId): string | null => fieldError.value?.owner === inv.id && fieldError.value.field === field ? fieldError.value.message : null;
+  const fieldErrorLine = (field: FieldId): VNode | null => errorOf(field) ? html`<small class="s2-field-error" id=${`${field}-error-${inv.id}`}>${errorOf(field)}</small>` : null;
+  const invalid = (field: FieldId) => errorOf(field) ? { "aria-invalid": "true", "aria-describedby": `${field}-error-${inv.id}` } : {};
   const owed = owedMinor(inv);
   const standing = payments.filter((p) => p.state === "succeeded" || p.state === "pending");
 
@@ -190,13 +197,13 @@ const writes = (ctx: ScreenContext, inv: InvoiceWire, payments: readonly Payment
       const today = localDay();
       const typedDay = v.receivedOn || today;
       ask({ kind: "record", amountMinor, method: (v.method ?? "check") as PaymentMethod, reference: (v.reference ?? "").trim(), day: typedDay, receivedAt: receivedAtFor(typedDay, today) });
-    } catch (err) { outcome.value = { refusal: failed(err), busy: false, pending: null, owner: null }; }
+    } catch (err) { turnDown("amount", err); }
   };
   const askVoid = (e: Event) => {
     e.preventDefault();
     if (blocked) return;
     const reason = (formValues(e.currentTarget as HTMLFormElement).reason ?? "").trim();
-    if (!reason) { outcome.value = { refusal: failed(new Error("Say why the invoice is void.")), busy: false, pending: null, owner: null }; return; }
+    if (!reason) { turnDown("void-reason", "Say why the invoice is void."); return; }
     ask({ kind: "void", reason });
   };
   const askReturn = (e: Event) => {
@@ -206,7 +213,7 @@ const writes = (ctx: ScreenContext, inv: InvoiceWire, payments: readonly Payment
     const payment = standing.find((p) => p.id === v.paymentId);
     const reason = (v.reason ?? "").trim();
     if (!payment) return;
-    if (!reason) { outcome.value = { refusal: failed(new Error("Say why it came back — the bank's return code, or what happened.")), busy: false, pending: null, owner: null }; return; }
+    if (!reason) { turnDown("return-reason", "Say why it came back — the bank's return code, or what happened."); return; }
     ask({ kind: "return", payment, reason });
   };
 
@@ -248,7 +255,7 @@ const writes = (ctx: ScreenContext, inv: InvoiceWire, payments: readonly Payment
   const canPay = inv.status === "open" || inv.status === "partially_paid";
   return html`
     ${canPay ? panel(html`<form class="ac-form ac-form--inline" onSubmit=${askRecord} id="record-payment-form">
-      <label class="ac-field"><span>Amount (${inv.currency})</span><input class="ac-input" name="amount" inputmode="decimal" required placeholder=${money(owed)} /></label>
+      <label class="ac-field"><span>Amount (${inv.currency})</span><input class="ac-input" name="amount" inputmode="decimal" required placeholder=${money(owed)} ...${invalid("amount")} />${fieldErrorLine("amount")}</label>
       <label class="ac-field"><span>Method</span><select class="ac-input" name="method">${PAYMENT_METHODS.map((m) => html`<option value=${m}>${METHOD_WORD[m]}</option>`)}</select></label>
       <label class="ac-field"><span>Reference</span><input class="ac-input" name="reference" maxlength="120" placeholder="Check number or bank trace" /></label>
       <label class="ac-field"><span>Received on</span><input class="ac-input" name="receivedOn" type="date" max=${localDay()} defaultValue=${localDay()} /></label>
@@ -256,11 +263,11 @@ const writes = (ctx: ScreenContext, inv: InvoiceWire, payments: readonly Payment
     </form>`, "Record a payment", `What arrived against this invoice. ${money(owed, inv.currency)} is still owed.`, undefined, "record-payment") : null}
     ${standing.length > 0 ? panel(html`<form class="ac-form ac-form--inline" onSubmit=${askReturn} id="return-payment-form">
       <label class="ac-field"><span>Payment</span><select class="ac-input" name="paymentId">${standing.map((p) => html`<option value=${p.id}>${day(p.receivedAt)} · ${money(p.amountMinor, p.currency)} · ${METHOD_WORD[p.method]}${p.reference ? ` · ${p.reference}` : ""}</option>`)}</select></label>
-      <label class="ac-field"><span>Why it came back</span><input class="ac-input" name="reason" maxlength="500" required placeholder="R01 insufficient funds" /></label>
+      <label class="ac-field"><span>Why it came back</span><input class="ac-input" name="reason" maxlength="500" required placeholder="R01 insufficient funds" ...${invalid("return-reason")} />${fieldErrorLine("return-reason")}</label>
       <div class="s2-form__actions">${submitAction(ctx, "Mark returned", "return-payment")}</div>
     </form>`, "A payment came back", "A bounced check or an ACH return. The payment stays on the record, marked returned.", undefined, "return-payment") : null}
     ${inv.status === "open" && standing.length === 0 ? panel(html`<form class="ac-form ac-form--inline" onSubmit=${askVoid} id="void-invoice-form">
-      <label class="ac-field"><span>Why it is void</span><input class="ac-input" name="reason" maxlength="500" required placeholder="Billed twice" /></label>
+      <label class="ac-field"><span>Why it is void</span><input class="ac-input" name="reason" maxlength="500" required placeholder="Billed twice" ...${invalid("void-reason")} />${fieldErrorLine("void-reason")}</label>
       <div class="s2-form__actions">${submitAction(ctx, "Void invoice", "void-invoice")}</div>
     </form>`, "Void this invoice", "Only an invoice nothing has been paid against. Final.", undefined, "void-invoice") : null}
     ${confirm()}

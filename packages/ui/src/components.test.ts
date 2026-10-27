@@ -235,6 +235,10 @@ test("a row you can activate is a grid row, and says whether it is selected", ()
   assert.match(live, /<table class="ac-grid" data-density="console" role="grid">/);
   assert.match(live, /aria-selected="true"[^>]*tabindex="0"/);
   assert.match(live, /aria-selected="false"/);
+  // A row that holds its own link is not a second focus stop beside it, and the table stays a table.
+  const linked = render(html`<${DataGrid} density="console" columns=${columns} rows=${rows} rowKey=${(r: Row) => r.id} onSelect=${() => {}} selectedKey="b" linked=${true} />`);
+  assert.doesNotMatch(linked, /role="grid"|tabindex|aria-selected/);
+  assert.match(linked, /data-selected="true"/, "the selected row is still drawn as selected");
 });
 
 test("a group head is a banded row on the head's ground, and only the rows the caller names are marked", () => {

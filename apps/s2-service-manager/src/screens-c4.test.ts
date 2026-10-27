@@ -229,7 +229,7 @@ test("OQ5 firm-side blocks the firm form with ZERO gateway calls while it is uns
   const html = await paint(app, "network.firm.new", {});
   assert.match(html, /Diagnostic data rights \(OQ5, firm side\)/);
   assert.match(html, /Not stated\./);
-  assert.match(html, /id="record-firm"[^>]*disabled/);
+  assert.match(html, /id="record-firm" aria-disabled="true">Record firm<\/button><span class="ac-action__reason" role="note">State the diagnostic data rights position first\./, "the reason is on screen, not in a title a keyboard cannot reach");
   const posts = gateway.calls.filter((c) => c.path === OPERATIONS["firms.create"].path && (c.init.method ?? "GET").toUpperCase() === "POST").length;
   assert.equal(posts, 0);
   assert.equal(canSubmitFirm({ oq5: "unset", busy: false }, false), false);
@@ -246,6 +246,7 @@ test("the rate card is a timeline: every row with its window, the one in effect 
   assert.match(html, /inputmode="numeric"/);
   assert.doesNotMatch(html, /name="rateMinor"[^>]*type="number"/, "a JSON number is an IEEE-754 double — money is a digits-only string");
   assert.match(html, /Integer minor units/);
+  assert.match(html, /name="currency"[^>]*pattern="\[A-Z\]\{3\}"/, "a currency is a three-letter code, not free text");
   // 0027: each rate says what an emergency on it is settled at, and the form sets the multiplier (1.5 unless changed).
   assert.match(html, /14250 <small class="s2-muted">1\.5× · USD 142\.50<\/small>/);
   assert.match(html, /19800 <small class="s2-muted">2× · USD 198\.00<\/small>/);

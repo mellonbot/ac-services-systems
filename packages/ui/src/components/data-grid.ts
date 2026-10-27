@@ -29,6 +29,12 @@ export type DataGridProps<Row> = {
   /** Called with the next sort when a sortable header is activated; the caller owns the order. */
   readonly onSort?: (next: Sort) => void;
   readonly onSelect?: (row: Row) => void;
+  /**
+   * Each row already holds a link to what selecting it opens. The row still
+   * takes a click anywhere, but is not a second focus stop beside its own
+   * link, and the table stays a table: keyboard users Tab link to link.
+   */
+  readonly linked?: boolean;
   readonly selectedKey?: string;
   readonly emptyText?: string;
   readonly caption?: string;
@@ -64,7 +70,7 @@ const view = <Row,>(p: ViewProps<typeof DataGridSpec, DataGridProps<Row>>): VNod
   // a focus stop on something a screen reader still announced as an inert row;
   // role="grid" plus aria-selected is the pattern that says selectable, and it
   // only appears when the caller actually wired onSelect.
-  const interactive = p.onSelect !== undefined;
+  const interactive = p.onSelect !== undefined && !p.linked;
   return html`<table class="ac-grid" data-density=${p.density} data-stack=${p.stack ? "narrow" : undefined} role=${interactive ? "grid" : undefined}>
     ${p.caption ? html`<caption class="ac-grid__caption">${p.caption}</caption>` : null}
     <thead><tr>
@@ -82,9 +88,12 @@ const view = <Row,>(p: ViewProps<typeof DataGridSpec, DataGridProps<Row>>): VNod
             const selected = p.selectedKey !== undefined && p.selectedKey === k;
             return html`<tr key=${k} class="ac-grid__row" data-selected=${selected ? "true" : "false"} data-group=${p.groupHead?.(row) ? "head" : undefined}
               aria-selected=${interactive ? (selected ? "true" : "false") : undefined}
-              tabindex=${p.onSelect ? 0 : undefined}
+              tabindex=${interactive ? 0 : undefined}
               onClick=${p.onSelect ? () => p.onSelect?.(row) : undefined}
-              onKeyDown=${p.onSelect ? (e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); p.onSelect?.(row); } } : undefined}>
+              onKeyDown=${interactive ? (e: KeyboardEvent) => {
+                // Only a key on the row itself: Enter on a link or button inside it is that control's.
+                if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); p.onSelect?.(row); }
+              } : undefined}>
               ${p.columns.map((c) => html`<td class="ac-grid__td" data-align=${c.align ?? "start"} data-numeric=${c.numeric ? "true" : undefined} data-label=${c.header}>${cell(row, c)}</td>`)}
             </tr>`;
           })}
