@@ -1,4 +1,4 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, pageHead, PrimaryAction, RefusalNotice, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, pageHead, PrimaryAction, RefusalNotice, type VNode, AccountMenu, createAccountMenu, type AccountMenuState } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -34,7 +34,7 @@ export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(
 
 export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = { orders, order, catalogue, invoices, returns };
 
-type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
+type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store; account: AccountMenuState };
 
 export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window }) => {
   const now = opts.now ?? (() => Date.now());
@@ -44,7 +44,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
 
   const become = (shell: ConnectedShell) => {
     const store = createStore(shell, now);
-    phase.value = { kind: "ready", shell, store };
+    phase.value = { kind: "ready", shell, store, account: createAccountMenu(shell.gateway, shell.refusalOf) };
     const at = router.current.value;
     if (!at || at.screen === "login") router.navigate("orders", {});
     // Envelopes carry no payload; refetch what the office touched (09 §3.5).
@@ -106,6 +106,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         ${nav("invoices", "Invoices", loc?.screen === "invoices")}
         ${nav("returns", "Returns", loc?.screen === "returns")}
         <span class="ac-nav__who" id="who">${who}</span>
+        ${AccountMenu({ density: DENSITY, menu: p.account })}
         <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s7-empty">Nothing at this address.</p>`}

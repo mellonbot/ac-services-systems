@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { OPERATIONS, OPERATION_IDS, routeKey, surfacesFor, isOperationId } from "./operations.ts";
+import { OPERATIONS, OPERATION_IDS, OWN_IDENTITY_MUTATIONS, routeKey, surfacesFor, isOperationId } from "./operations.ts";
 import { SURFACES, SURFACE_IDS } from "./surfaces.ts";
 import { classifyRefusal, admissionAxis } from "./refusals.ts";
 
@@ -58,9 +58,9 @@ test("the gated door is callable by S3 alone; term authoring by S2 alone", () =>
   assert.deepEqual([...OPERATIONS["sync.replay"].surfaces], ["S5"]);
 });
 
-test("S4 can call no mutation — read-only by construction reaches the catalogue too (ending its own session is not a write)", () => {
+test("S4 can call no mutation — read-only by construction reaches the catalogue too (ending its own session, or setting its own picture and password, is not a write)", () => {
   for (const id of OPERATION_IDS) {
-    if (OPERATIONS[id].kind !== "mutation" || id === "auth.logout") continue;
+    if (OPERATIONS[id].kind !== "mutation" || OWN_IDENTITY_MUTATIONS.includes(id)) continue;
     assert.ok(!(OPERATIONS[id].surfaces as readonly string[]).includes("S4"), `S4 may call mutation ${id}`);
   }
 });

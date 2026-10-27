@@ -11,6 +11,7 @@ import { RefusalCard, refusalHeading, AXIS_SENTENCE } from "./components/refusal
 import { plainHeading, plainMessage, retryable } from "./components/refusal-notice.ts";
 import { RefusalNotice } from "./components/refusal-notice.ts";
 import { CustomerCard, addressLines } from "./components/customer-card.ts";
+import { AccountMenu, createAccountMenu, initialsOf } from "./components/account-menu.ts";
 import { DegradedBanner, applyDegraded, driveDegraded, ageOf } from "./components/degraded-banner.ts";
 import { COMPONENT_SPECS, ComplianceBadgeSpec, DataGridSpec } from "./component.ts";
 import { STATUS_GLYPH, MARK_GLYPHS } from "../../tokens/src/index.ts";
@@ -54,7 +55,7 @@ test("densityOf is literal, so the registry's density reaches the component type
 });
 
 test("every spec has an implementation carrying it, and no density outside the three", () => {
-  const carried = [StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner, RefusalNotice, CustomerCard].map((c) => c.spec.name).sort();
+  const carried = [StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner, RefusalNotice, CustomerCard, AccountMenu].map((c) => c.spec.name).sort();
   assert.deepEqual(carried, [...COMPONENT_SPECS].map((s) => s.name).sort());
   for (const s of COMPONENT_SPECS) for (const d of s.densities) assert.ok(["console", "comfort", "field"].includes(d));
 });
@@ -354,4 +355,66 @@ test("CustomerCard: a commercial customer is sites across locations and its plan
   const loading = render(CustomerCard({ density: "console", name: "T", segment: "residential", sites: 1, locations: 1, plans: [], home: { address: [], units: null, membership: null } })!);
   assert.match(loading, /Loading equipment…/);
   assert.match(loading, /No membership/);
+});
+
+// ---------------------------------------------------------------------------
+// 0032 — the Account button, the same control in every signed-in nav.
+// ---------------------------------------------------------------------------
+const ME = {
+  userId: "u1", email: "dee@ac.test", displayName: "Dee Dispatcher", presence: "busy" as const, statusNote: "On a call",
+  avatar: null, passwordChangedAt: null,
+};
+const fakeAccountGateway = (calls: string[] = []) => ({
+  myAccount: async () => { calls.push("me"); return ME; },
+  updateMyAccount: async (i: object) => { calls.push(`update ${JSON.stringify(i)}`); return { ...ME, ...i }; },
+  setAccountAvatar: async (i: { dataBase64: string | null }) => { calls.push(`avatar ${i.dataBase64 ? "set" : "clear"}`); return { ...ME, avatar: i.dataBase64 ? { contentType: "image/jpeg" as const, image: i.dataBase64 } : null }; },
+  changePassword: async () => { calls.push("password"); return { ok: true as const, passwordChangedAt: "2026-10-27T12:00:00.000Z", endedSessions: 2 }; },
+});
+
+test("AccountMenu: closed, it is one nav button with initials and a name a screen reader can hear", async () => {
+  const menu = createAccountMenu(fakeAccountGateway(), () => null);
+  await new Promise((r) => setTimeout(r, 0));
+  const out = render(AccountMenu({ density: "console", menu })!);
+  assert.match(out, /class="ac-account"/);
+  assert.match(out, /aria-haspopup="dialog"/);
+  assert.match(out, /aria-expanded="false"/);
+  assert.match(out, />DD</);
+  assert.match(out, /aria-label="Account — Dee Dispatcher, Busy"/);
+  assert.doesNotMatch(out, /<dialog/);
+  assert.equal(initialsOf("  cass   q customer "), "CQ");
+  assert.equal(initialsOf(""), "?");
+});
+
+test("AccountMenu: open, the dialog carries picture, name and status, and password — in every density", async () => {
+  const calls: string[] = [];
+  const menu = createAccountMenu(fakeAccountGateway(calls), () => null);
+  menu.show();
+  await new Promise((r) => setTimeout(r, 0));
+  for (const density of ["console", "comfort", "field"] as const) {
+    const out = render(AccountMenu({ density, menu })!);
+    assert.match(out, /<dialog class="ac-account__dialog"/);
+    assert.match(out, /Add a picture/);
+    assert.match(out, /name="displayName"[^>]*value="Dee Dispatcher"/);
+    assert.match(out, /<option value="busy" selected/);
+    assert.match(out, /name="currentPassword"[^>]*autocomplete="current-password"/);
+    assert.match(out, /name="newPassword"[^>]*minlength="12"/);
+  }
+  await menu.saveProfile({ displayName: "Dee D", presence: "away", statusNote: null });
+  assert.equal(menu.account.value?.displayName, "Dee D");
+  await menu.changePassword({ currentPassword: "a", newPassword: "b" });
+  const out = render(AccountMenu({ density: "console", menu })!);
+  assert.match(out, /Password changed\. 2 other sessions were signed out\./);
+  assert.match(out, /Last changed/);
+  await menu.setPicture("/9j/AA==");
+  assert.match(render(AccountMenu({ density: "console", menu })!), /<img class="ac-account__avatar" src="data:image\/jpeg;base64,\/9j\/AA=="/);
+  assert.deepEqual(calls.filter((c) => c !== "me"), ['update {"displayName":"Dee D","presence":"away","statusNote":null}', "password", "avatar set"]);
+});
+
+test("AccountMenu: a refused change says why, beside the section it came from", async () => {
+  const refusal: Refusal = { kind: "admission", code: "wrong_password", axis: "incomplete", message: "your current password is not right" };
+  const menu = createAccountMenu({ ...fakeAccountGateway(), changePassword: async () => { throw new Error("x"); } }, () => refusal);
+  menu.show();
+  await new Promise((r) => setTimeout(r, 0));
+  await menu.changePassword({ currentPassword: "a", newPassword: "b" });
+  assert.match(render(AccountMenu({ density: "comfort", menu })!), /your current password is not right/);
 });

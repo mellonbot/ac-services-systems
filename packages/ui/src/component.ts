@@ -72,7 +72,13 @@ export const CustomerCardSpec = declare({
   notes: "What the customer sees of themselves — S6's account card for a commercial customer, its home card for a homeowner — drawn once, so the office's hover in S2 shows the same card. Read-only. No field variant: a crew reads the job, not the account.",
 });
 
+export const AccountMenuSpec = declare({
+  name: "AccountMenu",
+  densities: ["console", "comfort", "field"] as const,
+  notes: "The Account button in every signed-in nav and the dialog it opens: picture, name, status, password. The person's own row and nobody else's. Presence is a word, never a status colour.",
+});
+
 /** Every spec, for the guard and the docs. */
 export const COMPONENT_SPECS = Object.freeze([
-  DataGridSpec, ComplianceBadgeSpec, StatusPillSpec, PrimaryActionSpec, RefusalCardSpec, DegradedBannerSpec, RefusalNoticeSpec, CustomerCardSpec,
+  DataGridSpec, ComplianceBadgeSpec, StatusPillSpec, PrimaryActionSpec, RefusalCardSpec, DegradedBannerSpec, RefusalNoticeSpec, CustomerCardSpec, AccountMenuSpec,
 ] as const);
