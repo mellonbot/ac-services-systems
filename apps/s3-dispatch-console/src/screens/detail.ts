@@ -202,7 +202,7 @@ const header = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiState>): VN
       ? html`<textarea class="ac-input s3-draftbox" aria-label="Standing note for techs" maxlength="2000" value=${editing}
           onInput=${(e: Event) => { ui.value = { ...ui.value, standing: (e.currentTarget as HTMLTextAreaElement).value }; }}></textarea>
         <span class="s3-row-actions">
-          ${submitAction(ctx, "Save standing note", () => { const body = (ui.value.standing ?? "").trim(); if (body) void act(ctx, () => ctx.shell.gateway.addJobNote({ jobId: j.id, orgId: j.orgId, regionId: j.regionId, body, kind: "standing" }), "Standing note saved.", () => { ui.value = { ...ui.value, standing: null }; }); }, "standing-save")}
+          ${submitAction(ctx, busyLabel(ctx, "standing", "Save standing note", "Saving…"), () => { const body = (ui.value.standing ?? "").trim(); if (body) void act(ctx, "standing", () => ctx.shell.gateway.addJobNote({ jobId: j.id, orgId: j.orgId, regionId: j.regionId, body, kind: "standing" }), "Standing note saved.", () => { ui.value = { ...ui.value, standing: null }; }); }, "standing-save")}
           <button type="button" class="s3-act" onClick=${() => { ui.value = { ...ui.value, standing: null }; }}>Cancel</button>
         </span>`
       : html`${standing ? html`<p class="s3-standing__body">${standing.body}</p><p class="s3-visit__by">${standing.authorName ?? "Office"} · <span class="s3-num">${stamp(standing.at)}</span></p>` : html`<p class="s3-muted">None. What should every tech know before rolling to this job?</p>`}
@@ -210,8 +210,14 @@ const header = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiState>): VN
   </section>`, undefined, undefined, undefined, "job-head");
 };
 
-/** Every write here: call, say what happened in the dispatcher's words, refetch the job. */
-const act = async (ctx: ScreenContext, call: () => Promise<unknown>, ok: string, after?: () => void): Promise<void> => {
+/** The write in flight on this page, by name — so a double click cannot post a customer the same reply twice. */
+const writingFor = perStore<string | null>(null);
+
+/** Every write here: one at a time; call, say what happened in the dispatcher's words, refetch the job. */
+const act = async (ctx: ScreenContext, what: string, call: () => Promise<unknown>, ok: string, after?: () => void): Promise<void> => {
+  const writing = writingFor(ctx.store);
+  if (writing.value) return;
+  writing.value = what;
   try {
     await call();
     after?.();
@@ -219,10 +225,14 @@ const act = async (ctx: ScreenContext, call: () => Promise<unknown>, ok: string,
   } catch (e) {
     const r = ctx.shell.refusalOf(e);
     ctx.store.notice.value = [`That did not go through${r && "message" in r && r.message ? ` — ${r.message}` : ""}. Nothing was lost; try again.`];
+  } finally {
+    writing.value = null;
   }
   ctx.store.invalidate("jobs.detail");
   ctx.store.invalidate("jobs.list");
 };
+
+const busyLabel = (ctx: ScreenContext, what: string, idle: string, busy: string): string => (writingFor(ctx.store).value === what ? busy : idle);
 
 const updateBlock = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiState>, note: JobNoteWire | null, u: JobUpdateWire | null): VNode => {
   const j = d.job;
@@ -252,8 +262,8 @@ const updateBlock = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiState>
     <p class="s3-update__foot">
       <span class="s3-flag">Draft — not visible to the customer</span>
       <span class="s3-row-actions">
-        ${submitAction(ctx, "Save draft", () => void act(ctx, save, "Draft saved. The customer cannot see it.", () => setDraft(undefined)), `save-${key}`, "quiet")}
-        ${submitAction(ctx, "Publish to customer", () => void act(ctx, async () => { const id = await save(); if (id) await ctx.shell.gateway.publishJobUpdate({ updateId: id }); }, "Published — the customer will see it in their portal.", () => setDraft(undefined)), `publish-${key}`)}
+        ${submitAction(ctx, busyLabel(ctx, `save-${key}`, "Save draft", "Saving…"), () => void act(ctx, `save-${key}`, save, "Draft saved. The customer cannot see it.", () => setDraft(undefined)), `save-${key}`, "quiet")}
+        ${submitAction(ctx, busyLabel(ctx, `publish-${key}`, "Publish to customer", "Publishing…"), () => void act(ctx, `publish-${key}`, async () => { const id = await save(); if (id) await ctx.shell.gateway.publishJobUpdate({ updateId: id }); }, "Published — the customer will see it in their portal.", () => setDraft(undefined)), `publish-${key}`)}
       </span>
     </p>`;
 };
@@ -265,11 +275,11 @@ const communication = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiStat
   const updateFor = (n: JobNoteWire) => [...d.updates].reverse().find((u) => u.sourceNoteId === n.id) ?? null;
   const send = () => {
     const body = ui.value.reply.trim();
-    if (body) void act(ctx, () => ctx.shell.gateway.postJobMessage({ jobId: j.id, body }), "Reply posted to the customer thread.", () => { ui.value = { ...ui.value, reply: "" }; });
+    if (body) void act(ctx, "send", () => ctx.shell.gateway.postJobMessage({ jobId: j.id, body }), "Reply posted to the customer thread.", () => { ui.value = { ...ui.value, reply: "" }; });
   };
   const addNote = () => {
     const body = ui.value.note.trim();
-    if (body) void act(ctx, () => ctx.shell.gateway.addJobNote({ jobId: j.id, orgId: j.orgId, regionId: j.regionId, body }), "Internal note added.", () => { ui.value = { ...ui.value, note: "" }; });
+    if (body) void act(ctx, "note", () => ctx.shell.gateway.addJobNote({ jobId: j.id, orgId: j.orgId, regionId: j.regionId, body }), "Internal note added.", () => { ui.value = { ...ui.value, note: "" }; });
   };
   return panel(html`<div class="s3-comms">
     <section class="s3-comms__col" aria-labelledby="updates-title">
@@ -291,7 +301,7 @@ const communication = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiStat
         <form class="s3-thread__reply" onSubmit=${(e: Event) => { e.preventDefault(); send(); }}>
           <input class="ac-input s3-grow" aria-label="Reply to the customer" placeholder=${`Reply${d.contact ? ` to ${d.contact.name.split(" ")[0]}` : ""} (they will see this)`} maxlength="2000" value=${ui.value.reply}
             onInput=${(e: Event) => { ui.value = { ...ui.value, reply: (e.currentTarget as HTMLInputElement).value }; }} />
-          ${submitAction(ctx, "Send", send, "reply-send")}
+          ${submitAction(ctx, busyLabel(ctx, "send", "Send", "Sending…"), send, "reply-send")}
         </form>
         <label class="s3-notify"><input type="checkbox" disabled /> <span>Also notify by email and push<small>Not available yet — there is no email or push delivery. The customer sees the reply the next time they open the portal.</small></span></label>
       </div>
@@ -301,7 +311,7 @@ const communication = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiStat
         <form class="s3-thread__reply" onSubmit=${(e: Event) => { e.preventDefault(); addNote(); }}>
           <input class="ac-input s3-grow" aria-label="Internal note" placeholder="Add an internal note (staff only)" maxlength="2000" value=${ui.value.note}
             onInput=${(e: Event) => { ui.value = { ...ui.value, note: (e.currentTarget as HTMLInputElement).value }; }} />
-          ${submitAction(ctx, "Add note", addNote, "note-add", "quiet")}
+          ${submitAction(ctx, busyLabel(ctx, "note", "Add note", "Adding…"), addNote, "note-add", "quiet")}
         </form>
       </section>
     </section>

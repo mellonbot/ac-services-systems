@@ -742,3 +742,19 @@ test("local preview is sample data only when no gateway answers, and says so on 
   await real.boot();
   assert.equal(real.phase.value.kind, "login");
 });
+
+test("job detail: a reply to the customer goes once for a double click, and its button says it is sending", async () => {
+  const { app, gateway } = await ready({
+    [OPERATIONS["jobs.detail"].path]: { status: 200, body: detailOf(jobAssigned) },
+    [OPERATIONS["jobs.postMessage"].path]: { status: 200, body: { id: "m1", authorKind: "office", eventId: "e" } },
+  });
+  app.router.navigate("detail", { jobId: JOB_ASSIGNED });
+  render(app.view()); await settle(); await settle();
+  (nodesIn(app.view()).find((n) => n.props?.["aria-label"] === "Reply to the customer")!.props!.onInput as (e: unknown) => void)({ currentTarget: { value: "On our way at 2." } });
+  const send = () => (nodesIn(app.view()).find((n) => n.props?.id === "reply-send")!.props!.onClick as (e: unknown) => void)({ preventDefault() {} });
+  send(); send();
+  assert.match(render(app.view()), /Sending…/);
+  for (let i = 0; i < 3; i++) await settle();
+  assert.equal(gateway.calls.filter((c) => c.path === OPERATIONS["jobs.postMessage"].path).length, 1);
+  assert.match(render(app.view()), /Reply posted to the customer thread\./);
+});
