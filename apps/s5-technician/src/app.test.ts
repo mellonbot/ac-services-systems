@@ -52,7 +52,8 @@ const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJob
     if (!session) return reply(401, { error: "AuthError", code: "malformed", message: "no session" });
     if (path === OPERATIONS["session.me"].path) return reply(200, deviceContext);
     if (path === OPERATIONS["jobs.mine"].path) return reply(200, { jobs: opts.jobs ?? [job] });
-    if (path === OPERATIONS["punches.mine"].path) return reply(200, { punches: opts.punches ?? [] });
+    // Clocked in by default: a job does not move until the shift clock is in (partner rule, 2026-10-27).
+    if (path === OPERATIONS["punches.mine"].path) return reply(200, { punches: opts.punches ?? [{ id: "p-default", kind: "in", at: "1970-01-01T00:00:00.000Z" }] });
     if (path === OPERATIONS["sync.replay"].path) {
       const body = JSON.parse(init!.body as string) as { mutations: readonly SyncMutationWire[] };
       if (opts.syncHandler) { const r = opts.syncHandler(body.mutations); return reply(r.status, r.body); }
@@ -486,7 +487,7 @@ const NOW = Date.parse("2026-10-27T15:00:00Z");
 const down = () => ({ status: 503, body: { error: "Unavailable", message: "down" } });
 
 test("before the first job, Today offers Clock in; the tap queues a punch on this shift's grant and the clock runs at once", async () => {
-  const { app } = await ready({ now: NOW, syncHandler: down });
+  const { app } = await ready({ now: NOW, syncHandler: down, punches: [] });
   render(app.view()); await settle(); await settle(); render(app.view()); await settle();
   let out = render(app.view());
   assert.match(out, /Clocked out/);
@@ -503,18 +504,42 @@ test("before the first job, Today offers Clock in; the tap queues a punch on thi
   assert.match(out, /waiting to sync/);
   assert.doesNotMatch(out, /id="clock-in"/);
   assert.doesNotMatch(out, /id="clock-out"/, "the job is still open");
-  assert.match(out, /Clock out opens when the last job is complete/);
+  assert.match(out, /Clock out opens when every job is complete or on hold/);
 });
 
-test("once a job has started, Clock in is gone and the panel says who records the start", async () => {
-  const { app } = await ready({ now: NOW, jobs: [{ ...job, state: "en_route" }] });
+test("no job moves until the shift clock is in: the card and the detail say so on the control, and Clock in lifts it", async () => {
+  const { app } = await ready({ now: NOW, syncHandler: down, punches: [] });
   render(app.view()); await settle(); await settle(); render(app.view()); await settle();
-  const out = render(app.view());
-  assert.doesNotMatch(out, /id="clock-in"/);
-  assert.match(out, /id="clock-in-closed"/);
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  let out = render(app.view());
+  assert.match(out, new RegExp(`id="card-${JOB}-en_route" aria-disabled="true"`));
+  assert.match(out, /Clock in first/);
+  click(app.view(), `card-${JOB}-en_route`); await settle();
+  assert.equal(p.queue.pending.value.length, 0, "a tap on a gated move queues nothing");
+
+  app.router.navigate("job", { jobId: JOB });
+  render(app.view()); await settle();
+  assert.match(render(app.view()), /id="to-en_route" aria-disabled="true"/);
+
+  app.router.navigate("jobs", {});
+  click(app.view(), "clock-in"); await settle();
+  out = render(app.view());
+  assert.match(out, new RegExp(`id="card-${JOB}-en_route" aria-disabled="false"`), "a queued clock-in counts at once");
 });
 
-test("clocked in with the last job finished — off the list, or completed on this device — Today offers Clock out", async () => {
+test("a job already under way with the clock stopped is not a dead end: Clock in is offered and lifts the gate", async () => {
+  const { app } = await ready({ now: NOW, jobs: [{ ...job, state: "en_route" }], punches: [], syncHandler: down });
+  render(app.view()); await settle(); await settle(); render(app.view()); await settle();
+  let out = render(app.view());
+  assert.match(out, /id="clock-in"/);
+  assert.match(out, new RegExp(`id="card-${JOB}-on_site" aria-disabled="true"`));
+  click(app.view(), "clock-in"); await settle();
+  out = render(app.view());
+  assert.match(out, new RegExp(`id="card-${JOB}-on_site" aria-disabled="false"`));
+});
+
+test("clocked in with every job finished or on hold — off the list, completed on this device, or waiting on parts — Today offers Clock out", async () => {
   const punches = [{ id: "p1", kind: "in" as const, at: "2026-10-27T13:00:00Z" }];
   const empty = await ready({ now: NOW, jobs: [], punches });
   render(empty.app.view()); await settle(); await settle(); render(empty.app.view()); await settle();
@@ -530,6 +555,10 @@ test("clocked in with the last job finished — off the list, or completed on th
   p.queue.enqueue("jobs", JOB, "transition", { state: "complete" }, job.version);
   out = render(app.view());
   assert.match(out, /id="clock-out"/, "a completion still waiting to sync counts");
+
+  const held = await ready({ now: NOW, jobs: [{ ...job, state: "awaiting_parts" }], punches });
+  render(held.app.view()); await settle(); await settle(); render(held.app.view()); await settle();
+  assert.match(render(held.app.view()), /id="clock-out"/, "a job waiting on parts does not keep the crew on the clock");
 });
 
 test("the timesheet lists the week's punches by day with each day's total and the week's, and a running span says so", async () => {

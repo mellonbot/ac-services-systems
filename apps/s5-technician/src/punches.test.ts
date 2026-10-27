@@ -24,13 +24,14 @@ test("a punch queued on the device counts before the server has it, in time orde
   assert.deepEqual(merged.map((x) => [x.kind, x.queued]), [["in", false], ["out", true]]);
 });
 
-test("clock in only before the first job starts; clock out only once the last job is finished", () => {
-  assert.equal(clockAction(false, []), "in", "no jobs yet is before the first job");
-  assert.equal(clockAction(false, ["assigned", "assigned"]), "in");
-  assert.equal(clockAction(false, ["en_route", "assigned"]), null, "a job under way closes clock-in");
-  assert.equal(clockAction(true, ["complete", "in_progress"]), null, "a job still open keeps clock-out closed");
-  assert.equal(clockAction(true, ["awaiting_parts"]), null, "a job on hold is not finished");
-  assert.equal(clockAction(true, ["complete", "aborted"]), "out");
+test("clock in whenever the clock is stopped; clock out once every job is finished or on hold", () => {
+  assert.equal(clockAction(false, []), "in", "no jobs yet");
+  assert.equal(clockAction(false, ["assigned", "assigned"]), "in", "before the first job");
+  assert.equal(clockAction(false, ["awaiting_parts", "assigned"]), "in", "back on the clock to resume a held job");
+  assert.equal(clockAction(false, ["en_route"]), "in", "a job moved before the gate, or by the office, is never a dead end");
+  assert.equal(clockAction(true, ["complete", "in_progress"]), null, "a job still under way keeps clock-out closed");
+  assert.equal(clockAction(true, ["assigned"]), null, "a job not yet started keeps clock-out closed");
+  assert.equal(clockAction(true, ["awaiting_parts", "awaiting_customer", "complete"]), "out", "on hold lets the crew clock out");
   assert.equal(clockAction(true, []), "out", "finished work has left the list");
 });
 

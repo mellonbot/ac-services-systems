@@ -3,7 +3,7 @@ import { serviceLabel } from "../../../../packages/contracts/src/index.ts";
 import type { FieldJobWire, JobPriority } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { nextDeviceStates, projectedJob } from "../offline.ts";
-import { shiftClock } from "./timesheet.ts";
+import { shiftClock, shiftRunning, CLOCK_IN_FIRST } from "./timesheet.ts";
 import { whenReady, linkTo, flushQueue, ACTION_LABEL, stateText, addressLine, directionsHref, telHref, windowText, type Screen, type ScreenContext } from "./common.ts";
 
 /**
@@ -56,7 +56,7 @@ const card = (ctx: ScreenContext, j: FieldJobWire, current: boolean): VNode => {
     <div class="s5-card__actions">
       ${directions ? html`<a class="ac-action s5-link--action" data-kind="quiet" data-density=${ctx.density} href=${directions} target="_blank" rel="noopener">Directions</a>` : null}
       ${contact?.phone ? html`<a class="ac-action s5-link--action" data-kind="quiet" data-density=${ctx.density} href=${telHref(contact.phone)} aria-label=${`Call ${contact.name}`}>Call</a>` : null}
-      ${to ? PrimaryAction({ density: ctx.density, label: ACTION_LABEL[to] ?? stateText(to), id: `card-${j.id}-${to}`, onClick: move }) : null}
+      ${to ? PrimaryAction({ density: ctx.density, label: ACTION_LABEL[to] ?? stateText(to), id: `card-${j.id}-${to}`, onClick: move, ...(shiftRunning(ctx) === false ? { disabledReason: CLOCK_IN_FIRST } : {}) }) : null}
     </div>
   </li>`;
 };

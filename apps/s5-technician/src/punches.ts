@@ -63,16 +63,17 @@ export const hoursText = (ms: number): string => {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 };
 
-const NOT_STARTED = ["created", "assigned", "reassigned"];
-const FINISHED = ["complete", "aborted", "cancelled"];
+const DONE_FOR_NOW = ["complete", "aborted", "cancelled", "awaiting_parts", "awaiting_customer"];
 /**
  * Which punch the shift clock offers, from whether it is running and where
  * this shift's jobs stand (their states with the device's queued moves
- * applied). Partner rule, 2026-10-27: clocking in is offered only before the
- * first job starts, and clocking out only once the last job is finished — a
- * job on hold (waiting on parts, on the customer) is not finished.
+ * applied). Partner rules, 2026-10-27: no job moves until the clock is in
+ * (the screens gate every move on it), and clocking out is offered once
+ * every job is finished or on hold — waiting on parts or on the customer
+ * lets the crew clock out. Clocking in is offered whenever the clock is
+ * stopped: the gate means a job can only get under way with it running, so
+ * a stopped clock with work under way is a job moved before this rule or by
+ * the office, and hiding Clock in there would leave a crew with no move at all.
  */
 export const clockAction = (running: boolean, jobStates: readonly string[]): "in" | "out" | null =>
-  running
-    ? (jobStates.every((s) => FINISHED.includes(s)) ? "out" : null)
-    : (jobStates.every((s) => NOT_STARTED.includes(s)) ? "in" : null);
+  !running ? "in" : jobStates.every((s) => DONE_FOR_NOW.includes(s)) ? "out" : null;

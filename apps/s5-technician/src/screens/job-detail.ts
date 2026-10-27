@@ -4,6 +4,7 @@ import { keyOf } from "../state.ts";
 import { nextDeviceStates, projectedJob } from "../offline.ts";
 import { whenReady, flushQueue, ACTION_LABEL, stateText, addressLine, directionsHref, telHref, windowText, type Screen } from "./common.ts";
 import { forwardState } from "./job-list.ts";
+import { shiftRunning, CLOCK_IN_FIRST } from "./timesheet.ts";
 
 /**
  * A small, fixed checklist. Nothing in the schema names a per-service-code
@@ -92,6 +93,8 @@ export const jobDetail: Screen = (ctx, params) => {
     const where = addressLine(job.site?.address ?? null);
     const directions = directionsHref(job.site);
     const contact = job.site?.contact ?? null;
+    // Partner rule, 2026-10-27: no job moves until the shift clock is in.
+    const clockedOut = shiftRunning(ctx) === false;
     const forward = forwardState(projected.state) ?? (projected.state === "in_progress" ? "complete" : null);
 
     return html`<section class="s5-job">
@@ -111,7 +114,7 @@ export const jobDetail: Screen = (ctx, params) => {
       </div>`)}
 
       ${panel(html`<div class="s5-actions">
-        ${nextDeviceStates(projected.state).map((to) => PrimaryAction({ density: ctx.density, label: ACTION_LABEL[to] ?? stateText(to), id: `to-${to}`, onClick: () => transition(to), kind: to === forward ? "primary" : "quiet" }))}
+        ${nextDeviceStates(projected.state).map((to) => PrimaryAction({ density: ctx.density, label: ACTION_LABEL[to] ?? stateText(to), id: `to-${to}`, onClick: () => transition(to), kind: to === forward ? "primary" : "quiet", ...(clockedOut ? { disabledReason: CLOCK_IN_FIRST } : {}) }))}
         ${nextDeviceStates(projected.state).length === 0 ? html`<p class="s5-muted">No further state change is this shift's to make from here.</p>` : null}
       </div>`, "Move job to")}
 

@@ -5,12 +5,30 @@ import { projectedJob } from "../offline.ts";
 import { mergedPunches, spansOf, runningSince, spanMs, weekOf, daysOf, hoursText, clockAction, type Span } from "../punches.ts";
 import { whenReady, flushQueue, type Screen, type ScreenContext } from "./common.ts";
 
-/** This week's punches — one read the clock panel and the timesheet share. */
+/**
+ * This week's punches — one read the clock panel, the timesheet and the job
+ * gate share. It starts a day before Monday, so a shift clocked in on Sunday
+ * night is still running on Monday morning; the timesheet's days only count
+ * spans that started inside the week.
+ */
 const weekPunches = (ctx: ScreenContext): Resource<MyPunchesOutput> => {
   const week = weekOf(ctx.now);
-  const input = { from: week.from.toISOString(), to: week.to.toISOString() };
+  const from = new Date(week.from.getFullYear(), week.from.getMonth(), week.from.getDate() - 1);
+  const input = { from: from.toISOString(), to: week.to.toISOString() };
   return ctx.store.read(keyOf("punches.mine", input), () => ctx.shell.gateway.myPunches(input)).value;
 };
+
+/**
+ * Whether the shift clock is running, with this device's queued punches
+ * counted; null while the punches are not in hand. Partner rule, 2026-10-27:
+ * a job does not move until the clock is in. Null does not gate — a tablet
+ * that cannot reach the gateway still has to be able to work.
+ */
+export const shiftRunning = (ctx: ScreenContext): boolean | null => {
+  const r = weekPunches(ctx);
+  return r.state === "ready" ? runningSince(spansOf(mergedPunches(r.value.punches, ctx.queue.pending.value))) !== null : null;
+};
+export const CLOCK_IN_FIRST = "Clock in first — the shift clock is at the top of Today.";
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const isToday = (d: Date, now: number) => d.toDateString() === new Date(now).toDateString();
@@ -40,8 +58,7 @@ export const shiftClock = (ctx: ScreenContext, jobs: readonly FieldJobWire[]): V
         : last?.end ? html`Out at <span class="ac-num">${time(last.end)}</span>` : "Not clocked in today"}${queued ? " — waiting to sync" : ""}</p>
       ${action === "in" ? PrimaryAction({ density: ctx.density, label: "Clock in", id: "clock-in", onClick: () => punch("in") }) : null}
       ${action === "out" ? PrimaryAction({ density: ctx.density, label: "Clock out", id: "clock-out", onClick: () => punch("out"), kind: "quiet" }) : null}
-      ${action === null && since ? html`<p class="s5-muted" id="clock-out-closed">Clock out opens when the last job is complete.</p>` : null}
-      ${action === null && !since && jobs.length > 0 && !last ? html`<p class="s5-muted" id="clock-in-closed">Clock in closes once the first job starts — ask the office to record your start.</p>` : null}
+      ${action === null && since ? html`<p class="s5-muted" id="clock-out-closed">Clock out opens when every job is complete or on hold.</p>` : null}
     </div>`, "Shift clock");
   });
 
