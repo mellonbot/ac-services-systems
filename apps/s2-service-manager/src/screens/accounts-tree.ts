@@ -186,8 +186,8 @@ export const accountsTree: Screen = (ctx, params) => {
         { key: "customerGroup", header: "Customer group", cell: (n: AccountWire) => n.customerGroup ?? "—" },
         { key: "active", header: "Status", cell: (n: AccountWire) => html`<span class="s2-state" data-tone=${n.active ? "live" : "ended"}>${n.active ? "Active" : "Inactive"}</span>` },
         { key: "actions", header: "", align: "end", cell: (n: AccountWire) => html`<span class="s2-row-actions">
-            ${childTier(n.tier) ? linkTo(ctx, "accounts.new", { orgId: orgId!, tier: childTier(n.tier)!, parentId: n.id }, `+ ${childTier(n.tier)}`) : null}
-            ${n.tier !== "region" ? linkTo(ctx, "accounts.move", { orgId: orgId!, id: n.id }, "Move") : null}
+            ${childTier(n.tier) ? linkTo(ctx, "accounts.new", { orgId: orgId!, tier: childTier(n.tier)!, parentId: n.id }, `+ ${childTier(n.tier)}`, undefined, `Add a ${childTier(n.tier)} under ${n.name}`) : null}
+            ${n.tier !== "region" ? linkTo(ctx, "accounts.move", { orgId: orgId!, id: n.id }, "Move", undefined, `Move ${n.name}`) : null}
           </span>` },
       ],
       rows: ordered,

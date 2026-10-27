@@ -96,7 +96,7 @@ export const networkCrewDocuments: Screen = (ctx, params) => {
           cell: (c: CredentialWire) => c.verifiedAt
             ? html`<small class="s2-muted">verified — a correction is a new document</small>`
             : html`<div class="s2-row-actions">
-              <button type="button" class="s2-mutation" id=${`verify-${c.id}`} aria-expanded=${outcome.value.confirming === c.id} aria-controls=${outcome.value.confirming === c.id ? `confirm-credential-${c.id}` : undefined} disabled=${ctx.degraded || Boolean(outcome.value.busy) || Boolean(outcome.value.confirming)} onClick=${() => { outcome.value = { ...outcome.value, confirming: c.id }; }}>Verify</button>
+              <button type="button" class="s2-mutation" id=${`verify-${c.id}`} aria-label=${`Verify the ${c.kind.replace(/_/g, " ")} document`} aria-expanded=${outcome.value.confirming === c.id} aria-controls=${outcome.value.confirming === c.id ? `confirm-credential-${c.id}` : undefined} disabled=${ctx.degraded || Boolean(outcome.value.busy) || Boolean(outcome.value.confirming)} onClick=${() => { outcome.value = { ...outcome.value, confirming: c.id }; }}>Verify</button>
               ${outcome.value.confirming === c.id ? confirmPanel({
                 id: `confirm-credential-${c.id}`,
                 title: "Verify this document?",

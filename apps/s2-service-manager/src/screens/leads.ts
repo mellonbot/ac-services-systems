@@ -64,7 +64,7 @@ export const leads: Screen = (ctx) => {
     { key: "source", header: "Came from", cell: (l) => l.source },
     { key: "status", header: "", cell: (l) => l.convertedAccountId
       ? html`<span class="s2-muted">Converted</span>`
-      : html`<button type="button" class="ac-link ac-link--button" id=${`convert-${l.id}`} disabled=${ctx.degraded}
+      : html`<button type="button" class="ac-link ac-link--button" id=${`convert-${l.id}`} aria-label=${`Convert ${l.contact.name}`} disabled=${ctx.degraded}
           onClick=${() => { converting.value = { leadId: l.id, busy: false, refusal: null }; }}>Convert</button>` },
   ];
 

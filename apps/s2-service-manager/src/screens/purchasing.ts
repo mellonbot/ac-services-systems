@@ -208,8 +208,8 @@ export const purchasingVendor: Screen = (ctx, params) => {
             return html`<div class="s2-proposal">
               <div class="s2-row-actions">
                 <span>${money(p.priceMinor, p.currency)} from ${p.effectiveFrom}</span>
-                <button type="button" class="s2-mutation" aria-expanded=${isPending && pending.decision === "accepted"} aria-controls=${isPending ? `confirm-price-${p.id}` : undefined} disabled=${ctx.degraded || outcome.value.busy || Boolean(pending && pending.owner === vendorId)} onClick=${() => choose("accepted")}>Accept</button>
-                <button type="button" class="s2-mutation s2-mutation--danger" aria-expanded=${isPending && pending.decision === "rejected"} aria-controls=${isPending ? `confirm-price-${p.id}` : undefined} disabled=${ctx.degraded || outcome.value.busy || Boolean(pending && pending.owner === vendorId)} onClick=${() => choose("rejected")}>Reject</button>
+                <button type="button" class="s2-mutation" aria-label=${`Accept ${money(p.priceMinor, p.currency)} for ${r.vendorSku}`} aria-expanded=${isPending && pending.decision === "accepted"} aria-controls=${isPending ? `confirm-price-${p.id}` : undefined} disabled=${ctx.degraded || outcome.value.busy || Boolean(pending && pending.owner === vendorId)} onClick=${() => choose("accepted")}>Accept</button>
+                <button type="button" class="s2-mutation s2-mutation--danger" aria-label=${`Reject ${money(p.priceMinor, p.currency)} for ${r.vendorSku}`} aria-expanded=${isPending && pending.decision === "rejected"} aria-controls=${isPending ? `confirm-price-${p.id}` : undefined} disabled=${ctx.degraded || outcome.value.busy || Boolean(pending && pending.owner === vendorId)} onClick=${() => choose("rejected")}>Reject</button>
               </div>
               ${isPending ? confirmPanel({
                 id: `confirm-price-${p.id}`,

@@ -549,3 +549,14 @@ test("a required choice with nothing to choose says so where the select would be
   assert.match(out, /id="move" aria-disabled="true"/);
   assert.match(out, /class="ac-action__reason" role="note">There is no other location to move under\./);
 });
+
+test("a row's actions are named for the row, so a screen reader's list of them is not 'Move, Move, Move'", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("accounts.tree", { orgId: ORG });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const out = render(app.view());
+  assert.match(out, /aria-label="Move Rooftop units"/);
+  assert.match(out, /aria-label="Add a site under Amped Austin"/);
+});

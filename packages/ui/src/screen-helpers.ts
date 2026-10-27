@@ -7,8 +7,10 @@ export const linkTo = <S extends Record<string, ScreenSpec>, K extends keyof S &
   params: Params,
   label: string,
   cls = "ac-link",
+  /** The name a screen reader hears, when the visible label repeats row to row ("Move", "Edit"). */
+  ariaLabel?: string,
 ): VNode =>
-  html`<a class=${cls} href=${ctx.router.href(screen, params)} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;
+  html`<a class=${cls} href=${ctx.router.href(screen, params)} aria-label=${ariaLabel} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate(screen, params); }}>${label}</a>`;
 
 export const formValues = (form: HTMLFormElement): Record<string, string> => {
   const values: Record<string, string> = {};

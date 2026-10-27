@@ -40,7 +40,7 @@ export const technicianPanel = (ctx: ScreenContext, firmId: string | null): VNod
       { key: "phone", header: "Phone", cell: (x: TechnicianWire) => x.phone ? html`<a class="ac-link" href=${`tel:${x.phone.replace(/[^\d+]/g, "")}`}><span class="s2-num">${x.phone}</span></a>` : html`<span class="s2-muted">—</span>` },
       { key: "specialties", header: "Specialty", cell: (x: TechnicianWire) => x.specialties.length ? x.specialties.map((s) => SPECIALTY_WORD[s]).join(", ") : html`<span class="s2-muted">none recorded</span>` },
       { key: "crewId", header: "Crew", cell: (x: TechnicianWire) => crewLabel(x.crewId) },
-      { key: "actions", header: "", align: "end", cell: (x: TechnicianWire) => linkTo(ctx, "network.technician.edit", { technicianId: x.id }, "Edit") },
+      { key: "actions", header: "", align: "end", cell: (x: TechnicianWire) => linkTo(ctx, "network.technician.edit", { technicianId: x.id }, "Edit", undefined, `Edit ${x.name}`) },
     ],
     rows: t.technicians.filter((x) => x.firmId === firmId),
     rowKey: (x: TechnicianWire) => x.id,

@@ -89,7 +89,7 @@ export const contractsList: Screen = (ctx, params) => {
               ${NEXT[c.state].map((to) => {
                 const label = to === "active" ? "Activate" : to === "expired" ? "Expire" : "Terminate";
                 const pending = outcome.value.pending?.id === c.id && outcome.value.pending.to === to;
-                return html`<button type="button" class="s2-mutation${to === "terminated" || to === "expired" ? " s2-mutation--danger" : ""}" aria-expanded=${pending} aria-controls=${pending ? `confirm-contract-${c.id}` : undefined} disabled=${ctx.degraded || Boolean(outcome.value.busy) || outcome.value.pending !== null} onClick=${() => { outcome.value = { ...outcome.value, pending: { id: c.id, to } }; }}>${label}</button>
+                return html`<button type="button" class="s2-mutation${to === "terminated" || to === "expired" ? " s2-mutation--danger" : ""}" aria-label=${`${label} the ${c.kind.replace(/_/g, " ")} agreement from ${c.effectiveFrom}`} aria-expanded=${pending} aria-controls=${pending ? `confirm-contract-${c.id}` : undefined} disabled=${ctx.degraded || Boolean(outcome.value.busy) || outcome.value.pending !== null} onClick=${() => { outcome.value = { ...outcome.value, pending: { id: c.id, to } }; }}>${label}</button>
                   ${pending ? confirmPanel({
                     id: `confirm-contract-${c.id}`,
                     title: `${label} this agreement?`,
@@ -102,7 +102,6 @@ export const contractsList: Screen = (ctx, params) => {
                     onCancel: () => { outcome.value = { ...outcome.value, pending: null }; },
                   }) : null}`;
               })}
-              ${linkTo(ctx, "terms.override", { orgId: orgId! }, "Overrides")}
             </span>`,
           },
         ],
