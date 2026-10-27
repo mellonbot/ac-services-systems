@@ -142,7 +142,8 @@ export const projects: Screen = (ctx, params) => {
   const submit = async (e: Event) => {
     e.preventDefault();
     if (ctx.degraded || form.value.busy) return;
-    const v = formValues(e.currentTarget as HTMLFormElement);
+    const formEl = e.currentTarget as HTMLFormElement;
+    const v = formValues(formEl);
     form.value = { refusal: null, busy: true };
     try {
       await shell.gateway.createProject({
@@ -152,7 +153,7 @@ export const projects: Screen = (ctx, params) => {
       store.invalidate(keyOf("projects.list", {}));
       store.notice.value = [`${v.name} recorded. Install work can now be opened under it.`];
       form.value = { refusal: null, busy: false };
-      (e.currentTarget as HTMLFormElement).reset();
+      formEl.reset();
     } catch (err) {
       form.value = { refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: false };
     }
