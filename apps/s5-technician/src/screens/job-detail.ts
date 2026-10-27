@@ -1,8 +1,9 @@
 import { html, pageHead, panel, PrimaryAction, StatusPill, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { FieldJobWire } from "../../../../packages/contracts/src/index.ts";
+import { serviceLabel, type FieldJobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { nextDeviceStates, projectedJob } from "../offline.ts";
-import { whenReady, type Screen } from "./common.ts";
+import { whenReady, flushQueue, ACTION_LABEL, stateText, addressLine, directionsHref, telHref, windowText, type Screen } from "./common.ts";
+import { forwardState } from "./job-list.ts";
 
 /**
  * A small, fixed checklist. Nothing in the schema names a per-service-code
@@ -40,17 +41,19 @@ export const jobDetail: Screen = (ctx, params) => {
   const jobsKey = keyOf("jobs.mine");
   const jobs = ctx.store.read(jobsKey, () => ctx.shell.gateway.myJobs());
 
-  const flush = () => {
-    void ctx.queue.flush((mutations) =>
-      ctx.shell.gateway.replaySync({ orgId: ctx.shell.principal.orgId, regionId: ctx.shell.principal.regionId, mutations }),
-    ).then((answered) => { if (answered) ctx.store.invalidate("jobs.mine"); });
-  };
+  const flush = () => flushQueue(ctx);
 
   const renderForJob = (out: { jobs: readonly FieldJobWire[] }): VNode => {
     const job = out.jobs.find((j) => j.id === jobId);
     if (!job) return html`<p class="s5-empty">Job ${jobId} is not on this shift's board.</p>`;
 
     const projected = projectedJob(job, ctx.queue.pending.value);
+    // Done is what the server holds plus what this device has queued — a tick stays ticked in a dead zone.
+    const done = new Set([
+      ...job.checklistDone,
+      ...ctx.queue.pending.value.filter((p) => p.mutation.entityTable === "checklist_items" && p.mutation.entityId === job.id).map((p) => String(p.mutation.payload.item_key)),
+    ]);
+    const queuedDone = (key: string) => !job.checklistDone.includes(key);
     const markDone = (key: string) => { ctx.queue.enqueue("checklist_items", job.id, "insert", { item_key: key, response: { done: true, at: new Date().toISOString() } }, null); flush(); };
 
     const runningSince = ctx.clock.value[job.id];
@@ -86,10 +89,20 @@ export const jobDetail: Screen = (ctx, params) => {
     const jobAttention = ctx.queue.attention.value.filter((a) => a.entityId === job.id);
     const jobPending = ctx.queue.pending.value.filter((p) => p.mutation.entityId === job.id).length;
 
+    const where = addressLine(job.site?.address ?? null);
+    const directions = directionsHref(job.site);
+    const contact = job.site?.contact ?? null;
+    const forward = forwardState(projected.state) ?? (projected.state === "in_progress" ? "complete" : null);
+
     return html`<section class="s5-job">
-      ${pageHead(job.serviceCode, "Move the job on, work the checklist, run the time clock and log the parts used — every tap is saved on this device first.")}
-      ${panel(html`<p class="s5-job__state">State: <strong>${projected.state.replace(/_/g, " ")}</strong>${projected.queued > 0 ? html` (queued — last synced: ${job.state.replace(/_/g, " ")})` : null} · Priority: ${job.priority}</p>
-        <p class="s5-job__window"><span class="ac-num">${new Date(job.serviceWindowStart).toLocaleString()}</span> → <span class="ac-num">${new Date(job.serviceWindowEnd).toLocaleString()}</span></p>`)}
+      ${pageHead(`${job.site?.name ?? "Site not on record"} — ${serviceLabel(job.serviceCode)}`, where || "Move the job on, work the checklist, run the time clock and log the parts used — every tap is saved on this device first.")}
+      ${panel(html`<p class="s5-job__state">State: <strong>${stateText(projected.state)}</strong>${projected.queued > 0 ? html` (queued — last synced: ${stateText(job.state)})` : null} · Priority: ${job.priority}${job.jobNo ? html` · <span class="ac-num">${job.jobNo}</span>` : null}</p>
+        <p class="s5-job__window ac-num s5-nowrap">${windowText(job.serviceWindowStart, job.serviceWindowEnd, Date.now())}</p>
+        ${contact ? html`<p class="s5-job__contact">Site contact: ${contact.name}${contact.phone ? html` · <span class="ac-num s5-nowrap">${contact.phone}</span>` : null}</p>` : null}
+        <div class="s5-actions">
+          ${directions ? html`<a class="ac-action s5-link--action" data-kind="quiet" data-density=${ctx.density} href=${directions} target="_blank" rel="noopener">Directions</a>` : null}
+          ${contact?.phone ? html`<a class="ac-action s5-link--action" data-kind="quiet" data-density=${ctx.density} href=${telHref(contact.phone)} aria-label=${`Call ${contact.name}`}>Call</a>` : null}
+        </div>`)}
       ${jobPending > 0 ? html`<p class="ac-notice" data-tone="at_risk" role="status"><span class="ac-num">${jobPending}</span> change${jobPending === 1 ? "" : "s"} waiting to sync${ctx.degraded ? " — offline" : ""}.</p>` : null}
       ${jobAttention.map((a) => html`<div class="s5-attention" role="alert" key=${a.mutationId}>
         ${StatusPill({ density: ctx.density, status: "blocked", label: a.kind.replace(/_/g, " ") })}
@@ -98,12 +111,17 @@ export const jobDetail: Screen = (ctx, params) => {
       </div>`)}
 
       ${panel(html`<div class="s5-actions">
-        ${nextDeviceStates(projected.state).map((to) => PrimaryAction({ density: ctx.density, label: to.replace(/_/g, " "), id: `to-${to}`, onClick: () => transition(to) }))}
+        ${nextDeviceStates(projected.state).map((to) => PrimaryAction({ density: ctx.density, label: ACTION_LABEL[to] ?? stateText(to), id: `to-${to}`, onClick: () => transition(to), kind: to === forward ? "primary" : "quiet" }))}
         ${nextDeviceStates(projected.state).length === 0 ? html`<p class="s5-muted">No further state change is this shift's to make from here.</p>` : null}
       </div>`, "Move job to")}
 
       ${panel(html`<ul class="s5-checklist">
-        ${CHECKLIST.map((c) => html`<li key=${c.key}>${PrimaryAction({ density: ctx.density, label: c.label, id: `check-${c.key}`, onClick: () => markDone(c.key) })}</li>`)}
+        ${CHECKLIST.map((c) => html`<li class="s5-check" key=${c.key} data-done=${done.has(c.key) ? "true" : "false"}>
+          <span class="s5-check__label">${c.label}</span>
+          ${done.has(c.key)
+            ? html`<span class="s5-check__done" id=${`done-${c.key}`}><span aria-hidden="true">■</span> Done${queuedDone(c.key) ? " — waiting to sync" : ""}</span>`
+            : PrimaryAction({ density: ctx.density, label: "Mark done", id: `check-${c.key}`, onClick: () => markDone(c.key), kind: "quiet", ariaLabel: `Mark done: ${c.label}` })}
+        </li>`)}
       </ul>`, "Checklist")}
 
       ${panel(html`<p class="s5-job__clock">${runningSince ? html`Running since <span class="ac-num">${new Date(runningSince).toLocaleTimeString()}</span>` : "Not running"}</p>

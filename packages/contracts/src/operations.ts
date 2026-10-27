@@ -513,7 +513,7 @@ export const OPERATIONS = {
   "jobs.mine": {
     id: "jobs.mine", method: "GET", path: "/s5/jobs/mine", kind: "query", auth: "bearer",
     surfaces: ["S5"], carrier: "none", sdkMethod: "myJobs",
-    summary: "Jobs assigned to this shift's crew, unreleased and still open — finished, cancelled or aborted work drops off (FIELD_CLOSED_STATES). The field layer's own read — no employment shape, no compliance detail, no other crew's board.",
+    summary: "Jobs assigned to this shift's crew, unreleased and still open — finished, cancelled or aborted work drops off (FIELD_CLOSED_STATES). Each carries what a crew needs at the curb — the job number, the site's name, address and primary contact — and the checklist items already done. The field layer's own read — no employment shape, no compliance detail, no other crew's board.",
   },
   "sync.replay": {
     id: "sync.replay", method: "POST", path: "/s5/sync", kind: "mutation", auth: "bearer",
@@ -1693,9 +1693,19 @@ export type ManagerOverviewOutput = {
 };
 
 /** S5's own read. No employment shape, no compliance detail — the field layer never sees either (09 §3.10, non-negotiable #9). */
+/** The site as a crew needs it at the curb: what it is called, where it is, and who answers the phone there. */
+export type FieldSiteWire = {
+  readonly name: string; readonly address: AddressWire | null;
+  /** The site's primary active contact, else its oldest active one; null when the site has none. */
+  readonly contact: { readonly name: string; readonly phone: string | null } | null;
+};
 export type FieldJobWire = {
-  readonly id: string; readonly siteId: string; readonly serviceCode: string; readonly priority: JobPriority; readonly state: JobStateWire;
+  /** Null only if row security hides the site from the device — the job stays on the list either way. */
+  readonly id: string; readonly jobNo: string | null; readonly siteId: string; readonly site: FieldSiteWire | null;
+  readonly serviceCode: string; readonly priority: JobPriority; readonly state: JobStateWire;
   readonly serviceWindowStart: string; readonly serviceWindowEnd: string; readonly version: number;
+  /** The checklist item keys the server holds as done — what a device shows ticked before anything of its own is queued. */
+  readonly checklistDone: readonly string[];
 };
 export type MyJobsOutput = { readonly jobs: readonly FieldJobWire[] };
 

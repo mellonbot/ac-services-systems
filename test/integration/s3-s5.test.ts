@@ -368,6 +368,30 @@ test("jobs.mine: the technician sees the job assigned to their crew and nothing 
   assert.equal(j.state, "assigned");
   assert.equal(j.siteId, site);
   assert.equal("currentCrewId" in j, false, "the field shape carries no other crew's board, no employment shape, no compliance detail");
+  assert.equal(j.jobNo, (await admin(`SELECT job_no FROM jobs WHERE id = $1`, [jobId]))[0]!.job_no, "the number dispatch reads aloud");
+  assert.equal(j.site?.name, `Austin — Roof ${RUN}`, "the site the device reads through 0023's rule, not one it was handed");
+  assert.equal(j.site?.contact, null, "no contact on record yet");
+  assert.deepEqual(j.checklistDone, []);
+
+  // What a crew needs at the curb, as recorded: the address, the primary active contact over an older and an inactive one, and a checklist item already done.
+  const address = { line1: "100 Congress Ave", city: "Austin", state: "TX", postal: "78701" };
+  await admin(`UPDATE accounts SET address = $2 WHERE id = $1`, [site, address]);
+  await admin(
+    `INSERT INTO account_contacts (org_id, region_id, account_id, name, phone, is_primary, active, created_at)
+     VALUES ($1, $2, $3, 'Older Contact', '512-555-0100', false, true, now() - interval '1 day'),
+            ($1, $2, $3, 'Gone Contact', '512-555-0101', true, false, now() - interval '2 days'),
+            ($1, $2, $3, 'Primary Contact', '512-555-0102', true, true, now())`,
+    [orgId, REGION_SOUTH, site],
+  );
+  await admin(
+    `INSERT INTO checklist_items (org_id, region_id, job_id, item_key, response, answered_at, answered_by)
+     VALUES ($1, $2, $3, 'ppe_donned', '{"done": true}', now(), gen_random_uuid()), ($1, $2, $3, 'not_yet', '{"done": false}', now(), gen_random_uuid())`,
+    [orgId, REGION_SOUTH, jobId],
+  );
+  const curb = (await s5.gateway.myJobs()).jobs[0]!;
+  assert.deepEqual(curb.site?.address, address);
+  assert.deepEqual(curb.site?.contact, { name: "Primary Contact", phone: "512-555-0102" }, "the primary active contact — never an inactive one, even one marked primary");
+  assert.deepEqual(curb.checklistDone, ["ppe_donned"], "only items answered done");
   await assert.rejects(s5.gateway.listJobs({}), (e: unknown) => refusal(s5, e).kind === "scope");
   await assert.rejects(s5.gateway.candidateCrews({ jobId, orgId, regionId: REGION_SOUTH }), (e: unknown) => refusal(s5, e).kind === "scope");
   // The other crew's technician holds no grant on this device — and their crew has no job. Nothing to see, correctly.

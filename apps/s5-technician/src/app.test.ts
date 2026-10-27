@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { renderToString as render } from "../../../packages/ui/src/testing.ts";
 import { createApp, SCREEN_VIEWS } from "./app.ts";
 import { SCREENS } from "./screens.ts";
-import { priorityStatus } from "./screens/job-list.ts";
+import { priorityStatus, forwardState } from "./screens/job-list.ts";
 import { CHECKLIST, PART_SOURCES } from "./screens/job-detail.ts";
 import { nextDeviceStates, JOB_TRANSITIONS, DEVICE_TRANSITIONS, queueKey, type QueueStore } from "./offline.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
@@ -33,8 +33,9 @@ const deviceContext: HierarchyContext = {
 };
 
 const job: FieldJobWire = {
-  id: JOB, siteId: U(9), serviceCode: "HVAC-REPAIR", priority: "urgent", state: "assigned",
-  serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T17:00:00.000Z", version: 3,
+  id: JOB, jobNo: "SOUTH-2609-1417-3", siteId: U(9), serviceCode: "HVAC-REPAIR", priority: "urgent", state: "assigned",
+  site: { name: "Shipman Co", address: { line1: "100 McLanahan Ln", city: "Crowley", state: "TX", postal: "76036" }, contact: { name: "Dana Ruiz", phone: "(817) 555-0142" } },
+  serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T17:00:00.000Z", version: 3, checklistDone: [],
 };
 
 type Reply = { status: number; body: unknown };
@@ -148,6 +149,66 @@ test("a device login carries the crew onto the screen — never onto the princip
   assert.match(out, /Crew A1/);
   assert.match(out, /Repair/);
   assert.match(out, new RegExp(`href="/jobs/${JOB}"`));
+});
+
+test("a Today card carries what a crew needs at the curb: the site, its address, the way there, who to call and the next move", async () => {
+  const { app } = await ready();
+  render(app.view()); await settle(); await settle();
+  const out = render(app.view());
+  assert.match(out, /Shipman Co — /, "the site's name leads the title, not the service code");
+  assert.match(out, /100 McLanahan Ln, Crowley, TX 76036/);
+  assert.match(out, /href="https:\/\/www\.google\.com\/maps\/dir\/\?api=1&amp;destination=100%20McLanahan%20Ln%2C%20Crowley%2C%20TX%2076036"/);
+  assert.match(out, /href="tel:8175550142"/, "the phone is dialable — formatting stripped");
+  assert.match(out, /aria-label="Call Dana Ruiz"/);
+  assert.match(out, /SOUTH-2609-1417-3/);
+  assert.match(out, /data-current="true"/, "the only job is the current one");
+  assert.match(out, new RegExp(`id="card-${JOB}-en_route"[^>]*>Head out<`));
+});
+
+test("a card's move is one step forward and never a wrap-up: completing and aborting live on the job detail", () => {
+  assert.equal(forwardState("assigned"), "en_route");
+  assert.equal(forwardState("on_site"), "in_progress");
+  assert.equal(forwardState("awaiting_parts"), "in_progress");
+  assert.equal(forwardState("in_progress"), null);
+  assert.equal(forwardState("complete"), null);
+});
+
+test("a card's move queues the transition against the job's version, and the card moves on before the gateway answers", async () => {
+  const { app } = await ready({ syncHandler: () => ({ status: 503, body: { error: "Unavailable", message: "down" } }) });
+  render(app.view()); await settle(); await settle();
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  click(app.view(), `card-${JOB}-en_route`); await settle();
+  const m = p.queue.pending.value.at(-1)!.mutation;
+  assert.deepEqual([m.entityTable, m.op, m.payload.state, m.clientObservedVersion], ["jobs", "transition", "en_route", job.version]);
+  const out = render(app.view());
+  assert.match(out, /en route \(queued\)/);
+  assert.match(out, new RegExp(`id="card-${JOB}-on_site"`));
+});
+
+test("a job whose site the device cannot read stays on the list, named as such, with no directions to nowhere", async () => {
+  const { app } = await ready({ jobs: [{ ...job, site: null }] });
+  render(app.view()); await settle(); await settle();
+  const out = render(app.view());
+  assert.match(out, /Site not on record — /);
+  assert.doesNotMatch(out, />Directions</);
+  assert.doesNotMatch(out, /href="tel:/);
+});
+
+test("the checklist shows done what the server holds and what this device has queued, and offers Mark done only on the rest", async () => {
+  const { app } = await ready({ jobs: [{ ...job, checklistDone: ["ppe_donned"] }], syncHandler: () => ({ status: 503, body: { error: "Unavailable", message: "down" } }) });
+  app.router.navigate("job", { jobId: JOB });
+  render(app.view()); await settle(); await settle();
+  let out = render(app.view());
+  assert.match(out, /id="done-ppe_donned"/);
+  assert.doesNotMatch(out, /id="check-ppe_donned"/, "nothing to tap on an item already done");
+  assert.match(out, /id="check-safety_briefing"/);
+
+  click(app.view(), "check-safety_briefing"); await settle();
+  out = render(app.view());
+  assert.match(out, /id="done-safety_briefing"[^>]*>.*Done — waiting to sync/);
+  assert.doesNotMatch(out, /id="check-safety_briefing"/, "a second tap cannot queue it again");
+  assert.match(out, /id="check-work_verified"/);
 });
 
 test("a bad password renders the gateway's message, not an internal error, and never advances past login", async () => {

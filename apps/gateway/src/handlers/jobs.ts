@@ -236,18 +236,35 @@ export const listJobs = async (uow: UnitOfWork, state?: string): Promise<ListJob
 export const listMyJobs = async (uow: UnitOfWork, shiftId: string): Promise<MyJobsOutput> => {
   const grant = (await uow.tx.query<{ crew_id: string }>(`SELECT crew_id FROM device_grants WHERE id = $1`, [shiftId]))[0];
   if (!grant) throw new InputRefused(`shift grant ${shiftId} is unknown to this gateway`, "unknown_device");
-  const rows = await uow.tx.query<{ id: string; site_id: string; service_code: string; priority: JobPriority; state: JobStateWire; ws: string; we: string; version: number }>(
-    `SELECT j.id, j.site_id, j.service_code, j.priority, j.state,
-            lower(j.service_window) AS ws, upper(j.service_window) AS we, j.version
+  // The site is a LEFT JOIN: a job the crew is sent to stays on its list even
+  // if row security ever hides the site from the device (0023) — a missing
+  // address is a call to dispatch, a missing job is a missed visit.
+  const rows = await uow.tx.query<{
+    id: string; job_no: string | null; site_id: string; site_name: string | null; address: AddressWire | null;
+    contact_name: string | null; contact_phone: string | null;
+    service_code: string; priority: JobPriority; state: JobStateWire; ws: string; we: string; version: number; checklist_done: string[];
+  }>(
+    `SELECT j.id, j.job_no, j.site_id, s.name AS site_name, s.address, c.name AS contact_name, c.phone AS contact_phone,
+            j.service_code, j.priority, j.state,
+            lower(j.service_window) AS ws, upper(j.service_window) AS we, j.version,
+            ARRAY(SELECT ci.item_key FROM checklist_items ci
+                   WHERE ci.job_id = j.id AND ci.response->>'done' = 'true' ORDER BY ci.answered_at) AS checklist_done
        FROM jobs j
        JOIN assignments a ON a.job_id = j.id AND a.released_at IS NULL
+       LEFT JOIN accounts s ON s.id = j.site_id
+       LEFT JOIN LATERAL (
+         SELECT ac.name, ac.phone FROM account_contacts ac
+          WHERE ac.account_id = j.site_id AND ac.active
+          ORDER BY ac.is_primary DESC, ac.created_at LIMIT 1) c ON true
       WHERE a.crew_id = $1 AND j.state <> ALL($2::text[])
       ORDER BY lower(j.service_window)`,
     [grant.crew_id, FIELD_CLOSED_STATES],
   );
   const jobs: FieldJobWire[] = rows.map((r) => ({
-    id: r.id, siteId: r.site_id, serviceCode: r.service_code, priority: r.priority, state: r.state,
-    serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version,
+    id: r.id, jobNo: r.job_no, siteId: r.site_id,
+    site: r.site_name === null ? null : { name: r.site_name, address: r.address, contact: r.contact_name === null ? null : { name: r.contact_name, phone: r.contact_phone } },
+    serviceCode: r.service_code, priority: r.priority, state: r.state,
+    serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version, checklistDone: r.checklist_done,
   }));
   return { jobs };
 };
