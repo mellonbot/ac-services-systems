@@ -1,7 +1,7 @@
 import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import { COOL_CLUB, type AccountWire, type ContractWire, type CreateContractInput, type Refusal, type RegionWire, type Tier } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, refusalView, submitAction, noChoice, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
 /**
  * C2 — record an agreement. The form's whole job is to offer only what the
@@ -72,28 +72,44 @@ export const contractsNew: Screen = (ctx, params) => {
     }
   };
 
+  const scopeNodes = (nodes: readonly AccountWire[]) => nodes.filter((n) => n.tier === f.scopeTier);
+  const activeRegions = (rs: readonly RegionWire[]) => rs.filter((r) => r.active);
+  const amendable = (cs: readonly ContractWire[]) => cs.filter((c) => c.state === "draft" || c.state === "active");
+  // Only once the list is read: while it loads there is nothing yet to say is missing.
+  const blocked =
+    f.scopeTier !== "parent" && tree.value.state === "ready" && scopeNodes(tree.value.value.nodes).length === 0 ? `This customer has no ${f.scopeTier} to bind to.`
+    : f.scopeTier === "parent" && regions.value.state === "ready" && activeRegions(regions.value.value.regions).length === 0 ? "No region of ours is active to administer it from."
+    : f.kind === "amendment" && existing.value.state === "ready" && amendable(existing.value.value.contracts).length === 0 ? "There is no draft or active agreement to amend."
+    : null;
+
   const scopeField = (nodes: readonly AccountWire[]): VNode =>
     f.scopeTier === "parent"
       ? html`<p class="s2-parent">Binds to the organization itself.</p>`
+      : scopeNodes(nodes).length === 0
+        ? noChoice(`Which ${f.scopeTier}`, `This customer has no ${f.scopeTier} yet.`, linkTo(ctx, "accounts.tree", { orgId }, "Add one in the tree"))
       : html`<label class="ac-field">
           <span>Which ${f.scopeTier}</span>
           <select name="scopeId" required class="ac-input">
-            ${nodes.filter((n) => n.tier === f.scopeTier).map((n) => html`<option value=${n.id}>${n.name}</option>`)}
+            ${scopeNodes(nodes).map((n) => html`<option value=${n.id}>${n.name}</option>`)}
           </select>
           <small>The region follows this node's edge; it is not chosen here.</small>
         </label>`;
 
-  const regionField = (regions: readonly RegionWire[]): VNode => html`<label class="ac-field">
+  const regionField = (regions: readonly RegionWire[]): VNode => activeRegions(regions).length === 0
+    ? noChoice("Administered from", "No region of ours is active.")
+    : html`<label class="ac-field">
     <span>Administered from</span>
     <select name="regionId" required class="ac-input">
-      ${regions.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}
+      ${activeRegions(regions).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}
     </select>
   </label>`;
 
-  const amendmentField = (contracts: readonly ContractWire[]): VNode => html`<label class="ac-field">
+  const amendmentField = (contracts: readonly ContractWire[]): VNode => amendable(contracts).length === 0
+    ? noChoice("Amends", "There is no draft or active agreement to amend.")
+    : html`<label class="ac-field">
     <span>Amends</span>
     <select name="parentContractId" required class="ac-input">
-      ${contracts.filter((c) => c.state === "draft" || c.state === "active").map((c) => html`<option value=${c.id}>${c.kind} · ${c.effectiveFrom} → ${c.effectiveTo ?? "evergreen"}</option>`)}
+      ${amendable(contracts).map((c) => html`<option value=${c.id}>${c.kind} · ${c.effectiveFrom} → ${c.effectiveTo ?? "evergreen"}</option>`)}
     </select>
   </label>`;
 
@@ -143,7 +159,7 @@ export const contractsNew: Screen = (ctx, params) => {
       <label class="ac-field"><span>Signed document</span><input class="ac-input" name="documentKey" placeholder="storage key of the PDF" /></label>
       ${oq5Field()}
       <div class="s2-form__actions">
-        ${oq5Submit(ctx, f)}
+        ${oq5Submit(ctx, f, blocked)}
         ${linkTo(ctx, "contracts.list", { orgId }, "Cancel")}
       </div>
     </form>
@@ -152,8 +168,9 @@ export const contractsNew: Screen = (ctx, params) => {
 };
 
 /** The submit, with the reason it is disabled said out loud rather than rendered as a dead button. */
-const oq5Submit = (ctx: ScreenContext, f: Form): VNode =>
-  f.oq5 === "unset" && !ctx.degraded
+const oq5Submit = (ctx: ScreenContext, f: Form, blocked: string | null): VNode =>
+  blocked || ctx.degraded ? submitAction(ctx, "Record agreement", "record", blocked)
+  : f.oq5 === "unset"
     ? html`<span class="ac-action-wrap"><button type="button" class="ac-action" id="record" aria-disabled="true">Record agreement</button><span class="ac-action__reason" role="note">State the diagnostic data rights position first.</span></span>`
     : submitAction(ctx, f.busy ? "Recording…" : "Record agreement", "record");
 

@@ -1,7 +1,7 @@
 import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, CreateAccountInput, Refusal, RegionWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, refusalView, submitAction, noChoice, noActiveRegion, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
 /**
  * C1 — author a node. Three tiers, one form, with the shape the catalogue
@@ -55,7 +55,7 @@ export const accountsNew: Screen = (ctx, params) => {
     }
   };
 
-  const regionField = (regions: readonly RegionWire[]): VNode => html`<label class="ac-field">
+  const regionField = (regions: readonly RegionWire[]): VNode => !regions.some((r) => r.active) ? noChoice("Our service region", "No region of ours is active.") : html`<label class="ac-field">
     <span>Our service region</span>
     <select name="regionId" required class="ac-input">
       ${regions.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}
@@ -84,7 +84,7 @@ export const accountsNew: Screen = (ctx, params) => {
         <label class="ac-field"><span>Customer's site / store code</span><input class="ac-input" name="externalRef" /></label>
         <label class="ac-field"><span>Timezone (IANA)</span><input class="ac-input" name="timezone" placeholder="America/Chicago" /></label>` : null}
       <div class="s2-form__actions">
-        ${submitAction(ctx, outcome.value.busy ? "Creating…" : `Create ${tier}`, "create")}
+        ${submitAction(ctx, outcome.value.busy ? "Creating…" : `Create ${tier}`, "create", tier === "region" ? noActiveRegion(regions.value) : null)}
         ${linkTo(ctx, "accounts.tree", { orgId }, "Cancel")}
       </div>
     </form>

@@ -535,3 +535,17 @@ test("ACCOUNTS: an address the geocoder cannot find says so, and is not asked ab
   assert.equal(located, 1);
   forgetLocating();
 });
+
+test("a required choice with nothing to choose says so where the select would be, and the submit says why it cannot go", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  // The Turner home is the only site under the only location: there is nowhere to move it.
+  app.router.navigate("accounts.move", { orgId: TURNER, id: HOME });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const out = render(app.view());
+  assert.doesNotMatch(out, /name="newParentId"/, "no required select that can only be empty");
+  assert.match(out, /There is no other location in this tree to move under\./);
+  assert.match(out, /id="move" aria-disabled="true"/);
+  assert.match(out, /class="ac-action__reason" role="note">There is no other location to move under\./);
+});

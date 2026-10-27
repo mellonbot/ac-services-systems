@@ -4,7 +4,7 @@ import type {
 } from "../../../../packages/contracts/src/index.ts";
 import type { Store } from "../state.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, formValues, linkTo, confirmPanel, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, refusalView, submitAction, noChoice, noActiveRegion, formValues, linkTo, confirmPanel, type Screen, type ScreenContext } from "./common.ts";
 import {
   formatQuantity as qty,
   parseQuantity as toMilli,
@@ -120,10 +120,10 @@ export const purchasing: Screen = (ctx) => {
     }) ?? html``)}
     <form class="ac-form ac-form--inline" onSubmit=${newVendor} id="vendor-form">
       <label class="ac-field"><span>Legal name</span><input class="ac-input" name="legalName" required /></label>
-      ${whenReady(ctx, regions.value, (r) => html`<label class="ac-field"><span>Administered from</span><select class="ac-input" name="regionId" required>${regionOptions(r.regions)}</select></label>`, () => store.invalidate("regions.list"))}
+      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice("Administered from", "No region of ours is active.") : html`<label class="ac-field"><span>Administered from</span><select class="ac-input" name="regionId" required>${regionOptions(r.regions)}</select></label>`, () => store.invalidate("regions.list"))}
       <label class="ac-field"><span>Payment terms (days)</span><input class="ac-input" name="paymentTermsDays" inputmode="numeric" defaultValue="30" /></label>
       <label class="ac-field"><span>Contact email</span><input class="ac-input" name="contactEmail" type="email" /></label>
-      <div class="s2-form__actions">${submitAction(ctx, "Add vendor", "add-vendor")}</div>
+      <div class="s2-form__actions">${submitAction(ctx, "Add vendor", "add-vendor", noActiveRegion(regions.value))}</div>
     </form>`, "Vendors")}
 
     ${panel(html`${whenReady(ctx, points.value, (p) => DataGrid({
@@ -139,11 +139,11 @@ export const purchasing: Screen = (ctx) => {
     <form class="ac-form ac-form--inline" onSubmit=${newPoint} id="point-form">
       <label class="ac-field"><span>Code</span><input class="ac-input" name="code" required placeholder="SOUTH-HUB" /></label>
       <label class="ac-field"><span>Tier</span><select class="ac-input" name="tier">${Object.entries(TIER_WORD).map(([k, w]) => html`<option value=${k}>${w}</option>`)}</select></label>
-      ${whenReady(ctx, regions.value, (r) => html`<label class="ac-field"><span>Region</span><select class="ac-input" name="regionId" required>${regionOptions(r.regions)}</select></label>`, () => store.invalidate("regions.list"))}
+      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice("Region", "No region of ours is active.") : html`<label class="ac-field"><span>Region</span><select class="ac-input" name="regionId" required>${regionOptions(r.regions)}</select></label>`, () => store.invalidate("regions.list"))}
       <label class="ac-field"><span>Street</span><input class="ac-input" name="line1" required /></label>
       <label class="ac-field"><span>City</span><input class="ac-input" name="city" required /></label>
       <label class="ac-field"><span>State</span><input class="ac-input" name="state" /></label>
-      <div class="s2-form__actions">${submitAction(ctx, "Add receiving point", "add-point")}</div>
+      <div class="s2-form__actions">${submitAction(ctx, "Add receiving point", "add-point", noActiveRegion(regions.value))}</div>
     </form>`, "Receiving points")}
     ${refusal(ctx)}
   </section>`;
@@ -229,13 +229,13 @@ export const purchasingVendor: Screen = (ctx, params) => {
         ],
       }))}
       ${panel(html`<form class="ac-form" onSubmit=${raise} id="po-form">
-        ${whenReady(ctx, points.value, (p) => html`<label class="ac-field"><span>Deliver to</span>
+        ${whenReady(ctx, points.value, (p) => !p.receivingPoints.some((r) => r.active) ? noChoice("Deliver to", "No receiving point is active to deliver to.", linkTo(ctx, "purchasing", {}, "Add one on Purchasing")) : html`<label class="ac-field"><span>Deliver to</span>
           <select class="ac-input" name="receivingPointId" required>${p.receivingPoints.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.code} · ${TIER_WORD[r.tier]}</option>`)}</select>
         </label>`, () => store.invalidate("receivingPoints.list"))}
         ${c.items.filter((i) => i.current).map((i) => html`<label class="ac-field"><span>${i.vendorSku} — ${i.description} at ${money(i.current!.priceMinor, i.current!.currency)}</span>
           <input class="ac-input" name=${`qty:${i.id}`} inputmode="decimal" placeholder="Quantity (${i.uom})" /></label>`)}
         ${c.items.some((i) => i.current) ? null : html`<p class="s2-muted">No item has an accepted price yet, so nothing can be ordered.</p>`}
-        <div class="s2-form__actions">${submitAction(ctx, "Raise draft", "raise-po")}</div>
+        <div class="s2-form__actions">${submitAction(ctx, "Raise draft", "raise-po", points.value.state === "ready" && !points.value.value.receivingPoints.some((r) => r.active) ? "No receiving point is active to deliver to." : null)}</div>
       </form>`, "Raise a purchase order")}`)}
     ${panel(html`<form class="ac-form ac-form--inline" onSubmit=${addItem} id="item-form">
       <label class="ac-field"><span>Vendor SKU</span><input class="ac-input" name="vendorSku" required /></label>

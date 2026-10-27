@@ -2,7 +2,7 @@ import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/
 import type { CreateFirmInput, CreateCrewInput, CrewKind, EmploymentType, FirmWire, RegionWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { CREW_KINDS, CREW_KIND_LABEL } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, refusalView, submitAction, noChoice, noActiveRegion, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
 /**
  * C4 intake — a firm, and a crew.
@@ -73,7 +73,7 @@ export const networkFirmNew: Screen = (ctx) => {
     <details class="s2-help"><summary>Why firms are recorded together</summary><p>A firm is recorded with its own tenant root in one step — the organization we settle with and the firm we dispatch are one row's worth of truth, created together or not at all.</p></details>
     <form class="ac-form" onSubmit=${submit} id="firm-form">
       <label class="ac-field"><span>Legal name</span><input class="ac-input" name="legalName" required /></label>
-      ${whenReady(ctx, regions.value, (r) => html`<label class="ac-field">
+      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice("Dispatched from", "No region of ours is active.") : html`<label class="ac-field">
         <span>Dispatched from</span>
         <select name="regionId" required class="ac-input">${r.regions.filter((x: RegionWire) => x.active).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
       </label>`)}
@@ -86,7 +86,7 @@ export const networkFirmNew: Screen = (ctx) => {
       <div class="s2-form__actions">
         ${f.oq5 === "unset" && !ctx.degraded
           ? html`<button type="submit" class="ac-action" id="record-firm" disabled aria-disabled="true" title="State the diagnostic data rights position first">Record firm</button>`
-          : submitAction(ctx, f.busy ? "Recording…" : "Record firm", "record-firm")}
+          : submitAction(ctx, f.busy ? "Recording…" : "Record firm", "record-firm", noActiveRegion(regions.value))}
         ${linkTo(ctx, "network", {}, "Cancel")}
       </div>
     </form>
@@ -136,7 +136,9 @@ export const networkCrewNew: Screen = (ctx, params) => {
     }
   };
 
-  const firmField = (list: readonly FirmWire[]): VNode => html`<label class="ac-field">
+  const firmField = (list: readonly FirmWire[]): VNode => !list.some((x) => x.status !== "terminated")
+    ? noChoice("Firm", "No firm is on the roster that can field a crew.", linkTo(ctx, "network.firm.new", {}, "Record a firm"))
+    : html`<label class="ac-field">
     <span>Firm</span>
     <select name="firmId" required class="ac-input">
       ${list.filter((x) => x.status !== "terminated").map((x) => html`<option value=${x.id} selected=${x.id === firmId}>${x.legalName} (${x.status})</option>`)}
@@ -163,13 +165,15 @@ export const networkCrewNew: Screen = (ctx, params) => {
         <small>Read by the compliance gate and by nothing else. The field experience is identical either way.</small>
       </label>
       ${f.employmentType === "subcontracted" ? whenReady(ctx, firms.value, (x) => firmField(x.firms)) : html`<p class="s2-parent">An employed crew is ours — no firm is named, and none is offered.</p>`}
-      ${whenReady(ctx, regions.value, (r) => html`<label class="ac-field">
+      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice("Home region", "No region of ours is active.") : html`<label class="ac-field">
         <span>Home region</span>
         <select name="homeRegionId" required class="ac-input">${r.regions.filter((x: RegionWire) => x.active).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
         <small>Where the crew is normally dispatched from. A crew that changes region is a new crew with a new document set.</small>
       </label>`)}
       <div class="s2-form__actions">
-        ${submitAction(ctx, f.busy ? "Recording…" : "Record crew", "record-crew")}
+        ${submitAction(ctx, f.busy ? "Recording…" : "Record crew", "record-crew",
+          noActiveRegion(regions.value)
+          ?? (f.employmentType === "subcontracted" && firms.value.state === "ready" && !firms.value.value.firms.some((x) => x.status !== "terminated") ? "No firm is on the roster that can field a crew." : null))}
         ${linkTo(ctx, "network", firmId ? { firmId } : {}, "Cancel")}
       </div>
     </form>

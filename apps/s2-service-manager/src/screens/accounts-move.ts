@@ -1,7 +1,7 @@
 import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, formValues, linkTo, type Screen } from "./common.ts";
+import { whenReady, refusalView, submitAction, noChoice, formValues, linkTo, type Screen } from "./common.ts";
 
 /**
  * C1 — move a node. The form offers only parents of the right tier (a
@@ -48,20 +48,23 @@ export const accountsMove: Screen = (ctx, params) => {
     if (!node) return html`<p class="s2-empty">Node ${id} is not in this tree. ${linkTo(ctx, "accounts.tree", { orgId }, "Back")}</p>`;
     if (node.tier === "region") return html`<p class="s2-empty">"${node.name}" is a region node — the meeting point with one of our regions. It is not moved; redrawing a region is an infrastructure event. ${linkTo(ctx, "accounts.tree", { orgId }, "Back")}</p>`;
     const candidates = parentCandidates(nodes, node);
+    const parentWord = node.tier === "location" ? "region node" : "location";
     const descendants = nodes.filter((n) => n.path.includes(node.id) && n.id !== node.id).length;
     return html`<section class="s2-form-screen">
       ${pageHead(`Move ${node.tier} "${node.name}"`, "Move this node under another parent of the right tier; its region and everything beneath it follow.")}
       <p class="s2-parent">Currently dispatched from <strong>${regionName(node.regionId)}</strong>${descendants ? html` with <strong>${descendants}</strong> node${descendants === 1 ? "" : "s"} beneath it, which will follow` : ""}.</p>
       <form class="ac-form" onSubmit=${submit(node)} id="move-form">
-        <label class="ac-field">
-          <span>New parent (${node.tier === "location" ? "region node" : "location"})</span>
+        ${candidates.length === 0
+          ? noChoice(`New parent (${parentWord})`, `There is no other ${parentWord} in this tree to move under.`, linkTo(ctx, "accounts.tree", { orgId }, "Add one in the tree"))
+          : html`<label class="ac-field">
+          <span>New parent (${parentWord})</span>
           <select class="ac-input" name="newParentId" required>
             ${candidates.map((c) => html`<option value=${c.id}>${c.name} — ${regionName(c.regionId)}</option>`)}
           </select>
-          ${candidates.length === 0 ? html`<small>No other ${node.tier === "location" ? "region node" : "location"} in this tree to move under.</small>` : html`<small>The region follows the edge. Moving under a node in another region moves the shard key of this node and everything under it.</small>`}
-        </label>
+          <small>The region follows the edge. Moving under a node in another region moves the shard key of this node and everything under it.</small>
+        </label>`}
         <div class="s2-form__actions">
-          ${submitAction(ctx, outcome.value.busy ? "Moving…" : "Move", "move")}
+          ${submitAction(ctx, outcome.value.busy ? "Moving…" : "Move", "move", candidates.length === 0 ? `There is no other ${parentWord} to move under.` : null)}
           ${linkTo(ctx, "accounts.tree", { orgId }, "Cancel")}
         </div>
       </form>
