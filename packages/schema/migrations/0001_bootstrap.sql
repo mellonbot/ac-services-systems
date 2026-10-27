@@ -548,6 +548,24 @@ CREATE INDEX IF NOT EXISTS time_entries_region_id_idx ON time_entries (region_id
 CREATE INDEX IF NOT EXISTS time_entries_job_id_idx ON time_entries (job_id);
 CREATE INDEX IF NOT EXISTS time_entries_crew_id_idx ON time_entries (crew_id);
 
+CREATE TABLE IF NOT EXISTS shift_punches (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  grant_id uuid NOT NULL REFERENCES device_grants(id),
+  technician_id uuid NOT NULL REFERENCES users(id),
+  crew_id uuid NOT NULL REFERENCES crews(id),
+  kind text NOT NULL CHECK (kind IN ('in','out')),
+  punched_at timestamptz NOT NULL,
+  mutation_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (grant_id, mutation_id)
+);
+CREATE INDEX IF NOT EXISTS shift_punches_region_id_idx ON shift_punches (region_id);
+CREATE INDEX IF NOT EXISTS shift_punches_technician_id_punched_at_idx ON shift_punches (technician_id, punched_at);
+CREATE INDEX IF NOT EXISTS shift_punches_grant_id_idx ON shift_punches (grant_id);
+
 CREATE TABLE IF NOT EXISTS checklist_items (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   org_id uuid NOT NULL REFERENCES organizations(id),

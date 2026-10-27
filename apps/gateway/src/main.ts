@@ -17,7 +17,7 @@ import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, l
 import { listSettlements, listSettlementLines, acknowledgeSettlement, disputeSettlement } from "./handlers/settlements.ts";
 import { ingestSync } from "./handlers/sync.ts";
 import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
-import { createJob, listJobs, listMyJobs, transitionJob, addJobNote, setReturnTrip, requireUuid } from "./handlers/jobs.ts";
+import { createJob, listJobs, listMyJobs, listMyPunches, transitionJob, addJobNote, setReturnTrip, requireUuid } from "./handlers/jobs.ts";
 import { createProject, listProjects } from "./handlers/projects.ts";
 import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "./handlers/job-detail.ts";
 import { listDevices, registerDevice, grantDeviceShift, resolveDeviceLogin } from "./handlers/devices.ts";
@@ -700,6 +700,10 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "jobs.mine": (req) => withRead(req, "jobs.mine", (uow, p) => {
     if (!p.shiftId) throw new HttpError(403, "jobs.mine is a device principal's operation");
     return listMyJobs(uow, p.shiftId);
+  }),
+  "punches.mine": (req, input) => withRead(req, "punches.mine", (uow, p) => {
+    if (!p.shiftId) throw new HttpError(403, "punches.mine is a device principal's operation");
+    return listMyPunches(uow, p.subjectId, input);
   }),
   "sync.replay": (req, input) => withUow(req, "sync.replay", async (uow, p) => {
     if (!p.deviceId || !p.shiftId) throw new HttpError(403, "sync is a device principal's operation");

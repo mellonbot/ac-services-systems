@@ -97,7 +97,7 @@ export const jobDetail: Screen = (ctx, params) => {
     return html`<section class="s5-job">
       ${pageHead(`${job.site?.name ?? "Site not on record"} — ${serviceLabel(job.serviceCode)}`, where || "Move the job on, work the checklist, run the time clock and log the parts used — every tap is saved on this device first.")}
       ${panel(html`<p class="s5-job__state">State: <strong>${stateText(projected.state)}</strong>${projected.queued > 0 ? html` (queued — last synced: ${stateText(job.state)})` : null} · Priority: ${job.priority}${job.jobNo ? html` · <span class="ac-num">${job.jobNo}</span>` : null}</p>
-        <p class="s5-job__window ac-num s5-nowrap">${windowText(job.serviceWindowStart, job.serviceWindowEnd, Date.now())}</p>
+        <p class="s5-job__window ac-num s5-nowrap">${windowText(job.serviceWindowStart, job.serviceWindowEnd, ctx.now)}</p>
         ${contact ? html`<p class="s5-job__contact">Site contact: ${contact.name}${contact.phone ? html` · <span class="ac-num s5-nowrap">${contact.phone}</span>` : null}</p>` : null}
         <div class="s5-actions">
           ${directions ? html`<a class="ac-action s5-link--action" data-kind="quiet" data-density=${ctx.density} href=${directions} target="_blank" rel="noopener">Directions</a>` : null}

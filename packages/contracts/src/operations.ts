@@ -515,6 +515,11 @@ export const OPERATIONS = {
     surfaces: ["S5"], carrier: "none", sdkMethod: "myJobs",
     summary: "Jobs assigned to this shift's crew, unreleased and still open — finished, cancelled or aborted work drops off (FIELD_CLOSED_STATES). Each carries what a crew needs at the curb — the job number, the site's name, address and primary contact — and the checklist items already done. The field layer's own read — no employment shape, no compliance detail, no other crew's board.",
   },
+  "punches.mine": {
+    id: "punches.mine", method: "GET", path: "/s5/punches/mine", kind: "query", auth: "bearer",
+    surfaces: ["S5"], carrier: "query", sdkMethod: "myPunches",
+    summary: "The signed-in technician's own shift punches between two instants (at most 35 days apart), oldest first — every shift and every device they punched on, and nobody else's (0032). What the timesheet pairs into spans.",
+  },
   "sync.replay": {
     id: "sync.replay", method: "POST", path: "/s5/sync", kind: "mutation", auth: "bearer",
     surfaces: ["S5"], carrier: "body", sdkMethod: "replaySync",
@@ -1708,6 +1713,10 @@ export type FieldJobWire = {
   readonly checklistDone: readonly string[];
 };
 export type MyJobsOutput = { readonly jobs: readonly FieldJobWire[] };
+export type MyPunchesInput = { readonly from: string; readonly to: string };
+/** One tap of the shift clock (0032). `at` is the device's clock at the tap. */
+export type ShiftPunchWire = { readonly id: string; readonly kind: "in" | "out"; readonly at: string };
+export type MyPunchesOutput = { readonly punches: readonly ShiftPunchWire[] };
 
 export type ComplianceRefusalWireItem = { readonly reason: "missing" | "expired_in_window" | "unverified" | "crew_inactive"; readonly credentialKind: string; readonly detail: string };
 /** 0024: only crews of the kind the job's work needs are candidates (`crewKindFor`). */
@@ -2148,6 +2157,7 @@ export type OperationIO = {
   "serviceRequests.hold": { input: CreateServiceRequestInput; output: CreateServiceRequestOutput };
   "media.get": { input: GetMediaInput; output: GetMediaOutput };
   "jobs.mine": { input: void; output: MyJobsOutput };
+  "punches.mine": { input: MyPunchesInput; output: MyPunchesOutput };
   "dispatch.assign": { input: AssignInput; output: AssignOutput };
   "dispatch.candidates": { input: CandidateCrewsInput; output: CandidateCrewsOutput };
   "dispatch.release": { input: ReleaseAssignmentInput; output: ReleaseAssignmentOutput };

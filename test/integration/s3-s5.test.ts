@@ -446,6 +446,50 @@ test("sync.replay: the device log replays in device order, a duplicate replay is
   await s5.logout();
 });
 
+test("0032 shift punches: a punch is made on the device's own shift, as the grant's technician and crew, append-only; the timesheet reads the technician's own", { skip }, async () => {
+  const s5 = await technician();
+  const t0 = Date.now();
+  const at = (min: number) => new Date(t0 + min * 60_000).toISOString();
+  const punch = (n: number, entityId: string, payload: Record<string, unknown>) => ({
+    mutationId: `${RUN}-punch${n}`, deviceId, deviceSeq: 1000 + n, entityTable: "shift_punches", entityId, op: "insert" as const, payload, clientObservedVersion: null, deviceAt: at(n),
+  });
+  const batch = [
+    punch(1, shiftId, { kind: "in", at: at(-120) }),
+    punch(2, jobId, { kind: "out", at: at(-60) }),          // not this shift's grant
+    punch(3, shiftId, { kind: "sideways", at: at(-60) }),  // not a punch
+    punch(4, shiftId, { kind: "out", at: at(-30) }),
+  ];
+  const outcomes = new Map((await s5.gateway.replaySync({ orgId, regionId: REGION_SOUTH, mutations: batch })).outcomes.map((o) => [o.mutationId, o.outcome]));
+  assert.equal(outcomes.get(`${RUN}-punch1`), "applied");
+  assert.equal(outcomes.get(`${RUN}-punch2`), "rejected", "a punch names this device's own shift and no other");
+  assert.equal(outcomes.get(`${RUN}-punch3`), "rejected");
+  assert.equal(outcomes.get(`${RUN}-punch4`), "applied");
+  const again = await s5.gateway.replaySync({ orgId, regionId: REGION_SOUTH, mutations: [batch[0]!] });
+  assert.equal(again.outcomes[0]!.outcome, "duplicate", "a replayed punch is not a second punch");
+
+  const rows = await admin(`SELECT kind, technician_id, crew_id, region_id, punched_at FROM shift_punches WHERE grant_id = $1 ORDER BY punched_at`, [shiftId]);
+  assert.deepEqual(rows.map((r) => r.kind), ["in", "out"]);
+  assert.equal(rows[0]!.technician_id, USER_TECH, "the grant's technician — the payload names nobody");
+  assert.equal(rows[0]!.crew_id, crewCleared);
+  assert.equal(rows[0]!.region_id, REGION_SOUTH);
+  assert.equal(new Date(rows[0]!.punched_at).toISOString(), at(-120), "the device's time of the tap, not the time it synced");
+  const privileges = (await admin(`SELECT has_table_privilege('ac_gateway', 'shift_punches', 'UPDATE') AS u, has_table_privilege('ac_gateway', 'shift_punches', 'DELETE') AS d`))[0]!;
+  assert.deepEqual([privileges.u, privileges.d], [false, false], "append-only: the gateway can add a punch, never change or remove one");
+
+  // Someone else's punch on the same shift's record is not this technician's timesheet.
+  await admin(
+    `INSERT INTO shift_punches (org_id, region_id, grant_id, technician_id, crew_id, kind, punched_at, mutation_id) VALUES ($1,$2,$3,$4,$5,'in',$6,$7)`,
+    [orgId, REGION_SOUTH, shiftId, USER_TECH_B, crewCleared, at(-90), `${RUN}-other`],
+  );
+  // USER_TECH is the same login every run, so a reused database holds earlier runs' punches too: look at this run's instants.
+  const mine = (await s5.gateway.myPunches({ from: at(-24 * 60), to: at(60) })).punches.map((p) => `${p.kind}@${p.at}`);
+  assert.ok(mine.includes(`in@${at(-120)}`) && mine.includes(`out@${at(-30)}`), "this run's in and out");
+  assert.ok(!mine.includes(`in@${at(-90)}`), "another technician's punch is not on this timesheet");
+  await assert.rejects(s5.gateway.myPunches({ from: at(0), to: at(-1) }), (e: unknown) => /after from/.test(refusal(s5, e).message));
+  await assert.rejects(s5.gateway.myPunches({ from: at(-60 * 24 * 40), to: at(0) }), (e: unknown) => /35 days/.test(refusal(s5, e).message));
+  await s5.logout();
+});
+
 test("waiting on the customer, mid-job: the office holds an on-site job for the customer and resumes it into the work", { skip }, async () => {
   const move = (to: string) => s3.gateway.transitionJob({ jobId, orgId, regionId: REGION_SOUTH, to: to as never });
   assert.equal((await admin(`SELECT state FROM jobs WHERE id = $1`, [jobId]))[0]!.state, "on_site");

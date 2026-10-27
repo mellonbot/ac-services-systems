@@ -194,6 +194,26 @@ export const time_entries = operationalTable("time_entries", {
   uniques: [["job_id", "mutation_id"]],
 });
 
+/**
+ * 0032 — a technician's shift clock: one row per clock-in or clock-out, never
+ * edited and never deleted. Payroll time, not job time: time_entries costs a
+ * job, this pays a person, and a crew clocks in before its first job and
+ * keeps the clock running between jobs. The timesheet pairs each in with the
+ * next out; a wrong punch is answered by the office, not by rewriting this.
+ */
+export const shift_punches = operationalTable("shift_punches", {
+  columns: [
+    { name: "grant_id", type: "uuid", references: "device_grants(id)", comment: "The shift this punch was made on — and the device, crew and technician with it." },
+    { name: "technician_id", type: "uuid", references: "users(id)" },
+    { name: "crew_id", type: "uuid", references: "crews(id)" },
+    { name: "kind", type: "text", check: "kind IN ('in','out')" },
+    { name: "punched_at", type: "timestamptz", comment: "The device's clock at the tap — the tablet may have been offline for hours before it synced." },
+    { name: "mutation_id", type: "text" },
+  ],
+  indexes: [["technician_id", "punched_at"], ["grant_id"]],
+  uniques: [["grant_id", "mutation_id"]],
+});
+
 /** Checklist responses — device-authoritative under sync (the tech was standing in front of it). */
 export const checklist_items = operationalTable("checklist_items", {
   columns: [

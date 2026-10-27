@@ -78,6 +78,7 @@ export const shapeFault = (m: Mutation): string | null => {
   if (m.entityTable === "time_entries" && (!isDate(p.start) || !isDate(p.end))) return "a time entry has a start and an end timestamp";
   // A bigint column. A JSON number past 2^53 is not the number the device meant, and a string past eighteen digits does not fit.
   if (m.entityTable === "parts_used" && !quantity(p.quantity_milli)) return "quantity_milli must be a positive integer";
+  if (m.entityTable === "shift_punches" && ((p.kind !== "in" && p.kind !== "out") || !isDate(p.at))) return "a punch is in or out, at a timestamp";
   return null;
 };
 
@@ -125,7 +126,8 @@ export const ingestSync = async (uow: UnitOfWork, actorId: string, batch: SyncBa
 };
 
 const ingestOne = async (uow: UnitOfWork, actorId: string, batch: SyncBatch, receivedAt: Date, m: Mutation, seen: Set<string>, outcomes: SyncOutcome[]): Promise<void> => {
-  // Every table a device writes hangs off a job, and entityId names it.
+  if (m.entityTable === "shift_punches") return ingestPunch(uow, batch, receivedAt, m, seen, outcomes);
+  // Every other table a device writes hangs off a job, and entityId names it.
   const job = seen.has(m.mutationId) ? null : await crewJobOf(uow, batch.grantId, m.entityId);
   const server = m.entityTable === "jobs" ? job?.server ?? null : null;
   const outcome: SyncOutcome = seen.has(m.mutationId)
@@ -210,6 +212,44 @@ const ingestOne = async (uow: UnitOfWork, actorId: string, batch: SyncBatch, rec
         default:
           throw new Error(`sync: no writer for "${m.entityTable}" — the policy says applied but nothing knows how to write it`);
       }
+    },
+  );
+};
+
+/**
+ * A shift punch (0032) hangs off the shift, not a job: entityId is the grant,
+ * and only the batch's own — the device, crew and technician are the grant's,
+ * never the payload's. Append-only: a punch made offline is applied when it
+ * arrives, at the time the device recorded the tap.
+ */
+const ingestPunch = async (uow: UnitOfWork, batch: SyncBatch, receivedAt: Date, m: Mutation, seen: Set<string>, outcomes: SyncOutcome[]): Promise<void> => {
+  const outcome: SyncOutcome = seen.has(m.mutationId) || m.entityId === batch.grantId
+    ? resolveMutation(m, null, seen)
+    : { outcome: "rejected", mutationId: m.mutationId, note: "a punch is made on this device's own shift and no other" };
+  seen.add(m.mutationId);
+  outcomes.push(outcome);
+  if (outcome.outcome === "duplicate") return;
+  await uow.tx.query(
+    `INSERT INTO sync_mutations (org_id, region_id, device_id, mutation_id, device_seq, entity_table, entity_id, op, payload, client_observed_version, outcome, note, device_at, received_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13,$14)`,
+    [batch.orgId, batch.regionId, batch.deviceId, m.mutationId, m.deviceSeq, m.entityTable, m.entityId, m.op, JSON.stringify(m.payload),
+     m.clientObservedVersion, outcome.outcome, "note" in outcome ? outcome.note : null, m.deviceAt, receivedAt.toISOString()],
+  );
+  if (outcome.outcome !== "applied") return;
+  const grant = (await uow.tx.query<{ org_id: string; region_id: string; crew_id: string; technician_id: string }>(
+    `SELECT org_id, region_id, crew_id, technician_id FROM device_grants WHERE id = $1`, [batch.grantId]))[0];
+  if (!grant) throw new InputRefused(`shift grant ${batch.grantId} is unknown to this gateway`, "unknown_device");
+  await uow.apply(
+    {
+      entity: "time_entry", entityId: batch.grantId, action: `sync.shift_punches.${String(m.payload.kind)}`, topic: "shift.punched",
+      before: null, after: m.payload, orgId: grant.org_id, regionId: grant.region_id,
+      payload: { mutationId: m.mutationId, deviceId: batch.deviceId, technicianId: grant.technician_id, kind: m.payload.kind, at: m.payload.at },
+    },
+    async (tx) => {
+      await tx.insert("shift_punches", {
+        org_id: grant.org_id, region_id: grant.region_id, grant_id: batch.grantId, technician_id: grant.technician_id, crew_id: grant.crew_id,
+        kind: m.payload.kind, punched_at: m.payload.at, mutation_id: m.mutationId,
+      });
     },
   );
 };

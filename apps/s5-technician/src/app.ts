@@ -8,6 +8,7 @@ import { createOfflineQueue, othersPending, type OfflineQueue, type QueueStore }
 import type { Screen, ScreenContext } from "./screens/common.ts";
 import { jobList } from "./screens/job-list.ts";
 import { jobDetail } from "./screens/job-detail.ts";
+import { timesheet } from "./screens/timesheet.ts";
 import { S5_CSS } from "./styles.ts";
 
 /**
@@ -37,6 +38,7 @@ export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(
 export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = {
   jobs: jobList,
   job: jobDetail,
+  timesheet,
 };
 
 type Phase =
@@ -48,6 +50,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const newId = opts.newId ?? (() => (globalThis.crypto?.randomUUID?.() ?? `${now()}-${Math.random()}`));
   const phase = signal<Phase>({ kind: "login", refusal: null, busy: false });
   const degraded = signal(false);
+  const minute = signal(Math.floor(now() / 60_000));
   const router = createRouter(SCREENS, opts.window ? browserHistory(opts.window, SURFACE_PATHS.S5) : { path: () => "/", push: () => {}, onPop: () => () => {} });
 
   const login = async (hardwareId: string, email: string, password: string) => {
@@ -86,13 +89,14 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const p = phase.value;
     if (p.kind !== "ready") return;
     degraded.value = p.shell.isDegraded();
+    minute.value = Math.floor(now() / 60_000);
     // Offline-first: a queue with something in it is retried on every tick
     // while the gateway is reachable, not only when a tech taps a button —
     // reconnecting after a dead zone should not need a second tap to notice.
     if (p.queue.pending.value.length > 0 && now() >= retryAt && !p.queue.flushing.value) {
       void p.queue.flush((mutations) => p.shell.gateway.replaySync({ orgId: p.shell.principal.orgId, regionId: p.shell.principal.regionId, mutations }))
         .then((answered) => {
-          if (answered) { retryDelay = 1000; retryAt = 0; p.store.invalidate("jobs.mine"); return; }
+          if (answered) { retryDelay = 1000; retryAt = 0; p.store.invalidate("jobs.mine"); p.store.invalidate("punches.mine"); return; }
           const refusal = refusalOf(p.queue.failure.value);
           if (refusal.kind === "token") {
             // The shift's token is over. The work is on this device; signing in again replays it.
@@ -111,7 +115,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const view = (): VNode => {
     const p = phase.value;
     if (p.kind === "login") return loginView(p, login);
-    const ctx: ScreenContext = { shell: p.shell, store: p.store, queue: p.queue, crew: p.crew, clock: p.clock, router, density: DENSITY, degraded: degraded.value };
+    const ctx: ScreenContext = { shell: p.shell, store: p.store, queue: p.queue, crew: p.crew, clock: p.clock, router, density: DENSITY, degraded: degraded.value, now: now() };
+    void minute.value; // subscribe: a running shift clock moves on every minute
     void p.store.version.value; // subscribe: an invalidate re-renders the mounted screen, which re-reads its resources
     void p.queue.pending.value; void p.queue.attention.value; // subscribe: enqueue/flush re-render the queued-count and any attention items
     const loc = router.current.value;
@@ -120,6 +125,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     return html`<div class="s5-app">
       <nav class="ac-nav" aria-label="Screens">
         <a class="ac-seg__item" data-current=${loc?.screen === "jobs" ? "true" : "false"} href=${router.href("jobs", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>Today</a>
+        <a class="ac-seg__item" data-current=${loc?.screen === "timesheet" ? "true" : "false"} href=${router.href("timesheet", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("timesheet", {}); }}>Timesheet</a>
         <span class="ac-nav__who">${p.crew.label}</span>
         <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
       </nav>

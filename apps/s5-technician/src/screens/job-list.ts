@@ -1,8 +1,9 @@
-import { html, statStrip, pageHead, PrimaryAction, StatusPill, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
+import { html, pageHead, PrimaryAction, StatusPill, type Status, type VNode } from "../../../../packages/ui/src/index.ts";
 import { serviceLabel } from "../../../../packages/contracts/src/index.ts";
 import type { FieldJobWire, JobPriority } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { nextDeviceStates, projectedJob } from "../offline.ts";
+import { shiftClock } from "./timesheet.ts";
 import { whenReady, linkTo, flushQueue, ACTION_LABEL, stateText, addressLine, directionsHref, telHref, windowText, type Screen, type ScreenContext } from "./common.ts";
 
 /**
@@ -47,7 +48,7 @@ const card = (ctx: ScreenContext, j: FieldJobWire, current: boolean): VNode => {
   const title = `${j.site?.name ?? "Site not on record"} — ${serviceLabel(j.serviceCode)}`;
   const move = () => { ctx.queue.enqueue("jobs", j.id, "transition", { state: to! }, projected.version); flushQueue(ctx); };
   return html`<li class="ac-panel s5-card" data-current=${current ? "true" : "false"} key=${j.id}>
-    <p class="s5-card__when"><span class="ac-num s5-nowrap">${windowText(j.serviceWindowStart, j.serviceWindowEnd, Date.now())}</span>
+    <p class="s5-card__when"><span class="ac-num s5-nowrap">${windowText(j.serviceWindowStart, j.serviceWindowEnd, ctx.now)}</span>
       ${StatusPill({ density: ctx.density, status: priorityStatus(j.priority), label: j.priority })}</p>
     <h2 class="s5-card__title">${linkTo(ctx, "job", { jobId: j.id }, title, "s5-card__link")}</h2>
     ${where ? html`<p class="s5-card__where">${where}</p>` : null}
@@ -65,11 +66,7 @@ export const jobList: Screen = (ctx) => {
   const jobs = ctx.store.read(keyOf("jobs.mine"), () => ctx.shell.gateway.myJobs());
   return html`<section class="s5-jobs">
     ${pageHead(`Today — ${ctx.crew.label}`, "This shift's work, in order. Everything you record is saved on this device first and sent when there is a connection.")}
-    ${whenReady(ctx, jobs.value, (out) => statStrip([
-      { n: out.jobs.length, label: "Assigned" },
-      { n: out.jobs.filter((j) => j.priority === "emergency").length, label: "Emergency", ...(out.jobs.some((j) => j.priority === "emergency") ? { tone: "breached" as const } : {}) },
-      { n: out.jobs.filter((j) => UNDER_WAY.includes(j.state)).length, label: "Under way" },
-    ], "shift-stats"))}
+    ${whenReady(ctx, jobs.value, (out) => shiftClock(ctx, out.jobs))}
     ${whenReady(ctx, jobs.value, (out) => {
       if (out.jobs.length === 0) return html`<p class="s5-empty">Nothing assigned to this shift right now.</p>`;
       const current = out.jobs.find((j) => UNDER_WAY.includes(projectedJob(j, ctx.queue.pending.value).state)) ?? out.jobs[0]!;
