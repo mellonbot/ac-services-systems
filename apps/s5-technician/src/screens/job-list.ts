@@ -4,7 +4,7 @@ import type { FieldJobWire, JobPriority } from "../../../../packages/contracts/s
 import { keyOf } from "../state.ts";
 import { nextDeviceStates, projectedJob } from "../offline.ts";
 import { shiftClock, shiftRunning, CLOCK_IN_FIRST } from "./timesheet.ts";
-import { whenReady, linkTo, flushQueue, ACTION_LABEL, stateText, addressLine, directionsHref, telHref, windowText, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, linkTo, flushQueue, deviceState, ACTION_LABEL, stateText, addressLine, directionsHref, telHref, windowText, type Screen, type ScreenContext } from "./common.ts";
 
 /**
  * A priority glyph, not a job-state one. `StatusPill`'s three-state ramp is a
@@ -41,7 +41,10 @@ const UNDER_WAY = ["en_route", "on_site", "in_progress", "awaiting_parts", "awai
 
 const card = (ctx: ScreenContext, j: FieldJobWire, current: boolean): VNode => {
   const projected = projectedJob(j, ctx.queue.pending.value);
-  const to = forwardState(projected.state);
+  const state = deviceState(ctx, j);
+  const wrapped = ctx.wrapUps.pendingFor(j.id) !== undefined;
+  const to = forwardState(state);
+  const gated = shiftRunning(ctx) === false;
   const where = addressLine(j.site?.address ?? null);
   const directions = directionsHref(j.site);
   const contact = j.site?.contact ?? null;
@@ -52,11 +55,14 @@ const card = (ctx: ScreenContext, j: FieldJobWire, current: boolean): VNode => {
       ${StatusPill({ density: ctx.density, status: priorityStatus(j.priority), label: j.priority })}</p>
     <h2 class="s5-card__title">${linkTo(ctx, "job", { jobId: j.id }, title, "s5-card__link")}</h2>
     ${where ? html`<p class="s5-card__where">${where}</p>` : null}
-    <p class="s5-card__state">${stateText(projected.state)}${projected.queued > 0 ? " (queued)" : ""}${j.jobNo ? html` · <span class="ac-num">${j.jobNo}</span>` : null}</p>
+    <p class="s5-card__state">${stateText(state)}${wrapped ? " (waiting to send)" : projected.queued > 0 ? " (queued)" : ""}${j.jobNo ? html` · <span class="ac-num">${j.jobNo}</span>` : null}</p>
     <div class="s5-card__actions">
       ${directions ? html`<a class="ac-action s5-link--action" data-kind="quiet" data-density=${ctx.density} href=${directions} target="_blank" rel="noopener">Directions</a>` : null}
       ${contact?.phone ? html`<a class="ac-action s5-link--action" data-kind="quiet" data-density=${ctx.density} href=${telHref(contact.phone)} aria-label=${`Call ${contact.name}`}>Call</a>` : null}
-      ${to ? PrimaryAction({ density: ctx.density, label: ACTION_LABEL[to] ?? stateText(to), id: `card-${j.id}-${to}`, onClick: move, ...(shiftRunning(ctx) === false ? { disabledReason: CLOCK_IN_FIRST } : {}) }) : null}
+      ${to ? PrimaryAction({ density: ctx.density, label: ACTION_LABEL[to] ?? stateText(to), id: `card-${j.id}-${to}`, onClick: move, ...(gated ? { disabledReason: CLOCK_IN_FIRST } : {}) }) : null}
+      ${state === "in_progress" ? (gated
+        ? PrimaryAction({ density: ctx.density, label: "Wrap up", id: `card-${j.id}-wrap-up`, disabledReason: CLOCK_IN_FIRST })
+        : linkTo(ctx, "wrapup", { jobId: j.id }, "Wrap up", "ac-action s5-link--action")) : null}
     </div>
   </li>`;
 };
@@ -69,7 +75,7 @@ export const jobList: Screen = (ctx) => {
     ${whenReady(ctx, jobs.value, (out) => shiftClock(ctx, out.jobs))}
     ${whenReady(ctx, jobs.value, (out) => {
       if (out.jobs.length === 0) return html`<p class="s5-empty">Nothing assigned to this shift right now.</p>`;
-      const current = out.jobs.find((j) => UNDER_WAY.includes(projectedJob(j, ctx.queue.pending.value).state)) ?? out.jobs[0]!;
+      const current = out.jobs.find((j) => UNDER_WAY.includes(deviceState(ctx, j))) ?? out.jobs[0]!;
       return html`<ul class="s5-cards">${out.jobs.map((j) => card(ctx, j, j.id === current.id))}</ul>`;
     })}
   </section>`;

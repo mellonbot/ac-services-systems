@@ -38,7 +38,8 @@ test("state machine: legal device transitions apply in device order, each seeing
     state = { version: 1 + applied, state: states[applied]!, fields: {} };
     return state;
   }, none);
-  assert.deepEqual(outcomes.map((o) => o.outcome), ["applied", "applied", "applied", "applied"]);
+  assert.deepEqual(outcomes.map((o) => o.outcome), ["applied", "applied", "applied", "rejected"]);
+  assert.match((outcomes[3] as { note: string }).note, /completed by its wrap-up/, "0034: completing is the wrap-up's, never a bare transition");
 });
 
 test("state machine: arriving out of order is data — sorted by device_seq, not arrival", () => {

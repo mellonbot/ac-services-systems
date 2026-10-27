@@ -1800,20 +1800,21 @@ export type WrapUpMeasurementsWire = {
   readonly curbLengthIn: number; readonly curbWidthIn: number;
   readonly oldModel: string; readonly oldSerial: string;
 };
-const DIMENSIONS = ["unitLengthIn", "unitWidthIn", "unitHeightIn", "curbLengthIn", "curbWidthIn"] as const;
+const DIMENSIONS = { unitLengthIn: "unit length", unitWidthIn: "unit width", unitHeightIn: "unit height", curbLengthIn: "curb length", curbWidthIn: "curb width" } as const;
 /**
- * What is wrong with a measurement set, in words, or null when it is whole.
- * One function, so the device's Submit and the gateway's refusal name the
- * same missing field.
+ * What is wrong with a measurement set, in a technician's words, or null when
+ * it is whole. One function, so the device's Submit and the gateway's refusal
+ * name the same missing field the same way.
  */
 export const measurementsFault = (m: unknown): string | null => {
   if (!m || typeof m !== "object") return "the measurements are missing";
   const r = m as Record<string, unknown>;
-  if (typeof r.tonnage !== "number" || !(r.tonnage >= 1 && r.tonnage <= 150) || Math.round(r.tonnage * 2) !== r.tonnage * 2) return "tonnage is a number of tons, 1 to 150, in halves";
-  if (!RTU_VOLTAGES.includes(r.voltage as never)) return `voltage is one of ${RTU_VOLTAGES.join(", ")}`;
-  if (!RTU_FUELS.includes(r.fuel as never)) return `fuel is one of ${RTU_FUELS.join(", ")}`;
-  for (const k of DIMENSIONS) if (typeof r[k] !== "number" || !Number.isInteger(r[k]) || (r[k] as number) < 1 || (r[k] as number) > 600) return `${k} is whole inches, 1 to 600`;
-  for (const k of ["oldModel", "oldSerial"] as const) if (typeof r[k] !== "string" || r[k].trim().length === 0 || r[k].length > 80) return `${k} is required`;
+  if (typeof r.tonnage !== "number" || !(r.tonnage >= 1 && r.tonnage <= 150) || Math.round(r.tonnage * 2) !== r.tonnage * 2) return "tonnage (1 to 150 tons, in halves)";
+  if (!RTU_VOLTAGES.includes(r.voltage as never)) return "voltage / phase";
+  if (!RTU_FUELS.includes(r.fuel as never)) return "fuel";
+  for (const [k, label] of Object.entries(DIMENSIONS)) if (typeof r[k] !== "number" || !Number.isInteger(r[k]) || (r[k] as number) < 1 || (r[k] as number) > 600) return `${label} in whole inches`;
+  if (typeof r.oldModel !== "string" || r.oldModel.trim().length === 0 || r.oldModel.length > 80) return "the old unit's model";
+  if (typeof r.oldSerial !== "string" || r.oldSerial.trim().length === 0 || r.oldSerial.length > 80) return "the old unit's serial";
   return null;
 };
 export type JobMediaKind = "photo" | "signature";
