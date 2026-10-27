@@ -74,6 +74,7 @@ export const network: Screen = (ctx, params) => {
       ],
       rows: list, rowKey: (f: FirmWire) => f.id, selectedKey: firmId ?? "",
       onSelect: (f: FirmWire) => ctx.router.navigate("network", { firmId: f.id }),
+      linked: true,
       emptyText: "No firms recorded yet.",
     })}
     <p class="s2-muted">${linkTo(ctx, "network", {}, OWN_CREWS_LABEL)}</p>`,

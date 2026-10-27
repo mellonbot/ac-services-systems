@@ -49,6 +49,7 @@ export const contractsList: Screen = (ctx, params) => {
       columns: [{ key: "name", header: "Customer", cell: (o: OrganizationWire) => linkTo(ctx, "contracts.list", { orgId: o.id }, o.name) }],
       rows: list, rowKey: (o: OrganizationWire) => o.id, selectedKey: orgId ?? "",
       onSelect: (o: OrganizationWire) => ctx.router.navigate("contracts.list", { orgId: o.id }),
+      linked: true,
       emptyText: "No customers yet.",
     });
 

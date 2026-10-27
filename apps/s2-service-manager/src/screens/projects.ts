@@ -79,6 +79,7 @@ export const projects: Screen = (ctx, params) => {
     ],
     rows: list.filter((o) => matches(o.name, pick.accountQ)), rowKey: (o: OrganizationWire) => o.id, selectedKey: orgId ?? "",
     onSelect: (o: OrganizationWire) => ctx.router.navigate("projects", { orgId: o.id }),
+    linked: true,
     emptyText: pick.accountQ ? "No customer account matches." : "No customers yet.",
   });
 

@@ -166,6 +166,7 @@ export const accountsTree: Screen = (ctx, params) => {
       rowKey: (o: OrganizationWire) => o.id,
       selectedKey: orgId ?? "",
       onSelect: (o: OrganizationWire) => ctx.router.navigate("accounts.tree", { orgId: o.id }),
+      linked: true,
       emptyText: showing.value === "all" ? "No customers yet." : `No ${SHOW_WORD[showing.value].toLowerCase()} customers.`,
     });
 
