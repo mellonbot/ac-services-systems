@@ -10,7 +10,7 @@ import type { ScreenSpec } from "../../../packages/ui/src/index.ts";
 export const SCREENS = {
   "login": { path: "/login",           uses: ["auth.deviceLogin"] },
   "job":   { path: "/jobs/:jobId",     uses: ["jobs.mine", "sync.replay"] },
-  "jobs":  { path: "/jobs",            uses: ["jobs.mine"], title: "My jobs" },
+  "jobs":  { path: "/jobs",            uses: ["jobs.mine"], title: "Today" },
 } as const satisfies Record<string, ScreenSpec>;
 
 export type ScreenId = keyof typeof SCREENS;
