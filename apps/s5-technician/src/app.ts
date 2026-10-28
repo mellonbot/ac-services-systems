@@ -1,4 +1,4 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -143,8 +143,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         <a class="ac-seg__item" data-current=${loc?.screen === "jobs" ? "true" : "false"} href=${router.href("jobs", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>Today</a>
         <a class="ac-seg__item" data-current=${loc?.screen === "timesheet" ? "true" : "false"} href=${router.href("timesheet", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("timesheet", {}); }}>Timesheet</a>
         <span class="ac-nav__who">${p.crew.label}</span>
-        ${Messenger({ density: DENSITY, menu: p.messages })}${AccountMenu({ density: DENSITY, menu: p.account })}
-        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
+        ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
       </nav>
       ${notice.length ? html`<div class="s5-notice" role="status">${notice.map((n) => html`<p>${n}</p>`)}<button type="button" class="s5-notice__dismiss" onClick=${() => { p.store.notice.value = []; }} aria-label="Dismiss">×</button></div>` : null}
       ${screen ? screen(ctx, loc!.params) : html`<p class="s5-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}

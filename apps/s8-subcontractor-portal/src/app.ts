@@ -1,4 +1,4 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, pageHead, PrimaryAction, RefusalNotice, type VNode, AccountMenu, createAccountMenu, type AccountMenuState } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, pageHead, PrimaryAction, RefusalNotice, type VNode, AccountMenu, createAccountMenu, type AccountMenuState, sessionTools } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -123,8 +123,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         ${nav("work", "Work")}
         ${nav("statements", "Statements")}
         <span class="ac-nav__who" id="who">${who}</span>
-        ${AccountMenu({ density: DENSITY, menu: p.account })}
-        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
+        ${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s8-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}
     </div>`;

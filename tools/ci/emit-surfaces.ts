@@ -234,22 +234,32 @@ export const renderMasthead = (s: Surface): string => {
   const badge = `<span class="ac-mast__mark" aria-hidden="true"></span>`;
   const wordmark = `<span class="ac-wordmark">${escapeHtml(BRAND.name)}</span>`;
   const co = `<span class="ac-wordmark__co">${escapeHtml(BRAND.descriptor)}</span>`;
+  // The slot is where a signed-in surface puts Account and Sign out: on the
+  // lockup row, above the rule, in line with the company descriptor. Empty
+  // until the bundle fills it, including on S1, which has no session.
+  const tools = `<div id="ac-mast-tools" class="ac-mast__tools"></div>`;
   // A titled masthead (S1) runs the rule the full width under the wordmark,
   // sets the company line beneath it, and the site's name under that.
   if (s.id === "S1") return `<header class="ac-mast ac-mast--titled" data-brand-layer="${brandLayer}">
+<div class="ac-mast__row">
 <a class="ac-mast__lockup" href="/" aria-label="${escapeHtml(BRAND.legalName)}">
 ${badge}
 ${wordmark}
 </a>
+${tools}
+</div>
 <div class="ac-mast__rule"></div>
 ${co}
 <p class="ac-mast__title">${escapeHtml(S1_SITE_TITLE)}</p>
 </header>`;
   return `<header class="ac-mast" data-brand-layer="${brandLayer}">
+<div class="ac-mast__row">
 <a class="ac-mast__lockup" href="/" aria-label="${escapeHtml(BRAND.legalName)}">
 ${badge}
 <span class="ac-mast__name">${wordmark}${co}</span>
 </a>
+${tools}
+</div>
 <div class="ac-mast__rule"></div>
 </header>`;
 };
