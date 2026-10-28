@@ -43,30 +43,17 @@ Lands in: `apps/gateway/src/main.ts` (`login`), `PASSWORD_LOGIN`, and a users
 provisioning operation (there is none yet — customer principals are seeded by
 SQL, which does not survive the third account).
 
-**OPEN-S6-IMAGERY — which provider draws the roof, under whose key, at what cost?**
+**~~OPEN-S6-IMAGERY~~ — which provider draws the roof, under whose key, at what cost?**
 
-Item 9 (2026-09-21) built the site card with overhead imagery served BY THE
-GATEWAY: `sites.imagery` reads the site's coordinates off `accounts.address`,
-renders `AC_IMAGERY_URL` (a URL template with `{lat}`, `{lng}`, `{zoom}`,
-`{w}`, `{h}`), fetches the picture, caches it per site for a day and returns it
-inline as a data: URL. The customer's browser never reaches a third party with
-a customer's address, and no key is in a bundle — the two reasons the obvious
-`<img src="https://provider…">` was not built. The whole pipe executes in
-`test/integration/s6-site-card.test.ts` and `tools/ci/drive-s6.ts` against a
-stub provider this repository runs itself.
-
-What is not decided: the provider (a static-map API, an aerial-imagery tile
-service, a county GIS), the licence its attribution line and caching terms
-impose, who holds the key, and the per-fetch cost against a portal that will
-open a few thousand site cards a month. Unset, the card says *"Overhead imagery
-is not enabled for this portal"* under the address and is complete without it.
-Also unset: WHO records coordinates. `accounts.update` takes `lat`/`lng` inside
-the address object; nothing geocodes an address, and S2 has no field for it yet.
-
-Lands in: the gateway's environment (`AC_IMAGERY_URL`, `AC_IMAGERY_ATTRIBUTION`),
-`apps/gateway/src/handlers/imagery.ts` if the provider needs a header rather
-than a key in the URL, and an S2 field (or a geocoding step) for the
-coordinates.
+**CLOSED 2026-10-28.** MapTiler, using the same `AC_MAPTILER_KEY` already
+used for S2 tiles and geocoding. When the key is set and `AC_IMAGERY_URL` is
+unset, `imageryConfigFromEnv` builds a static-map URL
+(`https://api.maptiler.com/maps/streets/static/{lng},{lat},{zoom}/{w}x{h}.png?key=…`)
+and sets the required attribution. An explicit `AC_IMAGERY_URL` still wins.
+Coordinates are recorded by the existing `sites.locate` path (S2 home map
+calls it; the point is written onto `accounts.address`). Caching remains one
+day for a hit, one minute for a failure. Cost is MapTiler's static-map
+pricing; a few thousand cards a month is well inside a normal plan.
 
 **~~OPEN-S6-CONTACTS~~ — may the customer edit its own on-site contacts?**
 
