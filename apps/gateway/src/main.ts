@@ -18,6 +18,7 @@ import { listSettlements, listSettlementLines, acknowledgeSettlement, disputeSet
 import { ingestSync } from "./handlers/sync.ts";
 import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
 import { readMyAccount, updateMyAccount, setMyAvatar, changeMyPassword, type AccountActor } from "./handlers/account.ts";
+import { listColleagues, listPending, listRecent, sendStaffMessage, dismissStaffMessage } from "./handlers/messages.ts";
 import { createJob, listJobs, listMyJobs, listMyPunches, transitionJob, addJobNote, setReturnTrip, requireUuid } from "./handlers/jobs.ts";
 import { createProject, listProjects } from "./handlers/projects.ts";
 import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "./handlers/job-detail.ts";
@@ -564,6 +565,13 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
     allowed: (who) => signInAllowed(req, who),
     failed: (who) => signInFailed(req, who),
   })),
+
+  // 0035 — messages between AC Services employees. Not a customer, a vendor, or a firm.
+  "messages.directory": (req) => withSelf(req, "messages.directory", false, listColleagues),
+  "messages.pending": (req) => withSelf(req, "messages.pending", false, listPending),
+  "messages.recent": (req) => withSelf(req, "messages.recent", false, listRecent),
+  "messages.send": (req, input) => withSelf(req, "messages.send", true, (tx, a) => sendStaffMessage(tx, a, input)),
+  "messages.dismiss": (req, input) => withSelf(req, "messages.dismiss", true, (tx, a) => dismissStaffMessage(tx, a, input)),
 
   // S2 — author a contract term override. Refusals come back as 422 with the reason.
   "terms.authorOverride": (req, input) => withUow(req, "terms.authorOverride", async (uow, p) => {

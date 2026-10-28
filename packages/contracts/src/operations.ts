@@ -67,6 +67,8 @@ const AUTHENTICATED: readonly SurfaceId[] = ["S2", "S3", "S4", "S5", "S6", "S7",
  * Amped's IT, not a diff here; docs/OPEN_DECISIONS.md carries it as OPEN-S6-IDP.
  */
 const PASSWORD_LOGIN: readonly SurfaceId[] = ["S2", "S3", "S4", "S6", "S7", "S8"];
+/** The company's own people: service manager, dispatch, HQ, the technician. Not a customer, a vendor, or a firm. */
+const COMPANY: readonly SurfaceId[] = ["S2", "S3", "S4", "S5"];
 
 export const OPERATIONS = {
   "auth.login": {
@@ -753,6 +755,32 @@ export const OPERATIONS = {
     surfaces: ["S2", "S7"], carrier: "query", sdkMethod: "listReturns",
     summary: "Returns — every one for the office, its own for a vendor.",
   },
+  // ---- 0035: company messages. A direct message, or one message to every active company login. ----
+  "messages.directory": {
+    id: "messages.directory", method: "GET", path: "/messages/directory", kind: "query", auth: "bearer",
+    surfaces: COMPANY, carrier: "none", sdkMethod: "listColleagues",
+    summary: "Every other active AC Services employee — name, the presence they set, and their roles. Customers, subcontractors and vendors are not in it.",
+  },
+  "messages.pending": {
+    id: "messages.pending", method: "GET", path: "/messages/pending", kind: "query", auth: "bearer",
+    surfaces: COMPANY, carrier: "none", sdkMethod: "pendingMessages",
+    summary: "Messages sent to the caller that they have not dismissed. What the corner pop-ups show. A person's own send is not in this list.",
+  },
+  "messages.recent": {
+    id: "messages.recent", method: "GET", path: "/messages/recent", kind: "query", auth: "bearer",
+    surfaces: COMPANY, carrier: "none", sdkMethod: "recentMessages",
+    summary: "The caller's recent messages, sent and received, newest first.",
+  },
+  "messages.send": {
+    id: "messages.send", method: "POST", path: "/messages", kind: "mutation", auth: "bearer",
+    surfaces: COMPANY, carrier: "body", sdkMethod: "sendMessage",
+    summary: "Send a message to one AC Services employee, or to every active AC Services employee. Customers, subcontractors and vendors are not recipients. The sender does not receive a copy of their own.",
+  },
+  "messages.dismiss": {
+    id: "messages.dismiss", method: "POST", path: "/messages/dismiss", kind: "mutation", auth: "bearer",
+    surfaces: COMPANY, carrier: "body", sdkMethod: "dismissMessage",
+    summary: "Dismiss the caller's own copy of a message. It leaves the corner and stays in the recent list.",
+  },
   "system.health": {
     id: "system.health", method: "GET", path: "/healthz", kind: "system", auth: "none",
     surfaces: ["S1", ...AUTHENTICATED], carrier: "none", sdkMethod: "health",
@@ -766,10 +794,17 @@ export const OPERATION_IDS = Object.freeze(Object.keys(OPERATIONS)) as readonly 
 
 /**
  * The mutations that write the caller's own session or users row and nothing
- * of the business's: ending a session, and the Account button (0033). The
- * only writes a read-only surface (S4) is served.
+ * of the business's: ending a session, and the Account button (0033).
+ * A company message is the other thing a read-only surface (S4) may call.
  */
 export const OWN_IDENTITY_MUTATIONS: readonly OperationId[] = ["auth.logout", "account.update", "account.setAvatar", "account.changePassword"];
+
+/**
+ * A message between company people. Not a write of a job, a crew, a contract
+ * or money, so the read-only dashboard (S4) may send and dismiss one. The
+ * copies are the gateway's, the way the Account button's row is.
+ */
+export const STAFF_MESSAGE_MUTATIONS: readonly OperationId[] = ["messages.send", "messages.dismiss"];
 
 export const isOperationId = (s: string): s is OperationId => Object.hasOwn(OPERATIONS, s);
 
@@ -831,6 +866,41 @@ export type UpdateMyAccountInput = { readonly displayName?: string; readonly pre
 export type SetAvatarInput = { readonly dataBase64: string | null };
 export type ChangePasswordInput = { readonly currentPassword: string; readonly newPassword: string };
 export type ChangePasswordOutput = { readonly ok: true; readonly passwordChangedAt: string; readonly endedSessions: number };
+
+/**
+ * 0035 — messages between AC Services employees. A customer, a subcontractor
+ * and a vendor are not in the directory and cannot be a recipient. "Everyone"
+ * is every other active employee at the moment of the send.
+ */
+export const STAFF_MESSAGE_MAX = 2000;
+export const STAFF_EVERYONE_GAP_SECONDS = 30;
+export type StaffAudience = "direct" | "everyone";
+export type StaffColleagueWire = {
+  readonly userId: string;
+  readonly displayName: string;
+  readonly presence: Presence;
+  readonly roles: readonly string[];
+};
+export type StaffDirectoryOutput = { readonly people: readonly StaffColleagueWire[] };
+export type StaffMessageWire = {
+  readonly messageId: string;
+  readonly senderId: string;
+  readonly senderName: string;
+  readonly audience: StaffAudience;
+  readonly recipientId: string | null;
+  readonly recipientName: string | null;
+  readonly body: string;
+  readonly sentAt: string;
+  readonly direction: "sent" | "received";
+  readonly dismissed: boolean;
+};
+export type StaffPendingOutput = { readonly messages: readonly StaffMessageWire[] };
+export type StaffRecentOutput = { readonly messages: readonly StaffMessageWire[] };
+/** Name one person, or everyone. Not both. */
+export type SendStaffMessageInput = { readonly body: string; readonly toUserId?: string; readonly everyone?: boolean };
+export type SendStaffMessageOutput = { readonly messageId: string; readonly sentAt: string; readonly recipients: number };
+export type DismissStaffMessageInput = { readonly messageId: string };
+export type DismissStaffMessageOutput = { readonly ok: true };
 
 /**
  * A technician's own credential plus the hardware in their hands. Unlike
@@ -2342,6 +2412,11 @@ export type OperationIO = {
   "rmas.request": { input: RequestReturnInput; output: RequestReturnOutput };
   "rmas.respond": { input: RespondToReturnInput; output: RespondToReturnOutput };
   "rmas.list": { input: ListReturnsInput; output: ListReturnsOutput };
+  "messages.directory": { input: void; output: StaffDirectoryOutput };
+  "messages.pending": { input: void; output: StaffPendingOutput };
+  "messages.recent": { input: void; output: StaffRecentOutput };
+  "messages.send": { input: SendStaffMessageInput; output: SendStaffMessageOutput };
+  "messages.dismiss": { input: DismissStaffMessageInput; output: DismissStaffMessageOutput };
   "system.health": { input: void; output: HealthOutput };
 };
 // Both directions: every operation has IO, and no IO names a missing operation.

@@ -137,6 +137,16 @@ export const ADMISSION_AXIS: Readonly<Record<string, AdmissionAxis>> = Object.fr
   rate_cards_service_code_fkey: "structural",
   // 0027: a line not priced as its rate card says, and a multiplier that is not one.
   ac_settlement_line_is_priced: "structural",
+  // 0035 — company messages. A blank, a stranger, or yourself is a send that
+  // can never be right. Sending to everyone twice in a moment is the same
+  // send twice, not a second message.
+  blank_message: "structural",
+  too_long: "structural",
+  not_yourself: "structural",
+  not_a_colleague: "structural",
+  not_staff: "structural",
+  not_yours: "structural",
+  everyone_too_soon: "structural",
 });
 
 export const admissionAxis = (code: string | undefined): AdmissionAxis =>

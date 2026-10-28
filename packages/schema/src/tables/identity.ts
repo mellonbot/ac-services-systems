@@ -83,3 +83,32 @@ export const sessions = operationalTable("sessions", {
   ],
   indexes: [["principal_id"], ["expires_at"]],
 });
+
+/**
+ * 0035 — a message from one company person to another, or to every active
+ * company login. The row is the sender's: their org and home region. A
+ * customer, a vendor and a firm are not senders and not recipients.
+ * `recipient_id` is set only for a direct message; an everyone message names
+ * nobody, and the copies live in staff_message_receipts.
+ */
+export const staff_messages = operationalTable("staff_messages", {
+  columns: [
+    { name: "sender_id", type: "uuid", references: "users(id)" },
+    { name: "audience", type: "text", check: "audience IN ('direct','everyone')" },
+    { name: "recipient_id", type: "uuid", nullable: true, references: "users(id)" },
+    { name: "body", type: "text", check: "length(btrim(body)) BETWEEN 1 AND 2000" },
+  ],
+  indexes: [["sender_id", "created_at"]],
+  constraints: [{ name: "staff_messages_direct_names_one", sql: "CHECK ((audience = 'direct') = (recipient_id IS NOT NULL))" }],
+});
+
+/** One copy of a staff message, for the person it was sent to. Dismissing it is the only change the row ever takes. */
+export const staff_message_receipts = operationalTable("staff_message_receipts", {
+  columns: [
+    { name: "message_id", type: "uuid", references: "staff_messages(id)" },
+    { name: "user_id", type: "uuid", references: "users(id)" },
+    { name: "dismissed_at", type: "timestamptz", nullable: true },
+  ],
+  indexes: [["user_id", "dismissed_at"], ["message_id"]],
+  uniques: [["message_id", "user_id"]],
+});

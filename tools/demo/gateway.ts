@@ -10,7 +10,7 @@
  * (term resolution, override admission, the compliance gate, context
  * resolution) the real module is imported and run.
  */
-import { OPERATIONS, OFFICE_JOB_TRANSITIONS, FIELD_CLOSED_STATES, serviceOf, EMERGENCY_MULTIPLIER_DEFAULT, multiplierBp, multiplierOf, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, AVATAR_MAX_BYTES, ACCOUNT_PASSWORD_MIN, STATUS_NOTE_MAX, routeKey, mayReadTechnicianAddress, type OperationId } from "../../packages/contracts/src/operations.ts";
+import { OPERATIONS, OFFICE_JOB_TRANSITIONS, FIELD_CLOSED_STATES, serviceOf, EMERGENCY_MULTIPLIER_DEFAULT, multiplierBp, multiplierOf, WORK_DONE_STATES, PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto, AVATAR_MAX_BYTES, ACCOUNT_PASSWORD_MIN, STATUS_NOTE_MAX, STAFF_MESSAGE_MAX, STAFF_EVERYONE_GAP_SECONDS, routeKey, mayReadTechnicianAddress, type OperationId } from "../../packages/contracts/src/operations.ts";
 import type * as W from "../../packages/contracts/src/operations.ts";
 import { invoiceStatusOf } from "../../packages/contracts/src/operations.ts";
 import { SURFACES, type SurfaceId } from "../../packages/contracts/src/surfaces.ts";
@@ -447,6 +447,28 @@ const profileOf = (u: User): Profile => {
   return p;
 };
 const accountOf = (u: User): W.MyAccountWire => ({ userId: u.id, email: u.email, displayName: u.name, ...profileOf(u) });
+/** AC Services employees only. The device session is the employed technician. A customer, a vendor, a firm coordinator, and a person on a firm's crew are not. */
+const employee = (u: User): boolean => {
+  if (u.principal.firmId) return false;
+  const crew = u.crewId ? crews.find((c) => c.id === u.crewId) : undefined;
+  if (crew?.firmId) return false;
+  return u.principal.namespace === "internal" || (u.surfaces.includes("S5") && u.principal.namespace === "device");
+};
+type StaffRow = { id: string; senderId: string; audience: W.StaffAudience; recipientId: string | null; body: string; at: string; recipients: Set<string>; dismissed: Set<string> };
+const staffMessages: StaffRow[] = [];
+const lastEveryone = new Map<string, number>();
+const staffWire = (m: StaffRow, me: string): W.StaffMessageWire => ({
+  messageId: m.id,
+  senderId: m.senderId,
+  senderName: users.find((u) => u.id === m.senderId)?.name ?? "Someone",
+  audience: m.audience,
+  recipientId: m.recipientId,
+  recipientName: m.recipientId ? users.find((u) => u.id === m.recipientId)?.name ?? null : null,
+  body: m.body,
+  sentAt: m.at,
+  direction: m.senderId === me ? "sent" : "received",
+  dismissed: m.dismissed.has(me),
+});
 const principalOf = (s: Session): Principal => ({ ...s.user.principal, sessionId: s.id });
 const mint = (user: User): Session => ({ id: uid("z"), user, token: `demo.${uid("t")}` });
 for (const sid of ["S2", "S3", "S4", "S6", "S7", "S8"] as SurfaceId[]) cookieSessions.set(sid, mint(users.find((u) => u.surfaces.includes(sid))!));
@@ -734,6 +756,56 @@ const H: Partial<Record<OperationId, Handler>> = {
     u.password = i.newPassword;
     profileOf(u).passwordChangedAt = new Date().toISOString();
     return { ok: true, passwordChangedAt: profileOf(u).passwordChangedAt!, endedSessions: 0 };
+  },
+  // 0035 — employees only. A customer, a vendor and a firm coordinator have no route here in the product either.
+  "messages.directory": (_i, { session }) => {
+    const me = session!.user;
+    need(employee(me), "this sign-in is not an AC Services employee", "not_staff");
+    return { people: users.filter((u) => employee(u) && u.id !== me.id).map((u) => ({ userId: u.id, displayName: u.name, presence: profileOf(u).presence, roles: u.principal.roles })) };
+  },
+  "messages.pending": (_i, { session }) => {
+    const me = session!.user;
+    need(employee(me), "this sign-in is not an AC Services employee", "not_staff");
+    return { messages: staffMessages.filter((m) => m.recipients.has(me.id) && !m.dismissed.has(me.id)).map((m) => staffWire(m, me.id)) };
+  },
+  "messages.recent": (_i, { session }) => {
+    const me = session!.user;
+    need(employee(me), "this sign-in is not an AC Services employee", "not_staff");
+    return { messages: staffMessages.filter((m) => m.senderId === me.id || m.recipients.has(me.id)).slice(-40).reverse().map((m) => staffWire(m, me.id)) };
+  },
+  "messages.send": (i: W.SendStaffMessageInput, { session }) => {
+    const me = session!.user;
+    need(employee(me), "this sign-in is not an AC Services employee", "not_staff");
+    const body = String(i.body ?? "").trim();
+    need(body.length > 0, "the message is empty", "blank_message");
+    need(body.length <= STAFF_MESSAGE_MAX, `a message is at most ${STAFF_MESSAGE_MAX} characters`, "too_long");
+    const everyone = i.everyone === true;
+    const to = typeof i.toUserId === "string" && i.toUserId ? i.toUserId : "";
+    if (everyone && to) throw bad("name one person, or everyone, not both");
+    if (!everyone && !to) throw bad("name one person, or everyone");
+    let recipients: User[];
+    if (everyone) {
+      const now = Date.now();
+      need(now - (lastEveryone.get(me.id) ?? 0) >= STAFF_EVERYONE_GAP_SECONDS * 1000, "wait a moment before sending to everyone again", "everyone_too_soon");
+      lastEveryone.set(me.id, now);
+      recipients = users.filter((u) => employee(u) && u.id !== me.id);
+    } else {
+      need(to !== me.id, "you cannot message yourself", "not_yourself");
+      const person = users.find((u) => u.id === to && employee(u));
+      need(person, "that person is not an AC Services employee", "not_a_colleague");
+      recipients = [person!];
+    }
+    const row: StaffRow = { id: uid("m"), senderId: me.id, audience: everyone ? "everyone" : "direct", recipientId: everyone ? null : recipients[0]!.id, body, at: new Date().toISOString(), recipients: new Set(recipients.map((u) => u.id)), dismissed: new Set() };
+    staffMessages.push(row);
+    return { messageId: row.id, sentAt: row.at, recipients: recipients.length };
+  },
+  "messages.dismiss": (i: W.DismissStaffMessageInput, { session }) => {
+    const me = session!.user;
+    need(employee(me), "this sign-in is not an AC Services employee", "not_staff");
+    const row = staffMessages.find((m) => m.id === i.messageId && m.recipients.has(me.id));
+    need(row, "that message was not sent to you", "not_yours");
+    row!.dismissed.add(me.id);
+    return { ok: true };
   },
   "brand.theme": () => ({ tenant: false, css: "", admission: null }),
 

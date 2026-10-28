@@ -26,7 +26,7 @@ import { hashPassword } from "../../apps/gateway/src/auth.ts";
 import { sweepHqRollup } from "../../apps/worker/src/rollup.ts";
 import { workerScope } from "../../apps/worker/src/sweeps.ts";
 import { connectShell } from "../../packages/shell/src/index.ts";
-import { HQ_METRIC_KEYS, OPERATIONS, OWN_IDENTITY_MUTATIONS } from "../../packages/contracts/src/index.ts";
+import { HQ_METRIC_KEYS, OPERATIONS, OWN_IDENTITY_MUTATIONS, STAFF_MESSAGE_MUTATIONS } from "../../packages/contracts/src/index.ts";
 import { INTERNAL_ORG_ID, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH, REGION_WEST } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 
@@ -259,6 +259,6 @@ test("over the wire: S4's principal reads the figures and their age, and the tre
 test("over the wire: a dispatcher is refused S4 at the door, and S4 is served no write", { skip }, async () => {
   await assert.rejects(connectShell({ surfaceId: "S4", baseUrl: BASE, fetch, credentials: { email: "disp.s4@ac.test", password: PASSWORD } }));
   for (const op of Object.values(OPERATIONS)) {
-    if ((op.surfaces as readonly string[]).includes("S4")) assert.ok(op.kind !== "mutation" || OWN_IDENTITY_MUTATIONS.includes(op.id), op.id);
+    if ((op.surfaces as readonly string[]).includes("S4")) assert.ok(op.kind !== "mutation" || OWN_IDENTITY_MUTATIONS.includes(op.id) || STAFF_MESSAGE_MUTATIONS.includes(op.id), op.id);
   }
 });

@@ -1,4 +1,4 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, type VNode, AccountMenu, createAccountMenu, type AccountMenuState } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, type VNode, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -39,7 +39,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
 /** How often the open dashboard re-reads the rollup. S4 is not realtime (the registry); the figures move when the worker's do. */
 export const REREAD_MS = 60_000;
 
-type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store; account: AccountMenuState };
+type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store; account: AccountMenuState; messages: MessengerState };
 
 export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window }) => {
   const now = opts.now ?? (() => Date.now());
@@ -49,7 +49,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
 
   const become = (shell: ConnectedShell) => {
     const store = createStore(shell, now);
-    phase.value = { kind: "ready", shell, store, account: createAccountMenu(shell.gateway, shell.refusalOf) };
+    phase.value = { kind: "ready", shell, store, account: createAccountMenu(shell.gateway, shell.refusalOf), messages: createMessenger(shell.gateway, shell.refusalOf) };
     const at = router.current.value;
     if (!at || at.screen === "login") router.navigate("overview", {});
   };
@@ -71,6 +71,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const logout = async () => {
     const p = phase.value;
     if (p.kind !== "ready") return;
+    p.messages.stop();
     try { await p.shell.logout(); } finally { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("overview", {}); }
   };
 
@@ -106,7 +107,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       <nav class="ac-nav" aria-label="Screens">
         ${nav("overview", "Company", loc?.screen === "overview")}
         <span class="ac-nav__who" id="who">${who} · ${p.shell.context?.parent.name ?? ""} · read only</span>
-        ${AccountMenu({ density: DENSITY, menu: p.account })}
+        ${Messenger({ density: DENSITY, menu: p.messages })}${AccountMenu({ density: DENSITY, menu: p.account })}
         <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s4-empty">Nothing at this address.</p>`}

@@ -1,4 +1,4 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, type VNode } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { admits, densityOf, seesManagerOverview, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -82,7 +82,7 @@ type PreviewShell = ConnectedShell & {
   };
 };
 
-type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store; account: AccountMenuState } | { kind: "preview"; shell: PreviewShell; store: Store };
+type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store; account: AccountMenuState; messages: MessengerState } | { kind: "preview"; shell: PreviewShell; store: Store };
 
 const DAY = 86_400_000;
 const PREVIEW_PLACES: Readonly<Record<string, { line1: string; city: string; state: string; postal: string }>> = {
@@ -285,7 +285,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
 
   const become = (shell: ConnectedShell) => {
     const store = createStore(shell, now);
-    phase.value = { kind: "ready", shell, store, account: createAccountMenu(shell.gateway, shell.refusalOf) };
+    phase.value = { kind: "ready", shell, store, account: createAccountMenu(shell.gateway, shell.refusalOf), messages: createMessenger(shell.gateway, shell.refusalOf) };
     const at = router.current.value;
     if (!at || at.screen === "login") router.navigate("board", {});
     // Envelopes carry no payload; refetch what the event touched (09 §3.5).
@@ -343,6 +343,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const logout = async () => {
     const p = phase.value;
     if (p.kind !== "ready") return;
+    p.messages.stop();
     try { await p.shell.logout(); } finally { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("board", {}); }
   };
 
@@ -410,7 +411,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           <span class="dispatch-header__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
           ${p.kind === "preview"
             ? html`<span class="s3-flag" id="preview-flag">Preview</span>`
-            : html`${AccountMenu({ density: DENSITY, menu: p.account })}<button type="button" class="dispatch-header__logout" onClick=${logout}>Sign out</button>`}
+            : html`${Messenger({ density: DENSITY, menu: p.messages })}${AccountMenu({ density: DENSITY, menu: p.account })}<button type="button" class="dispatch-header__logout" onClick=${logout}>Sign out</button>`}
         </div>
       </header>
       ${p.kind === "preview" ? html`<p class="s3-preview" role="note" id="preview-banner"><strong>Preview — sample data.</strong> No gateway answered at ${opts.baseUrl}, so these jobs, crews and requests are made up and nothing here is saved. Start the gateway and reload to sign in.</p>` : null}
