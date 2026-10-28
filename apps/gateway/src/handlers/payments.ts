@@ -3,7 +3,7 @@ import { InputRefused, BadInput } from "../refusals.ts";
 import { PAYMENT_METHODS, invoiceStatusOf } from "../../../../packages/contracts/src/operations.ts";
 import type {
   ListPaymentsInput, ListPaymentsOutput, PaymentWire, PaymentMethod, PaymentState,
-  RecordPaymentInput, ReturnPaymentInput, PaymentOutput, VoidInvoiceInput, VoidInvoiceOutput,
+  RecordPaymentInput, ReturnPaymentInput, PaymentOutput, VoidInvoiceInput, VoidInvoiceOutput, PaymentWebhookInput,
 } from "../../../../packages/contracts/src/operations.ts";
 import { requireUuid } from "./jobs.ts";
 
@@ -56,6 +56,17 @@ export const listPayments = async (uow: UnitOfWork, input: ListPaymentsInput): P
   const id = requireUuid(input.invoiceId, "invoiceId");
   const rows = await uow.tx.query<PaymentRow>(`SELECT ${PAYMENT_COLUMNS} FROM payments WHERE invoice_id = $1 ORDER BY received_at, created_at`, [id]);
   return { payments: rows.map(toWire) };
+};
+
+/** OPEN-PAYMENTS scaffold: a processor webhook that lands a succeeded payment.
+ * Signature verification is the caller's; this refuses unless AC_PAYMENT_WEBHOOK_SECRET is set.
+ * The office path (recordPayment) remains the source of truth until Y1–Y5 decide the processor. */
+export const paymentWebhook = async (uow: UnitOfWork, input: PaymentWebhookInput, newId: () => string, now: Date): Promise<PaymentOutput> => {
+  if (!process.env.AC_PAYMENT_WEBHOOK_SECRET?.trim()) {
+    throw new InputRefused("payment webhook is not configured (AC_PAYMENT_WEBHOOK_SECRET unset)", "webhook_not_configured");
+  }
+  // Reuse the office path with a system actor so the row is written the same way.
+  return recordPayment(uow, "00000000-0000-0000-0000-000000000000", input, newId, now);
 };
 
 export const recordPayment = async (uow: UnitOfWork, actorId: string, input: RecordPaymentInput, newId: () => string, now: Date): Promise<PaymentOutput> => {
