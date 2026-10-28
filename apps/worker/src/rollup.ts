@@ -19,6 +19,10 @@ import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/
  * RLS and the internal namespace sees every region's rows. 0007's lesson —
  * an unbound sweep reads zero rows and reports green — is why the rollup
  * test runs against a live database as ac_worker.
+ *
+ * Platform health metrics (2026-10-28) that are company-wide (outbox, sessions,
+ * devices) are written only on the UNASSIGNED row via onUnassigned(), matching
+ * the customers_total pattern.
  */
 const WINDOW = (col: string) => `${col} > $1::timestamptz - interval '30 days' AND ${col} <= $1::timestamptz`;
 // 0030, read as of the snapshot so a past day re-computed reads as it stood:
@@ -105,6 +109,28 @@ export const HQ_ROLLUP_SQL: Readonly<Record<HqMetricKey, string>> = {
                                   WHERE a.active AND o.kind = 'customer' AND o.active`),
   customers_new_total_30d: onUnassigned(`SELECT count(*) FROM organizations o
                                           WHERE o.kind = 'customer' AND ${WINDOW("o.created_at")} AND EXISTS (SELECT 1 FROM accounts a WHERE a.org_id = o.id)`),
+
+  // ---- platform health (company-wide, written on UNASSIGNED) ----
+  // outbox: unpublished events (published_at NULL), age from occurred_at.
+  outbox_pending_now: onUnassigned(`SELECT count(*) FROM outbox WHERE published_at IS NULL`),
+  outbox_oldest_age_seconds: onUnassigned(
+    `SELECT COALESCE(EXTRACT(EPOCH FROM ($1::timestamptz - min(occurred_at)))::bigint, 0) FROM outbox WHERE published_at IS NULL`,
+  ),
+  sessions_active_now: onUnassigned(
+    `SELECT count(*) FROM sessions WHERE revoked_at IS NULL AND expires_at > $1::timestamptz`,
+  ),
+  // device_grants: live window is service_window (tstzrange), not valid_from/valid_to.
+  devices_active_now: onUnassigned(
+    `SELECT count(*) FROM device_grants WHERE revoked_at IS NULL AND service_window @> $1::timestamptz`,
+  ),
+  // sync_mutations always carry an outcome once received; the human queue is the actionable backlog.
+  sync_mutations_pending_now: onUnassigned(
+    `SELECT count(*) FROM sync_mutations WHERE outcome = 'queued_for_human'`,
+  ),
+  // Stubs until the gateway request recorder exists. Registered so the UI and
+  // the register stay in lock-step; they evaluate to zero for every region.
+  gateway_requests_30d: `SELECT 0`,
+  gateway_refusals_30d: `SELECT 0`,
 };
 
 export const rollupStatement = (metric: HqMetricKey): string =>

@@ -11,6 +11,9 @@ type Tile = { readonly label: string; readonly figure: string; readonly sub?: st
 export const headline = (f: Figures): Readonly<Record<HqArea, readonly Tile[]>> => {
   const atRisk = f.of("jobs_at_risk_now"), breached = f.of("sla_breached_30d"), disputed = f.of("settlements_disputed"), overdue = f.of("settlements_overdue");
   const unverified = f.of("credentials_unverified");
+  const outboxPending = f.of("outbox_pending_now");
+  const outboxLag = f.of("outbox_oldest_age_seconds");
+  const offlinePending = f.of("sync_mutations_pending_now");
   return {
     service: [
       { label: "Answered in time, 30 days", figure: pct(metShare(f)), sub: `${count(f.of("sla_met_30d"))} of ${count(f.of("sla_closed_30d"))} response clocks` },
@@ -35,6 +38,12 @@ export const headline = (f: Figures): Readonly<Record<HqArea, readonly Tile[]>> 
       { label: "Service requests, 30 days", figure: count(f.of("service_requests_30d")) },
       { label: "Customers", figure: count(f.of("customers_total")), sub: `${count(f.of("customers_new_total_30d"))} new in 30 days` },
       { label: "Sites", figure: count(f.of("sites_active")) },
+    ],
+    platform: [
+      { label: "Outbox pending", figure: count(outboxPending), ...(outboxPending > 50n ? { state: { status: "at_risk" as const, word: "Behind" } } : {}) },
+      { label: "Outbox lag", figure: outboxLag === 0n ? "0 s" : `${count(outboxLag)} s`, ...(outboxLag > 120n ? { state: { status: "at_risk" as const, word: "Lagging" } } : {}) },
+      { label: "Active sessions", figure: count(f.of("sessions_active_now")) },
+      { label: "Active devices / offline queue", figure: `${count(f.of("devices_active_now"))} / ${count(offlinePending)}`, ...(offlinePending > 20n ? { state: { status: "at_risk" as const, word: "Backlog" } } : {}) },
     ],
   };
 };

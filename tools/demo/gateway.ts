@@ -661,6 +661,14 @@ const hqFigures = (regionId: string, now: number): Record<HqMetricKey, number> =
     // Company-wide distinct figures live on the unplaced row alone, as in the rollup.
     customers_total: regionId === UNASSIGNED_REGION_ID ? new Set(accounts.filter((a) => a.active && orgs.find((o) => o.id === a.orgId)?.kind === "customer").map((a) => a.orgId)).size : 0,
     customers_new_total_30d: regionId === UNASSIGNED_REGION_ID ? orgs.filter((o) => o.kind === "customer" && in30(o.createdAt)).length : 0,
+    // Platform health — demo has no real outbox/session tables; zeros keep the register complete.
+    outbox_pending_now: 0,
+    outbox_oldest_age_seconds: 0,
+    sessions_active_now: regionId === UNASSIGNED_REGION_ID ? users.length : 0,
+    devices_active_now: 0,
+    sync_mutations_pending_now: 0,
+    gateway_requests_30d: 0,
+    gateway_refusals_30d: 0,
   };
 };
 /** A deterministic wobble around today's value, older days a little lower for flows (30d) and near-flat for states (now). */
