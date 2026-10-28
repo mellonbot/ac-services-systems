@@ -371,19 +371,22 @@ ac-degraded[hidden]{display:none}
 .ac-account__close{appearance:none;-webkit-appearance:none;margin:0;padding:0 var(--space-3);border:1px solid var(--color-border-control);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit;font-weight:600;min-height:var(--control-height);cursor:pointer}
 @media (max-width:760px){.ac-account__label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.ac-account{padding:var(--space-1)}}
 /* ---- Company messages (0035) ----
-   The button sits in the nav. What arrives sits in the bottom-right corner,
-   inside the gutter, and does not cover the page. The composer opens in
-   that same corner. */
-.ac-messages-wrap{display:inline-flex}
+   The button floats in the bottom-right corner and stays there while the
+   page scrolls. What arrives stacks above it, inside the gutter, and does
+   not cover the page. The composer opens in that same corner, and the
+   button stays at the bottom of it. */
+.ac-messages-wrap{display:contents}
 .ac-messages-dock{position:fixed;right:var(--gutter);bottom:var(--gutter);z-index:2;display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-2);width:min(var(--measure-short),calc(100% - 2 * var(--gutter)));max-height:calc(100% - 2 * var(--gutter));pointer-events:none}
-.ac-messages-panel,.ac-messages-stack,.ac-messages-popup,.ac-messages__more{pointer-events:auto}
-.ac-messages-panel{display:flex;flex-direction:column;gap:var(--space-3);width:100%;max-height:calc(100% - 2 * var(--gutter));overflow:auto;padding:var(--space-3);background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border-hard);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.ac-messages-panel,.ac-messages-stack,.ac-messages-popup,.ac-messages__more,.ac-messages__open{pointer-events:auto}
+.ac-messages__open{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;gap:var(--space-2);flex:0 0 auto;margin:0;padding:0 var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit;font-weight:600;font-size:var(--text-sm);min-height:var(--control-height);cursor:pointer;transition:border-color var(--motion-fast) var(--ease)}
+.ac-messages__open:hover{border-color:color-mix(in srgb,var(--color-border-hard) calc(100% * var(--hover)),var(--color-border))}
+.ac-messages-panel{display:flex;flex-direction:column;gap:var(--space-3);width:100%;min-height:0;flex:1 1 auto;overflow:auto;padding:var(--space-3);background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border-hard);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 .ac-messages-panel__head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
 .ac-messages-panel__title{margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
 .ac-messages-panel .ac-form{max-width:none;padding:0;background:transparent;border:0;border-radius:var(--radius-none);box-shadow:none}
 .ac-messages__body{min-height:calc(var(--control-height) * 2);padding:var(--space-2);resize:vertical}
 .ac-messages__close,.ac-messages__dismiss,.ac-messages__more{appearance:none;-webkit-appearance:none;margin:0;padding:0 var(--space-3);border:1px solid var(--color-border-control);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit;font-weight:600;min-height:var(--control-height);cursor:pointer}
-.ac-messages-stack{display:flex;flex-direction:column-reverse;align-items:flex-end;gap:var(--space-2);width:100%}
+.ac-messages-stack{display:flex;flex-direction:column-reverse;align-items:flex-end;gap:var(--space-2);width:100%;min-height:0;flex:0 1 auto;overflow:auto}
 .ac-messages-popup{width:100%;padding:var(--space-3);background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border-hard);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 .ac-messages-popup__head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--space-2)}
 .ac-messages-popup__who{font-weight:700}
@@ -396,7 +399,7 @@ ac-degraded[hidden]{display:none}
    110/170/260ms on one curve, from the tokens: a control's state change
    moves, data does not. A reader who asked for reduced motion gets none —
    the same selectors, stilled, declared last so they win on source order. */
-@media (prefers-reduced-motion:reduce){.ac-action,.ac-seg__item,.ac-seg__pick,.ac-chip,.ac-link,.ac-account{transition:none}}
+@media (prefers-reduced-motion:reduce){.ac-action,.ac-seg__item,.ac-seg__pick,.ac-chip,.ac-link,.ac-account,.ac-messages__open{transition:none}}
 `;
 
 /** Every `var(--name)` the stylesheet reads. The test checks each is defined by tokenCss for every density. */
