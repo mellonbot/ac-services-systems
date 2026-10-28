@@ -376,6 +376,11 @@ export const OPERATIONS = {
     surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listSettlementLines",
     summary: "One statement's lines: the job, the rate applied, the quantity, the amount. A firm sees the lines of a statement it can see and no other's — another firm's price is not derivable from a row the firm cannot read.",
   },
+  "settlements.issue": {
+    id: "settlements.issue", method: "POST", path: "/s2/money/settlements/issue", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "issueSettlement",
+    summary: "Issue a draft statement to a firm: draft → issued, stamped. The office's step that makes a settlement visible to the firm (WS-E). Refused if not a draft.",
+  },
   "settlements.acknowledge": {
     id: "settlements.acknowledge", method: "POST", path: "/s8/money/settlements/acknowledge", kind: "mutation", auth: "bearer",
     surfaces: ["S8"], carrier: "body", sdkMethod: "acknowledgeSettlement",
@@ -1585,6 +1590,8 @@ export type SettlementLineWire = {
 };
 export type ListSettlementLinesInput = { readonly settlementId: string };
 export type ListSettlementLinesOutput = { readonly settlementId: string; readonly lines: readonly SettlementLineWire[] };
+export type IssueSettlementInput = { readonly settlementId: string };
+export type IssueSettlementOutput = { readonly id: string; readonly state: "issued"; readonly issuedAt: string; readonly eventId: string };
 export type AcknowledgeSettlementInput = { readonly settlementId: string };
 export type AcknowledgeSettlementOutput = { readonly id: string; readonly state: "acknowledged"; readonly acknowledgedAt: string; readonly eventId: string };
 export type DisputeSettlementInput = { readonly settlementId: string; readonly reason: string };
