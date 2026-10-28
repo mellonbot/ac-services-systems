@@ -421,7 +421,7 @@ test("AccountMenu: a refused change says why, beside the section it came from", 
 });
 
 // ---------------------------------------------------------------------------
-// 0035 — company messages. Pop-ups sit in the bottom-right corner.
+// 0035 — company messages. The button and the pop-ups sit in the bottom-right corner.
 // ---------------------------------------------------------------------------
 const HARPER = { userId: "u-harper", displayName: "Harper HQ", presence: "available" as const, roles: ["ops_leadership"] };
 const pendingOf = (body: string) => ({
@@ -442,7 +442,8 @@ test("Messenger: a new message is a pop-up in the bottom-right dock, and dismiss
   const menu = createMessenger(fakeMessenger(calls), () => null);
   await new Promise((r) => setTimeout(r, 0));
   const out = render(Messenger({ density: "console", menu })!);
-  assert.match(out, /id="messages-dock"/);
+  assert.match(out, /id="messages-dock"[\s\S]*id="messages-menu"/);
+  assert.match(out, /class="ac-messages__open"/);
   assert.match(out, /class="ac-messages-popup"/);
   assert.match(out, /Harper HQ/);
   assert.match(out, /Roof is clear/);

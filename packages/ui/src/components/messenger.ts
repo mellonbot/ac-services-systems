@@ -167,12 +167,8 @@ export const Messenger = component<typeof MessengerSpec, MessengerProps>(Messeng
   const out = menu.outcome.value;
 
   return html`<span class="ac-messages-wrap">
-    <button type="button" class="ac-account" id="messages-menu" aria-expanded=${open ? "true" : "false"} aria-controls="messages-dock"
-      aria-label=${count ? `Messages, ${count} new` : "Messages"} onClick=${() => { if (open) menu.hide(); else menu.show(); }}>
-      <span class="ac-account__label">Messages</span>${count ? html`<span class="ac-num">${count}</span>` : null}
-    </button>
     <div class="ac-messages-dock" id="messages-dock">
-      ${open ? html`<section class="ac-messages-panel" aria-labelledby="messages-title">
+      ${open ? html`<section class="ac-messages-panel" id="messages-panel" aria-labelledby="messages-title">
         <header class="ac-messages-panel__head">
           <h2 class="ac-messages-panel__title" id="messages-title">Messages</h2>
           <button type="button" class="ac-messages__close" onClick=${menu.hide}>Close</button>
@@ -212,6 +208,10 @@ export const Messenger = component<typeof MessengerSpec, MessengerProps>(Messeng
         </article>`)}
         ${extra > 0 ? html`<button type="button" class="ac-messages__more" onClick=${menu.show}><span class="ac-num">${extra}</span> more</button>` : null}
       </div>
+      <button type="button" class="ac-messages__open" id="messages-menu" aria-expanded=${open ? "true" : "false"} aria-controls="messages-panel"
+        aria-label=${count ? `Messages, ${count} new` : "Messages"} onClick=${() => { if (open) menu.hide(); else menu.show(); }}>
+        Messages${count ? html`<span class="ac-num">${count}</span>` : null}
+      </button>
     </div>
   </span>`;
 });
