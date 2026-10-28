@@ -68,20 +68,14 @@ Lands in: the gateway's environment (`AC_IMAGERY_URL`, `AC_IMAGERY_ATTRIBUTION`)
 than a key in the URL, and an S2 field (or a geocoding step) for the
 coordinates.
 
-**OPEN-S6-CONTACTS — may the customer edit its own on-site contacts?**
+**~~OPEN-S6-CONTACTS~~ — may the customer edit its own on-site contacts?**
 
-`contact_update` has been on S6's write allowlist since `05`. Item 9 gave it a
-table (`account_contacts`, 0009) and the office a write (`contacts.set`, S2);
-the customer READS contacts on the site card and edits nothing. Whether a
-facility manager may name their own replacement, or change the desk's number at
-2 a.m. when the crew is at the gate, is a product decision with a security edge:
-a contact is who a crew is told to trust on arrival. If yes, it is one
-operation admitted to S6 under the `contact_update` label, with 0009's INSERT
-policy widened from the internal namespace to "the customer, at a node in its
-own scope" — a reviewed diff on the migration, not a flag.
-
-Lands in: `packages/contracts/src/operations.ts` (`contacts.set` surfaces, or a
-narrower `contacts.updateOwn`), a 0010 policy, and an S6 form on the card.
+**CLOSED 2026-10-28.** Yes. `contacts.set` is admitted to S6. Migration 0037
+widens the write on `account_contacts` so a customer principal can insert or
+update a contact exactly when `ac_node_row_visible(account_id)` is true.
+The S6 site card has a form that posts to it. Internal continues to write as
+before. A contact is still who a crew is told to trust on arrival; the table
+holds the rule.
 
 **OPEN-S8-D12 — the firm's writes, as built, are the registry's line; D12 ratifies or edits it.**
 
