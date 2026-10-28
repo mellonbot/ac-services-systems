@@ -20,7 +20,10 @@ import {
  * a person on a firm's crew are none of those, so they are not in the
  * directory, not a recipient, and not a sender.
  *
- * The gateway runs this as itself. Every statement still names the subject.
+ * The gateway runs this as itself (`ac.namespace = 'system'`). Every statement
+ * still names the subject. The crew lookup is visible to that binding only
+ * because 0036 admits a system SELECT: crews_region_isolation does not, and
+ * without it an employed technician matches nothing.
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
