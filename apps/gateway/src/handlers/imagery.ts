@@ -45,10 +45,19 @@ const TIMEOUT_MS = 5000;
 const FAILURE_TTL_MS = 60 * 1000;
 
 export type ImageryConfig = { readonly urlTemplate: string | null; readonly attribution: string | null };
-export const imageryConfigFromEnv = (env: NodeJS.ProcessEnv = process.env): ImageryConfig => ({
-  urlTemplate: env.AC_IMAGERY_URL?.trim() || null,
-  attribution: env.AC_IMAGERY_ATTRIBUTION?.trim() || null,
-});
+export const imageryConfigFromEnv = (env: NodeJS.ProcessEnv = process.env): ImageryConfig => {
+  // Prefer an explicit template. Otherwise, when a MapTiler key is present,
+  // use its static map endpoint (same key already used for tiles and geocoding).
+  // Attribution is required by MapTiler's terms.
+  const explicit = env.AC_IMAGERY_URL?.trim() || null;
+  const key = env.AC_MAPTILER_KEY?.trim();
+  const urlTemplate = explicit || (key
+    ? `https://api.maptiler.com/maps/streets/static/{lng},{lat},{zoom}/{w}x{h}.png?key=${encodeURIComponent(key)}`
+    : null);
+  const attribution = env.AC_IMAGERY_ATTRIBUTION?.trim()
+    || (urlTemplate ? "© MapTiler © OpenStreetMap contributors" : null);
+  return { urlTemplate, attribution };
+};
 
 export type Fetcher = (url: string, init: { signal: AbortSignal }) => Promise<{ ok: boolean; status: number; headers: { get(n: string): string | null }; arrayBuffer(): Promise<ArrayBuffer> }>;
 
