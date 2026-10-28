@@ -702,6 +702,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   // 0030: what was paid against an invoice. Written by finance and the principals (S2 writeRoles).
   "invoices.void": (req, input) => withUow(req, "invoices.void", (uow) => voidInvoice(uow, input, new Date())),
   "payments.list": (req, input) => withRead(req, "payments.list", (uow) => listPayments(uow, input)),
+  "payments.webhook": (req, input) => withUow(req, "payments.webhook", (uow) => paymentWebhook(uow, input, () => crypto.randomUUID(), new Date())),
   "payments.record": (req, input) => withUow(req, "payments.record", (uow, p) => recordPayment(uow, p.subjectId, input, randomUUID, new Date())),
   "payments.return": (req, input) => withUow(req, "payments.return", (uow) => returnPayment(uow, input, new Date())),
   // The provider is asked after the read's transaction is released, never
