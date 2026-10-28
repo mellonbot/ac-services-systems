@@ -390,7 +390,7 @@ const login = async (req: IncomingMessage, body: Partial<OperationIO["auth.login
       // TODO: exchange the password (or a code) with AC_IDP_ISSUER and match external_idp_subject.
       // For now the scaffold refuses so a misconfigured IdP does not silently accept passwords.
       signInFailed(req, who);
-      throw new AuthError("customer IdP is configured but not yet wired (OPEN-S6-IDP)", "idp_not_wired");
+      throw new AuthError("customer IdP is configured but not yet wired (OPEN-S6-IDP)", "bad_claims");
     }
     if (!(await verifyPasswordAsync(password, u?.password_hash)) || !u?.active) {
       signInFailed(req, who);

@@ -27,7 +27,7 @@ assumption. Each row names the file that changes when the decision lands.
 
 **SCAFFOLD 2026-10-28.** `login()` now checks `AC_IDP_ISSUER`. When set and the
 user is a customer with `external_idp_subject`, the password path is skipped
-and the call refuses with `idp_not_wired` until the token exchange is built.
+and the call refuses with `bad_claims` until the token exchange is built.
 Unset, the existing gateway-held password continues to work. Claims stay the
 same. Remaining: the actual IdP exchange and the mapping from IdP subject to
 scope node (provisioning is still SQL-seeded).
