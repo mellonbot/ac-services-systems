@@ -191,8 +191,8 @@ export const OPERATIONS = {
   },
   "contacts.set": {
     id: "contacts.set", method: "POST", path: "/s2/contacts", kind: "mutation", auth: "bearer",
-    surfaces: ["S2"], carrier: "body", sdkMethod: "setContact",
-    summary: "Record or replace a contact at a node: role, name, phone, email, note, primary. The customer's own edit of its contacts is OPEN-S6-CONTACTS; until it closes the office keeps the record.",
+    surfaces: ["S2", "S6"], carrier: "body", sdkMethod: "setContact",
+    summary: "Record or replace a contact at a node: role, name, phone, email, note, primary. The customer may edit a contact at a node in its own scope (0037, OPEN-S6-CONTACTS closed).",
   },
   "invoices.list": {
     id: "invoices.list", method: "GET", path: "/invoices", kind: "query", auth: "bearer",
