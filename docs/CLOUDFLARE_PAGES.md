@@ -155,3 +155,23 @@ its browser origins from `SURFACES` under `AC_SITE` — the apex and `www`,
 where Pages serves every portal, plus one subdomain per enabled surface — and
 `api.<site>` is same-site with them, so the session cookie stays
 `SameSite=Strict`.
+
+
+## Rate limiting the public intake (OPEN-S1-ABUSE)
+
+`leads.submit` and `auth.anonymousSession` are the first mutations a stranger
+can reach. The chosen protection is a Cloudflare WAF rate-limiting rule on the
+zone (not a counter inside the gateway).
+
+Create one rule for each path:
+
+| Path | Method | Limit | Period | Action |
+|------|--------|-------|--------|--------|
+| `/auth/anonymous` | POST | 10 | 1 minute | Block for 10 minutes |
+| `/s1/leads` | POST | 20 | 1 minute | Block for 10 minutes |
+
+Key by IP. These numbers are conservative for a marketing form and an
+anonymous session mint; raise them if real traffic hits them. The rule is a
+dashboard or API object on the zone — not a file in this repository. S1 should
+not be public until the rules exist.
+

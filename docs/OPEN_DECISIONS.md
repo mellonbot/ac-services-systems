@@ -144,37 +144,16 @@ a list in the bundle, so a map claiming a metro with no crews behind it is not
 expressible. `min_crew_density` — D14's rule — is deliberately not in that
 function's result, because a supply figure on a public page is a promise.
 
-**OPEN-S1-ABUSE — a public write with no credential in front of it.**
+**~~OPEN-S1-ABUSE~~ — a public write with no credential in front of it.**
 
-`leads.submit` is the first mutation in the system a stranger can reach. It is
-bounded in every way the frame already provides — a session row per visit that
-an operator can revoke, a write allowlist of two entities, a tenancy that is a
-constant, field lengths, and a unique `submission_id` that makes a retry
-idempotent — but **none of those is a rate limit**, and the gateway has no rate
-limiter today.
+**CLOSED 2026-10-28.** Edge rate limiting via Cloudflare WAF on the zone.
+Concrete limits (documented in `docs/CLOUDFLARE_PAGES.md`):
 
-What that means concretely: a script can mint anonymous sessions and write
-leads as fast as it can open sockets. The blast radius is bounded (rows in
-PROSPECT/UNASSIGNED, and an office inbox full of noise — no customer data is
-reachable, and `test/integration/s1.test.ts` holds that), but the cost is real
-and it lands on whoever works the intake queue.
+- `POST /auth/anonymous` — 10 requests per minute per IP, block 10 minutes
+- `POST /s1/leads` — 20 requests per minute per IP, block 10 minutes
 
-This is an infrastructure decision more than a code one, and it should be taken
-deliberately rather than discovered:
-- at the edge (a WAF or CDN rule on `POST /auth/anonymous` and `POST /s1/leads`),
-  which is where rate limiting belongs and where it does not become a stateful
-  thing inside the gateway; or
-- in the gateway, which means a shared counter, which means another piece of
-  infrastructure.
-
-Until one is chosen, S1 should not be exposed on a public domain. Naming the
-owner is D7's; the choice is the infrastructure memo's (`02`).
-
-*2026-10-13:* the infrastructure is Cloudflare (`docs/CLOUDFLARE_PAGES.md`),
-so the choice is the first one: a WAF rate-limiting rule on the zone for
-`POST api.acservice.systems/auth/anonymous` and `/s1/leads`. It is a dashboard
-or API object on the zone, not a file here; the setup section names it as a
-step before the site is public. Still open: the numbers.
+The rules are dashboard/API objects on the zone, not files here. S1 should not
+be public until they exist. The gateway itself has no counter.
 
 **OPEN-S7 — enable the vendor portal (D9).** *Item 11 (2026-09-27)* built
 procurement and S7 in full, with S7 left `enabled: false` (Phase 4). The

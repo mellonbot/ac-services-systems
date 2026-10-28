@@ -215,8 +215,8 @@ export const OPERATIONS = {
     summary: "Record a payment received against an issued invoice: amount in the invoice's currency, method, reference, the day it arrived (today if not given; never ahead, never before issue). Part payments are rows like any other; the total is never exceeded (0030). Emits invoice.paid when it settles the invoice, payment.recorded otherwise. Finance and the principals (S2 writeRoles.payment).",
   },
   "payments.webhook": {
-    id: "payments.webhook", method: "POST", path: "/webhooks/payments", kind: "mutation", auth: "none",
-    surfaces: [], carrier: "body", sdkMethod: "paymentWebhook",
+    id: "payments.webhook", method: "POST", path: "/webhooks/payments", kind: "system", auth: "none",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "paymentWebhook",
     summary: "Processor webhook entry point (OPEN-PAYMENTS scaffold). Verifies a signature when AC_PAYMENT_WEBHOOK_SECRET is set and records a succeeded payment the same way the office does. Unset, refuses. Y1–Y5 still decide the real processor and merchant of record.",
   },
   "payments.return": {
