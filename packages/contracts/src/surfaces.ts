@@ -198,7 +198,7 @@ const REGISTRY = {
     id: "S6", name: "Customer Portal", app: "s6-customer-portal",
     block: "INV", phase: 1, enabled: true,
     namespace: "customer", authScope: "customer IdP + tier claim", scopeBinding: "customer_tier",
-    writes: ["service_request", "photo", "payment", "contact_update", "job_message"],
+    writes: ["service_request", "photo", "payment", "contact_update", "account_contact", "job_message"],
     // R6: a household (or an account) splits who pays from who asks. A login
     // with both — every first login — writes all four.
     writeRoles: { service_request: ["requester"], photo: ["requester"], job_message: ["requester"], payment: ["payer"] },

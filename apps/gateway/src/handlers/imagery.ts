@@ -48,14 +48,17 @@ export type ImageryConfig = { readonly urlTemplate: string | null; readonly attr
 export const imageryConfigFromEnv = (env: NodeJS.ProcessEnv = process.env): ImageryConfig => {
   // Prefer an explicit template. Otherwise, when a MapTiler key is present,
   // use its static map endpoint (same key already used for tiles and geocoding).
-  // Attribution is required by MapTiler's terms.
+  // Attribution is required by MapTiler's terms, so it is set only for the
+  // default URL. An explicit template keeps the attribution the caller gave
+  // (including empty → null).
   const explicit = env.AC_IMAGERY_URL?.trim() || null;
   const key = env.AC_MAPTILER_KEY?.trim();
-  const urlTemplate = explicit || (key
+  const built = !explicit && key
     ? `https://api.maptiler.com/maps/streets/static/{lng},{lat},{zoom}/{w}x{h}.png?key=${encodeURIComponent(key)}`
-    : null);
+    : null;
+  const urlTemplate = explicit || built;
   const attribution = env.AC_IMAGERY_ATTRIBUTION?.trim()
-    || (urlTemplate ? "© MapTiler © OpenStreetMap contributors" : null);
+    || (built ? "© MapTiler © OpenStreetMap contributors" : null);
   return { urlTemplate, attribution };
 };
 
