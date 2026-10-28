@@ -67,6 +67,12 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
    the letter is a MARK and not a word anyone reads. (No hex in this file: the
    sheet names roles, and styles.test.ts fails a colour even in a comment.) */
 .ac-mast{padding:var(--space-4) var(--gutter) var(--space-2);background:var(--color-page);max-width:var(--page-max);margin:0 auto}
+/* The lockup and the signed-in controls share one row, above the rule. The
+   controls centre on the lockup, which is the line the company descriptor
+   stands on. The lockup stays whole; the controls drop to their own line,
+   still above the rule, only when the row cannot hold both. */
+.ac-mast__row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3) var(--space-4)}
+.ac-mast__tools{display:flex;flex:none;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:var(--space-1) var(--space-3);margin-inline-start:auto}
 .ac-mast__lockup{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;
   text-decoration:none;color:inherit}
 .ac-badge-mark{display:inline-flex;flex:none}

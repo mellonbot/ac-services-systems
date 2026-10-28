@@ -155,6 +155,7 @@ test("the fault mark carries a fill, because on the plate ground the word role I
 test("the chrome every surface shares has a rule in the component sheet", () => {
   for (const cls of [
     "ac-nav", "ac-nav__who", "ac-nav__signout",
+    "ac-mast__row", "ac-mast__tools",
     "ac-nav--grouped", "ac-nav__group", "ac-nav__group-label", "ac-nav__end",
     "ac-link", "ac-link--button",
     "ac-form", "ac-field", "ac-field__hint", "ac-input", "ac-textarea",

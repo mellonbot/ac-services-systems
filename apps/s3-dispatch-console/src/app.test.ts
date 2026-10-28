@@ -351,7 +351,7 @@ test("New job: a site whose agreement has no response time says so in plain word
   assert.equal(defaultWindow(String(held!["description"]), new Date()).start, "2026-10-24T08:00", "opened from Intake, the form starts on the day the caller asked for");
 });
 
-test("the dark dispatch bar is the only navigation, and its Sign out ends the session at the gateway", async () => {
+test("the dark dispatch bar is the only navigation, and Sign out ends the session at the gateway", async () => {
   const { app, gateway } = await ready({ [OPERATIONS["auth.logout"].path]: { status: 200, body: { ok: true, sessionId: "sess-1" } } });
   await settle();
   const page = render(app.view());
@@ -359,7 +359,7 @@ test("the dark dispatch bar is the only navigation, and its Sign out ends the se
   assert.equal(page.includes('class="ac-nav"'), false, "the old nav above it is gone");
   assert.match(page, /<nav class="ac-seg" aria-label="Dispatch navigation"><a class="ac-seg__item" href="[^"]*\/board" data-current="true" aria-current="page"/, "the bar's nav is the segmented control, the board raised");
   assert.match(page, /dispatcher · AC Services/, "who is signed in stays on screen");
-  const signOut = nodesIn(app.view()).filter((n) => n.props?.class === "dispatch-header__logout");
+  const signOut = nodesIn(app.view()).filter((n) => n.props?.class === "ac-nav__signout");
   assert.equal(signOut.length, 1, "one Sign out");
   await (signOut[0]!.props!.onClick as () => Promise<void>)();
   await settle();

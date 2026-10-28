@@ -2,8 +2,14 @@ import { localDay } from "./screen-helpers.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToString as render } from "./testing.ts";
-import { pageHead, statStrip, panel, notice } from "./layout.ts";
+import { pageHead, statStrip, panel, notice, sessionTools } from "./layout.ts";
 import { UI_CSS } from "./styles.ts";
+
+test("session tools are Account and Sign out, drawn once", () => {
+  const out = render(sessionTools("account", () => {}));
+  assert.match(out, /account/);
+  assert.match(out, /<button type="button" class="ac-nav__signout">Sign out<\/button>/);
+});
 
 test("the page head is the name, one sentence, and an optional side slot", () => {
   const out = render(pageHead("Dispatch board", "Every job in your region.", "side"));

@@ -1,4 +1,4 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, type VNode, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, type VNode, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -107,8 +107,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       <nav class="ac-nav" aria-label="Screens">
         ${nav("overview", "Company", loc?.screen === "overview")}
         <span class="ac-nav__who" id="who">${who} · ${p.shell.context?.parent.name ?? ""} · read only</span>
-        ${Messenger({ density: DENSITY, menu: p.messages })}${AccountMenu({ density: DENSITY, menu: p.account })}
-        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
+        ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s4-empty">Nothing at this address.</p>`}
     </div>`;

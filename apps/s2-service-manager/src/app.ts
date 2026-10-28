@@ -1,4 +1,4 @@
-import { html, pageHead, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, type VNode, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState } from "../../../packages/ui/src/index.ts";
+import { html, pageHead, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, type VNode, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools } from "../../../packages/ui/src/index.ts";
 import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { densityOf, SURFACE_PATHS, type AccountWire, type CrewWire, type FirmWire, type OrganizationWire, type PurchaseOrderDetailOutput, type Refusal, type TechnicianWire, type VendorWire } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -321,8 +321,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         <div class="ac-nav__end">
           <span class="ac-nav__group-label">Signed-in scope</span>
           <span class="ac-nav__who"><span class="s2-scope">${path.map((node) => html`<span>${node.name ?? node.tier}</span>`)}</span> · ${p.shell.principal.roles.join(", ")}</span>
-          ${Messenger({ density: DENSITY, menu: p.messages })}${AccountMenu({ density: DENSITY, menu: p.account })}
-          <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
+          ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
         </div>
         <div class="ac-nav__groups">
           ${NAV_GROUPS.map((navGroup) => html`<div class="ac-nav__group" role="group" aria-label=${navGroup.label} data-current=${group?.label === navGroup.label ? "true" : "false"}>
