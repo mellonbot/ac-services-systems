@@ -2355,6 +2355,7 @@ export type OperationIO = {
   "crews.retire": { input: RetireCrewInput; output: RetireCrewOutput };
   "settlements.list": { input: ListSettlementsInput; output: ListSettlementsOutput };
   "settlements.lines": { input: ListSettlementLinesInput; output: ListSettlementLinesOutput };
+  "settlements.issue": { input: IssueSettlementInput; output: IssueSettlementOutput };
   "settlements.acknowledge": { input: AcknowledgeSettlementInput; output: AcknowledgeSettlementOutput };
   "settlements.dispute": { input: DisputeSettlementInput; output: DisputeSettlementOutput };
   "projects.list": { input: ListProjectsInput; output: ListProjectsOutput };
