@@ -204,11 +204,18 @@ const contactsView = (ctx: ScreenContext, contacts: readonly ContactWire[], site
     const form = e.currentTarget as HTMLFormElement;
     const data = new FormData(form);
     const name = String(data.get("name") ?? "").trim();
-    const phone = String(data.get("phone") ?? "").trim() || undefined;
-    const email = String(data.get("email") ?? "").trim() || undefined;
-    const note = String(data.get("note") ?? "").trim() || undefined;
+    const phone = String(data.get("phone") ?? "").trim();
+    const email = String(data.get("email") ?? "").trim();
+    const note = String(data.get("note") ?? "").trim();
     if (!name || (!phone && !email)) return;
-    await ctx.shell.gateway.setContact({ accountId: siteId, name, phone, email, note, role: "site_manager" });
+    await ctx.shell.gateway.setContact({
+      accountId: siteId,
+      name,
+      role: "site_manager",
+      ...(phone ? { phone } : {}),
+      ...(email ? { email } : {}),
+      ...(note ? { note } : {}),
+    });
     ctx.store.invalidate("contacts.list");
     form.reset();
   };
