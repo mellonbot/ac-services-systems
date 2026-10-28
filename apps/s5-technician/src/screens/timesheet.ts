@@ -44,7 +44,10 @@ export const shiftClock = (ctx: ScreenContext, jobs: readonly FieldJobWire[]): V
     const today = spans.filter((s) => isToday(new Date(s.start), ctx.now));
     const action = clockAction(since !== null, jobs.map((j) => deviceState(ctx, j)));
     const punch = (kind: "in" | "out") => {
-      ctx.queue.enqueue("shift_punches", ctx.shell.principal.shiftId!, "insert", { kind, at: new Date().toISOString() }, null);
+      // Stamp with the surface clock (injected in tests; Date.now() in production).
+      // Wall-clock Date() here would put a queued punch on the wrong day when
+      // isToday filters spans, and "waiting to sync" would never show.
+      ctx.queue.enqueue("shift_punches", ctx.shell.principal.shiftId!, "insert", { kind, at: new Date(ctx.now).toISOString() }, null);
       flushQueue(ctx);
     };
     const last = today.at(-1);
