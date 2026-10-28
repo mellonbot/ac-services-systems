@@ -136,9 +136,9 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["contacts.list"], input) as Promise<OperationIO["contacts.list"]["output"]>;
   },
 
-  /** `POST /s2/contacts` · mutation · bearer · surfaces: S2
+  /** `POST /s2/contacts` · mutation · bearer · surfaces: S2, S6
    *
-   * Record or replace a contact at a node: role, name, phone, email, note, primary. The customer's own edit of its contacts is OPEN-S6-CONTACTS; until it closes the office keeps the record. */
+   * Record or replace a contact at a node: role, name, phone, email, note, primary. The customer may edit a contact at a node in its own scope (0037, OPEN-S6-CONTACTS closed). */
   setContact(input: OperationIO["contacts.set"]["input"]): Promise<OperationIO["contacts.set"]["output"]> {
     return transport.request(OPERATIONS["contacts.set"], input) as Promise<OperationIO["contacts.set"]["output"]>;
   },
