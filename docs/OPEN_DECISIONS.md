@@ -25,23 +25,12 @@ assumption. Each row names the file that changes when the decision lands.
 
 **OPEN-S6-IDP — when does the customer portal federate?**
 
-`05` and the surface registry say S6's auth is *"customer IdP + tier claim"*.
-Item 6 (2026-09-17) built the portal with a **password held at our gateway** as
-the Phase 1 door: `auth.login` now serves S6 (`packages/contracts/src/operations.ts`,
-`PASSWORD_LOGIN`), and customer users carry a `password_hash` like ours do.
-
-The claims a customer token carries — namespace, org, scope tier, scope node —
-are the same whichever way the credential is checked, and everything the
-acceptance test measures (RLS, the context walk, tier scoping) is proven against
-those claims. Federation therefore replaces the credential check inside `login()`
-and nothing downstream of it. What it needs is a customer's identity provider to
-test against — Amped's IT — and a decision on how the IdP's tier claim maps to a
-scope node (the `users` row already holds `external_idp_subject` and the scope
-columns; that mapping is the one design question left).
-
-Lands in: `apps/gateway/src/main.ts` (`login`), `PASSWORD_LOGIN`, and a users
-provisioning operation (there is none yet — customer principals are seeded by
-SQL, which does not survive the third account).
+**SCAFFOLD 2026-10-28.** `login()` now checks `AC_IDP_ISSUER`. When set and the
+user is a customer with `external_idp_subject`, the password path is skipped
+and the call refuses with `bad_claims` until the token exchange is built.
+Unset, the existing gateway-held password continues to work. Claims stay the
+same. Remaining: the actual IdP exchange and the mapping from IdP subject to
+scope node (provisioning is still SQL-seeded).
 
 **~~OPEN-S6-IMAGERY~~ — which provider draws the roof, under whose key, at what cost?**
 

@@ -363,6 +363,13 @@ const withSelf = async <T>(req: IncomingMessage, opId: OperationId, write: boole
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
+// OPEN-S6-IDP scaffold: when AC_IDP_ISSUER is set, a customer login can be
+// verified against the customer's IdP instead of the gateway-held password.
+// The claims (namespace, org, scope) stay the same; only the credential check
+// changes. Unset, the existing password path is used. Mapping from IdP subject
+// to users.external_idp_subject is the remaining design question.
+const idpEnabled = () => Boolean(process.env.AC_IDP_ISSUER?.trim());
+
 const login = async (req: IncomingMessage, body: Partial<OperationIO["auth.login"]["input"]>, res: ServerResponse): Promise<OperationIO["auth.login"]["output"]> => {
   const { email, password, surface } = body;
   if (!email || !password || !surface || !SURFACES[surface]) throw new HttpError(400, "email, password and surface are required");
@@ -373,9 +380,18 @@ const login = async (req: IncomingMessage, body: Partial<OperationIO["auth.login
   const tx = await beginTx(pool, "ac_gateway");
   try {
     await bindSystem(tx);
-    const u = (await tx.query<{ id: string; namespace: Namespace; org_id: string; region_id: string; scope_tier: Tier; scope_id: string; roles: string[]; firm_id: string | null; password_hash: string | null; active: boolean }>(
-      "SELECT id, namespace, org_id, region_id, scope_tier, scope_id, roles, firm_id, password_hash, active FROM users WHERE email = $1", [email],
+    const u = (await tx.query<{ id: string; namespace: Namespace; org_id: string; region_id: string; scope_tier: Tier; scope_id: string; roles: string[]; firm_id: string | null; password_hash: string | null; active: boolean; external_idp_subject: string | null }>(
+      "SELECT id, namespace, org_id, region_id, scope_tier, scope_id, roles, firm_id, password_hash, active, external_idp_subject FROM users WHERE email = $1", [email],
     ))[0];
+    // Scaffold: if an IdP is configured and this is a customer with an external subject,
+    // the password check is the place a token exchange will land. Until then, fall through.
+    const useIdp = idpEnabled() && u?.namespace === "customer" && u.external_idp_subject;
+    if (useIdp) {
+      // TODO: exchange the password (or a code) with AC_IDP_ISSUER and match external_idp_subject.
+      // For now the scaffold refuses so a misconfigured IdP does not silently accept passwords.
+      signInFailed(req, who);
+      throw new AuthError("customer IdP is configured but not yet wired (OPEN-S6-IDP)", "bad_claims");
+    }
     if (!(await verifyPasswordAsync(password, u?.password_hash)) || !u?.active) {
       signInFailed(req, who);
       throw new AuthError("invalid credentials", "bad_claims");
