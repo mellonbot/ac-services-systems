@@ -549,7 +549,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["payments.return"], input) as Promise<OperationIO["payments.return"]["output"]>;
   },
 
-  /** `POST /webhooks/payments` · mutation · none · surfaces: 
+  /** `POST /webhooks/payments` · system · none · surfaces: S2
    *
    * Processor webhook entry point (OPEN-PAYMENTS scaffold). Verifies a signature when AC_PAYMENT_WEBHOOK_SECRET is set and records a succeeded payment the same way the office does. Unset, refuses. Y1–Y5 still decide the real processor and merchant of record. */
   paymentWebhook(input: OperationIO["payments.webhook"]["input"]): Promise<OperationIO["payments.webhook"]["output"]> {
