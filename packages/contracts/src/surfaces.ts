@@ -138,6 +138,8 @@ const REGISTRY = {
              // 0024 (2026-10-23): what an install was sold under, and by whom.
              // Every install job sits under a project whose foreman sold it.
              "project",
+             // WS-E: the office issues a settlement statement to a firm.
+             "settlement",
              // 0030 (2026-10-24): a payment received against an invoice.
              "payment"],
     // 0030: money settled is final, so only finance and the principals record

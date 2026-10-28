@@ -14,7 +14,7 @@ import { listRegions, listOrganizations, createOrganization, listAccounts, listS
 import { listContracts, createContract, transitionContract, listTermOverrides, termRegister } from "./handlers/contracts.ts";
 import { listTechnicians, recordTechnician, updateTechnician } from "./handlers/technicians.ts";
 import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, listCredentials, recordCredential, verifyCredential, listRateCards, setRateCard, enrollCrew, retireCrew, submitCredential } from "./handlers/network.ts";
-import { listSettlements, listSettlementLines, acknowledgeSettlement, disputeSettlement } from "./handlers/settlements.ts";
+import { listSettlements, listSettlementLines, issueSettlement, acknowledgeSettlement, disputeSettlement } from "./handlers/settlements.ts";
 import { ingestSync } from "./handlers/sync.ts";
 import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
 import { readMyAccount, updateMyAccount, setMyAvatar, changeMyPassword, type AccountActor } from "./handlers/account.ts";
@@ -636,6 +636,7 @@ const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "crews.retire": (req, input) => withUow(req, "crews.retire", (uow) => retireCrew(uow, input)),
   "settlements.list": (req, input) => withRead(req, "settlements.list", (uow) => listSettlements(uow, input)),
   "settlements.lines": (req, input) => withRead(req, "settlements.lines", (uow) => listSettlementLines(uow, input)),
+  "settlements.issue": (req, input) => withUow(req, "settlements.issue", (uow) => issueSettlement(uow, input, new Date())),
   "settlements.acknowledge": (req, input) => withUow(req, "settlements.acknowledge", (uow) => acknowledgeSettlement(uow, input, new Date())),
   "settlements.dispute": (req, input) => withUow(req, "settlements.dispute", (uow) => disputeSettlement(uow, input, new Date())),
 
