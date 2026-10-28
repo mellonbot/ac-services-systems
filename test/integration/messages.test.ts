@@ -7,6 +7,10 @@
  * A customer, a vendor, and a person on a firm's crew are not in the
  * directory and get no copy. The sender gets no copy of their own. Dismissing
  * removes it from the corner. A second everyone-send inside the gap is refused.
+ *
+ * The migrate suite shares one database, so the directory is every employee
+ * already in it — seed logins and rows earlier tests left — not only the
+ * people this file inserts.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -48,6 +52,10 @@ const as = (email: string, surfaceId: SurfaceId): Promise<ConnectedShell> =>
   connectShell({ surfaceId, baseUrl: BASE, fetch, credentials: { email, password: PASSWORD } });
 const refusedWith = (code: string) => (e: unknown) => e instanceof GatewayRefusal && e.refusal.kind === "admission" && e.refusal.code === code;
 const ids = (people: readonly { userId: string }[]) => people.map((p) => p.userId).sort();
+/** The handler's employee rule, so the directory can be checked against whoever this database already holds. */
+const EMPLOYEE = `u.namespace = 'internal' AND u.active AND u.firm_id IS NULL AND (u.crew_id IS NULL OR EXISTS (SELECT 1 FROM crews c WHERE c.id = u.crew_id AND c.firm_id IS NULL))`;
+const employeesExcept = async (userId: string): Promise<string[]> =>
+  (await admin(`SELECT u.id FROM users u WHERE ${EMPLOYEE} AND u.id <> $1 ORDER BY u.id`, [userId])).map((r) => String(r.id));
 
 before(async () => {
   if (!URL_) return;
@@ -99,8 +107,10 @@ after(async () => {
 test("an employee messages one colleague, or everyone employed here, and outsiders get nothing", { skip }, async () => {
   const dee = await as(DEE, "S3");
   const people = (await dee.gateway.listColleagues()).people;
-  assert.deepEqual(ids(people), [hqId, rileyId].sort());
-  assert.ok(people.every((p) => p.displayName === "Harper HQ" || p.displayName === "Riley Office"));
+  assert.deepEqual(ids(people), (await employeesExcept(deeId)).sort());
+  for (const outsider of [deeId, patId, veraId, samId]) assert.equal(people.some((p) => p.userId === outsider), false, outsider);
+  assert.equal(people.find((p) => p.userId === hqId)?.displayName, "Harper HQ");
+  assert.equal(people.find((p) => p.userId === rileyId)?.displayName, "Riley Office");
 
   const sent = await dee.gateway.sendMessage({ body: "  Call me when you are free. ", toUserId: hqId });
   assert.equal(sent.recipients, 1);
@@ -108,23 +118,28 @@ test("an employee messages one colleague, or everyone employed here, and outside
   assert.deepEqual(copies, [hqId]);
 
   const harper = await as(HQ, "S4");
-  const popped = await harper.gateway.pendingMessages();
-  assert.equal(popped.messages.length, 1);
-  assert.equal(popped.messages[0]!.body, "Call me when you are free.");
-  assert.equal(popped.messages[0]!.senderName, "Dee Dispatcher");
-  assert.equal(popped.messages[0]!.audience, "direct");
-  assert.deepEqual((await dee.gateway.pendingMessages()).messages, [], "the sender has no pop-up of their own");
+  const popped = (await harper.gateway.pendingMessages()).messages.find((m) => m.messageId === sent.messageId);
+  assert.ok(popped);
+  assert.equal(popped.body, "Call me when you are free.");
+  assert.equal(popped.senderName, "Dee Dispatcher");
+  assert.equal(popped.audience, "direct");
+  assert.equal((await dee.gateway.pendingMessages()).messages.some((m) => m.messageId === sent.messageId), false, "the sender has no pop-up of their own");
 
+  const colleagues = await employeesExcept(hqId);
   const all = await harper.gateway.sendMessage({ body: "Stand down.", everyone: true });
-  assert.equal(all.recipients, 2, "Dee and Riley — not Harper, not a customer, not a vendor, not Sam");
-  const heard = (await admin(`SELECT user_id FROM staff_message_receipts WHERE message_id = $1 ORDER BY user_id`, [all.messageId])).map((r) => r.user_id);
-  assert.deepEqual([...heard].sort(), [deeId, rileyId].sort());
+  assert.equal(all.recipients, colleagues.length);
+  const heard = (await admin(`SELECT user_id FROM staff_message_receipts WHERE message_id = $1 ORDER BY user_id`, [all.messageId])).map((r) => String(r.user_id));
+  assert.deepEqual([...heard].sort(), [...colleagues].sort());
+  for (const outsider of [hqId, patId, veraId, samId]) assert.equal(heard.includes(outsider), false, outsider);
 
   const riley = await as(RILEY, "S2");
   const rileyPending = await riley.gateway.pendingMessages();
-  assert.deepEqual(rileyPending.messages.map((m) => m.messageId), [all.messageId]);
+  const heardByRiley = rileyPending.messages.find((m) => m.messageId === all.messageId);
+  assert.ok(heardByRiley);
+  assert.equal(heardByRiley.body, "Stand down.");
+  assert.equal(heardByRiley.audience, "everyone");
   await riley.gateway.dismissMessage({ messageId: all.messageId });
-  assert.deepEqual((await riley.gateway.pendingMessages()).messages, []);
+  assert.equal((await riley.gateway.pendingMessages()).messages.some((m) => m.messageId === all.messageId), false);
   const recent = await riley.gateway.recentMessages();
   assert.equal(recent.messages.find((m) => m.messageId === all.messageId)?.dismissed, true);
 
