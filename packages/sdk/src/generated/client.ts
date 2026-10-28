@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 121 today. There is no
+ * One method per operation in the catalogue — 126 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -479,6 +479,41 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["media.get"], input) as Promise<OperationIO["media.get"]["output"]>;
   },
 
+  /** `GET /messages/directory` · query · bearer · surfaces: S2, S3, S4, S5
+   *
+   * Every other active AC Services employee — name, the presence they set, and their roles. Customers, subcontractors and vendors are not in it. */
+  listColleagues(): Promise<OperationIO["messages.directory"]["output"]> {
+    return transport.request(OPERATIONS["messages.directory"], undefined) as Promise<OperationIO["messages.directory"]["output"]>;
+  },
+
+  /** `POST /messages/dismiss` · mutation · bearer · surfaces: S2, S3, S4, S5
+   *
+   * Dismiss the caller's own copy of a message. It leaves the corner and stays in the recent list. */
+  dismissMessage(input: OperationIO["messages.dismiss"]["input"]): Promise<OperationIO["messages.dismiss"]["output"]> {
+    return transport.request(OPERATIONS["messages.dismiss"], input) as Promise<OperationIO["messages.dismiss"]["output"]>;
+  },
+
+  /** `GET /messages/pending` · query · bearer · surfaces: S2, S3, S4, S5
+   *
+   * Messages sent to the caller that they have not dismissed. What the corner pop-ups show. A person's own send is not in this list. */
+  pendingMessages(): Promise<OperationIO["messages.pending"]["output"]> {
+    return transport.request(OPERATIONS["messages.pending"], undefined) as Promise<OperationIO["messages.pending"]["output"]>;
+  },
+
+  /** `GET /messages/recent` · query · bearer · surfaces: S2, S3, S4, S5
+   *
+   * The caller's recent messages, sent and received, newest first. */
+  recentMessages(): Promise<OperationIO["messages.recent"]["output"]> {
+    return transport.request(OPERATIONS["messages.recent"], undefined) as Promise<OperationIO["messages.recent"]["output"]>;
+  },
+
+  /** `POST /messages` · mutation · bearer · surfaces: S2, S3, S4, S5
+   *
+   * Send a message to one AC Services employee, or to every active AC Services employee. Customers, subcontractors and vendors are not recipients. The sender does not receive a copy of their own. */
+  sendMessage(input: OperationIO["messages.send"]["input"]): Promise<OperationIO["messages.send"]["output"]> {
+    return transport.request(OPERATIONS["messages.send"], input) as Promise<OperationIO["messages.send"]["output"]>;
+  },
+
   /** `POST /s2/organizations` · mutation · bearer · surfaces: S2
    *
    * Create a customer parent WITH its first region node in one unit of work. No orphan parent: a parent never exists without a place we serve it from. */
@@ -861,4 +896,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["changePassword", "myAccount", "setAccountAvatar", "updateMyAccount", "createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "attachJobMedia", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "wrapUpJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "myPunches", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);
+export const GENERATED_METHODS = Object.freeze(["changePassword", "myAccount", "setAccountAvatar", "updateMyAccount", "createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "attachJobMedia", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "wrapUpJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "listColleagues", "dismissMessage", "pendingMessages", "recentMessages", "sendMessage", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "myPunches", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);

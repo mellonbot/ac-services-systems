@@ -294,6 +294,36 @@ CREATE INDEX IF NOT EXISTS sessions_region_id_idx ON sessions (region_id);
 CREATE INDEX IF NOT EXISTS sessions_principal_id_idx ON sessions (principal_id);
 CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions (expires_at);
 
+CREATE TABLE IF NOT EXISTS staff_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  sender_id uuid NOT NULL REFERENCES users(id),
+  audience text NOT NULL CHECK (audience IN ('direct','everyone')),
+  recipient_id uuid REFERENCES users(id),
+  body text NOT NULL CHECK (length(btrim(body)) BETWEEN 1 AND 2000),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  CONSTRAINT staff_messages_direct_names_one CHECK ((audience = 'direct') = (recipient_id IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS staff_messages_region_id_idx ON staff_messages (region_id);
+CREATE INDEX IF NOT EXISTS staff_messages_sender_id_created_at_idx ON staff_messages (sender_id, created_at);
+
+CREATE TABLE IF NOT EXISTS staff_message_receipts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  message_id uuid NOT NULL REFERENCES staff_messages(id),
+  user_id uuid NOT NULL REFERENCES users(id),
+  dismissed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (message_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS staff_message_receipts_region_id_idx ON staff_message_receipts (region_id);
+CREATE INDEX IF NOT EXISTS staff_message_receipts_user_id_dismissed_at_idx ON staff_message_receipts (user_id, dismissed_at);
+CREATE INDEX IF NOT EXISTS staff_message_receipts_message_id_idx ON staff_message_receipts (message_id);
+
 CREATE TABLE IF NOT EXISTS contracts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   org_id uuid NOT NULL REFERENCES organizations(id),

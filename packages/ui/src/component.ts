@@ -78,7 +78,13 @@ export const AccountMenuSpec = declare({
   notes: "The Account button in every signed-in nav and the dialog it opens: picture, name, status, password. The person's own row and nobody else's. Presence is a word, never a status colour.",
 });
 
+export const MessengerSpec = declare({
+  name: "Messenger",
+  densities: ["console", "comfort", "field"] as const,
+  notes: "Messages between AC Services employees. Pop-ups sit in the bottom-right corner. Customers, subcontractors and vendors are not on it. Presence is a word, never a status colour.",
+});
+
 /** Every spec, for the guard and the docs. */
 export const COMPONENT_SPECS = Object.freeze([
-  DataGridSpec, ComplianceBadgeSpec, StatusPillSpec, PrimaryActionSpec, RefusalCardSpec, DegradedBannerSpec, RefusalNoticeSpec, CustomerCardSpec, AccountMenuSpec,
+  DataGridSpec, ComplianceBadgeSpec, StatusPillSpec, PrimaryActionSpec, RefusalCardSpec, DegradedBannerSpec, RefusalNoticeSpec, CustomerCardSpec, AccountMenuSpec, MessengerSpec,
 ] as const);

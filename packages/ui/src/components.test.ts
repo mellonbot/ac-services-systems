@@ -12,6 +12,7 @@ import { plainHeading, plainMessage, retryable } from "./components/refusal-noti
 import { RefusalNotice } from "./components/refusal-notice.ts";
 import { CustomerCard, addressLines } from "./components/customer-card.ts";
 import { AccountMenu, createAccountMenu, initialsOf } from "./components/account-menu.ts";
+import { Messenger, createMessenger } from "./components/messenger.ts";
 import { DegradedBanner, applyDegraded, driveDegraded, ageOf } from "./components/degraded-banner.ts";
 import { COMPONENT_SPECS, ComplianceBadgeSpec, DataGridSpec } from "./component.ts";
 import { STATUS_GLYPH, MARK_GLYPHS } from "../../tokens/src/index.ts";
@@ -55,7 +56,7 @@ test("densityOf is literal, so the registry's density reaches the component type
 });
 
 test("every spec has an implementation carrying it, and no density outside the three", () => {
-  const carried = [StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner, RefusalNotice, CustomerCard, AccountMenu].map((c) => c.spec.name).sort();
+  const carried = [StatusPill, PrimaryAction, DataGrid, ComplianceBadge, RefusalCard, DegradedBanner, RefusalNotice, CustomerCard, AccountMenu, Messenger].map((c) => c.spec.name).sort();
   assert.deepEqual(carried, [...COMPONENT_SPECS].map((s) => s.name).sort());
   for (const s of COMPONENT_SPECS) for (const d of s.densities) assert.ok(["console", "comfort", "field"].includes(d));
 });
@@ -417,4 +418,62 @@ test("AccountMenu: a refused change says why, beside the section it came from", 
   await new Promise((r) => setTimeout(r, 0));
   await menu.changePassword({ currentPassword: "a", newPassword: "b" });
   assert.match(render(AccountMenu({ density: "comfort", menu })!), /your current password is not right/);
+});
+
+// ---------------------------------------------------------------------------
+// 0035 — company messages. Pop-ups sit in the bottom-right corner.
+// ---------------------------------------------------------------------------
+const HARPER = { userId: "u-harper", displayName: "Harper HQ", presence: "available" as const, roles: ["ops_leadership"] };
+const pendingOf = (body: string) => ({
+  messageId: "m1", senderId: "u-harper", senderName: "Harper HQ", audience: "direct" as const,
+  recipientId: "u-dee", recipientName: "Dee", body, sentAt: "2026-10-28T15:04:00.000Z",
+  direction: "received" as const, dismissed: false,
+});
+const fakeMessenger = (calls: string[] = []) => ({
+  listColleagues: async () => { calls.push("directory"); return { people: [HARPER] }; },
+  pendingMessages: async () => { calls.push("pending"); return { messages: [pendingOf("Roof is clear")] }; },
+  recentMessages: async () => { calls.push("recent"); return { messages: [] }; },
+  sendMessage: async (i: { body: string; toUserId?: string; everyone?: boolean }) => { calls.push(`send ${JSON.stringify(i)}`); return { messageId: "m2", sentAt: "2026-10-28T15:05:00.000Z", recipients: i.everyone ? 4 : 1 }; },
+  dismissMessage: async (i: { messageId: string }) => { calls.push(`dismiss ${i.messageId}`); return { ok: true as const }; },
+});
+
+test("Messenger: a new message is a pop-up in the bottom-right dock, and dismissing it calls the gateway", async () => {
+  const calls: string[] = [];
+  const menu = createMessenger(fakeMessenger(calls), () => null);
+  await new Promise((r) => setTimeout(r, 0));
+  const out = render(Messenger({ density: "console", menu })!);
+  assert.match(out, /id="messages-dock"/);
+  assert.match(out, /class="ac-messages-popup"/);
+  assert.match(out, /Harper HQ/);
+  assert.match(out, /Roof is clear/);
+  assert.match(out, /To you/);
+  assert.match(UI_CSS, /\.ac-messages-dock\{[^}]*position:fixed;right:var\(--gutter\);bottom:var\(--gutter\)/);
+  await menu.dismiss("m1");
+  assert.deepEqual(calls.filter((c) => c.startsWith("dismiss")), ["dismiss m1"]);
+  assert.doesNotMatch(render(Messenger({ density: "field", menu })!), /Roof is clear/);
+});
+
+test("Messenger: the composer sends to one employee or to everyone employed here", async () => {
+  const calls: string[] = [];
+  const menu = createMessenger(fakeMessenger(calls), () => null);
+  await new Promise((r) => setTimeout(r, 0));
+  menu.show();
+  await new Promise((r) => setTimeout(r, 0));
+  const open = render(Messenger({ density: "console", menu })!);
+  assert.match(open, /Everyone at AC Services/);
+  assert.match(open, /Harper HQ/);
+  assert.match(open, /Available/);
+  assert.doesNotMatch(open, /status-ok|data-tone/, "presence is a word, not a state colour");
+  await menu.sendTo("u-harper", "On my way");
+  await menu.sendEveryone("Stand down");
+  assert.ok(calls.some((c) => c.includes('"toUserId":"u-harper"') && c.includes("On my way")));
+  assert.ok(calls.some((c) => c.includes('"everyone":true') && c.includes("Stand down")));
+});
+
+test("Messenger: a sign-in that is not an employee draws nothing", async () => {
+  const refusal: Refusal = { kind: "admission", code: "not_staff", axis: "structural", message: "this sign-in is not an AC Services employee" };
+  const menu = createMessenger({ ...fakeMessenger(), pendingMessages: async () => { throw new Error("no"); } }, () => refusal);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(menu.available.value, false);
+  assert.equal(render(Messenger({ density: "console", menu })!), "");
 });
