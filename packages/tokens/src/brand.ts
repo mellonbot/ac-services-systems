@@ -247,7 +247,7 @@ export const BULLETIN_ERRATA = Object.freeze([
   {
     code: "E-13", subject: "SUBSET_GLYPHS", status: "closed",
     finding: "It carried ° and the fractions and not ● ▲ ■ ✕ — the four marks the second channel is drawn with. Once the faces are subset and pinned as E-05 requires, the channel that exists for the case where colour fails would have been resolved by the fallback chain: another face, other metrics, tofu on a locked-down tablet.",
-    resolution: "The marks are in the subset, named in MARK_GLYPHS, imported by the components that draw them, and asserted contained by css.test.ts.",
+    resolution: "The marks are named in MARK_GLYPHS and imported by the components that draw them. Reopened 2026-10-29: putting them in SUBSET_GLYPHS kept nothing, because IBM Plex draws none of ● ▲ ▼ ■ ✕ in any release, so the fallback chain still drew the channel. They now ship in ac-marks.woff2 (MARK_FONT) — five shapes drawn by tools/fonts/build-marks.py on Plex's metrics, 600 units wide — declared under every Plex family with a unicode-range of those code points. fonts.test.ts reads the shipped files' cmaps and fails any Plex family with a mark no shipped face draws.",
   },
   {
     code: "E-14", subject: "the degraded banner on the plate ground", status: "closed",

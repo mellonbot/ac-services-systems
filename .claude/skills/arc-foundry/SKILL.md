@@ -143,7 +143,8 @@ blue hue family — the far side of the wheel from red, garnet and amber — and
    ink pressed its own label to 1.00:1 (E-11) — carry both or neither.
 3. **Colour never carries alone.** Every state carries a word; every category carries a
    second channel — a number, a label, or a line form. The marks are `● ▲ ■ ✕`, and they must
-   be in the subset (E-13).
+   be drawn by a shipped face (E-13). Plex has none of them; `ac-marks.woff2` does, declared
+   under every Plex family. Never take one from the system's fallback font.
 4. **Red never decorates a state chip** — clearing the gate is not a licence to paint a
    status column — the brand roles stay on the brand layer, and `--color-action` is never
    body text.
