@@ -231,4 +231,23 @@ img.s3-photo__well{width:100%;object-fit:cover}
 .s3-intake__view img{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain;border-radius:var(--radius-control);background:var(--color-surface-sunken)}
 .s3-intake__view figcaption{font-size:var(--text-sm);color:var(--color-text-muted)}
 @media (max-width:1100px){.s3-intake__layout[data-viewing="true"]{grid-template-columns:minmax(0,1fr)}}
+/* ---- Mobile surfaces (Rankine prototype alignment) ---- */
+@media (max-width: 640px) {
+  .s3-app { gap: var(--space-2); padding-bottom: var(--space-4); }
+  .dispatch-header { flex-direction: column; align-items: stretch; gap: var(--space-2); padding: var(--space-3); }
+  .dispatch-header__tools { margin-inline-start: 0; justify-content: space-between; }
+  .s3-buckets { grid-template-columns: 1fr; }
+  .s3-detail-grid { grid-template-columns: 1fr; }
+  .s3-comms { grid-template-columns: 1fr; }
+  .s3-visit { grid-template-columns: 1fr; }
+  .s3-visit__date { align-items: flex-start; padding-top: 0; }
+  .dispatch-board__row { grid-template-columns: 1fr; }
+  .dispatch-board__tech { border-right: 0; border-bottom: 1px solid var(--color-border); }
+  .s3-act { min-height: 44px; }
+  .s3-confirm { max-width: 100%; }
+}
+@media (max-width: 480px) {
+  .dispatch-board__hours { display: none; }
+  .dispatch-board__header { grid-template-columns: 1fr; }
+}
 `;
