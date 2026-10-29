@@ -145,6 +145,10 @@ test("COMPANY: four areas, the as-of line, the region grid without the unplaced 
   const { app, gateway } = await ready();
   const out = render(app.view());
   assert.match(out, /Rankine Operating Company/);
+  // The dashboard names itself under the masthead, as S2 and S3 do — above the screens, and not a second h1.
+  assert.match(out, /<p class="s4-console-head__title">Top Down Vision<\/p><p class="s4-console-head__lede">The HQ dashboard grants read-only access to every side of AC Service System, updating on a 15 minute interval\.<\/p>/);
+  assert.ok(out.indexOf("s4-console-head") < out.indexOf('aria-label="Screens"'), "the name comes before the screen nav");
+  assert.equal(out.match(/<h1/g)?.length ?? 0, 1, "each screen keeps the only h1");
   for (const a of ["Service &amp; SLA", "Revenue &amp; money", "Network &amp; compliance", "Growth &amp; web"]) assert.match(out, new RegExp(a));
   assert.match(out, /id="as-of"/);
   assert.match(out, /10 min ago/);

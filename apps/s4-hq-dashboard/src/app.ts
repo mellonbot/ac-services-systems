@@ -90,6 +90,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const loc = router.current.value;
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     return html`<div class="s4-app">
+      <div class="s4-console-head">
+        <p class="s4-console-head__title">Top Down Vision</p>
+        <p class="s4-console-head__lede">The HQ dashboard grants read-only access to every side of AC Service System, updating on a 15 minute interval.</p>
+      </div>
       <nav class="ac-nav" aria-label="Screens">
         ${nav("overview", "Company", !loc || !/^(office|dispatch)\./.test(loc.screen))}
         ${nav("office.customers", "Office", loc?.screen.startsWith("office.") ?? false)}
