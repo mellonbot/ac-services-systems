@@ -6,6 +6,11 @@
  */
 export const S2_CSS = `
 .s2-app{display:flex;flex-direction:column;gap:var(--space-3)}
+/* The console names itself under the masthead, as S3's does — a styled line, not a second h1: each screen keeps its own. */
+.s2-console-head{display:flex;flex-direction:column;gap:var(--space-1);margin-top:var(--space-2)}
+.s2-console-head__title{margin:0;font-family:var(--font-display);font-size:var(--text-mast);font-weight:800;letter-spacing:var(--track-tight);line-height:1.1;color:var(--color-text);text-wrap:balance}
+.s2-console-head__lede{margin:0;max-width:var(--measure-text);color:var(--color-text-muted);font-size:var(--text-md)}
+@media (max-width:640px){.s2-console-head__title{font-size:var(--text-display)}}
 .s2-notice{display:flex;gap:var(--space-3);align-items:baseline;padding:var(--space-2) var(--space-3);background:var(--color-surface-sunken);border:1px solid var(--color-border-hard);border-radius:var(--radius-control)}
 .s2-notice p{margin:0}
 .s2-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2);min-height:var(--control-height)}
