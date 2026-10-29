@@ -122,24 +122,11 @@ test("0025: a job is opened for a service in the catalogue, or not at all — re
   assert.equal(s.queries.length, 0);
 });
 
-test("createJob refuses a site that does not resolve to a site tier, an empty window, and an unresolvable sla_response", async () => {
-  const notSite = await uowFor(scripted(baseAnswers([])).tx);
-  await assert.rejects(
-    createJob(notSite, { siteId: SITE, serviceCode: "HVAC-REPAIR", serviceWindowStart: "2026-09-18T09:00:00Z", serviceWindowEnd: "2026-09-18T17:00:00Z" }, newId, now),
-    // no override anywhere on the path and the register states no default — refused by name, not defaulted.
-    (e: unknown) => e instanceof InputRefused && e.code === "no_value",
-  );
-
-  // …and the refusal names what is missing and where, so S3 can say it without parsing the message.
-  const named = scripted([...baseAnswers([]), ["JOIN organizations o ON o.id = a.org_id", [{ site_name: "Site A", customer: "Amped" }]]]);
-  await assert.rejects(
-    createJob(await uowFor(named.tx), { siteId: SITE, serviceCode: "HVAC-REPAIR", serviceWindowStart: "2026-09-18T09:00:00Z", serviceWindowEnd: "2026-09-18T17:00:00Z" }, newId, now),
-    (e: unknown) => {
-      assert.ok(e instanceof InputRefused);
-      assert.deepEqual(e.missingTerm, { termKey: "sla_response", siteId: SITE, siteName: "Site A", customer: "Amped", asOf: "2026-09-17" });
-      return true;
-    },
-  );
+test("createJob refuses a site that does not resolve to a site tier and an empty window; sla_response falls back to the register default", async () => {
+  // With a register default, an unstated sla_response no longer refuses — the job is created against the fallback.
+  const sFallback = scripted(baseAnswers([]));
+  const out = await createJob(await uowFor(sFallback.tx), { siteId: SITE, serviceCode: "HVAC-REPAIR", serviceWindowStart: "2026-09-18T09:00:00Z", serviceWindowEnd: "2026-09-18T17:00:00Z" }, newId, now);
+  assert.equal(out.responseTerm, "4_hour", "register default");
 
   const s2 = scripted([["FROM accounts WHERE id = $1", [{ ...siteRow, tier: "location" }]]]);
   const notASite = await uowFor(s2.tx);
