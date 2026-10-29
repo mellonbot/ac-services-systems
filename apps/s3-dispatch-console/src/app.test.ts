@@ -890,3 +890,23 @@ test("job detail: a quote the worker could not open yet says why; a signature an
   assert.match(out, /<img class="s3-photo__well" src="data:image\/png/, "a job photo is an image now, not a placeholder");
   assert.ok(gateway.calls.filter((c) => c.path === OPERATIONS["media.get"].path).length >= 2);
 });
+
+test("job detail: the site from above is the gateway's satellite tiles with a pin, and an address with no point says where it gets one — S3 never places it", async () => {
+  const placed = { ...jobAssigned, siteAddress: { line1: "3715 Buckboard Dr", city: "Plano", state: "TX", postal: "75074", lat: 33.0262, lng: -96.6745 } };
+  const tile = () => ({ status: 200, body: { z: 18, x: 0, y: 0, image: "data:image/jpeg;base64,AAAA", attribution: "© MapTiler © OpenStreetMap contributors", unavailable: null } });
+  const { app, gateway } = await ready({ [OPERATIONS["jobs.detail"].path]: { status: 200, body: detailOf(placed) }, [OPERATIONS["sites.mapTile"].path]: tile });
+  app.router.navigate("detail", { jobId: JOB_ASSIGNED });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const html = render(app.view());
+  assert.match(html, /id="site-map" data-basemap="tiles"/);
+  assert.match(html, /Satellite map of /);
+  assert.match(html, /© MapTiler © OpenStreetMap contributors/);
+  assert.ok(gateway.calls.some((c) => c.path === OPERATIONS["sites.mapTile"].path), "tiles are read through the gateway");
+  assert.ok(!gateway.calls.some((c) => c.path === OPERATIONS["sites.locate"].path), "S3 never geocodes — the account is S2's to write");
+
+  const bare = await ready({ [OPERATIONS["jobs.detail"].path]: { status: 200, body: detailOf({ ...jobAssigned, siteAddress: { line1: "3715 Buckboard Dr", city: "Plano", state: "TX" } }) } });
+  bare.app.router.navigate("detail", { jobId: JOB_ASSIGNED });
+  for (let i = 0; i < 3; i++) { render(bare.app.view()); await settle(); }
+  assert.match(render(bare.app.view()), /has not been placed on the map yet/);
+  assert.ok(!bare.gateway.calls.some((c) => c.path === OPERATIONS["sites.mapTile"].path), "no point, no tiles asked for");
+});

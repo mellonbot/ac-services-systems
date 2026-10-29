@@ -4,6 +4,7 @@ import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, linkTo, submitAction, perStore, focusId, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL, initials, placeLine, daysInState } from "./jobs.ts";
 import { isDispatchable, isReleasable } from "./board.ts";
+import { siteMap } from "./site-map.ts";
 
 /**
  * ONE JOB, AS DISPATCH READS IT (0016) — the header the crew needs before it
@@ -317,15 +318,6 @@ const communication = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiStat
     if (body) void act(ctx, "note", () => ctx.shell.gateway.addJobNote({ jobId: j.id, orgId: j.orgId, regionId: j.regionId, body }), "Internal note added.", () => { ui.value = { ...ui.value, note: "" }; });
   };
   return panel(html`<div class="s3-comms">
-    <section class="s3-comms__col" aria-labelledby="updates-title">
-      <p class="s3-eyebrow" id="updates-title">Updates to publish</p>
-      ${loose.map((u) => html`<article class="s3-update">${updateBlock(ctx, d, ui, null, u)}</article>`)}
-      ${notes.length ? notes.map((n) => html`<article class="s3-update">
-        <p class="s3-eyebrow">From note · <span class="s3-num">${stamp(n.at)}</span>${n.authorName ? html` · ${n.authorName}` : null} · Internal</p>
-        <p class="s3-update__note">${n.body}</p>
-        ${updateBlock(ctx, d, ui, n, updateFor(n))}
-      </article>`) : html`<p class="s3-muted">No internal notes yet. A customer update is written from one.</p>`}
-    </section>
     <section class="s3-comms__col" aria-labelledby="thread-title">
       <p class="s3-eyebrow" id="thread-title">Customer thread <span class="s3-flag">Visible to customer</span></p>
       <div class="s3-thread">
@@ -350,6 +342,15 @@ const communication = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiStat
         </form>
       </section>
     </section>
+    <section class="s3-comms__col" aria-labelledby="updates-title">
+      <p class="s3-eyebrow" id="updates-title">Updates to publish</p>
+      ${loose.map((u) => html`<article class="s3-update">${updateBlock(ctx, d, ui, null, u)}</article>`)}
+      ${notes.length ? notes.map((n) => html`<article class="s3-update">
+        <p class="s3-eyebrow">From note · <span class="s3-num">${stamp(n.at)}</span>${n.authorName ? html` · ${n.authorName}` : null} · Internal</p>
+        <p class="s3-update__note">${n.body}</p>
+        ${updateBlock(ctx, d, ui, n, updateFor(n))}
+      </article>`) : html`<p class="s3-muted">No internal notes yet. A customer update is written from one.</p>`}
+    </section>
   </div>`, "Customer communication", "Internal notes, photos and comments stay private. Nothing reaches the customer until dispatch writes an update and publishes it.",
   d.contact ? html`<span class="s3-flag">Customer: ${d.contact.name}, ${j.siteName ?? "site"}</span>` : null, "job-comms");
 };
@@ -362,17 +363,20 @@ export const detail: Screen = (ctx, params) => {
   return html`<section class="s3-detail">
     ${pageHead("Job Detail", "Photos and notes grouped by site visit, in order within each visit — and what the customer has been told, kept apart from what the office says to itself.")}
     ${whenReady(ctx, res.value, (d) => html`
-      <div class="s3-detail-grid">
-        ${header(ctx, d, ui)}
+      <div class="s3-detail-cols">
+        <div class="s3-detail-col s3-detail-col--job">${header(ctx, d, ui)}</div>
+        <div class="s3-detail-col s3-detail-col--work">
         ${d.wrapUp ? wrapUpPanel(ctx, d.wrapUp) : null}
+        ${panel(siteMap(ctx, d.job), "Site from above", [d.job.siteAddress?.line1, placeLine(d.job.siteAddress)].filter(Boolean).join(", ") || "Address not recorded", undefined, "job-map")}
         ${panel(ui.value.view === "visit" ? timeline(ctx, d, ui, now)
             : ui.value.view === "photos" ? (d.media.length ? html`<div class="s3-photos">${d.media.map(photoTile(ctx))}</div>` : html`<p class="s3-muted">No photos on file.</p>`)
             : html`<ol class="s3-internal__list">${[...d.notes].reverse().map((n) => html`<li><span class="s3-visit__by"><span class="s3-num">${stamp(n.at)}</span> · ${n.authorName ?? "Office"}${n.kind === "standing" ? " · standing" : ""}</span><p>${n.body}</p></li>`)}</ol>`,
           "Visit history", "Grouped by visit · photos and notes in the order they were added",
           html`<nav class="ac-seg" aria-label="Visit history view">${(["visit", "photos", "notes"] as const).map((v) => html`<button type="button" class="ac-seg__item s3-seg-btn" data-current=${ui.value.view === v ? "true" : undefined} aria-pressed=${ui.value.view === v ? "true" : "false"}
             onClick=${() => { ui.value = { ...ui.value, view: v }; }}>${v === "visit" ? "By visit" : v === "photos" ? "All photos" : "All notes"}</button>`)}</nav>`, "job-visits")}
-      </div>
-      ${communication(ctx, d, ui)}`)}
+        </div>
+        <div class="s3-detail-col s3-detail-col--talk">${communication(ctx, d, ui)}</div>
+      </div>`)}
   </section>`;
 };
 

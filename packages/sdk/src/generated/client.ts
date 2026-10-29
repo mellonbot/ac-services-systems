@@ -808,7 +808,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["sites.locate"], input) as Promise<OperationIO["sites.locate"]["output"]>;
   },
 
-  /** `GET /s2/sites/map-tile` · query · bearer · surfaces: S2
+  /** `GET /s2/sites/map-tile` · query · bearer · surfaces: S2, S3
    *
    * One web-mercator basemap tile near a site, fetched by the GATEWAY from the configured tile provider (AC_MAP_TILE_URL) and returned inline — the same reasons as sites.imagery: no key in a bundle, no customer's coordinates sent to a third party from a browser. Only tiles within MAP_TILE_REACH of the site's own tile, at MAP_ZOOM_MIN–MAP_ZOOM_MAX, are served: a pan around a home, not a free tile proxy. Unavailable is an answer: not configured, no coordinates, provider unreachable. */
   siteMapTile(input: OperationIO["sites.mapTile"]["input"]): Promise<OperationIO["sites.mapTile"]["output"]> {
