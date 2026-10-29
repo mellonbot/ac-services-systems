@@ -9,6 +9,8 @@ import type { Screen, ScreenContext } from "./screens/common.ts";
 import { overview } from "./screens/overview.ts";
 import { area } from "./screens/area.ts";
 import { region } from "./screens/region.ts";
+import { officeCustomers, officeCustomer, officeLeads, officeProjects, officeNetwork, officePurchasing, officePo, officeBilling, officeInvoice, officeDevices } from "./screens/office.ts";
+import { dispatchBoard, dispatchJobs, dispatchJob, dispatchIntake, dispatchManager } from "./screens/dispatch.ts";
 import { S4_CSS } from "./styles.ts";
 
 /**
@@ -20,16 +22,23 @@ import { S4_CSS } from "./styles.ts";
  * What is S4's alone is what is NOT here. No event subscription: the
  * registry says `realtime: false`, and the figures only move when the
  * worker's rollup does, so the open page re-reads every REREAD_MS instead.
- * No write: the catalogue serves S4 two reads and a login, so there is no
- * method on the client for this bundle to misuse. No filter: the figures are
+ * No write: the catalogue serves S4 the rollup and the reads S2 and S3 make,
+ * never their writes, so there is no method on the client for this bundle to
+ * misuse. No filter: the figures are
  * every region's, because the principal is org-wide and 0010 lets the
  * internal namespace read every row.
  */
 export const DENSITY = densityOf("S4");
 
-export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = { overview, area, region };
+export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = {
+  overview, area, region,
+  "office.customers": officeCustomers, "office.customer": officeCustomer, "office.leads": officeLeads, "office.projects": officeProjects,
+  "office.network": officeNetwork, "office.purchasing": officePurchasing, "office.po": officePo, "office.billing": officeBilling,
+  "office.invoice": officeInvoice, "office.devices": officeDevices,
+  "dispatch.board": dispatchBoard, "dispatch.jobs": dispatchJobs, "dispatch.job": dispatchJob, "dispatch.intake": dispatchIntake, "dispatch.manager": dispatchManager,
+};
 
-/** How often the open dashboard re-reads the rollup. S4 is not realtime (the registry); the figures move when the worker's do. */
+/** How often the open dashboard re-reads what it shows. S4 is not realtime (the registry); the figures move when the worker's do, the records when S2 and S3 write them. */
 export const REREAD_MS = 60_000;
 
 type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store; account: AccountMenuState; messages: MessengerState };
@@ -63,10 +72,11 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     session.tick();
     const p = phase.value;
     if (p.kind !== "ready") return;
-    if (now() - lastRead >= REREAD_MS) { lastRead = now(); p.store.invalidate("hq."); }
+    // HQ reads the office's and dispatch's lists too, not only the hq.* rollup — re-read every key.
+    if (now() - lastRead >= REREAD_MS) { lastRead = now(); p.store.invalidate(""); }
   };
 
-  const nav = (screen: "overview", label: string, current: boolean): VNode =>
+  const nav = (screen: "overview" | "office.customers" | "dispatch.board", label: string, current: boolean): VNode =>
     html`<a class="ac-seg__item" data-current=${current ? "true" : "false"} href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
 
   const { login, logout } = session;
@@ -81,7 +91,9 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     return html`<div class="s4-app">
       <nav class="ac-nav" aria-label="Screens">
-        ${nav("overview", "Company", loc?.screen === "overview")}
+        ${nav("overview", "Company", !loc || !/^(office|dispatch)\./.test(loc.screen))}
+        ${nav("office.customers", "Office", loc?.screen.startsWith("office.") ?? false)}
+        ${nav("dispatch.board", "Dispatch", loc?.screen.startsWith("dispatch.") ?? false)}
         <div class="ac-nav__end">${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}</div>
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s4-empty">Nothing at this address.</p>`}

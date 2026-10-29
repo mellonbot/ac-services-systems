@@ -58,18 +58,18 @@ export const OPERATIONS = {
   }),
   "terms.resolved": op<Wire.ResolvedTermsInput, Wire.ResolvedTermsOutput>()({
     id: "terms.resolved", method: "GET", path: "/terms/resolved", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "resolvedTerms",
+    surfaces: ["S2", "S4", "S6"], carrier: "query", sdkMethod: "resolvedTerms",
     summary: "Every term at a node as of a date, with the trace naming every rung.",
   }),
   // ---- C1: the hierarchy S2 authors (09 §3.6) ----
   "regions.list": op<void, Wire.ListRegionsOutput>()({
     id: "regions.list", method: "GET", path: "/regions", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S3"], carrier: "none", sdkMethod: "listRegions",
+    surfaces: ["S2", "S3", "S4"], carrier: "none", sdkMethod: "listRegions",
     summary: "OUR service regions — the shard boundary. What a region node binds to; what D14's density rule is set on.",
   }),
   "organizations.list": op<Wire.ListOrganizationsInput, Wire.ListOrganizationsOutput>()({
     id: "organizations.list", method: "GET", path: "/s2/organizations", kind: "query", auth: "bearer",
-    surfaces: ["S2"], carrier: "query", sdkMethod: "listOrganizations",
+    surfaces: ["S2", "S4"], carrier: "query", sdkMethod: "listOrganizations",
     summary: "Customer and subcontractor organizations — the parent tier — with how many of our regions each one meets.",
   }),
   "organizations.create": op<Wire.CreateOrganizationInput, Wire.CreateOrganizationOutput>()({
@@ -84,7 +84,7 @@ export const OPERATIONS = {
   }),
   "leads.list": op<Wire.ListLeadsInput, Wire.ListLeadsOutput>()({
     id: "leads.list", method: "GET", path: "/s2/leads", kind: "query", auth: "bearer",
-    surfaces: ["S2"], carrier: "query", sdkMethod: "listLeads",
+    surfaces: ["S2", "S4"], carrier: "query", sdkMethod: "listLeads",
     summary: "Leads S1 captured, newest first — waiting ones by default — with the contact the visitor gave and, once converted, the home it became.",
   }),
   "leads.convert": op<Wire.ConvertLeadInput, Wire.ConvertLeadOutput>()({
@@ -94,7 +94,7 @@ export const OPERATIONS = {
   }),
   "accounts.list": op<Wire.ListAccountsInput, Wire.ListAccountsOutput>()({
     id: "accounts.list", method: "GET", path: "/s2/accounts", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "listAccounts",
+    surfaces: ["S2", "S4", "S6"], carrier: "query", sdkMethod: "listAccounts",
     summary: "Every node in an organization's tree the caller may see. S6 sees its own subtree by RLS; same operation.",
   }),
   "accounts.create": op<Wire.CreateAccountInput, Wire.CreateAccountOutput>()({
@@ -115,7 +115,7 @@ export const OPERATIONS = {
   // ---- item 9: the site record — what a site IS, not only what is happening there (S6 site card) ----
   "equipment.list": op<Wire.ListEquipmentInput, Wire.ListEquipmentOutput>()({
     id: "equipment.list", method: "GET", path: "/equipment", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "listEquipment",
+    surfaces: ["S2", "S4", "S6"], carrier: "query", sdkMethod: "listEquipment",
     summary: "The units at a site this principal may see — kind, label, make and model, serial, tonnage, installed — each with when it was last serviced, DERIVED from the completed jobs that named it (job_equipment). RLS (0009) decides the site; nothing here filters.",
   }),
   "equipment.register": op<Wire.RegisterEquipmentInput, Wire.RegisterEquipmentOutput>()({
@@ -125,7 +125,7 @@ export const OPERATIONS = {
   }),
   "contacts.list": op<Wire.ListContactsInput, Wire.ListContactsOutput>()({
     id: "contacts.list", method: "GET", path: "/contacts", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "listContacts",
+    surfaces: ["S2", "S4", "S6"], carrier: "query", sdkMethod: "listContacts",
     summary: "The people at a node AND at its ancestors — a site with no manager of its own inherits the location's — each row saying which node it belongs to. Visible under the node's own rule (0009).",
   }),
   "contacts.set": op<Wire.SetContactInput, Wire.SetContactOutput>()({
@@ -135,7 +135,7 @@ export const OPERATIONS = {
   }),
   "invoices.list": op<Wire.ListInvoicesInput, Wire.ListInvoicesOutput>()({
     id: "invoices.list", method: "GET", path: "/invoices", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "listInvoices",
+    surfaces: ["S2", "S4", "S6"], carrier: "query", sdkMethod: "listInvoices",
     summary: "Invoices with lines at a site or location this principal may see, with THOSE lines and their subtotal — a consolidated parent invoice read from one location shows that location's lines and nothing beside (0009). Issuance is WS-E's; this is the read. Each carries its status and what is paid against the whole invoice, derived from its payments (0030).",
   }),
   "invoices.void": op<Wire.VoidInvoiceInput, Wire.VoidInvoiceOutput>()({
@@ -145,7 +145,7 @@ export const OPERATIONS = {
   }),
   "payments.list": op<Wire.ListPaymentsInput, Wire.ListPaymentsOutput>()({
     id: "payments.list", method: "GET", path: "/s2/payments", kind: "query", auth: "bearer",
-    surfaces: ["S2"], carrier: "query", sdkMethod: "listPayments",
+    surfaces: ["S2", "S4"], carrier: "query", sdkMethod: "listPayments",
     summary: "Every payment recorded against an invoice, oldest first, in every state — the history the derived status is read from.",
   }),
   "payments.record": op<Wire.RecordPaymentInput, Wire.PaymentOutput>()({
@@ -165,12 +165,12 @@ export const OPERATIONS = {
   }),
   "sites.imagery": op<Wire.SiteImageryInput, Wire.SiteImageryOutput>()({
     id: "sites.imagery", method: "GET", path: "/s6/sites/imagery", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "siteImagery",
+    surfaces: ["S2", "S4", "S6"], carrier: "query", sdkMethod: "siteImagery",
     summary: "Overhead imagery of a site, fetched by the GATEWAY from the configured provider (AC_IMAGERY_URL) and returned inline — the customer's browser never reaches a third party with the customer's address, and there is no key in a bundle. Unavailable is an answer, not an error: not configured, no coordinates, provider unreachable.",
   }),
   "sites.mapTile": op<Wire.SiteMapTileInput, Wire.SiteMapTileOutput>()({
     id: "sites.mapTile", method: "GET", path: "/s2/sites/map-tile", kind: "query", auth: "bearer",
-    surfaces: ["S2"], carrier: "query", sdkMethod: "siteMapTile",
+    surfaces: ["S2", "S4"], carrier: "query", sdkMethod: "siteMapTile",
     summary: "One web-mercator basemap tile near a site, fetched by the GATEWAY from the configured tile provider (AC_MAP_TILE_URL) and returned inline — the same reasons as sites.imagery: no key in a bundle, no customer's coordinates sent to a third party from a browser. Only tiles within MAP_TILE_REACH of the site's own tile, at MAP_ZOOM_MIN–MAP_ZOOM_MAX, are served: a pan around a home, not a free tile proxy. Unavailable is an answer: not configured, no coordinates, provider unreachable.",
   }),
   "sites.locate": op<Wire.LocateSiteInput, Wire.LocateSiteOutput>()({
@@ -183,7 +183,7 @@ export const OPERATIONS = {
     id: "contracts.list", method: "GET", path: "/s2/contracts", kind: "query", auth: "bearer",
     // S6 since item 6: a customer reads the agreements it signed. Its own org
     // by RLS (0006) — the orgId input is inert for a customer principal.
-    surfaces: ["S2", "S6"], carrier: "query", sdkMethod: "listContracts",
+    surfaces: ["S2", "S4", "S6"], carrier: "query", sdkMethod: "listContracts",
     summary: "The signed agreements in an organization — what a term override must belong to, and where the state machine currently stands.",
   }),
   "contracts.create": op<Wire.CreateContractInput, Wire.CreateContractOutput>()({
@@ -198,12 +198,12 @@ export const OPERATIONS = {
   }),
   "terms.overrides.list": op<Wire.ListTermOverridesInput, Wire.ListTermOverridesOutput>()({
     id: "terms.overrides.list", method: "GET", path: "/s2/terms/overrides", kind: "query", auth: "bearer",
-    surfaces: ["S2"], carrier: "query", sdkMethod: "listTermOverrides",
+    surfaces: ["S2", "S4"], carrier: "query", sdkMethod: "listTermOverrides",
     summary: "The override rows an organization holds — every tier, optionally narrowed to one term or one agreement. What the override screen lists before it adds to it.",
   }),
   "terms.register": op<void, Wire.TermRegisterOutput>()({
     id: "terms.register", method: "GET", path: "/terms/register", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S6"], carrier: "none", sdkMethod: "termRegister",
+    surfaces: ["S2", "S4", "S6"], carrier: "none", sdkMethod: "termRegister",
     summary: "The term policy register as data — value kind, enum values, authoring tiers, rationale. S2 renders the override form FROM this, so a twelfth term is a register diff and the form follows.",
   }),
 
@@ -214,7 +214,7 @@ export const OPERATIONS = {
   // operation with its own entity, not yet in the catalogue.
   "firms.list": op<Wire.ListFirmsInput, Wire.ListFirmsOutput>()({
     id: "firms.list", method: "GET", path: "/network/firms", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listFirms",
+    surfaces: ["S2", "S4", "S8"], carrier: "query", sdkMethod: "listFirms",
     summary: "Subcontractor firms — legal name, status on the ladder, settlement terms, the MSA, OQ5 firm-side, and how many crews they field. S8 sees one row: itself.",
   }),
   "firms.create": op<Wire.CreateFirmInput, Wire.CreateFirmOutput>()({
@@ -229,7 +229,7 @@ export const OPERATIONS = {
   }),
   "crews.list": op<Wire.ListCrewsInput, Wire.ListCrewsOutput>()({
     id: "crews.list", method: "GET", path: "/network/crews", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S3", "S8"], carrier: "query", sdkMethod: "listCrews",
+    surfaces: ["S2", "S3", "S4", "S8"], carrier: "query", sdkMethod: "listCrews",
     summary: "Crews — ours and the firms' — with a document summary per crew: what the gate would need, what is on file, what is verified, and the earliest expiry. Read by S2, by S3's board for a row per crew whether or not it holds work, and by a firm for its own crews; never by the field layer.",
   }),
   "crews.create": op<Wire.CreateCrewInput, Wire.CreateCrewOutput>()({
@@ -249,7 +249,7 @@ export const OPERATIONS = {
   // role reads it as restricted and cannot write it.
   "technicians.list": op<Wire.ListTechniciansInput, Wire.ListTechniciansOutput>()({
     id: "technicians.list", method: "GET", path: "/network/technicians", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S3"], carrier: "query", sdkMethod: "listTechnicians",
+    surfaces: ["S2", "S3", "S4"], carrier: "query", sdkMethod: "listTechnicians",
     summary: "The technician roster — name, phone, specialties, crew, and the home address for an account owner or principal (restricted for every other role). Optionally one firm's.",
   }),
   "technicians.record": op<Wire.RecordTechnicianInput, Wire.RecordTechnicianOutput>()({
@@ -264,7 +264,7 @@ export const OPERATIONS = {
   }),
   "credentials.list": op<Wire.ListCredentialsInput, Wire.ListCredentialsOutput>()({
     id: "credentials.list", method: "GET", path: "/network/credentials", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listCredentials",
+    surfaces: ["S2", "S4", "S8"], carrier: "query", sdkMethod: "listCredentials",
     summary: "The documents on file for a crew or a firm's crews, verified or not. An unverified certificate is on the list AS unverified — it is not hidden, and it does not clear anything.",
   }),
   "credentials.record": op<Wire.RecordCredentialInput, Wire.RecordCredentialOutput>()({
@@ -279,7 +279,7 @@ export const OPERATIONS = {
   }),
   "rateCards.list": op<Wire.ListRateCardsInput, Wire.ListRateCardsOutput>()({
     id: "rateCards.list", method: "GET", path: "/network/rate-cards", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listRateCards",
+    surfaces: ["S2", "S4", "S8"], carrier: "query", sdkMethod: "listRateCards",
     summary: "A firm's rates by service code over time. A firm sees its own and no other's — RLS, not a WHERE clause.",
   }),
   "rateCards.set": op<Wire.SetRateCardInput, Wire.SetRateCardOutput>()({
@@ -312,12 +312,12 @@ export const OPERATIONS = {
   }),
   "settlements.list": op<Wire.ListSettlementsInput, Wire.ListSettlementsOutput>()({
     id: "settlements.list", method: "GET", path: "/money/settlements", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listSettlements",
+    surfaces: ["S2", "S4", "S8"], carrier: "query", sdkMethod: "listSettlements",
     summary: "Statements we issue to firms for work done — period, total, state, and the firm's position on each. S2 reads every firm's; a firm reads its own, once issued (a draft is ours). RLS, not a WHERE.",
   }),
   "settlements.lines": op<Wire.ListSettlementLinesInput, Wire.ListSettlementLinesOutput>()({
     id: "settlements.lines", method: "GET", path: "/money/settlements/lines", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S8"], carrier: "query", sdkMethod: "listSettlementLines",
+    surfaces: ["S2", "S4", "S8"], carrier: "query", sdkMethod: "listSettlementLines",
     summary: "One statement's lines: the job, the rate applied, the quantity, the amount. A firm sees the lines of a statement it can see and no other's — another firm's price is not derivable from a row the firm cannot read.",
   }),
   "settlements.issue": op<Wire.IssueSettlementInput, Wire.IssueSettlementOutput>()({
@@ -341,7 +341,7 @@ export const OPERATIONS = {
   // foreman is the person who sold it — every install job sits under one.
   "projects.list": op<Wire.ListProjectsInput, Wire.ListProjectsOutput>()({
     id: "projects.list", method: "GET", path: "/projects", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S3"], carrier: "query", sdkMethod: "listProjects",
+    surfaces: ["S2", "S3", "S4"], carrier: "query", sdkMethod: "listProjects",
     summary: "The projects install work is opened under — who sold each, and how much install work sits under it — and the foremen a new one may be sold by. Optionally one customer's.",
   }),
   "projects.create": op<Wire.CreateProjectInput, Wire.CreateProjectOutput>()({
@@ -359,7 +359,7 @@ export const OPERATIONS = {
   }),
   "sites.list": op<void, Wire.ListSitesOutput>()({
     id: "sites.list", method: "GET", path: "/s3/sites", kind: "query", auth: "bearer",
-    surfaces: ["S3"], carrier: "none", sdkMethod: "listSites",
+    surfaces: ["S3", "S4"], carrier: "none", sdkMethod: "listSites",
     summary: "Every active site a dispatcher may open a job at — the sites in their region (every region for a parent-scoped principal), with the customer each belongs to. What S3's New job form picks from.",
   }),
   "jobs.list": op<Wire.ListJobsInput, Wire.ListJobsOutput>()({
@@ -370,7 +370,7 @@ export const OPERATIONS = {
     // S8 since item 7: a firm sees work one of its own crews has been assigned
     // (0007's ac_firm_work_visible) — live or released — and the crew on the
     // row is its own, because the assignment join is behind the same rule.
-    surfaces: ["S2", "S3", "S6", "S8"], carrier: "query", sdkMethod: "listJobs",
+    surfaces: ["S2", "S3", "S4", "S6", "S8"], carrier: "query", sdkMethod: "listJobs",
     summary: "Jobs visible to this principal — S2 org-wide, S3 region-locked, S6 at its own sites, S8 where its crews were sent, all by RLS, same operation. Carries each job's current (unreleased) assignment and open SLA timer, if any.",
   }),
   // ---- item 6: S6's first write. A customer asks for work; the office turns it into a job. ----
@@ -381,7 +381,7 @@ export const OPERATIONS = {
   }),
   "serviceRequests.list": op<Wire.ListServiceRequestsInput, Wire.ListServiceRequestsOutput>()({
     id: "serviceRequests.list", method: "GET", path: "/service-requests", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S3", "S6"], carrier: "query", sdkMethod: "listServiceRequests",
+    surfaces: ["S2", "S3", "S4", "S6"], carrier: "query", sdkMethod: "listServiceRequests",
     summary: "Requests visible to this principal — a customer's own, the office's by region — with the site's name, the photos sent with it and, once one is opened, the job's state.",
   }),
   "serviceRequests.attachPhoto": op<Wire.AttachPhotoInput, Wire.AttachPhotoOutput>()({
@@ -401,7 +401,7 @@ export const OPERATIONS = {
   }),
   "media.get": op<Wire.GetMediaInput, Wire.GetMediaOutput>()({
     id: "media.get", method: "GET", path: "/media", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S3", "S6"], carrier: "query", sdkMethod: "getMedia",
+    surfaces: ["S2", "S3", "S4", "S6"], carrier: "query", sdkMethod: "getMedia",
     summary: "One stored photo, returned inline as a data: URL — read through the gateway under the same row security as the request it was sent with. A job's photos and signature (0034) are the office's alone. A surface never receives a bucket URL.",
   }),
   // ---- S3 ----
@@ -412,7 +412,7 @@ export const OPERATIONS = {
   }),
   "dispatch.candidates": op<Wire.CandidateCrewsInput, Wire.CandidateCrewsOutput>()({
     id: "dispatch.candidates", method: "GET", path: "/s3/dispatch/candidates", kind: "query", auth: "bearer",
-    surfaces: ["S3"], carrier: "query", sdkMethod: "candidateCrews",
+    surfaces: ["S3", "S4"], carrier: "query", sdkMethod: "candidateCrews",
     summary: "A DRY RUN of the same gate dispatch.assign enforces, over every active crew in the job's region — nothing is written. What a dispatcher reads before deciding, not a second gate with its own opinion.",
   }),
   "dispatch.release": op<Wire.ReleaseAssignmentInput, Wire.ReleaseAssignmentOutput>()({
@@ -432,7 +432,7 @@ export const OPERATIONS = {
   }),
   "manager.overview": op<void, Wire.ManagerOverviewOutput>()({
     id: "manager.overview", method: "GET", path: "/s3/manager", kind: "query", auth: "bearer",
-    surfaces: ["S3"], carrier: "none", sdkMethod: "managerOverview",
+    surfaces: ["S3", "S4"], carrier: "none", sdkMethod: "managerOverview",
     summary: "The company on one page for leadership: billed and completed this month against the same point last month, first-visit fixes, days per step from request to invoiced, labour against paid time, unbilled and unassigned work, expiring credentials, eight weeks of completed vs. invoiced, each branch, and the team. Org-wide, so only a principal or ops_leadership login at parent scope may call it (seesManagerOverview); anyone else is refused 403.",
   }),
   "jobs.setReturnTrip": op<Wire.SetReturnTripInput, Wire.SetReturnTripOutput>()({
@@ -442,7 +442,7 @@ export const OPERATIONS = {
   }),
   "jobs.detail": op<Wire.JobDetailInput, Wire.JobDetailOutput>()({
     id: "jobs.detail", method: "GET", path: "/s3/jobs/detail", kind: "query", auth: "bearer",
-    surfaces: ["S3"], carrier: "query", sdkMethod: "jobDetail",
+    surfaces: ["S3", "S4"], carrier: "query", sdkMethod: "jobDetail",
     summary: "One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — the customer thread, and how the field wrapped it up (0034). RLS decides; nothing here filters.",
   }),
   "jobs.conversation": op<Wire.JobConversationInput, Wire.JobConversationOutput>()({
@@ -468,7 +468,7 @@ export const OPERATIONS = {
   // ---- item 4: the device shift grant (D-2a) — this device, this crew, this window ----
   "devices.list": op<Wire.ListDevicesInput, Wire.ListDevicesOutput>()({
     id: "devices.list", method: "GET", path: "/s2/devices", kind: "query", auth: "bearer",
-    surfaces: ["S2"], carrier: "query", sdkMethod: "listDevices",
+    surfaces: ["S2", "S4"], carrier: "query", sdkMethod: "listDevices",
     summary: "Registered hardware — ours and firms' own tablets and phones alike (D-2a: provisioning is a credential grant, not a shipment).",
   }),
   "devices.register": op<Wire.RegisterDeviceInput, Wire.RegisterDeviceOutput>()({
@@ -596,7 +596,7 @@ export const OPERATIONS = {
   // and change is 0011's.
   "vendors.list": op<void, Wire.ListVendorsOutput>()({
     id: "vendors.list", method: "GET", path: "/procurement/vendors", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S7"], carrier: "none", sdkMethod: "listVendors",
+    surfaces: ["S2", "S4", "S7"], carrier: "none", sdkMethod: "listVendors",
     summary: "Vendors — the office sees every one; a vendor sees its own row. RLS (0011), not a WHERE.",
   }),
   "vendors.create": op<Wire.CreateVendorInput, Wire.CreateVendorOutput>()({
@@ -606,7 +606,7 @@ export const OPERATIONS = {
   }),
   "receivingPoints.list": op<void, Wire.ListReceivingPointsOutput>()({
     id: "receivingPoints.list", method: "GET", path: "/procurement/receiving-points", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S7"], carrier: "none", sdkMethod: "listReceivingPoints",
+    surfaces: ["S2", "S4", "S7"], carrier: "none", sdkMethod: "listReceivingPoints",
     summary: "Our receiving points. A vendor sees the ones its issued orders ship to — code, tier, address — and never a customer's name, because the row carries none.",
   }),
   "receivingPoints.create": op<Wire.CreateReceivingPointInput, Wire.CreateReceivingPointOutput>()({
@@ -616,7 +616,7 @@ export const OPERATIONS = {
   }),
   "catalog.list": op<Wire.ListCatalogInput, Wire.ListCatalogOutput>()({
     id: "catalog.list", method: "GET", path: "/procurement/catalog", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S7"], carrier: "query", sdkMethod: "listCatalog",
+    surfaces: ["S2", "S4", "S7"], carrier: "query", sdkMethod: "listCatalog",
     summary: "A vendor's catalogue: each item with the price in effect today (accepted) and any proposal waiting on the office.",
   }),
   "catalog.addItem": op<Wire.AddCatalogItemInput, Wire.AddCatalogItemOutput>()({
@@ -641,12 +641,12 @@ export const OPERATIONS = {
   }),
   "pos.list": op<Wire.ListPurchaseOrdersInput, Wire.ListPurchaseOrdersOutput>()({
     id: "pos.list", method: "GET", path: "/procurement/pos", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S7"], carrier: "query", sdkMethod: "listPurchaseOrders",
+    surfaces: ["S2", "S4", "S7"], carrier: "query", sdkMethod: "listPurchaseOrders",
     summary: "Purchase orders — every one for the office; a vendor's own once issued (a draft is ours).",
   }),
   "pos.detail": op<Wire.PurchaseOrderDetailInput, Wire.PurchaseOrderDetailOutput>()({
     id: "pos.detail", method: "GET", path: "/procurement/pos/detail", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S7"], carrier: "query", sdkMethod: "purchaseOrder",
+    surfaces: ["S2", "S4", "S7"], carrier: "query", sdkMethod: "purchaseOrder",
     summary: "One purchase order: its lines with ordered, shipped, received and invoiced quantities, the receiving point, and every shipment, receipt, invoice and return against it.",
   }),
   "pos.create": op<Wire.CreatePurchaseOrderInput, Wire.CreatePurchaseOrderOutput>()({
@@ -686,7 +686,7 @@ export const OPERATIONS = {
   }),
   "vendorInvoices.list": op<Wire.ListVendorInvoicesInput, Wire.ListVendorInvoicesOutput>()({
     id: "vendorInvoices.list", method: "GET", path: "/procurement/invoices", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S7"], carrier: "query", sdkMethod: "listVendorInvoices",
+    surfaces: ["S2", "S4", "S7"], carrier: "query", sdkMethod: "listVendorInvoices",
     summary: "Vendor invoices with their lines and their match verdict — every one for the office, its own for a vendor.",
   }),
   "rmas.request": op<Wire.RequestReturnInput, Wire.RequestReturnOutput>()({
@@ -701,7 +701,7 @@ export const OPERATIONS = {
   }),
   "rmas.list": op<Wire.ListReturnsInput, Wire.ListReturnsOutput>()({
     id: "rmas.list", method: "GET", path: "/procurement/rmas", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S7"], carrier: "query", sdkMethod: "listReturns",
+    surfaces: ["S2", "S4", "S7"], carrier: "query", sdkMethod: "listReturns",
     summary: "Returns — every one for the office, its own for a vendor.",
   }),
   // ---- 0035: company messages. A direct message, or one message to every active company login. ----

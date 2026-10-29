@@ -45,7 +45,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["accounts.create"], input) as Promise<OperationIO["accounts.create"]["output"]>;
   },
 
-  /** `GET /s2/accounts` · query · bearer · surfaces: S2, S6
+  /** `GET /s2/accounts` · query · bearer · surfaces: S2, S4, S6
    *
    * Every node in an organization's tree the caller may see. S6 sees its own subtree by RLS; same operation. */
   listAccounts(input: OperationIO["accounts.list"]["input"]): Promise<OperationIO["accounts.list"]["output"]> {
@@ -122,14 +122,14 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["catalog.addItem"], input) as Promise<OperationIO["catalog.addItem"]["output"]>;
   },
 
-  /** `GET /procurement/catalog` · query · bearer · surfaces: S2, S7
+  /** `GET /procurement/catalog` · query · bearer · surfaces: S2, S4, S7
    *
    * A vendor's catalogue: each item with the price in effect today (accepted) and any proposal waiting on the office. */
   listCatalog(input: OperationIO["catalog.list"]["input"]): Promise<OperationIO["catalog.list"]["output"]> {
     return transport.request(OPERATIONS["catalog.list"], input) as Promise<OperationIO["catalog.list"]["output"]>;
   },
 
-  /** `GET /contacts` · query · bearer · surfaces: S2, S6
+  /** `GET /contacts` · query · bearer · surfaces: S2, S4, S6
    *
    * The people at a node AND at its ancestors — a site with no manager of its own inherits the location's — each row saying which node it belongs to. Visible under the node's own rule (0009). */
   listContacts(input: OperationIO["contacts.list"]["input"]): Promise<OperationIO["contacts.list"]["output"]> {
@@ -150,7 +150,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["contracts.create"], input) as Promise<OperationIO["contracts.create"]["output"]>;
   },
 
-  /** `GET /s2/contracts` · query · bearer · surfaces: S2, S6
+  /** `GET /s2/contracts` · query · bearer · surfaces: S2, S4, S6
    *
    * The signed agreements in an organization — what a term override must belong to, and where the state machine currently stands. */
   listContracts(input: OperationIO["contracts.list"]["input"]): Promise<OperationIO["contracts.list"]["output"]> {
@@ -171,7 +171,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["coverage.list"], undefined) as Promise<OperationIO["coverage.list"]["output"]>;
   },
 
-  /** `GET /network/credentials` · query · bearer · surfaces: S2, S8
+  /** `GET /network/credentials` · query · bearer · surfaces: S2, S4, S8
    *
    * The documents on file for a crew or a firm's crews, verified or not. An unverified certificate is on the list AS unverified — it is not hidden, and it does not clear anything. */
   listCredentials(input: OperationIO["credentials.list"]["input"]): Promise<OperationIO["credentials.list"]["output"]> {
@@ -213,7 +213,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["crews.enroll"], input) as Promise<OperationIO["crews.enroll"]["output"]>;
   },
 
-  /** `GET /network/crews` · query · bearer · surfaces: S2, S3, S8
+  /** `GET /network/crews` · query · bearer · surfaces: S2, S3, S4, S8
    *
    * Crews — ours and the firms' — with a document summary per crew: what the gate would need, what is on file, what is verified, and the earliest expiry. Read by S2, by S3's board for a row per crew whether or not it holds work, and by a firm for its own crews; never by the field layer. */
   listCrews(input: OperationIO["crews.list"]["input"]): Promise<OperationIO["crews.list"]["output"]> {
@@ -248,7 +248,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["devices.grantShift"], input) as Promise<OperationIO["devices.grantShift"]["output"]>;
   },
 
-  /** `GET /s2/devices` · query · bearer · surfaces: S2
+  /** `GET /s2/devices` · query · bearer · surfaces: S2, S4
    *
    * Registered hardware — ours and firms' own tablets and phones alike (D-2a: provisioning is a credential grant, not a shipment). */
   listDevices(input: OperationIO["devices.list"]["input"]): Promise<OperationIO["devices.list"]["output"]> {
@@ -269,7 +269,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["dispatch.assign"], input) as Promise<OperationIO["dispatch.assign"]["output"]>;
   },
 
-  /** `GET /s3/dispatch/candidates` · query · bearer · surfaces: S3
+  /** `GET /s3/dispatch/candidates` · query · bearer · surfaces: S3, S4
    *
    * A DRY RUN of the same gate dispatch.assign enforces, over every active crew in the job's region — nothing is written. What a dispatcher reads before deciding, not a second gate with its own opinion. */
   candidateCrews(input: OperationIO["dispatch.candidates"]["input"]): Promise<OperationIO["dispatch.candidates"]["output"]> {
@@ -283,7 +283,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["dispatch.release"], input) as Promise<OperationIO["dispatch.release"]["output"]>;
   },
 
-  /** `GET /equipment` · query · bearer · surfaces: S2, S6
+  /** `GET /equipment` · query · bearer · surfaces: S2, S4, S6
    *
    * The units at a site this principal may see — kind, label, make and model, serial, tonnage, installed — each with when it was last serviced, DERIVED from the completed jobs that named it (job_equipment). RLS (0009) decides the site; nothing here filters. */
   listEquipment(input: OperationIO["equipment.list"]["input"]): Promise<OperationIO["equipment.list"]["output"]> {
@@ -311,7 +311,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["firms.create"], input) as Promise<OperationIO["firms.create"]["output"]>;
   },
 
-  /** `GET /network/firms` · query · bearer · surfaces: S2, S8
+  /** `GET /network/firms` · query · bearer · surfaces: S2, S4, S8
    *
    * Subcontractor firms — legal name, status on the ladder, settlement terms, the MSA, OQ5 firm-side, and how many crews they field. S8 sees one row: itself. */
   listFirms(input: OperationIO["firms.list"]["input"]): Promise<OperationIO["firms.list"]["output"]> {
@@ -339,7 +339,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["hq.metrics"], input) as Promise<OperationIO["hq.metrics"]["output"]>;
   },
 
-  /** `GET /invoices` · query · bearer · surfaces: S2, S6
+  /** `GET /invoices` · query · bearer · surfaces: S2, S4, S6
    *
    * Invoices with lines at a site or location this principal may see, with THOSE lines and their subtotal — a consolidated parent invoice read from one location shows that location's lines and nothing beside (0009). Issuance is WS-E's; this is the read. Each carries its status and what is paid against the whole invoice, derived from its payments (0030). */
   listInvoices(input: OperationIO["invoices.list"]["input"]): Promise<OperationIO["invoices.list"]["output"]> {
@@ -381,14 +381,14 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["jobs.create"], input) as Promise<OperationIO["jobs.create"]["output"]>;
   },
 
-  /** `GET /s3/jobs/detail` · query · bearer · surfaces: S3
+  /** `GET /s3/jobs/detail` · query · bearer · surfaces: S3, S4
    *
    * One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — the customer thread, and how the field wrapped it up (0034). RLS decides; nothing here filters. */
   jobDetail(input: OperationIO["jobs.detail"]["input"]): Promise<OperationIO["jobs.detail"]["output"]> {
     return transport.request(OPERATIONS["jobs.detail"], input) as Promise<OperationIO["jobs.detail"]["output"]>;
   },
 
-  /** `GET /jobs` · query · bearer · surfaces: S2, S3, S6, S8
+  /** `GET /jobs` · query · bearer · surfaces: S2, S3, S4, S6, S8
    *
    * Jobs visible to this principal — S2 org-wide, S3 region-locked, S6 at its own sites, S8 where its crews were sent, all by RLS, same operation. Carries each job's current (unreleased) assignment and open SLA timer, if any. */
   listJobs(input: OperationIO["jobs.list"]["input"]): Promise<OperationIO["jobs.list"]["output"]> {
@@ -451,7 +451,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["leads.convert"], input) as Promise<OperationIO["leads.convert"]["output"]>;
   },
 
-  /** `GET /s2/leads` · query · bearer · surfaces: S2
+  /** `GET /s2/leads` · query · bearer · surfaces: S2, S4
    *
    * Leads S1 captured, newest first — waiting ones by default — with the contact the visitor gave and, once converted, the home it became. */
   listLeads(input: OperationIO["leads.list"]["input"]): Promise<OperationIO["leads.list"]["output"]> {
@@ -465,14 +465,14 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["leads.submit"], input) as Promise<OperationIO["leads.submit"]["output"]>;
   },
 
-  /** `GET /s3/manager` · query · bearer · surfaces: S3
+  /** `GET /s3/manager` · query · bearer · surfaces: S3, S4
    *
    * The company on one page for leadership: billed and completed this month against the same point last month, first-visit fixes, days per step from request to invoiced, labour against paid time, unbilled and unassigned work, expiring credentials, eight weeks of completed vs. invoiced, each branch, and the team. Org-wide, so only a principal or ops_leadership login at parent scope may call it (seesManagerOverview); anyone else is refused 403. */
   managerOverview(): Promise<OperationIO["manager.overview"]["output"]> {
     return transport.request(OPERATIONS["manager.overview"], undefined) as Promise<OperationIO["manager.overview"]["output"]>;
   },
 
-  /** `GET /media` · query · bearer · surfaces: S2, S3, S6
+  /** `GET /media` · query · bearer · surfaces: S2, S3, S4, S6
    *
    * One stored photo, returned inline as a data: URL — read through the gateway under the same row security as the request it was sent with. A job's photos and signature (0034) are the office's alone. A surface never receives a bucket URL. */
   getMedia(input: OperationIO["media.get"]["input"]): Promise<OperationIO["media.get"]["output"]> {
@@ -521,14 +521,14 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["organizations.create"], input) as Promise<OperationIO["organizations.create"]["output"]>;
   },
 
-  /** `GET /s2/organizations` · query · bearer · surfaces: S2
+  /** `GET /s2/organizations` · query · bearer · surfaces: S2, S4
    *
    * Customer and subcontractor organizations — the parent tier — with how many of our regions each one meets. */
   listOrganizations(input: OperationIO["organizations.list"]["input"]): Promise<OperationIO["organizations.list"]["output"]> {
     return transport.request(OPERATIONS["organizations.list"], input) as Promise<OperationIO["organizations.list"]["output"]>;
   },
 
-  /** `GET /s2/payments` · query · bearer · surfaces: S2
+  /** `GET /s2/payments` · query · bearer · surfaces: S2, S4
    *
    * Every payment recorded against an invoice, oldest first, in every state — the history the derived status is read from. */
   listPayments(input: OperationIO["payments.list"]["input"]): Promise<OperationIO["payments.list"]["output"]> {
@@ -577,7 +577,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["pos.create"], input) as Promise<OperationIO["pos.create"]["output"]>;
   },
 
-  /** `GET /procurement/pos/detail` · query · bearer · surfaces: S2, S7
+  /** `GET /procurement/pos/detail` · query · bearer · surfaces: S2, S4, S7
    *
    * One purchase order: its lines with ordered, shipped, received and invoiced quantities, the receiving point, and every shipment, receipt, invoice and return against it. */
   purchaseOrder(input: OperationIO["pos.detail"]["input"]): Promise<OperationIO["pos.detail"]["output"]> {
@@ -591,7 +591,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["pos.issue"], input) as Promise<OperationIO["pos.issue"]["output"]>;
   },
 
-  /** `GET /procurement/pos` · query · bearer · surfaces: S2, S7
+  /** `GET /procurement/pos` · query · bearer · surfaces: S2, S4, S7
    *
    * Purchase orders — every one for the office; a vendor's own once issued (a draft is ours). */
   listPurchaseOrders(input: OperationIO["pos.list"]["input"]): Promise<OperationIO["pos.list"]["output"]> {
@@ -626,7 +626,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["projects.create"], input) as Promise<OperationIO["projects.create"]["output"]>;
   },
 
-  /** `GET /projects` · query · bearer · surfaces: S2, S3
+  /** `GET /projects` · query · bearer · surfaces: S2, S3, S4
    *
    * The projects install work is opened under — who sold each, and how much install work sits under it — and the foremen a new one may be sold by. Optionally one customer's. */
   listProjects(input: OperationIO["projects.list"]["input"]): Promise<OperationIO["projects.list"]["output"]> {
@@ -640,7 +640,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["punches.mine"], input) as Promise<OperationIO["punches.mine"]["output"]>;
   },
 
-  /** `GET /network/rate-cards` · query · bearer · surfaces: S2, S8
+  /** `GET /network/rate-cards` · query · bearer · surfaces: S2, S4, S8
    *
    * A firm's rates by service code over time. A firm sees its own and no other's — RLS, not a WHERE clause. */
   listRateCards(input: OperationIO["rateCards.list"]["input"]): Promise<OperationIO["rateCards.list"]["output"]> {
@@ -668,21 +668,21 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["receivingPoints.create"], input) as Promise<OperationIO["receivingPoints.create"]["output"]>;
   },
 
-  /** `GET /procurement/receiving-points` · query · bearer · surfaces: S2, S7
+  /** `GET /procurement/receiving-points` · query · bearer · surfaces: S2, S4, S7
    *
    * Our receiving points. A vendor sees the ones its issued orders ship to — code, tier, address — and never a customer's name, because the row carries none. */
   listReceivingPoints(): Promise<OperationIO["receivingPoints.list"]["output"]> {
     return transport.request(OPERATIONS["receivingPoints.list"], undefined) as Promise<OperationIO["receivingPoints.list"]["output"]>;
   },
 
-  /** `GET /regions` · query · bearer · surfaces: S2, S3
+  /** `GET /regions` · query · bearer · surfaces: S2, S3, S4
    *
    * OUR service regions — the shard boundary. What a region node binds to; what D14's density rule is set on. */
   listRegions(): Promise<OperationIO["regions.list"]["output"]> {
     return transport.request(OPERATIONS["regions.list"], undefined) as Promise<OperationIO["regions.list"]["output"]>;
   },
 
-  /** `GET /procurement/rmas` · query · bearer · surfaces: S2, S7
+  /** `GET /procurement/rmas` · query · bearer · surfaces: S2, S4, S7
    *
    * Returns — every one for the office, its own for a vendor. */
   listReturns(input: OperationIO["rmas.list"]["input"]): Promise<OperationIO["rmas.list"]["output"]> {
@@ -724,7 +724,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["serviceRequests.hold"], input) as Promise<OperationIO["serviceRequests.hold"]["output"]>;
   },
 
-  /** `GET /service-requests` · query · bearer · surfaces: S2, S3, S6
+  /** `GET /service-requests` · query · bearer · surfaces: S2, S3, S4, S6
    *
    * Requests visible to this principal — a customer's own, the office's by region — with the site's name, the photos sent with it and, once one is opened, the job's state. */
   listServiceRequests(input: OperationIO["serviceRequests.list"]["input"]): Promise<OperationIO["serviceRequests.list"]["output"]> {
@@ -766,14 +766,14 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["settlements.issue"], input) as Promise<OperationIO["settlements.issue"]["output"]>;
   },
 
-  /** `GET /money/settlements/lines` · query · bearer · surfaces: S2, S8
+  /** `GET /money/settlements/lines` · query · bearer · surfaces: S2, S4, S8
    *
    * One statement's lines: the job, the rate applied, the quantity, the amount. A firm sees the lines of a statement it can see and no other's — another firm's price is not derivable from a row the firm cannot read. */
   listSettlementLines(input: OperationIO["settlements.lines"]["input"]): Promise<OperationIO["settlements.lines"]["output"]> {
     return transport.request(OPERATIONS["settlements.lines"], input) as Promise<OperationIO["settlements.lines"]["output"]>;
   },
 
-  /** `GET /money/settlements` · query · bearer · surfaces: S2, S8
+  /** `GET /money/settlements` · query · bearer · surfaces: S2, S4, S8
    *
    * Statements we issue to firms for work done — period, total, state, and the firm's position on each. S2 reads every firm's; a firm reads its own, once issued (a draft is ours). RLS, not a WHERE. */
   listSettlements(input: OperationIO["settlements.list"]["input"]): Promise<OperationIO["settlements.list"]["output"]> {
@@ -787,14 +787,14 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["shipments.record"], input) as Promise<OperationIO["shipments.record"]["output"]>;
   },
 
-  /** `GET /s6/sites/imagery` · query · bearer · surfaces: S2, S6
+  /** `GET /s6/sites/imagery` · query · bearer · surfaces: S2, S4, S6
    *
    * Overhead imagery of a site, fetched by the GATEWAY from the configured provider (AC_IMAGERY_URL) and returned inline — the customer's browser never reaches a third party with the customer's address, and there is no key in a bundle. Unavailable is an answer, not an error: not configured, no coordinates, provider unreachable. */
   siteImagery(input: OperationIO["sites.imagery"]["input"]): Promise<OperationIO["sites.imagery"]["output"]> {
     return transport.request(OPERATIONS["sites.imagery"], input) as Promise<OperationIO["sites.imagery"]["output"]>;
   },
 
-  /** `GET /s3/sites` · query · bearer · surfaces: S3
+  /** `GET /s3/sites` · query · bearer · surfaces: S3, S4
    *
    * Every active site a dispatcher may open a job at — the sites in their region (every region for a parent-scoped principal), with the customer each belongs to. What S3's New job form picks from. */
   listSites(): Promise<OperationIO["sites.list"]["output"]> {
@@ -808,7 +808,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["sites.locate"], input) as Promise<OperationIO["sites.locate"]["output"]>;
   },
 
-  /** `GET /s2/sites/map-tile` · query · bearer · surfaces: S2
+  /** `GET /s2/sites/map-tile` · query · bearer · surfaces: S2, S4
    *
    * One web-mercator basemap tile near a site, fetched by the GATEWAY from the configured tile provider (AC_MAP_TILE_URL) and returned inline — the same reasons as sites.imagery: no key in a bundle, no customer's coordinates sent to a third party from a browser. Only tiles within MAP_TILE_REACH of the site's own tile, at MAP_ZOOM_MIN–MAP_ZOOM_MAX, are served: a pan around a home, not a free tile proxy. Unavailable is an answer: not configured, no coordinates, provider unreachable. */
   siteMapTile(input: OperationIO["sites.mapTile"]["input"]): Promise<OperationIO["sites.mapTile"]["output"]> {
@@ -829,7 +829,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["system.health"], undefined) as Promise<OperationIO["system.health"]["output"]>;
   },
 
-  /** `GET /network/technicians` · query · bearer · surfaces: S2, S3
+  /** `GET /network/technicians` · query · bearer · surfaces: S2, S3, S4
    *
    * The technician roster — name, phone, specialties, crew, and the home address for an account owner or principal (restricted for every other role). Optionally one firm's. */
   listTechnicians(input: OperationIO["technicians.list"]["input"]): Promise<OperationIO["technicians.list"]["output"]> {
@@ -857,28 +857,28 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["terms.authorOverride"], input) as Promise<OperationIO["terms.authorOverride"]["output"]>;
   },
 
-  /** `GET /s2/terms/overrides` · query · bearer · surfaces: S2
+  /** `GET /s2/terms/overrides` · query · bearer · surfaces: S2, S4
    *
    * The override rows an organization holds — every tier, optionally narrowed to one term or one agreement. What the override screen lists before it adds to it. */
   listTermOverrides(input: OperationIO["terms.overrides.list"]["input"]): Promise<OperationIO["terms.overrides.list"]["output"]> {
     return transport.request(OPERATIONS["terms.overrides.list"], input) as Promise<OperationIO["terms.overrides.list"]["output"]>;
   },
 
-  /** `GET /terms/register` · query · bearer · surfaces: S2, S6
+  /** `GET /terms/register` · query · bearer · surfaces: S2, S4, S6
    *
    * The term policy register as data — value kind, enum values, authoring tiers, rationale. S2 renders the override form FROM this, so a twelfth term is a register diff and the form follows. */
   termRegister(): Promise<OperationIO["terms.register"]["output"]> {
     return transport.request(OPERATIONS["terms.register"], undefined) as Promise<OperationIO["terms.register"]["output"]>;
   },
 
-  /** `GET /terms/resolved` · query · bearer · surfaces: S2, S6
+  /** `GET /terms/resolved` · query · bearer · surfaces: S2, S4, S6
    *
    * Every term at a node as of a date, with the trace naming every rung. */
   resolvedTerms(input: OperationIO["terms.resolved"]["input"]): Promise<OperationIO["terms.resolved"]["output"]> {
     return transport.request(OPERATIONS["terms.resolved"], input) as Promise<OperationIO["terms.resolved"]["output"]>;
   },
 
-  /** `GET /procurement/invoices` · query · bearer · surfaces: S2, S7
+  /** `GET /procurement/invoices` · query · bearer · surfaces: S2, S4, S7
    *
    * Vendor invoices with their lines and their match verdict — every one for the office, its own for a vendor. */
   listVendorInvoices(input: OperationIO["vendorInvoices.list"]["input"]): Promise<OperationIO["vendorInvoices.list"]["output"]> {
@@ -899,7 +899,7 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["vendors.create"], input) as Promise<OperationIO["vendors.create"]["output"]>;
   },
 
-  /** `GET /procurement/vendors` · query · bearer · surfaces: S2, S7
+  /** `GET /procurement/vendors` · query · bearer · surfaces: S2, S4, S7
    *
    * Vendors — the office sees every one; a vendor sees its own row. RLS (0011), not a WHERE. */
   listVendors(): Promise<OperationIO["vendors.list"]["output"]> {
