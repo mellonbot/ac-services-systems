@@ -5,6 +5,7 @@
  * `<style id="ac-brand">`, and nothing in this file names a colour it could
  * disagree with. Component styling is UI_CSS; this is the arrangement of a
  * customer's sites, work, agreements and the one form around them.
+ * Mobile rules aligned with the Rankine prototype.
  */
 export const S6_CSS = `
 .s6-app{display:flex;flex-direction:column;gap:var(--space-3)}
@@ -17,17 +18,10 @@ export const S6_CSS = `
 .s6-tree .s6-tree{margin-inline-start:var(--space-6);margin-top:var(--space-2)}
 .s6-node{position:relative}
 .s6-node__row{position:relative;display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;min-height:var(--row-height);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
-/* Guides, as a file tree draws them: each child row is joined to its parent by
-   a line down the indent and a tick into the row's middle; a child with
-   siblings still to come carries the line on past its own subtree, the last
-   child stops at its tick. Drawn in the muted ink (8.41:1 on the surface) —
-   a guide carries shape, and border-hard (2.83:1) is decorative. Neither role
-   is tenant-overridable, so a white-label block cannot repaint the structure. */
 .s6-tree .s6-tree>.s6-node>.s6-node__row::before{content:"";position:absolute;inset-inline-start:calc(-1 * var(--space-3) - 1px);top:calc(-1 * var(--space-2) - 1px);height:calc(50% + var(--space-2) + 1px);border-inline-start:1px solid var(--color-text-muted)}
 .s6-tree .s6-tree>.s6-node>.s6-node__row::after{content:"";position:absolute;inset-inline-start:calc(-1 * var(--space-3) - 1px);top:50%;width:var(--space-3);border-top:1px solid var(--color-text-muted)}
 .s6-tree .s6-tree>.s6-node:not(:last-child)::before{content:"";position:absolute;inset-inline-start:calc(-1 * var(--space-3));top:0;bottom:calc(-1 * var(--space-2));border-inline-start:1px solid var(--color-text-muted)}
 .s6-node[data-scope="true"]>.s6-node__row{border-color:var(--color-border-hard)}
-/* A region heads its group: banded on the table head's ground (the lighter of the two the inks are measured on) and set in the display cut. */
 .s6-node[data-tier="region"]>.s6-node__row{background:color-mix(in srgb,var(--color-surface-sunken) 45%,var(--color-surface))}
 .s6-node__tier{font-family:var(--font-label);font-size:var(--text-xs);font-weight:600;letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
 .s6-node__name{font-weight:600}
@@ -138,4 +132,19 @@ export const S6_CSS = `
 @media (max-width:1100px){.s6-site__grid,.s6-home,.s6-house-row,.s6-job__grid{grid-template-columns:1fr}}
 @media (max-width:760px){.s6-ledger__row{grid-template-columns:1fr}.s6-ledger__amount{text-align:start}.s6-node__actions{margin-inline-start:0;width:100%}.s6-term{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){.s6-drop{transition:none}}
+
+/* ---- Mobile surfaces (Rankine prototype alignment) ---- */
+@media (max-width: 640px) {
+  .s6-app { gap: var(--space-2); padding-bottom: var(--space-4); }
+  .s6-home, .s6-house-row, .s6-site__grid, .s6-job__grid { grid-template-columns: 1fr; }
+  .s6-seg-button { min-height: 44px; }
+  .s6-steps { grid-template-columns: 1fr; }
+  .s6-steps .s6-step::before { display: none; }
+  .s6-account, .s6-order__head { flex-direction: column; align-items: flex-start; }
+  .s6-ledger__row, .s6-term { grid-template-columns: 1fr; }
+  .s6-ledger__amount { text-align: start; }
+}
+@media (max-width: 480px) {
+  .s6-photo { width: 5rem; }
+}
 `;
