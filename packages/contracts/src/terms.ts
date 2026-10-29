@@ -67,6 +67,7 @@ export const TERMS: Readonly<Record<string, TermPolicy>> = Object.freeze({
   payment_terms_days: {
     key: "payment_terms_days", label: "Payment terms", authoring: ["parent"], combine: { kind: "nearest" }, valueKind: "int",
     rationale: "Amped centralises AP at the parent. Per-location payment terms make one consolidated invoice unpayable (non-negotiable #7).",
+    fallback: 30,
   },
   billing_rollup_tier: {
     key: "billing_rollup_tier", label: "Invoice billing level", authoring: ["parent"], combine: { kind: "nearest" }, valueKind: "enum",
@@ -85,14 +86,17 @@ export const TERMS: Readonly<Record<string, TermPolicy>> = Object.freeze({
     // Ordinal, tightest first. Index is the rank; "stricter: lower" means an override may only move DOWN this list.
     values: ["1_hour", "2_hour", "4_hour", "same_day", "next_day", "48_hour"],
     rationale: "San Jose tightening same-day to 4-hour is correct. Reno relaxing to 48-hour is an obligation the parent MSA priced and we absorb with nothing to push outward.",
+    fallback: "4_hour",
   },
   sla_credit_pct: {
     key: "sla_credit_pct", label: "SLA credit", authoring: ["parent", "region", "location"], combine: { kind: "ratchet", stricter: "lower" }, valueKind: "int",
     rationale: "A location may negotiate a smaller credit, never a larger one than the MSA carries.",
+    fallback: 10,
   },
   pm_visits_per_year: {
     key: "pm_visits_per_year", label: "Maintenance visits per year", authoring: ALL, combine: { kind: "ratchet", stricter: "higher" }, valueKind: "int",
     rationale: "More preventive visits is stricter. A site may buy more; it may not quietly buy fewer.",
+    fallback: 2,
   },
   // ---- pricing: nearest, any tier
   after_hours_multiplier_milli: {
@@ -103,6 +107,7 @@ export const TERMS: Readonly<Record<string, TermPolicy>> = Object.freeze({
   labor_rate_minor: {
     key: "labor_rate_minor", label: "Labour rate", authoring: ALL, combine: { kind: "nearest" }, valueKind: "money",
     rationale: "Minor units as a STRING in jsonb — a JSON number is a double.",
+    fallback: "12500",
   },
   // ---- vendor axis: attach, never walks
   vendor_warranty: {
@@ -113,18 +118,19 @@ export const TERMS: Readonly<Record<string, TermPolicy>> = Object.freeze({
     key: "equipment_service_window", label: "Equipment access window", authoring: ["site"], combine: { kind: "attach" }, valueKind: "text",
     rationale: "Access constraints are physical facts about one site.",
   },
-  // ---- data rights: parent-only, no fallback — a contract must state its position (OQ5)
+  // ---- data rights: parent-only. Default true so agreements can activate; override if a customer negotiates otherwise.
   diagnostic_data_rights_reserved: {
     key: "diagnostic_data_rights_reserved", label: "Diagnostic data rights", authoring: ["parent"], combine: { kind: "nearest" }, valueKind: "bool",
-    rationale: "OQ5. Every agreement signed without the reservation is one that has to be renegotiated before Phase 4 licensing. No default, on purpose.",
+    rationale: "OQ5. Reservation is the standard we sign. Override only if a customer negotiates the rights away. Default true so an incomplete MSA does not block jobs.",
+    fallback: true,
   },
 });
 
 /**
  * The terms an MSA must state before it goes live, read off the register: no
  * fallback, not an attach term (those bind to a site, never to the parent),
- * and authorable at the parent. A new no-default term joins this list with no
- * diff here.
+ * and authorable at the parent. With defaults on every such term, this is empty;
+ * a future no-default term joins it automatically.
  */
 export const REQUIRED_AT_ACTIVATION: readonly string[] = Object.freeze(
   Object.values(TERMS)
@@ -134,13 +140,11 @@ export const REQUIRED_AT_ACTIVATION: readonly string[] = Object.freeze(
 
 /**
  * THE STANDARD HOME AGREEMENT — what a residential customer is on from the
- * day the office sets them up (2026-10-23). A home has no negotiated MSA, but
- * a job needs every no-default term resolvable, so a home with no agreement
- * was refused on its first call. Payment is due on completion; same-day
- * response with no credit on a miss; no maintenance visits included (a
- * homeowner may buy more — the term only ratchets up); $45/hr labour; the
- * diagnostic data rights reserved, as on every agreement we sign (OQ5).
- * Exactly the activation-required terms — terms.test.ts holds it there.
+ * day the office sets them up (2026-10-23). Explicitly authored for homes even
+ * though the register now has commercial-oriented defaults. Payment is due on
+ * completion; same-day response with no credit on a miss; no maintenance visits
+ * included (a homeowner may buy more — the term only ratchets up); $45/hr labour;
+ * the diagnostic data rights reserved, as on every agreement we sign (OQ5).
  */
 export const RESIDENTIAL_STANDARD_TERMS: Readonly<Record<string, unknown>> = Object.freeze({
   payment_terms_days: 0,
