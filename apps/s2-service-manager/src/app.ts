@@ -212,9 +212,6 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const screen = routeId ? SCREEN_VIEWS[routeId] : null;
     const notice = p.store.notice.value;
     const group = routeId ? navGroupFor(routeId) : undefined;
-    const path = p.shell.context?.path.length
-      ? p.shell.context.path
-      : p.shell.context ? [p.shell.context.parent] : [];
     // The network screen with no firm open is our own crews; say so, as its tab does.
     const entity = loc ? activeEntity(loc.params, p.store) ?? (routeId === "network" ? OWN_CREWS_LABEL : null) : null;
     const firms = p.store.read(keyOf("firms.list"), () => p.shell.gateway.listFirms({})).value;
@@ -249,8 +246,6 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     return html`<div class="s2-app">
       <nav class="ac-nav ac-nav--grouped" aria-label="Workspace">
         <div class="ac-nav__end">
-          <span class="ac-nav__group-label">Signed-in scope</span>
-          <span class="ac-nav__who"><span class="s2-scope">${path.map((node) => html`<span>${node.name ?? node.tier}</span>`)}</span> · ${p.shell.principal.roles.join(", ")}</span>
           ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
         </div>
         <div class="ac-nav__groups">

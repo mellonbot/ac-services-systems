@@ -177,8 +177,7 @@ test("boot with no session shows login, not an error; a bad password is a refusa
   assert.match(chrome, /class="ac-nav ac-nav--grouped"/, "the plain ac-nav is one shared track and would merge the domains again");
   assert.match(chrome, /aria-label="Customer records" data-current="true"/);
   assert.match(chrome, /aria-label="Technician Network" data-current="false"/);
-  assert.match(chrome, /Signed-in scope/);
-  assert.match(chrome, /AC Services/);
+  assert.doesNotMatch(chrome, /Signed-in scope/, "the header no longer spells out the signed-in scope and roles");
   const login = gw.calls.find((c) => c.path === "/auth/login")!;
   assert.equal(login.init.credentials, "include");
   assert.equal(JSON.parse(login.init.body!).surface, "S2");
