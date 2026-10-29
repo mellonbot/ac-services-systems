@@ -9,6 +9,11 @@
  */
 export const S4_CSS = `
 .s4-app{display:flex;flex-direction:column;gap:var(--space-3)}
+/* The dashboard names itself under the masthead, as S2's and S3's consoles do — a styled line, not a second h1: each screen keeps its own. */
+.s4-console-head{display:flex;flex-direction:column;gap:var(--space-1);margin-top:var(--space-2)}
+.s4-console-head__title{margin:0;font-family:var(--font-display);font-size:var(--text-mast);font-weight:800;letter-spacing:var(--track-tight);line-height:1.1;color:var(--color-text);text-wrap:balance}
+.s4-console-head__lede{margin:0;max-width:var(--measure-text);color:var(--color-text-muted);font-size:var(--text-md)}
+@media (max-width:640px){.s4-console-head__title{font-size:var(--text-display)}}
 .s4-asof{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;color:var(--color-text-muted);font-size:var(--text-sm)}
 .s4-loading,.s4-empty,.s4-muted{color:var(--color-text-muted)}
 .s4-areas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4);margin:0 0 var(--space-4)}
