@@ -5,6 +5,7 @@ import { setContact } from "./site-record.ts";
 import { createContract, transitionContract } from "./contracts.ts";
 import { authorTermOverride } from "./terms.ts";
 import { localDate } from "./jobs.ts";
+import { iso } from "../sql.ts";
 import type { HierarchyContext } from "../context.ts";
 import { REQUIRED_AT_ACTIVATION, RESIDENTIAL_STANDARD_TERMS } from "../../../../packages/contracts/src/terms.ts";
 import type {
@@ -97,7 +98,7 @@ export const listLeads = async (uow: UnitOfWork, input: ListLeadsInput): Promise
   const include = input.include ?? "waiting";
   if (include !== "waiting" && include !== "all") throw new BadInput("include must be waiting or all");
   const rows = await uow.tx.query<LeadRow>(
-    `SELECT id, source, contact, requested_metro, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at, converted_account_id
+    `SELECT id, source, contact, requested_metro, ${iso("created_at")} AS created_at, converted_account_id
        FROM leads WHERE ($1 = 'all' OR converted_account_id IS NULL) ORDER BY created_at DESC LIMIT 500`,
     [include],
   );

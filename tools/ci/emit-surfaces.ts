@@ -119,20 +119,12 @@ ${s.whiteLabel ? BRAND_ENTRYPOINT(s) : ""}`;
  * landmark. S2 owns its richer hand-written browser entry.
  */
 export const renderStatusApp = (): string => `import { html, mount, signal, driveDegraded, type VNode } from "../../../packages/ui/src/index.ts";
-import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
+import { gatewayOrigin as sharedGatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 
-export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string; hostname: string } }): string => {
-  const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
-  if (stamped) return stamped;
-  const host = doc.location.host || "localhost";
-  const hostname = doc.location.hostname || host.split(":")[0] || "localhost";
-  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname.startsWith("127.")) {
-    return "http://127.0.0.1:8080";
-  }
-  const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
-  return \`\${doc.location.protocol}//api.\${site}\`;
-};
+/** Loopback talks to the gateway on this machine. Every other host uses the shared rule. */
+export const gatewayOrigin = (doc: Parameters<typeof sharedGatewayOrigin>[0]): string =>
+  sharedGatewayOrigin(doc, { localFallback: "http://127.0.0.1:8080" });
 
 type Phase = { kind: "connecting" } | { kind: "ready"; shell: ConnectedShell } | { kind: "sign-in" };
 

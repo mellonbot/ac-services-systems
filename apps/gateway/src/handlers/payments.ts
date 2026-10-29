@@ -6,6 +6,7 @@ import type {
   RecordPaymentInput, ReturnPaymentInput, PaymentOutput, VoidInvoiceInput, VoidInvoiceOutput, PaymentWebhookInput,
 } from "../../../../packages/contracts/src/operations.ts";
 import { requireUuid } from "./jobs.ts";
+import { iso } from "../sql.ts";
 
 /**
  * 0030 — WHAT WAS PAID AGAINST AN INVOICE. The office records each payment as
@@ -17,9 +18,8 @@ import { requireUuid } from "./jobs.ts";
  * Who may write is S2's writeRoles — finance and the principals — checked by
  * the unit of work on every write, so it is not restated here.
  */
-const TS = (col: string) => `to_char(${col} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 const PAYMENT_COLUMNS = `id, invoice_id, amount_minor::text, currency, method, reference, state,
-  ${TS("received_at")} AS received_at, ${TS("returned_at")} AS returned_at, return_reason`;
+  ${iso("received_at")} AS received_at, ${iso("returned_at")} AS returned_at, return_reason`;
 type PaymentRow = {
   id: string; invoice_id: string; amount_minor: string; currency: string; method: PaymentMethod; reference: string | null;
   state: PaymentState; received_at: string; returned_at: string | null; return_reason: string | null;
@@ -34,7 +34,7 @@ type InvoiceRow = { id: string; org_id: string; region_id: string; total_minor: 
 const lockedInvoice = async (uow: UnitOfWork, invoiceId: unknown): Promise<InvoiceRow> => {
   const id = requireUuid(invoiceId, "invoiceId");
   const row = (await uow.tx.query<InvoiceRow>(
-    `SELECT id, org_id, region_id, total_minor::text, currency, ${TS("issued_at")} AS issued_at, ${TS("voided_at")} AS voided_at
+    `SELECT id, org_id, region_id, total_minor::text, currency, ${iso("issued_at")} AS issued_at, ${iso("voided_at")} AS voided_at
        FROM invoices WHERE id = $1 FOR UPDATE`, [id],
   ))[0];
   if (!row) throw new InputRefused(`no invoice ${id} in this scope`, "unknown_invoice");
@@ -129,7 +129,7 @@ export const returnPayment = async (uow: UnitOfWork, input: ReturnPaymentInput, 
   if (!found) throw new InputRefused(`no payment ${paymentId} in this scope`, "unknown_payment");
   // Invoice first, then the payment — the order recordPayment and the table's trigger take them in.
   const inv = (await uow.tx.query<InvoiceRow>(
-    `SELECT id, org_id, region_id, total_minor::text, currency, ${TS("issued_at")} AS issued_at, ${TS("voided_at")} AS voided_at
+    `SELECT id, org_id, region_id, total_minor::text, currency, ${iso("issued_at")} AS issued_at, ${iso("voided_at")} AS voided_at
        FROM invoices WHERE id = $1 FOR UPDATE`, [found.invoice_id],
   ))[0]!;
   const p = (await uow.tx.query<PaymentRow>(`SELECT ${PAYMENT_COLUMNS} FROM payments WHERE id = $1 FOR UPDATE`, [paymentId]))[0]!;

@@ -10,6 +10,7 @@ import { hashPassword } from "../../../apps/gateway/src/auth.ts";
 import { summarizeDocuments } from "../../../apps/gateway/src/handlers/network.ts";
 import type { CredentialWire, DeviceKind } from "../../../packages/contracts/src/operations.ts";
 import { registerDevice, grantDeviceShift, type DeviceWriter } from "../../../apps/gateway/src/handlers/devices.ts";
+import { revokeUserSessions } from "../../../apps/gateway/src/sessions.ts";
 import { randomUUID } from "node:crypto";
 import { isTopic, type Topic } from "../../../packages/contracts/src/events.ts";
 import { buildCrewRow, buildFirmRows, documentsLabel, normaliseName } from "./companies.ts";
@@ -77,8 +78,6 @@ export type LoginsDb = {
   reactivate(userId: string): Promise<void>;
   close(): Promise<void>;
 };
-
-const REVOKE_SESSIONS = `UPDATE sessions SET revoked_at = now() WHERE revoked_at IS NULL AND ((principal_kind = 'user' AND principal_id = $1) OR (principal_kind = 'device_grant' AND principal_id IN (SELECT id FROM device_grants WHERE technician_id = $1)))`;
 
 type UserRow = {
   id: string; email: string; display_name: string; namespace: UserRecord["namespace"]; roles: string[];
@@ -267,7 +266,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
   };
 
   const revoke = async (q: <R>(sql: string, params?: readonly unknown[]) => Promise<readonly R[]>, userId: string): Promise<number> =>
-    (await q<{ id: string }>(`${REVOKE_SESSIONS} RETURNING id`, [userId])).length;
+    revokeUserSessions(q, userId, null);
 
   const db: LoginsDb = {
     ping: async () => { await read("SELECT 1"); },

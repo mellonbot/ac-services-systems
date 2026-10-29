@@ -1,5 +1,6 @@
 import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, type VNode } from "../../../packages/ui/src/index.ts";
-import type { AnonymousShell } from "../../../packages/shell/src/index.ts";
+import { gatewayOrigin, type AnonymousShell } from "../../../packages/shell/src/index.ts";
+export { gatewayOrigin };
 import { densityOf, SURFACE_PATHS, type SubmitLeadInput } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, open } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
@@ -32,14 +33,6 @@ import { S1_CSS } from "./styles.ts";
  * the shell.
  */
 export const DENSITY = densityOf("S1");
-
-export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string } }): string => {
-  const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
-  if (stamped) return stamped;
-  const host = doc.location.host;
-  const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
-  return `${doc.location.protocol}//api.${site}`;
-};
 
 export const SCREEN_VIEWS: Readonly<Record<ScreenId, Screen>> = {
   home, coverage: coverageScreen, enquire,

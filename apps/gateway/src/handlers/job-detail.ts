@@ -1,6 +1,7 @@
 import type { UnitOfWork } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import { JOB_SELECT, toWire, requireUuid, requireText, jobInScope, type JobRow } from "./jobs.ts";
+import { iso } from "../sql.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import type {
   JobDetailInput, JobDetailOutput, JobConversationInput, JobConversationOutput, JobVisitWire, JobMediaWire, JobNoteWire,
@@ -18,7 +19,6 @@ import type {
  * updates only and no note at all. Neither filters by hand; the database
  * decides, and the integration tests read both sides to prove it.
  */
-const TS = (col: string) => `to_char(${col} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 const MAX_BODY = 2000;
 
 const body = (v: unknown, what: string): string => {
@@ -34,7 +34,7 @@ const updateWire = (r: UpdateRow): JobUpdateWire => ({
 });
 const readUpdates = async (uow: UnitOfWork, jobId: string): Promise<JobUpdateWire[]> =>
   (await uow.tx.query<UpdateRow>(
-    `SELECT u.id, u.source_note_id, u.body, u.state, ${TS("u.updated_at")} AS updated_at, ${TS("u.published_at")} AS published_at, pb.display_name AS published_by_name
+    `SELECT u.id, u.source_note_id, u.body, u.state, ${iso("u.updated_at")} AS updated_at, ${iso("u.published_at")} AS published_at, pb.display_name AS published_by_name
        FROM job_updates u LEFT JOIN users pb ON pb.id = u.published_by
       WHERE u.job_id = $1 ORDER BY u.created_at, u.id`, [jobId],
   )).map(updateWire);
@@ -42,7 +42,7 @@ const readUpdates = async (uow: UnitOfWork, jobId: string): Promise<JobUpdateWir
 type MessageRow = { id: string; author_kind: "customer" | "office"; author_name: string | null; body: string; at: string };
 const readMessages = async (uow: UnitOfWork, jobId: string): Promise<JobMessageWire[]> =>
   (await uow.tx.query<MessageRow>(
-    `SELECT m.id, m.author_kind, u.display_name AS author_name, m.body, ${TS("m.created_at")} AS at
+    `SELECT m.id, m.author_kind, u.display_name AS author_name, m.body, ${iso("m.created_at")} AS at
        FROM job_messages m LEFT JOIN users u ON u.id = m.author_id
       WHERE m.job_id = $1 ORDER BY m.created_at, m.id`, [jobId],
   )).map((r) => ({ id: r.id, authorKind: r.author_kind, authorName: r.author_name, body: r.body, at: r.at }));
@@ -63,8 +63,8 @@ export const jobDetail = async (uow: UnitOfWork, input: JobDetailInput): Promise
 
   // A visit is an assignment; its span is the crew's own time entries on this job inside it.
   const visits = (await uow.tx.query<{ id: string; crew_id: string; crew_label: string | null; assigned_at: string; released_at: string | null; work_start: string | null; work_end: string | null }>(
-    `SELECT a.id, a.crew_id, c.label AS crew_label, ${TS("a.assigned_at")} AS assigned_at, ${TS("a.released_at")} AS released_at,
-            ${TS("w.work_start")} AS work_start, ${TS("w.work_end")} AS work_end
+    `SELECT a.id, a.crew_id, c.label AS crew_label, ${iso("a.assigned_at")} AS assigned_at, ${iso("a.released_at")} AS released_at,
+            ${iso("w.work_start")} AS work_start, ${iso("w.work_end")} AS work_end
        FROM assignments a
        LEFT JOIN crews c ON c.id = a.crew_id
        LEFT JOIN LATERAL (
@@ -80,12 +80,12 @@ export const jobDetail = async (uow: UnitOfWork, input: JobDetailInput): Promise
   }));
 
   const media = (await uow.tx.query<{ id: string; kind: string; storage_key: string; label: string | null; captured_at: string }>(
-    `SELECT id, kind, storage_key, meta->>'label' AS label, ${TS("captured_at")} AS captured_at
+    `SELECT id, kind, storage_key, meta->>'label' AS label, ${iso("captured_at")} AS captured_at
        FROM job_media WHERE job_id = $1 ORDER BY captured_at, id`, [jobId],
   )).map((r): JobMediaWire => ({ id: r.id, kind: r.kind, storageKey: r.storage_key, label: r.label, capturedAt: r.captured_at }));
 
   const notes = (await uow.tx.query<{ id: string; body: string; kind: JobNoteKind; at: string; author_name: string | null }>(
-    `SELECT n.id, n.body, n.kind, ${TS("n.created_at")} AS at, u.display_name AS author_name
+    `SELECT n.id, n.body, n.kind, ${iso("n.created_at")} AS at, u.display_name AS author_name
        FROM job_notes n LEFT JOIN users u ON u.id = n.author_id
       WHERE n.job_id = $1 ORDER BY n.created_at, n.id`, [jobId],
   )).map((r): JobNoteWire => ({ id: r.id, body: r.body, kind: r.kind, at: r.at, authorName: r.author_name }));
@@ -95,7 +95,7 @@ export const jobDetail = async (uow: UnitOfWork, input: JobDetailInput): Promise
     measurements: WrapUpMeasurementsWire | null; signature_media_id: string | null; customer_absent_reason: string | null;
     quote_job_id: string | null; quote_job_no: string | null; quote_error: string | null;
   }>(
-    `SELECT w.outcome, ${TS("w.submitted_at")} AS submitted_at, u.display_name AS submitted_by, c.label AS crew_label, w.notes, w.measurements,
+    `SELECT w.outcome, ${iso("w.submitted_at")} AS submitted_at, u.display_name AS submitted_by, c.label AS crew_label, w.notes, w.measurements,
             w.signature_media_id, w.customer_absent_reason, w.quote_job_id, q.job_no AS quote_job_no, w.quote_error
        FROM job_wrap_ups w
        LEFT JOIN users u ON u.id = w.submitted_by

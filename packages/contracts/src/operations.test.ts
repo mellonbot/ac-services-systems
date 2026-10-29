@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { OPERATIONS, OPERATION_IDS, OWN_IDENTITY_MUTATIONS, STAFF_MESSAGE_MUTATIONS, routeKey, surfacesFor, isOperationId } from "./operations.ts";
+import { OPERATIONS, OPERATION_IDS, OWN_IDENTITY_MUTATIONS, STAFF_MESSAGE_MUTATIONS, routeKey, surfacesFor, isOperationId, type LoginOutput, type OperationIO } from "./operations.ts";
 import { SURFACES, SURFACE_IDS } from "./surfaces.ts";
 import { classifyRefusal, admissionAxis } from "./refusals.ts";
 
@@ -77,6 +77,22 @@ test("surfacesFor narrows by namespace — an internal principal resolving terms
   assert.deepEqual([...surfacesFor("terms.resolved", ns, "internal")], ["S2"]);
   assert.deepEqual([...surfacesFor("terms.resolved", ns, "customer")], ["S6"]);
   assert.deepEqual([...surfacesFor("terms.resolved", ns, "subcontractor")], []);
+});
+
+type Eq<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Assert<T extends true> = T;
+type _CatalogueLiterals = [
+  Assert<Eq<(typeof OPERATIONS)["auth.login"]["method"], "POST">>,
+  Assert<Eq<(typeof OPERATIONS)["auth.login"]["path"], "/auth/login">>,
+  Assert<Eq<OperationIO["auth.logout"]["input"], void>>,
+  Assert<Eq<OperationIO["auth.login"]["output"], LoginOutput>>,
+  Assert<Eq<OperationIO["events.stream"]["output"], never>>,
+];
+const _catalogueLiterals: _CatalogueLiterals = [true, true, true, true, true];
+void _catalogueLiterals;
+
+test("a catalogue row carries no runtime wire witness", () => {
+  assert.equal(Object.hasOwn(OPERATIONS["auth.login"], "_io"), false);
 });
 
 test("isOperationId is a real guard", () => {
