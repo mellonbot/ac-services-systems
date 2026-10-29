@@ -5,6 +5,7 @@
  * resolve to Ink Black here and nothing on the page is red but a fault.
  * Heads, panels and figure tiles are the shared chrome (pageHead, panel,
  * statStrip); this sheet arranges them and draws only what is S4's own.
+ * Mobile rules aligned with the Rankine prototype.
  */
 export const S4_CSS = `
 .s4-app{display:flex;flex-direction:column;gap:var(--space-3)}
@@ -33,4 +34,11 @@ export const S4_CSS = `
 .s4-trend__grid{stroke:var(--color-border);stroke-width:1}
 .s4-readonly{font-size:var(--text-sm);color:var(--color-text-muted);border-top:1px solid var(--color-border);padding-top:var(--space-2)}
 .s4-login{max-width:var(--measure-narrow);margin:10vh auto 0}
+
+/* ---- Mobile surfaces (Rankine prototype alignment) ---- */
+@media (max-width: 640px) {
+  .s4-app { gap: var(--space-2); padding-bottom: var(--space-4); }
+  .s4-areas, .s4-trends { grid-template-columns: 1fr; }
+  .s4-metric { min-height: 44px; }
+}
 `;
