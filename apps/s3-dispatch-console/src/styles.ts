@@ -34,7 +34,6 @@ export const S3_CSS = `
 .dispatch-header{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-4);padding:var(--space-2) var(--space-4);border:1px solid var(--color-border);border-radius:var(--radius-card);background:var(--color-surface);box-shadow:var(--elevation-card)}
 .dispatch-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);padding-inline:var(--space-4)}
 .dispatch-header__tools{display:flex;align-items:center;gap:var(--space-2);margin-inline-start:auto}
-.dispatch-header__who{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-sm)}
 .dispatch-dashboard__date-controls{display:flex;gap:var(--space-2);align-items:center}
 .dispatch-dashboard__date{min-height:var(--control-height);appearance:none;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text-muted);padding:var(--space-2) var(--space-3);font-family:var(--font-label);font-size:var(--text-sm);cursor:pointer}
 .dispatch-dashboard__date.is-active{background:var(--color-surface-sunken);color:var(--color-text);border-color:var(--color-border-hard)}

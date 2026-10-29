@@ -89,14 +89,12 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     void p.store.version.value;
     const loc = router.current.value;
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
-    const who = p.shell.principal.roles.join(", ");
     return html`<div class="s4-app">
       <nav class="ac-nav" aria-label="Screens">
         ${nav("overview", "Company", !loc || !/^(office|dispatch)\./.test(loc.screen))}
         ${nav("office.customers", "Office", loc?.screen.startsWith("office.") ?? false)}
         ${nav("dispatch.board", "Dispatch", loc?.screen.startsWith("dispatch.") ?? false)}
-        <span class="ac-nav__who" id="who">${who} · ${p.shell.context?.parent.name ?? ""} · read only</span>
-        ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
+        <div class="ac-nav__end">${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}</div>
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s4-empty">Nothing at this address.</p>`}
     </div>`;
