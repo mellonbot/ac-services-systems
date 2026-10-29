@@ -252,6 +252,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const targetTitle = target ? screenTitle(target) : undefined;
     const parentTab = routeId && target && routeId !== target && targetTitle !== group?.label ? targetTitle : null;
     return html`<div class="s2-app">
+      <div class="s2-console-head">
+        <p class="s2-console-head__title">Service & Account Management</p>
+        <p class="s2-console-head__lede">This page tracks the records, databases, tables, and agreements that dispatching calls on throughout daily operations.</p>
+      </div>
       <nav class="ac-nav ac-nav--grouped" aria-label="Workspace">
         <div class="ac-nav__end">
           ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}

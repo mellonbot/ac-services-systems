@@ -180,6 +180,10 @@ test("boot with no session shows login, not an error; a bad password is a refusa
   assert.match(chrome, /role="group" aria-label="Customer records" data-current="true"><div class="ac-seg">/);
   assert.match(chrome, /data-current="true" aria-current="page" href="\/accounts">Accounts</);
   assert.match(chrome, /class="ac-nav ac-nav--grouped"/, "the plain ac-nav is one shared track and would merge the domains again");
+  // The console names itself under the masthead, as S3 does — above the departments, and not a second h1.
+  assert.match(chrome, /<p class="s2-console-head__title">Service &amp; Account Management<\/p><p class="s2-console-head__lede">This page tracks the records, databases, tables, and agreements that dispatching calls on throughout daily operations\.<\/p>/);
+  assert.ok(chrome.indexOf("s2-console-head") < chrome.indexOf("ac-nav__domains"), "the name comes before the department bar");
+  assert.equal(chrome.match(/<h1/g)?.length ?? 0, 1, "each screen keeps the only h1");
   // A one-screen domain's tile is the page itself, with no track repeating it.
   app.router.navigate("purchasing", {});
   const buying = render(app.view()).split('<nav class="s2-trail"')[0]!;
