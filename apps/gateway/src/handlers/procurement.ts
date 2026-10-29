@@ -1,5 +1,6 @@
 import type { UnitOfWork } from "../unit-of-work.ts";
 import { lineAmount } from "../../../../packages/domain/src/money/allocate.ts";
+import { iso } from "../sql.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import { threeWayMatch } from "../../../../packages/domain/src/procurement/match.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
@@ -68,7 +69,6 @@ const requireLines = <T>(v: unknown, field: string): readonly T[] => {
 };
 /** quantity (thousandths) × unit price (minor) → minor, half away from zero. The same arithmetic the office, the vendor and the invoice see (domain/money). */
 export { lineAmount };
-const ts = (col: string) => `to_char(${col} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
 // ---------------------------------------------------------------------------
 // Vendors and receiving points — the office records both.
@@ -133,7 +133,7 @@ export const createReceivingPoint = async (uow: UnitOfWork, input: CreateReceivi
 type PriceRow = { id: string; item_id: string; vendor_id: string; price_minor: string; currency: string; eff_from: string; eff_to: string | null; state: PriceState; proposed_at: string; decided_at: string | null; decision_note: string | null; org_id: string; region_id: string; current: boolean };
 const PRICE_COLS = `p.id, p.item_id, p.vendor_id, p.price_minor::text AS price_minor, p.currency,
   to_char(lower(p.effective), 'YYYY-MM-DD') AS eff_from, CASE WHEN upper_inf(p.effective) THEN NULL ELSE to_char(upper(p.effective), 'YYYY-MM-DD') END AS eff_to,
-  p.state, ${ts("p.proposed_at")} AS proposed_at, CASE WHEN p.decided_at IS NULL THEN NULL ELSE ${ts("p.decided_at")} END AS decided_at, p.decision_note,
+  p.state, ${iso("p.proposed_at")} AS proposed_at, CASE WHEN p.decided_at IS NULL THEN NULL ELSE ${iso("p.decided_at")} END AS decided_at, p.decision_note,
   p.org_id, p.region_id, (p.state = 'accepted' AND p.effective @> current_date) AS current`;
 const priceWire = (r: PriceRow): CatalogPriceWire => ({
   id: r.id, itemId: r.item_id, vendorId: r.vendor_id, priceMinor: r.price_minor, currency: r.currency, effectiveFrom: r.eff_from, effectiveTo: r.eff_to,
@@ -248,9 +248,9 @@ export const decidePrice = async (uow: UnitOfWork, input: DecidePriceInput, acto
 type PoRow = { id: string; number: string; vendor_id: string; vendor_name: string | null; receiving_point_id: string; rp_code: string | null; rp_tier: ReceivingTier | null; region_id: string; org_id: string; state: PoState; currency: string; total_minor: string; issued_at: string | null; acknowledged_at: string | null; promised_ship_on: string | null; created_at: string };
 const PO_SELECT = `SELECT po.id, po.number, po.vendor_id, v.legal_name AS vendor_name, po.receiving_point_id, rp.code AS rp_code, rp.tier AS rp_tier, po.region_id, po.org_id,
     po.state, po.currency, po.total_minor::text AS total_minor,
-    CASE WHEN po.issued_at IS NULL THEN NULL ELSE ${ts("po.issued_at")} END AS issued_at,
-    CASE WHEN po.acknowledged_at IS NULL THEN NULL ELSE ${ts("po.acknowledged_at")} END AS acknowledged_at,
-    to_char(po.promised_ship_on, 'YYYY-MM-DD') AS promised_ship_on, ${ts("po.created_at")} AS created_at
+    CASE WHEN po.issued_at IS NULL THEN NULL ELSE ${iso("po.issued_at")} END AS issued_at,
+    CASE WHEN po.acknowledged_at IS NULL THEN NULL ELSE ${iso("po.acknowledged_at")} END AS acknowledged_at,
+    to_char(po.promised_ship_on, 'YYYY-MM-DD') AS promised_ship_on, ${iso("po.created_at")} AS created_at
   FROM purchase_orders po LEFT JOIN vendors v ON v.id = po.vendor_id LEFT JOIN receiving_points rp ON rp.id = po.receiving_point_id`;
 const poWire = (r: PoRow): PurchaseOrderWire => ({
   id: r.id, number: r.number, vendorId: r.vendor_id, vendorName: r.vendor_name, receivingPointId: r.receiving_point_id, receivingPointCode: r.rp_code, receivingTier: r.rp_tier,
@@ -312,7 +312,7 @@ export const purchaseOrder = async (uow: UnitOfWork, input: PurchaseOrderDetailI
     else shipLinesByShipment.set(line.shipment_id, [line]);
   }
   const receipts = await uow.tx.query<{ id: string; po_line_id: string; quantity_milli: string; received_at: string }>(
-    `SELECT id, po_line_id, quantity_milli::text AS quantity_milli, ${ts("received_at")} AS received_at FROM po_receipts WHERE po_id = $1 ORDER BY received_at`, [po.id]);
+    `SELECT id, po_line_id, quantity_milli::text AS quantity_milli, ${iso("received_at")} AS received_at FROM po_receipts WHERE po_id = $1 ORDER BY received_at`, [po.id]);
   return {
     order: poWire(po), receivingPoint: rp ? rpWire(rp) : null, lines: lines.map(lineWire),
     shipments: shipments.map((s) => ({ id: s.id, shippedOn: s.shipped_on, carrier: s.carrier, tracking: s.tracking, lines: (shipLinesByShipment.get(s.id) ?? []).map((l) => ({ poLineId: l.po_line_id, quantityMilli: l.quantity_milli })) })),
@@ -468,7 +468,7 @@ export const listVendorInvoices = async (uow: UnitOfWork, input: ListVendorInvoi
   const poId = input.poId === undefined ? null : requireUuid(input.poId, "poId");
   const rows = await uow.tx.query<InvRow>(
     `SELECT i.id, i.po_id, po.number AS po_number, i.vendor_id, i.invoice_number, to_char(i.invoice_date, 'YYYY-MM-DD') AS invoice_date, i.total_minor::text AS total_minor,
-            i.currency, i.match_state, i.match_notes, ${ts("i.created_at")} AS created_at
+            i.currency, i.match_state, i.match_notes, ${iso("i.created_at")} AS created_at
        FROM vendor_invoices i LEFT JOIN purchase_orders po ON po.id = i.po_id
       WHERE ($1::uuid IS NULL OR i.po_id = $1) ORDER BY i.created_at DESC LIMIT 500`, [poId]);
   // The lines of the invoices listed, not of every invoice there is.
@@ -542,7 +542,7 @@ export const submitVendorInvoice = async (uow: UnitOfWork, input: SubmitVendorIn
 // ---------------------------------------------------------------------------
 type RmaRow = { id: string; po_id: string; po_number: string | null; po_line_id: string; vendor_id: string; quantity_milli: string; reason: string; state: RmaState; rma_number: string | null; vendor_note: string | null; created_at: string; responded_at: string | null; org_id: string; region_id: string };
 const RMA_SELECT = `SELECT m.id, m.po_id, po.number AS po_number, m.po_line_id, m.vendor_id, m.quantity_milli::text AS quantity_milli, m.reason, m.state, m.rma_number, m.vendor_note,
-    ${ts("m.created_at")} AS created_at, CASE WHEN m.responded_at IS NULL THEN NULL ELSE ${ts("m.responded_at")} END AS responded_at, m.org_id, m.region_id
+    ${iso("m.created_at")} AS created_at, CASE WHEN m.responded_at IS NULL THEN NULL ELSE ${iso("m.responded_at")} END AS responded_at, m.org_id, m.region_id
   FROM rmas m LEFT JOIN purchase_orders po ON po.id = m.po_id`;
 const rmaWire = (r: RmaRow): RmaWire => ({
   id: r.id, poId: r.po_id, poNumber: r.po_number, poLineId: r.po_line_id, vendorId: r.vendor_id, quantityMilli: r.quantity_milli, reason: r.reason,

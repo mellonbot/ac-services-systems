@@ -191,24 +191,28 @@ const rel = (p: string) => relative(ROOT, p);
 
   // The gateway handles exactly the catalogue: one handler per id, no route
   // string that is not an operation. `handlers` is typed over OperationId, so
-  // typecheck says the same; this says it with nothing installed.
-  const main = read(join(ROOT, "apps/gateway/src/main.ts"));
-  const handlerBlock = /const handlers[^=]*=\s*\{([\s\S]*?)\n\};/.exec(main)?.[1] ?? "";
+  // typecheck says the same; this says it with nothing installed. The table
+  // lives in routes.ts; main.ts only dispatches it.
+  const routes = read(join(ROOT, "apps/gateway/src/routes.ts"));
+  const handlerBlock = /const handlers[^=]*=\s*\{([\s\S]*?)\n\};/.exec(routes)?.[1] ?? "";
   // Dotted segments, not exactly two: `terms.overrides.list` is as much an
   // operation id as `terms.resolved`. A two-segment pattern here made the
   // textual twin NARROWER than the type it mirrors, so the guard reported a
   // handled operation as unhandled while typecheck disagreed — the guard has
   // to admit every id the catalogue can hold, or it fails honest diffs.
   const handled = [...handlerBlock.matchAll(/^\s{2}"([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+)":/gm)].map((m) => m[1]!);
-  for (const id of ids) if (!handled.includes(id)) fail("catalogue ↔ gateway", `operation ${id} has no handler in apps/gateway/src/main.ts`);
+  for (const id of ids) if (!handled.includes(id)) fail("catalogue ↔ gateway", `operation ${id} has no handler in apps/gateway/src/routes.ts`);
   for (const h of handled) if (!ids.includes(h)) fail("catalogue ↔ gateway", `gateway handles "${h}", which is not in the operation catalogue`);
-  for (const m of main.matchAll(/["'`](GET|POST|PUT|PATCH|DELETE) \/[^"'`]*["'`]/g))
-    fail("catalogue ↔ gateway", `apps/gateway/src/main.ts keys a route by string ${m[0]} — routes are built from OPERATIONS, not typed`);
-  // No handler-side path literal that the catalogue does not know. A path
-  // typed in the gateway beside the catalogue is the second source of truth.
   const paths = new Set(ids.map((id) => ops[id]!.path));
-  for (const m of main.matchAll(/["'`](\/(?:auth|s\d|terms|me|events|healthz)[^"'`\s]*)["'`]/g))
-    if (!paths.has(m[1]!)) fail("catalogue ↔ gateway", `apps/gateway/src/main.ts names path ${m[1]} which is not in the catalogue`);
+  for (const relPath of ["apps/gateway/src/main.ts", "apps/gateway/src/routes.ts", "apps/gateway/src/auth-routes.ts"]) {
+    const src = read(join(ROOT, relPath));
+    for (const m of src.matchAll(/["'`](GET|POST|PUT|PATCH|DELETE) \/[^"'`]*["'`]/g))
+      fail("catalogue ↔ gateway", `${relPath} keys a route by string ${m[0]} — routes are built from OPERATIONS, not typed`);
+    // No handler-side path literal that the catalogue does not know. A path
+    // typed in the gateway beside the catalogue is the second source of truth.
+    for (const m of src.matchAll(/["'`](\/(?:auth|s\d|terms|me|events|healthz)[^"'`\s]*)["'`]/g))
+      if (!paths.has(m[1]!)) fail("catalogue ↔ gateway", `${relPath} names path ${m[1]} which is not in the catalogue`);
+  }
 }
 
 // ---------------------------------------------------------------------------

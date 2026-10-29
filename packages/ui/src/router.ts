@@ -20,6 +20,8 @@ export type ScreenSpec = {
   readonly uses: readonly OperationId[];
   /** Shown in the emitted navigation; screens without a title are reachable but not listed. */
   readonly title?: string;
+  /** The tab this screen sits under. Absent, the screen is its own place in the navigation. */
+  readonly nav?: string;
 };
 
 export type Params = Readonly<Record<string, string>>;

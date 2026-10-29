@@ -258,6 +258,39 @@ export type ConnectedShell = Shell & {
 };
 
 /**
+ * The gateway origin a surface names as `ConnectConfig.baseUrl`.
+ *
+ * A stamped `<meta name="ac-gateway">` wins. Otherwise the site after the
+ * first dot talks to `api.<site>`: `s2.ac.example` → `https://api.ac.example`.
+ * An empty host is left as written.
+ *
+ * `localFallback` is the dispatch console's loopback preview. Only then is an
+ * empty host read as localhost, and only then do localhost, 127.0.0.1, ::1
+ * and 127.* return that fallback. The other surfaces do not take it, and this
+ * function does not read `hostname` unless it is set — a test document for
+ * those surfaces has no hostname.
+ */
+export type GatewayDocument = {
+  querySelector(sel: string): { getAttribute(n: string): string | null } | null;
+  location: { protocol: string; host: string; hostname?: string };
+};
+
+export const gatewayOrigin = (doc: GatewayDocument, opts?: { readonly localFallback?: string }): string => {
+  const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
+  if (stamped) return stamped;
+  if (opts?.localFallback !== undefined) {
+    const host = doc.location.host || "localhost";
+    const hostname = doc.location.hostname || host.split(":")[0] || "localhost";
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname.startsWith("127.")) return opts.localFallback;
+    const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
+    return `${doc.location.protocol}//api.${site}`;
+  }
+  const host = doc.location.host;
+  const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
+  return `${doc.location.protocol}//api.${site}`;
+};
+
+/**
  * login (if needed) → `session.me` → createShell with the resolved principal and
  * hierarchy context. The namespace and region checks in createShell run against
  * the principal the GATEWAY resolved, not one the surface asserted.

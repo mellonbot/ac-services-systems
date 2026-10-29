@@ -1,5 +1,33 @@
+import type { Refusal } from "../../contracts/src/index.ts";
 import { html, type VNode } from "./render.ts";
 import type { Params, Router, ScreenSpec } from "./router.ts";
+
+/**
+ * A resource as a screen renders it. Structural, so this package does not
+ * import each surface's store: loading, the value, or the gateway's refusal.
+ */
+export type ViewResource<T> =
+  | { readonly state: "loading" }
+  | { readonly state: "ready"; readonly value: T }
+  | { readonly state: "refused"; readonly refusal: Refusal };
+
+/**
+ * The shared skeleton of `whenReady`. The loading class and the refusal
+ * component stay with the surface: a console card and a customer's notice
+ * are not the same reading of one refusal.
+ */
+export const resourceView = <T>(
+  r: ViewResource<T>,
+  view: (value: T) => VNode,
+  opts: { readonly loadingClass: string; readonly refused: (refusal: Refusal) => VNode },
+): VNode => {
+  switch (r.state) {
+    case "loading": return html`<p class=${opts.loadingClass} role="status">Loading…</p>`;
+    case "ready": return view(r.value);
+    case "refused": return opts.refused(r.refusal);
+  }
+};
+
 
 export const linkTo = <S extends Record<string, ScreenSpec>, K extends keyof S & string>(
   ctx: { readonly router: Router<S> },

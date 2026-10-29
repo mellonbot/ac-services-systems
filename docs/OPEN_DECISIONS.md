@@ -25,12 +25,13 @@ assumption. Each row names the file that changes when the decision lands.
 
 **OPEN-S6-IDP — when does the customer portal federate?**
 
-**SCAFFOLD 2026-10-28.** `login()` now checks `AC_IDP_ISSUER`. When set and the
-user is a customer with `external_idp_subject`, the password path is skipped
-and the call refuses with `bad_claims` until the token exchange is built.
-Unset, the existing gateway-held password continues to work. Claims stay the
-same. Remaining: the actual IdP exchange and the mapping from IdP subject to
-scope node (provisioning is still SQL-seeded).
+The customer portal signs in with a gateway-held password (`PASSWORD_LOGIN`).
+Federation replaces that credential check inside `auth.login` and nothing
+else: the claims it mints stay the same. `users.external_idp_subject` is the
+column that mapping lands in. Building it needs a customer's IdP to test
+against (Amped's IT). There is no `AC_IDP_ISSUER` branch in the meantime — a
+configured issuer that refused every customer password was a door that could
+not open. Provisioning stays SQL-seeded until that exchange exists.
 
 **~~OPEN-S6-IMAGERY~~ — which provider draws the roof, under whose key, at what cost?**
 

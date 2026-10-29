@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Tx } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import { hashPasswordAsync, verifyPasswordAsync } from "../auth.ts";
+import { revokeUserSessions } from "../sessions.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import type { SurfaceId } from "../../../../packages/contracts/src/surfaces.ts";
 import {
@@ -121,13 +122,7 @@ export const changeMyPassword = async (tx: Tx, a: AccountActor, input: ChangePas
   // Every other session the person holds ends: their other browsers, and a
   // technician's device sessions. A password changed because it leaked is
   // otherwise still signed in wherever it leaked to.
-  const ended = await tx.query<{ id: string }>(
-    `UPDATE sessions SET revoked_at = now()
-      WHERE revoked_at IS NULL AND id <> $2
-        AND ((principal_kind = 'user' AND principal_id = $1)
-          OR (principal_kind = 'device_grant' AND principal_id IN (SELECT id FROM device_grants WHERE technician_id = $1)))
-      RETURNING id`,
-    [r.id, a.principal.sessionId]);
-  await audit(tx, a, r, "account.change_password", null, { endedSessions: ended.length });
-  return { ok: true, passwordChangedAt: new Date(changed.password_changed_at).toISOString(), endedSessions: ended.length };
+  const endedSessions = await revokeUserSessions((sql, params) => tx.query(sql, params ?? []), r.id, a.principal.sessionId);
+  await audit(tx, a, r, "account.change_password", null, { endedSessions });
+  return { ok: true, passwordChangedAt: new Date(changed.password_changed_at).toISOString(), endedSessions };
 };

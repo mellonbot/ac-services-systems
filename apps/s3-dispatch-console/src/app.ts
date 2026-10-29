@@ -1,5 +1,5 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, type VNode } from "../../../packages/ui/src/index.ts";
-import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, type VNode, bindCookieSession } from "../../../packages/ui/src/index.ts";
+import { gatewayOrigin as sharedGatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { admits, densityOf, seesManagerOverview, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
@@ -34,17 +34,9 @@ import { S3_CSS } from "./styles.ts";
  */
 export const DENSITY = densityOf("S3");
 
-export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string; hostname: string } }): string => {
-  const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
-  if (stamped) return stamped;
-  const host = doc.location.host || "localhost";
-  const hostname = doc.location.hostname || host.split(":")[0] || "localhost";
-  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname.startsWith("127.")) {
-    return "http://127.0.0.1:8080";
-  }
-  const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
-  return `${doc.location.protocol}//api.${site}`;
-};
+/** Loopback talks to the gateway on this machine. Every other host uses the shared rule. */
+export const gatewayOrigin = (doc: Parameters<typeof sharedGatewayOrigin>[0]): string =>
+  sharedGatewayOrigin(doc, { localFallback: "http://127.0.0.1:8080" });
 
 export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = {
   board,
@@ -316,55 +308,38 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     ] });
   };
 
-  const login = async (email: string, password: string) => {
-    phase.value = { kind: "login", refusal: null, busy: true };
-    try { become(await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { email, password, session: "cookie" } })); }
-    catch (e) { phase.value = { kind: "login", refusal: refusalOf(e), busy: false }; }
-  };
+  const localPreview = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test((new URL(opts.baseUrl, "http://localhost")).hostname) || opts.baseUrl === "http://127.0.0.1:8080";
+  const session = bindCookieSession({
+    degraded,
+    now,
+    isReady: () => (phase.value.kind === "ready" ? phase.value : null),
+    setLogin: (busy, refusal) => { phase.value = { kind: "login", refusal, busy }; },
+    setReady: become,
+    connect: (credentials) => connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials }),
+    onLogout: (ready) => { ready.messages.stop(); },
+    afterLogout: () => { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("board", {}); },
+    // Sample data only on a local build with NO gateway answering. A real local gateway gets a real sign-in —
+    // a dispatcher testing against it must never be shown, or act on, jobs that do not exist.
+    onBootFailure: (r) => {
+      if (!(localPreview && r.kind === "transport")) return false;
+      const shell = createPreviewShell();
+      const store = createStore(shell, now);
+      phase.value = { kind: "preview", shell, store };
+      router.navigate("board", {});
+      return true;
+    },
+  });
 
-  const boot = async () => {
-    const localPreview = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test((new URL(opts.baseUrl, "http://localhost")).hostname) || opts.baseUrl === "http://127.0.0.1:8080";
-    try { become(await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { session: "cookie" } })); }
-    catch (e) {
-      const r = refusalOf(e);
-      // Sample data only on a local build with NO gateway answering. A real local gateway gets a real sign-in —
-      // a dispatcher testing against it must never be shown, or act on, jobs that do not exist.
-      if (localPreview && r.kind === "transport") {
-        const shell = createPreviewShell();
-        const store = createStore(shell, now);
-        phase.value = { kind: "preview", shell, store };
-        router.navigate("board", {});
-        return;
-      }
-      phase.value = { kind: "login", refusal: r.kind === "token" ? null : r, busy: false };
-    }
-  };
-
-  const logout = async () => {
-    const p = phase.value;
-    if (p.kind !== "ready") return;
-    p.messages.stop();
-    try { await p.shell.logout(); } finally { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("board", {}); }
-  };
-
-  /** Poll the flag the transport writes; while degraded, probe health so recovery is noticed without a click (09 §3.9). */
+  /** The board's now-line moves when the wall-clock minute changes, including while signed out. */
   const tick = () => {
     minute.value = Math.floor(now() / 60_000);
-    const p = phase.value;
-    if (p.kind !== "ready") return;
-    degraded.value = p.shell.isDegraded();
-  };
-  let lastProbe = 0;
-  const probe = () => {
-    const p = phase.value;
-    if (p.kind !== "ready" || !degraded.value) return;
-    if (now() - lastProbe < 15_000) return;
-    lastProbe = now();
-    p.shell.gateway.health().catch(() => {});
+    session.tick();
   };
 
   /** The job the Job Detail tab returns to — the last one opened, until another is. */
   let lastDetail: string | null = null;
+  const { login, logout } = session;
+
   const view = (): VNode => {
     const p = phase.value;
     if (p.kind === "booting") return html`<p class="s3-loading" role="status">Connecting…</p>`;
@@ -427,11 +402,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     </div>`;
   };
 
-  return { phase, degraded, router, view, boot, login, logout, tick, probe };
+  return { phase, degraded, router, view, boot: session.boot, login: session.login, logout: session.logout, tick, probe: session.probe };
 };
-
-const refusalOf = (e: unknown): Refusal =>
-  (e as { refusal?: Refusal })?.refusal ?? { kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) };
 
 export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: (email: string, password: string) => void): VNode => {
   const submit = (e: Event) => {

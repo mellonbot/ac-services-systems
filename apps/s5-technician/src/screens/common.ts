@@ -5,6 +5,7 @@ import type { Store, Resource } from "../state.ts";
 import { projectedJob, type OfflineQueue } from "../offline.ts";
 import type { WrapUps } from "../wrap-ups.ts";
 import type { SCREENS } from "../screens.ts";
+import { resourceView } from "../../../../packages/ui/src/screen-helpers.ts";
 export { linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
 
 /**
@@ -39,13 +40,8 @@ export type ScreenContext = {
 export type Params = Readonly<Record<string, string>>;
 export type Screen = (ctx: ScreenContext, params: Params) => VNode;
 
-export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) => VNode): VNode => {
-  switch (r.state) {
-    case "loading": return html`<p class="s5-loading" role="status">Loading…</p>`;
-    case "ready": return view(r.value);
-    case "refused": return refusalView(ctx, r.refusal);
-  }
-};
+export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) => VNode): VNode =>
+  resourceView(r, view, { loadingClass: "s5-loading", refused: (refusal) => refusalView(ctx, refusal) });
 
 /**
  * A refusal on the tablet: RefusalNotice, never RefusalCard (console-only; a

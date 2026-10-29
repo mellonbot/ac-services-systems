@@ -1,5 +1,6 @@
 import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
-import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
+import { gatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
+export { gatewayOrigin };
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
@@ -28,14 +29,6 @@ import { S5_CSS } from "./styles.ts";
  * signed in before.
  */
 export const DENSITY = densityOf("S5");
-
-export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string } }): string => {
-  const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
-  if (stamped) return stamped;
-  const host = doc.location.host;
-  const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
-  return `${doc.location.protocol}//api.${site}`;
-};
 
 export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = {
   jobs: jobList,

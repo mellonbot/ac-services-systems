@@ -3,6 +3,7 @@ import type { Shell } from "../../../../packages/shell/src/index.ts";
 import { densityOf, type Refusal, type DensityOf, type PoState } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
 import type { SCREENS } from "../screens.ts";
+import { resourceView } from "../../../../packages/ui/src/screen-helpers.ts";
 export { formValues, linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
 export { formatQuantity as qty, parseQuantity as toMilli, formatMoney as money } from "../../../../packages/ui/src/fixed-units.ts";
 import { parseMoney } from "../../../../packages/ui/src/fixed-units.ts";
@@ -20,13 +21,8 @@ export type Screen = (ctx: ScreenContext, params: Params) => VNode;
 const refusalBlock = (r: Refusal, onDismiss?: () => void): VNode =>
   RefusalNotice({ density: densityOf("S7"), refusal: r, ...(onDismiss ? { onDismiss } : {}) }) ?? html``;
 
-export const whenReady = <T>(_ctx: ScreenContext, r: Resource<T>, view: (v: T) => VNode): VNode => {
-  switch (r.state) {
-    case "loading": return html`<p class="s7-loading" role="status">Loading…</p>`;
-    case "ready": return view(r.value);
-    case "refused": return refusalBlock(r.refusal);
-  }
-};
+export const whenReady = <T>(_ctx: ScreenContext, r: Resource<T>, view: (v: T) => VNode): VNode =>
+  resourceView(r, view, { loadingClass: "s7-loading", refused: (refusal) => refusalBlock(refusal) });
 
 /** One outcome per screen: busy, the last success in words, or the gateway's refusal in its words. */
 export const outcomeSignal = () => signal<{ readonly refusal: Refusal | null; readonly sent: string | null; readonly busy: boolean }>({ refusal: null, sent: null, busy: false });
