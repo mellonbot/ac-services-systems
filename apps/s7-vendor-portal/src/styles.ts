@@ -3,6 +3,7 @@
  * literal here as it does in packages/ui. S7 is not white-label (a vendor
  * works under Rankine's plate, `stateRamp: true`): an order waiting on the
  * vendor and a held invoice are states, drawn with the state ramp.
+ * Mobile rules aligned with the Rankine prototype.
  */
 export const S7_CSS = `
 .s7-app{display:flex;flex-direction:column;gap:var(--space-3)}
@@ -17,4 +18,12 @@ export const S7_CSS = `
 .s7-notes{margin:var(--space-1) 0 0;padding-inline-start:var(--space-4);color:var(--color-text-muted);font-size:var(--text-sm)}
 .s7-login{max-width:var(--measure-narrow);margin:10vh auto 0}
 @media (max-width:760px){.s7-form--row{flex-direction:column;align-items:stretch}}
+
+/* ---- Mobile surfaces (Rankine prototype alignment) ---- */
+@media (max-width: 640px) {
+  .s7-app { gap: var(--space-2); padding-bottom: var(--space-4); }
+  .s7-form--row { flex-direction: column; align-items: stretch; }
+  .s7-row { flex-direction: column; }
+  .s7-form--row>label { min-width: 0; }
+}
 `;
