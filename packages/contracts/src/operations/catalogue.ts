@@ -170,7 +170,8 @@ export const OPERATIONS = {
   }),
   "sites.mapTile": op<Wire.SiteMapTileInput, Wire.SiteMapTileOutput>()({
     id: "sites.mapTile", method: "GET", path: "/s2/sites/map-tile", kind: "query", auth: "bearer",
-    surfaces: ["S2", "S4"], carrier: "query", sdkMethod: "siteMapTile",
+    // S3 since the job detail's satellite view: it reads tiles, never places a site (sites.locate stays S2's — it writes the account).
+    surfaces: ["S2", "S3", "S4"], carrier: "query", sdkMethod: "siteMapTile",
     summary: "One web-mercator basemap tile near a site, fetched by the GATEWAY from the configured tile provider (AC_MAP_TILE_URL) and returned inline — the same reasons as sites.imagery: no key in a bundle, no customer's coordinates sent to a third party from a browser. Only tiles within MAP_TILE_REACH of the site's own tile, at MAP_ZOOM_MIN–MAP_ZOOM_MAX, are served: a pan around a home, not a free tile proxy. Unavailable is an answer: not configured, no coordinates, provider unreachable.",
   }),
   "sites.locate": op<Wire.LocateSiteInput, Wire.LocateSiteOutput>()({

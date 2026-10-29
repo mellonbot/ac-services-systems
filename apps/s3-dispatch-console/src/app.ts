@@ -70,6 +70,7 @@ type PreviewShell = ConnectedShell & {
     setReturnTrip: (input: { jobId: string; returnTrip: boolean }) => Promise<unknown>;
     releaseAssignment: (input: { assignmentId: string }) => Promise<unknown>;
     managerOverview: () => Promise<unknown>;
+    siteMapTile: (input: { siteId: string; z: number; x: number; y: number }) => Promise<unknown>;
     health: () => Promise<{ ok: boolean }>;
   };
 };
@@ -77,11 +78,11 @@ type PreviewShell = ConnectedShell & {
 type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store; account: AccountMenuState; messages: MessengerState } | { kind: "preview"; shell: PreviewShell; store: Store };
 
 const DAY = 86_400_000;
-const PREVIEW_PLACES: Readonly<Record<string, { line1: string; city: string; state: string; postal: string }>> = {
-  "Shipman Co": { line1: "1200 S Main St", city: "Crowley", state: "TX", postal: "76036" },
+const PREVIEW_PLACES: Readonly<Record<string, { line1: string; city: string; state: string; postal: string; lat?: number; lng?: number }>> = {
+  "Shipman Co": { line1: "1200 S Main St", city: "Crowley", state: "TX", postal: "76036", lat: 32.5662, lng: -97.3622 },
   "FirstKey Homes DFW": { line1: "7310 Glenview Dr", city: "Richland Hills", state: "TX", postal: "76118" },
   "FirstKey": { line1: "7310 Glenview Dr", city: "Richland Hills", state: "TX", postal: "76118" },
-  "Turner Res.": { line1: "905 Hidden Creek Pkwy", city: "Burleson", state: "TX", postal: "76028" },
+  "Turner Res.": { line1: "905 Hidden Creek Pkwy", city: "Burleson", state: "TX", postal: "76028", lat: 32.5205, lng: -97.3489 },
   "Meridian Plaza": { line1: "4500 Mercantile Dr", city: "Fort Worth", state: "TX", postal: "76137" },
 };
 /** Today at a fractional hour — a preview service window the board's 7 AM–5 PM grid can place. */
@@ -257,6 +258,8 @@ const createPreviewShell = (): PreviewShell => {
         Object.assign(job, { state: input.to, version: job.version + 1, stateChangedAt: new Date().toISOString() });
         return { jobId: job.id, state: job.state, version: job.version, eventId: "preview" };
       },
+      // No provider in a preview: the pin is drawn on the bare grid, as on a gateway with no AC_MAPTILER_KEY.
+      siteMapTile: async (input: { z: number; x: number; y: number }) => ({ ...input, image: null, attribution: null, unavailable: "not_configured" }),
       health: async () => ({ ok: true }),
     },
     refusalOf: (e: unknown) => ({ kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) }),

@@ -110,7 +110,28 @@ export const S3_CSS = `
 .s3-note-edit{display:flex;flex-direction:column;gap:var(--space-1);min-width:24ch}
 
 /* ---- Job Detail (0016): header card, visit timeline, customer communication ---- */
-.s3-detail-grid{display:grid;grid-template-columns:minmax(18rem,1fr) minmax(0,2.4fr);gap:var(--space-4);align-items:start;margin:0 0 var(--space-4)}
+.s3-detail-cols{display:grid;grid-template-columns:var(--column-side) minmax(0,1fr) minmax(0,1fr);gap:var(--space-4);align-items:start}
+.s3-detail-col{display:flex;flex-direction:column;gap:var(--space-4);min-width:0}
+.s3-detail-col>*{margin:0}
+.s3-detail-col--talk .s3-comms{grid-template-columns:minmax(0,1fr)}
+.s3-map{margin:0;display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
+.s3-map--empty{padding:var(--space-3);border:1px dashed var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface-sunken)}
+.s3-map--empty p{margin:0}
+.s3-map__view{position:relative;overflow:hidden;height:calc(var(--row-height) * 9);border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface-sunken);cursor:grab;touch-action:none;user-select:none}
+.s3-map__view:active{cursor:grabbing}
+.s3-map__view:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
+.s3-map__tile{position:absolute;width:256px;height:256px;box-shadow:inset 0 0 0 0.5px var(--color-border)}
+.s3-map__tile img{display:block;width:100%;height:100%;pointer-events:none}
+.s3-map[data-basemap="tiles"] .s3-map__tile{box-shadow:none}
+.s3-map__pin{position:absolute;transform:translate(-50%,-100%);pointer-events:none}
+.s3-map__pin path{fill:var(--color-action);stroke:var(--color-text);stroke-width:1}
+.s3-map__pin circle{fill:var(--color-action-ink)}
+.s3-map__controls{position:absolute;top:var(--space-2);right:var(--space-2);display:flex;gap:var(--space-1)}
+.s3-map__btn{min-width:var(--control-height);min-height:var(--control-height);padding:0 var(--space-2);border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit;font-family:var(--font-display);font-size:var(--text-sm);font-weight:600;cursor:pointer;box-shadow:var(--elevation-card)}
+.s3-map__btn:hover:not(:disabled){background:var(--color-surface-sunken)}
+.s3-map__btn:disabled{color:var(--color-text-muted);cursor:not-allowed}
+.s3-map__btn:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
+.s3-map__caption{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);font-size:var(--text-sm);color:var(--color-text-muted)}
 .s3-eyebrow{margin:0 0 var(--space-1);font-family:var(--font-label);font-size:var(--text-sm);font-weight:600;letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
 .s3-detail-head{display:flex;flex-direction:column;gap:var(--space-1);padding-bottom:var(--space-3);border-bottom:1px solid var(--color-border)}
 .s3-detail-head__site{margin:0;font-family:var(--font-display);font-size:var(--text-xl);font-weight:700}
@@ -175,7 +196,8 @@ img.s3-photo__well{width:100%;object-fit:cover}
 .s3-internal__list p{margin:2px 0 0}
 .s3-pick{list-style:none;margin:0;padding:0}
 .s3-pick li{display:grid;grid-template-columns:7rem minmax(0,1fr) auto;gap:var(--space-3);align-items:baseline;padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}
-@media (max-width:980px){.s3-detail-grid,.s3-comms{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:1280px){.s3-detail-cols{grid-template-columns:var(--column-side) minmax(0,1fr)}.s3-detail-col--talk{grid-column:1 / -1}.s3-detail-col--talk .s3-comms{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:980px){.s3-detail-cols,.s3-comms,.s3-detail-col--talk .s3-comms{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:600px){.s3-visit{grid-template-columns:minmax(0,1fr)}.s3-visit__date{flex-direction:row;gap:var(--space-2);align-items:baseline;padding:0}.s3-pick li{grid-template-columns:minmax(0,1fr)}.s3-msg{max-width:95%}}
 
 /* ---- Manager Dashboard: the company on one page — waits, attention, the completed/invoiced trend, branches, team ---- */
@@ -236,7 +258,7 @@ img.s3-photo__well{width:100%;object-fit:cover}
   .dispatch-header { flex-direction: column; align-items: stretch; gap: var(--space-2); padding: var(--space-3); }
   .dispatch-header__tools { margin-inline-start: 0; justify-content: space-between; }
   .s3-buckets { grid-template-columns: 1fr; }
-  .s3-detail-grid { grid-template-columns: 1fr; }
+  .s3-detail-cols { grid-template-columns: 1fr; }
   .s3-comms { grid-template-columns: 1fr; }
   .s3-visit { grid-template-columns: 1fr; }
   .s3-visit__date { align-items: flex-start; padding-top: 0; }
