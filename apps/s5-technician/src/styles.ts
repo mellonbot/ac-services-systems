@@ -3,6 +3,7 @@
  * generous touch targets. Roles and density variables only, same discipline
  * as every other surface's own CSS file; the page head, stat strip and panels
  * are packages/ui UI_CSS, and this sheet only arranges what sits inside them.
+ * Already aligned with Rankine mobile (generous touch, single-column cards).
  */
 export const S5_CSS = `
 .s5-app{display:flex;flex-direction:column;gap:var(--space-4);padding:var(--space-3)}
@@ -64,4 +65,11 @@ export const S5_CSS = `
 .s5-check__label{flex:1;min-width:0}
 .s5-check__done{color:var(--color-status-ok);font-weight:600}
 .s5-attention{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-3);border:1px solid var(--color-status-breached);border-radius:var(--radius-card)}
+
+/* ---- Mobile surfaces (Rankine prototype alignment) ---- */
+@media (max-width: 640px) {
+  .s5-app { padding-bottom: var(--space-4); }
+  .s5-card__actions, .s5-actions { gap: var(--space-2); }
+  .s5-outcome__opt { min-height: 48px; }
+}
 `;
