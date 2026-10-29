@@ -102,19 +102,18 @@ let s2: ConnectedShell, s3: ConnectedShell;
 let orgId = "", southNode = "", location = "", site = "", msa = "";
 let crewCleared = "", crewLapsed = "", jobId = "", assignmentId = "", deviceId = "", shiftId = "";
 
-test("a job opens against a site with its SLA due DERIVED from the resolved term — and a site with no term refuses the job", { skip }, async () => {
+test("a job opens against a site with its SLA due DERIVED from the resolved term — and a site with no term opens on the register default", { skip }, async () => {
   s2 = await owner();
   const org = await s2.gateway.createOrganization({ name: `Amped D4 ${RUN}`, externalRef: RUN, firstRegionNode: { regionId: REGION_SOUTH, name: `Amped D4 / South` } });
   orgId = org.orgId; southNode = org.regionNodeId;
   location = (await s2.gateway.createAccount({ orgId, tier: "location", parentId: southNode, name: `Austin ${RUN}` })).id;
   site = (await s2.gateway.createAccount({ orgId, tier: "site", parentId: location, name: `Austin — Roof ${RUN}` })).id;
 
-  // No agreement yet: sla_response resolves to nothing, and the job is refused with the resolver's own reason.
-  await assert.rejects(
-    s2.gateway.createJob({ siteId: site, serviceCode: "HVAC-REPAIR", priority: "urgent", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END }),
-    (e: unknown) => { const r = refusal(s2, e); return r.kind === "admission" && /sla_response|no value/i.test(r.message); },
-    "an SLA nobody agreed to is not one the system invents",
-  );
+  // No agreement yet: sla_response falls back to the register default, and the timer's trace says so.
+  const unagreed = await s2.gateway.createJob({ siteId: site, serviceCode: "HVAC-REPAIR", priority: "urgent", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END });
+  assert.equal(unagreed.responseTerm, "4_hour", "no agreed response time: the register default");
+  const fallbackTrace = (await admin(`SELECT resolution_trace FROM sla_timers WHERE id = $1`, [unagreed.slaTimerId]))[0]!.resolution_trace as Array<{ note?: string }>;
+  assert.ok(fallbackTrace.some((s) => /register default/.test(s.note ?? "")), "the timer's trace names the register default as what priced it");
 
   msa = (await s2.gateway.createContract({
     orgId, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: orgId, kind: "msa", billingPath: "enterprise_sla",
