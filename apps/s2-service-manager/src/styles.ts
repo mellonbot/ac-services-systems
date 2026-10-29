@@ -88,8 +88,6 @@ export const S2_CSS = `
 .s2-trail li{min-width:0}
 .s2-trail li+li::before{content:"/";margin-inline-end:var(--space-2)}
 .s2-trail li[aria-current="location"]{color:var(--color-text);font-weight:600}
-.s2-scope{color:var(--color-text);font-weight:600}
-.s2-scope>span+span::before{content:" / ";color:var(--color-text-muted);font-weight:400}
 .s2-mutation{appearance:none;display:inline-flex;align-items:center;justify-content:center;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action-text);font:inherit;font-weight:600;cursor:pointer}
 .s2-mutation:hover:not(:disabled){background:var(--color-surface-sunken)}
 .s2-mutation:focus-visible,.s2-help summary:focus-visible{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}

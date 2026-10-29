@@ -358,7 +358,7 @@ test("the dark dispatch bar is the only navigation, and Sign out ends the sessio
   assert.equal((page.match(/class="dispatch-header"/g) ?? []).length, 1, "one bar");
   assert.equal(page.includes('class="ac-nav"'), false, "the old nav above it is gone");
   assert.match(page, /<nav class="ac-seg" aria-label="Dispatch navigation"><a class="ac-seg__item" href="[^"]*\/board" data-current="true" aria-current="page"/, "the bar's nav is the segmented control, the board raised");
-  assert.match(page, /dispatcher · AC Services/, "who is signed in stays on screen");
+  assert.doesNotMatch(page, /dispatcher · AC Services/, "the bar no longer spells out the signed-in roles and company");
   const signOut = nodesIn(app.view()).filter((n) => n.props?.class === "ac-nav__signout");
   assert.equal(signOut.length, 1, "one Sign out");
   await (signOut[0]!.props!.onClick as () => Promise<void>)();

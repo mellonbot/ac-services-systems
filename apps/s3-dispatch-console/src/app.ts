@@ -383,7 +383,6 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
              onClick=${(e: Event) => { e.preventDefault(); router.navigate("manager", {}); }}>Manager</a>` : null}
         </nav>
         <div class="dispatch-header__tools">
-          <span class="dispatch-header__who">${p.shell.principal.roles.join(", ")} · ${p.shell.context?.parent.name ?? ""}</span>
           ${p.kind === "preview"
             ? html`<span class="s3-flag" id="preview-flag">Preview</span>`
             : html`${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}`}
