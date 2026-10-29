@@ -17,7 +17,7 @@ import type { ScreenSpec } from "../../../packages/ui/src/index.ts";
 export const SCREENS = {
   "login":             { path: "/login",                                 uses: ["auth.login"] },
   "organizations.new": { path: "/organizations/new",                     uses: ["organizations.create", "customers.createResidential", "regions.list"], title: "New customer", nav: "accounts.tree" },
-  "leads":             { path: "/leads",                                 uses: ["leads.list", "leads.convert", "regions.list"], title: "Leads" },
+  "leads":             { path: "/follow-ups",                            uses: ["leads.list", "leads.convert", "regions.list"], title: "Follow-ups" },
   "accounts.new":      { path: "/accounts/:orgId/new/:tier/:parentId?",  uses: ["accounts.create", "regions.list", "accounts.list"], nav: "accounts.tree" },
   "accounts.move":     { path: "/accounts/:orgId/move/:id",              uses: ["accounts.move", "accounts.list"], nav: "accounts.tree" },
   "accounts.tree":     { path: "/accounts/:orgId?",                      uses: ["organizations.list", "accounts.list", "regions.list", "contracts.list", "equipment.list", "jobs.list", "sites.mapTile", "sites.locate"], title: "Accounts" },
@@ -39,12 +39,12 @@ export const SCREENS = {
   "purchasing.vendor": { path: "/purchasing/vendors/:vendorId",          uses: ["vendors.list", "catalog.list", "catalog.addItem", "prices.decide", "receivingPoints.list", "pos.create"], nav: "purchasing" },
   "purchasing.po":     { path: "/purchasing/pos/:poId",                  uses: ["pos.detail", "pos.issue", "pos.cancel", "receipts.record", "rmas.request"], nav: "purchasing" },
   // 0030: what was paid against each invoice. The invoice route before `billing`.
-  "billing.invoice":   { path: "/billing/invoices/:invoiceId",           uses: ["invoices.list", "payments.list", "organizations.list"], nav: "billing" },
+  "billing.invoice":   { path: "/invoicing/invoices/:invoiceId",          uses: ["invoices.list", "payments.list", "organizations.list"], nav: "billing" },
   // D-2a: the hardware S5 signs in with, and the shift grant that admits a technician to it. The forms before `devices`.
   "devices.new":       { path: "/devices/new",                           uses: ["devices.register", "regions.list", "firms.list"], nav: "devices" },
   "devices.grant":     { path: "/devices/grant/:deviceId?",              uses: ["devices.grantShift", "devices.list", "crews.list"], nav: "devices" },
   "devices":           { path: "/devices",                               uses: ["devices.list", "firms.list"], title: "Field devices" },
-  "billing":           { path: "/billing",                               uses: ["invoices.list", "organizations.list"], title: "Billing" },
+  "billing":           { path: "/invoicing",                             uses: ["invoices.list", "organizations.list"], title: "Invoicing" },
   "purchasing":        { path: "/purchasing",                            uses: ["pos.list", "vendors.list", "vendors.create", "receivingPoints.list", "receivingPoints.create", "regions.list"], title: "Purchasing" },
 } as const satisfies Record<string, ScreenSpec>;
 

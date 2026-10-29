@@ -279,24 +279,32 @@ ac-degraded[hidden]{display:none}
 .ac-nav__signout{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);cursor:pointer;color:var(--color-action-text);font:inherit;min-height:var(--control-height)}
 @media (max-width:760px){.ac-nav{align-items:stretch}.ac-nav__who{order:2;width:100%;margin-inline-start:0}}
 /* Grouped nav: a surface whose screens split into record domains (S2: customer
-   records, the technician network, purchasing) gives each domain its own
-   segmented track, labelled, with page ground between. One shared track reads
-   the domains as one list. The open domain carries the 3px top rule and a
-   full-strength label: form first, so it still reads in greyscale. Who is
-   signed in takes a line of its own above the tracks, right-aligned and first
-   in reading order, so the tracks keep the full width and a wrapped track never
-   strands it mid-row. A hairline closes the chrome off from the work below. */
+   records, the technician network, purchasing, billing, field devices). Two
+   tiers. The department bar gives every domain one equal tile — its name, and
+   a line saying what is inside — so the domains read as peers across the full
+   width, not as five ragged tracks of different lengths. The open domain's
+   tile is raised onto the panel ground and carries the 3px top rule: form
+   first, so it still reads in greyscale. Its screens sit in one segmented
+   track beneath; a domain that is a single screen has no second tier, because
+   a track holding one segment only repeats the tile above it. Who is signed in
+   keeps a line of its own above, right-aligned. A hairline closes the chrome
+   off from the work below. */
 .ac-nav--grouped{flex-direction:column;align-items:stretch;gap:var(--space-2);padding:0 0 var(--space-3);background:none;border:0;border-bottom:1px solid var(--color-border);border-radius:var(--radius-none)}
-.ac-nav__groups{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--space-3) var(--space-6);min-width:0}
 .ac-nav--grouped>.ac-nav__end{align-self:flex-end;flex-wrap:wrap;gap:var(--space-1) var(--space-3);margin-inline-start:0}
 .ac-nav--grouped .ac-nav__who{margin-inline-start:0;padding:0}
-.ac-nav__group{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
-.ac-nav__group-label{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase}
-.ac-nav__group>.ac-seg{border-top:3px solid transparent}
-.ac-nav__group[data-current="true"]>.ac-seg{border-top-color:var(--color-action-text)}
-.ac-nav__group[data-current="true"]>.ac-nav__group-label{color:var(--color-text)}
+.ac-nav__domains{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:4px;margin:0;padding:4px;list-style:none;background:color-mix(in srgb,var(--color-surface-sunken) 50%,var(--color-surface));border:1px solid var(--color-border);border-radius:var(--radius-card)}
+.ac-nav__domains>li{display:flex;min-width:0}
+.ac-nav__domain{display:flex;flex:1 1 auto;flex-direction:column;justify-content:center;gap:2px;min-width:0;min-height:calc(var(--control-height) + var(--space-4));padding:var(--space-2) var(--space-3);border-top:3px solid transparent;border-radius:var(--radius-control);color:var(--color-text-muted);text-decoration:none;transition:background-color var(--motion-base) var(--ease),color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease),border-color var(--motion-base) var(--ease)}
+.ac-nav__domain:hover{background:color-mix(in srgb,var(--color-surface) calc(100% * var(--hover)),transparent)}
+.ac-nav__domain:focus-visible{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}
+.ac-nav__domain[data-current="true"]{background:var(--color-surface);color:var(--color-text);border-top-color:var(--color-action-text);box-shadow:var(--elevation-raised)}
+.ac-nav__domain-name{font-family:var(--font-display);font-size:var(--text-md);font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac-nav__domain[data-current="true"] .ac-nav__domain-name{color:var(--color-action-text)}
+.ac-nav__domain-sub{color:var(--color-text-muted);font-size:var(--text-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac-nav__group{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-3);min-width:0}
 .ac-nav__end{display:flex;align-items:center;gap:var(--space-2);margin-inline-start:auto}
-@media (max-width:760px){.ac-nav__groups{flex-direction:column;align-items:stretch}.ac-nav--grouped>.ac-nav__end{align-self:stretch}.ac-nav__group>.ac-seg{display:flex}.ac-nav__end{margin-inline-start:0}.ac-nav__end .ac-nav__who{order:0;width:auto;flex:1 1 auto}}
+@media (max-width:1100px){.ac-nav__domain-sub{display:none}.ac-nav__domain{min-height:var(--control-height)}}
+@media (max-width:760px){.ac-nav__domains{grid-auto-flow:row;grid-template-columns:repeat(2,minmax(0,1fr))}.ac-nav--grouped>.ac-nav__end{align-self:stretch}.ac-nav__group>.ac-seg{display:flex}.ac-nav__end{margin-inline-start:0}.ac-nav__end .ac-nav__who{order:0;width:auto;flex:1 1 auto}}
 /* A stacked grid on a phone: each row a block of label/value pairs, the header kept for screen readers. */
 @media (max-width:760px){
   .ac-grid[data-stack="narrow"]{display:block;width:100%;max-width:100%;overflow-x:auto}
@@ -386,7 +394,7 @@ ac-degraded[hidden]{display:none}
 .ac-messages-panel,.ac-messages-stack,.ac-messages-popup,.ac-messages__more,.ac-messages__open{pointer-events:auto}
 .ac-messages__open{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;gap:var(--space-2);flex:0 0 auto;margin:0;padding:0 var(--space-4);border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit;font-weight:600;font-size:var(--text-md);min-height:calc(var(--control-height) + var(--space-2));box-shadow:var(--elevation-raised);cursor:pointer;transition:border-color var(--motion-fast) var(--ease)}
 .ac-messages__open:hover{border-color:color-mix(in srgb,var(--color-text) calc(100% * var(--hover)),var(--color-border-hard))}
-.ac-messages-panel{display:flex;flex-direction:column;gap:var(--space-3);width:100%;min-height:0;flex:1 1 auto;overflow:auto;padding:var(--space-3);background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border-hard);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.ac-messages-panel{display:flex;flex-direction:column;gap:var(--space-3);width:100%;min-height:0;flex:1 1 auto;overflow:auto;padding:var(--space-3);background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border-hard);border-radius:var(--radius-card);box-shadow:var(--elevation-card),0 0 var(--space-8) color-mix(in srgb,var(--color-action) 22%,transparent)}
 .ac-messages-panel__head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
 .ac-messages-panel__title{margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
 .ac-messages-panel .ac-form{max-width:none;padding:0;background:transparent;border:0;border-radius:var(--radius-none);box-shadow:none}
@@ -405,7 +413,7 @@ ac-degraded[hidden]{display:none}
    110/170/260ms on one curve, from the tokens: a control's state change
    moves, data does not. A reader who asked for reduced motion gets none —
    the same selectors, stilled, declared last so they win on source order. */
-@media (prefers-reduced-motion:reduce){.ac-action,.ac-seg__item,.ac-seg__pick,.ac-chip,.ac-link,.ac-account,.ac-messages__open{transition:none}}
+@media (prefers-reduced-motion:reduce){.ac-action,.ac-nav__domain,.ac-seg__item,.ac-seg__pick,.ac-chip,.ac-link,.ac-account,.ac-messages__open{transition:none}}
 `;
 
 /** Every `var(--name)` the stylesheet reads. The test checks each is defined by tokenCss for every density. */

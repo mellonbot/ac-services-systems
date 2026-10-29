@@ -4,8 +4,8 @@ import { keyOf } from "../state.ts";
 import { whenReady, type ScreenContext } from "./common.ts";
 
 /**
- * A residential customer, selected: where the home is and every visit we have
- * finished there. The map is the gateway's tiles (sites.mapTile) — the
+ * A customer, selected: where its site is and every visit we have finished
+ * there (customer-detail.ts arranges them). The map is the gateway's tiles (sites.mapTile) — the
  * browser never reaches a tile provider with a customer's coordinates — with
  * a pin at the address; drag or arrow keys pan, the wheel or +/− zoom. The
  * pan is held to the box the gateway will serve (MAP_TILE_REACH), so a drag
@@ -80,14 +80,14 @@ const LOCATE_WHY: Readonly<Record<Locating, string>> = {
 };
 const RETRYABLE: ReadonlySet<Locating> = new Set(["provider_unreachable", "refused"]);
 
-const homeMap = (ctx: ScreenContext, site: AccountWire): VNode => {
+export const siteMap = (ctx: ScreenContext, site: AccountWire): VNode => {
   const lat = site.address?.lat, lng = site.address?.lng;
   if (typeof lat !== "number" || typeof lng !== "number") {
     const state = locating.value[site.id];
     // Asked from render, after it: the request is the store's kind of side effect, the signal write must not land mid-render.
     if (state === undefined && !ctx.degraded) queueMicrotask(() => { if (locating.value[site.id] === undefined) locate(ctx, site.id); });
     const why = state === undefined ? (ctx.degraded ? "Offline — the address is placed on the map when the connection returns." : LOCATE_WHY.asking) : LOCATE_WHY[state];
-    return html`<div class="s2-map s2-map--empty" id="home-map">
+    return html`<div class="s2-map s2-map--empty" id="site-map">
       <p class="s2-muted" role="status">${why}</p>
       ${state && RETRYABLE.has(state) ? html`<button type="button" class="s2-mutation s2-mutation--quiet" onClick=${() => locate(ctx, site.id)}>Try again</button>` : null}
     </div>`;
@@ -118,7 +118,8 @@ const homeMap = (ctx: ScreenContext, site: AccountWire): VNode => {
   const attribution = basemap && probe.state === "ready" ? probe.value.attribution : null;
 
   const down = (e: PointerEvent) => {
-    if (e.button !== 0) return;
+    // A press on a zoom button is the button's: captured by the view, its click would never land.
+    if (e.button !== 0 || (e.target as Element | null)?.closest?.("button")) return;
     drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   };
@@ -145,7 +146,7 @@ const homeMap = (ctx: ScreenContext, site: AccountWire): VNode => {
     else if (e.key === "-") { e.preventDefault(); zoomMap(site, lat, lng, -1); }
   };
 
-  return html`<figure class="s2-map" id="home-map" data-basemap=${basemap ? "tiles" : "grid"}>
+  return html`<figure class="s2-map" id="site-map" data-basemap=${basemap ? "tiles" : "grid"}>
     <div class="s2-map__view" tabindex="0" role="application" aria-roledescription="map"
       aria-label=${`Map of ${site.name}. Arrow keys pan, plus and minus zoom.`} title="Drag to pan · Ctrl + scroll to zoom"
       onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${up} onWheel=${wheel} onKeyDown=${key}>
@@ -155,11 +156,11 @@ const homeMap = (ctx: ScreenContext, site: AccountWire): VNode => {
         <path d="M12 31C12 31 2 18.6 2 11a10 10 0 0 1 20 0c0 7.6-10 20-10 20Z" />
         <circle cx="12" cy="11" r="4" />
       </svg>
-    </div>
-    <div class="s2-map__controls">
-      <button type="button" class="s2-mutation s2-mutation--quiet" aria-label="Zoom in" disabled=${v.z >= MAP_ZOOM_MAX} onClick=${() => zoomMap(site, lat, lng, 1)}>+</button>
-      <button type="button" class="s2-mutation s2-mutation--quiet" aria-label="Zoom out" disabled=${v.z <= MAP_ZOOM_MIN} onClick=${() => zoomMap(site, lat, lng, -1)}>−</button>
-      <button type="button" class="s2-mutation s2-mutation--quiet" onClick=${recentreMap}>Re-centre</button>
+      <div class="s2-map__controls">
+        <button type="button" class="s2-map__btn" aria-label="Zoom in" disabled=${v.z >= MAP_ZOOM_MAX} onClick=${() => zoomMap(site, lat, lng, 1)}>+</button>
+        <button type="button" class="s2-map__btn" aria-label="Zoom out" disabled=${v.z <= MAP_ZOOM_MIN} onClick=${() => zoomMap(site, lat, lng, -1)}>−</button>
+        <button type="button" class="s2-map__btn" onClick=${recentreMap}>Re-centre</button>
+      </div>
     </div>
     <figcaption class="s2-map__caption">
       <span class="s2-num">${lat.toFixed(5)}, ${lng.toFixed(5)}</span> · zoom <span class="s2-num">${v.z}</span>
@@ -175,34 +176,30 @@ const STATE_WORD: Partial<Readonly<Record<JobStateWire, string>>> = {
 };
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
-/** Every finished job at the home, oldest first — the order the house's story happened in. */
-export const serviceHistoryOf = (jobs: readonly JobWire[], siteId: string): readonly JobWire[] =>
-  jobs.filter((j) => j.siteId === siteId && WORK_DONE_STATES.includes(j.state))
+/** Every finished job at these sites, oldest first — the order the customer's story happened in. */
+export const serviceHistoryAt = (jobs: readonly JobWire[], siteIds: readonly string[]): readonly JobWire[] => {
+  const at = new Set(siteIds);
+  return jobs.filter((j) => at.has(j.siteId) && WORK_DONE_STATES.includes(j.state))
     .sort((a, b) => Date.parse(a.serviceWindowEnd) - Date.parse(b.serviceWindowEnd) || a.id.localeCompare(b.id));
+};
+export const serviceHistoryOf = (jobs: readonly JobWire[], siteId: string): readonly JobWire[] => serviceHistoryAt(jobs, [siteId]);
 
-const serviceHistory = (ctx: ScreenContext, site: AccountWire): VNode => {
+/** The history grid. A customer with more than one site gets a Site column; a home does not need one. */
+export const serviceHistory = (ctx: ScreenContext, sites: readonly AccountWire[]): VNode => {
   const jobs = ctx.store.read(keyOf("jobs.list"), () => ctx.shell.gateway.listJobs({})).value;
+  const siteName = (id: string) => sites.find((s) => s.id === id)?.name ?? "—";
   return whenReady(ctx, jobs, (j) => DataGrid({
     density: ctx.density,
     stack: true,
-    caption: "Service history",
     columns: [
       { key: "serviceWindowEnd", header: "Visit", cell: (r: JobWire) => html`<span class="s2-num">${day(r.serviceWindowEnd)}</span>` },
+      ...(sites.length > 1 ? [{ key: "siteId", header: "Site", cell: (r: JobWire) => siteName(r.siteId) }] : []),
       { key: "serviceCode", header: "Service", cell: (r: JobWire) => serviceLabel(r.serviceCode) },
       { key: "state", header: "Status", cell: (r: JobWire) => html`${STATE_WORD[r.state] ?? r.state}${r.returnTrip ? html` · <span class="s2-muted">return trip owed</span>` : null}` },
       { key: "latestNote", header: "Latest note", cell: (r: JobWire) => (r.latestNote ? html`<span class="s2-history__note">${r.latestNote.body}</span>` : html`<span class="s2-muted">—</span>`) },
     ],
-    rows: serviceHistoryOf(j.jobs, site.id),
+    rows: serviceHistoryAt(j.jobs, sites.map((s) => s.id)),
     rowKey: (r: JobWire) => r.id,
-    emptyText: "No finished service at this address yet.",
+    emptyText: sites.length ? "No finished service at this customer's sites yet." : "This customer has no site yet, so there is no service to show.",
   }) ?? html``, () => ctx.store.invalidate("jobs.list"));
 };
-
-/** The selected homeowner's card, with the map and the history beside the customer card S6 draws. */
-export const homeCard = (ctx: ScreenContext, card: VNode, site: AccountWire | null): VNode => html`<div class="s2-home" id="home-card">
-  <div class="s2-home__top">
-    ${card}
-    ${site ? homeMap(ctx, site) : html`<div class="s2-map s2-map--empty" id="home-map"><p class="s2-muted">This customer has no site yet, so there is no address to pin.</p></div>`}
-  </div>
-  ${site ? serviceHistory(ctx, site) : null}
-</div>`;

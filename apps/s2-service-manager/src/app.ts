@@ -65,13 +65,18 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "devices.grant": devicesGrant,
 };
 
+/** The department bar. `inside` is the tile's second line: what the domain holds, so a tile is a sign and not only a name. */
 const NAV_GROUPS = [
-  { label: "Customer records", screens: ["accounts.tree", "contracts.list", "projects", "leads"] as const },
-  { label: "Technician Network", screens: ["network"] as const },
-  { label: "Purchasing", screens: ["purchasing"] as const },
-  { label: "Billing", screens: ["billing"] as const },
-  { label: "Field devices", screens: ["devices"] as const },
+  // Invoicing sits with the customer's records because an invoice IS part of the
+  // customer's account; field devices sit with the network because they are the
+  // technicians' phones and tablets.
+  // Accounts stays the department's landing (`home`) though Projects is the first tab.
+  { label: "Customer records", inside: "Projects, accounts, agreements, invoicing, follow-ups", home: "accounts.tree", screens: ["projects", "accounts.tree", "contracts.list", "billing", "leads"] as const },
+  { label: "Technician Network", inside: "Crews, subcontractor firms, field devices", screens: ["network", "devices"] as const },
+  { label: "Purchasing", inside: "Vendors, purchase orders, receiving", screens: ["purchasing"] as const },
 ] as const;
+/** A domain with more than one screen gets a second tier of tabs. */
+const hasSubTabs = (g: (typeof NAV_GROUPS)[number]) => g.screens.length > 1;
 
 /** A terminated firm will field no more crews for us, so the picker does not offer it; it stays in the screen's firm list. */
 export const pickableFirms = (firms: readonly FirmWire[]): readonly FirmWire[] => firms.filter((f) => f.status !== "terminated");
@@ -221,19 +226,22 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       const open = routeId !== undefined && group?.label === navGroup.label;
       if (navGroup.label === "Technician Network") {
         // Our own crews are a tab; the subcontractor firms are one picker, so the
-        // track holds its width however many firms the network grows to.
-        const at = open && loc ? networkFirmOf(loc.params, p.store) : undefined;
+        // track holds its width however many firms the network grows to; the
+        // technicians' field devices are the last tab.
+        const onCrews = open && navTargetFor(routeId!) === "network";
+        const at = onCrews && loc ? networkFirmOf(loc.params, p.store) : undefined;
         const firmList = firms.state === "ready" ? pickableFirms(firms.value.firms) : [];
         const picked = firmList.find((f) => f.id === at);
         const pick = (e: Event) => { const firmId = (e.currentTarget as HTMLSelectElement).value; if (firmId) router.navigate("network", { firmId }); };
         return [
-          tab("network", {}, OWN_CREWS_LABEL, open && at === null && routeId !== "network.firm.new"),
+          tab("network", {}, OWN_CREWS_LABEL, onCrews && at === null && routeId !== "network.firm.new"),
           ...(firmList.length ? [html`<span class="ac-seg__pick" data-current=${picked ? "true" : "false"}>
             <select aria-label="Subcontractor firm" onChange=${pick}>
               <option value="" disabled selected=${!picked}>Subcontractor firms (${firmList.length})</option>
               ${firmList.map((f) => html`<option value=${f.id} selected=${f.id === picked?.id}>${f.legalName}</option>`)}
             </select>
           </span>`] : []),
+          tab("devices", {}, screenTitle("devices"), open && navTargetFor(routeId!) === "devices"),
         ];
       }
       return navGroup.screens.map((id) => tab(id, {}, screenTitle(id), open && navTargetFor(routeId!) === id));
@@ -248,12 +256,22 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         <div class="ac-nav__end">
           ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
         </div>
-        <div class="ac-nav__groups">
-          ${NAV_GROUPS.map((navGroup) => html`<div class="ac-nav__group" role="group" aria-label=${navGroup.label} data-current=${group?.label === navGroup.label ? "true" : "false"}>
-            <span class="ac-nav__group-label">${navGroup.label}</span>
-            <div class="ac-seg">${tabsFor(navGroup)}</div>
-          </div>`)}
-        </div>
+        <ul class="ac-nav__domains" aria-label="Departments">
+          ${NAV_GROUPS.map((navGroup) => {
+            const current = group?.label === navGroup.label;
+            const home = "home" in navGroup ? navGroup.home : navGroup.screens[0];
+            // A one-screen domain's tile IS the tab, so it carries the page; otherwise the tab below does.
+            const page = current && !hasSubTabs(navGroup) && routeId === home;
+            return html`<li><a class="ac-nav__domain" data-current=${current ? "true" : "false"} aria-current=${page ? "page" : current ? "true" : undefined}
+              href=${router.href(home, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(home, {}); }}>
+              <span class="ac-nav__domain-name">${navGroup.label}</span>
+              <span class="ac-nav__domain-sub">${navGroup.inside}</span>
+            </a></li>`;
+          })}
+        </ul>
+        ${group && hasSubTabs(group) ? html`<div class="ac-nav__group" role="group" aria-label=${group.label} data-current="true">
+          <div class="ac-seg">${tabsFor(group)}</div>
+        </div>` : null}
       </nav>
       ${notice.length ? html`<div class="s2-notice" role="status">${notice.map((n) => html`<p>${n}</p>`)}<button type="button" class="s2-notice__dismiss" onClick=${() => { p.store.notice.value = []; }} aria-label="Dismiss">×</button></div>` : null}
       ${group ? html`<nav class="s2-trail" aria-label="Current location"><ol>
