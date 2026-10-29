@@ -7,7 +7,7 @@ import { authorTermOverride } from "./terms.ts";
 import { localDate } from "./jobs.ts";
 import { iso } from "../sql.ts";
 import type { HierarchyContext } from "../context.ts";
-import { REQUIRED_AT_ACTIVATION, RESIDENTIAL_STANDARD_TERMS } from "../../../../packages/contracts/src/terms.ts";
+import { RESIDENTIAL_STANDARD_TERMS } from "../../../../packages/contracts/src/terms.ts";
 import type {
   CreateResidentialInput, CreateResidentialOutput, ListLeadsInput, ListLeadsOutput, ConvertLeadInput, ConvertLeadOutput,
   LeadContact, AddressWire,
@@ -27,8 +27,8 @@ import type {
  *
  * And the agreement: a home is put on the standard home agreement
  * (RESIDENTIAL_STANDARD_TERMS) in the same unit of work — created, its terms
- * stated, activated through the same handlers S2 uses, so the activation gate
- * still decides. Without it a home's first call was refused `no_value`.
+ * stated, activated through the same handlers S2 uses. The register now has
+ * commercial defaults, so homes explicitly author their own values.
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const requireUuid = (v: unknown, field: string): string => {
@@ -58,7 +58,7 @@ export const startStandardHomeAgreement = async (
     orgId: home.orgId, regionId: home.regionId, scopeTier: "parent", scopeId: home.orgId, kind: "msa", billingPath: "one_time",
     signedAt: today, effectiveFrom: today, diagnosticDataRightsReserved: RESIDENTIAL_STANDARD_TERMS.diagnostic_data_rights_reserved === true,
   }, newId);
-  for (const termKey of REQUIRED_AT_ACTIVATION) {
+  for (const termKey of Object.keys(RESIDENTIAL_STANDARD_TERMS)) {
     await authorTermOverride(uow, ctx, {
       contractId, scopeTier: "parent", scopeId: home.orgId, termKey, termValue: RESIDENTIAL_STANDARD_TERMS[termKey],
       effectiveFrom: today, effectiveTo: null, orgId: home.orgId, regionId: home.regionId,
