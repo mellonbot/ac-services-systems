@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <style>
+    .title { font: bold 28px sans-serif; fill: #212121; }
+    .box-title { font: bold 16px sans-serif; fill: #212121; }
+    .box-text { font: 12px sans-serif; fill: #333; }
+    .surface { fill: #e8f4f8; stroke: #0066cc; stroke-width: 2; rx: 8; }
+    .core { fill: #fff3e0; stroke: #e65100; stroke-width: 2; rx: 8; }
+    .data { fill: #e8f5e9; stroke: #2e7d32; stroke-width: 2; rx: 8; }
+    .arrow { stroke: #666; stroke-width: 3; fill: none; marker-end: url(#arrowhead); }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#666"/>
+    </marker>
+  </defs>
+  <text x="20" y="40" class="title">AC Platform Architecture</text>
+  
+  <!-- Surfaces -->
+  <g id="surfaces">
+    <rect class="surface" x="30" y="70" width="120" height="70"/>
+    <text x="40" y="95" class="box-title">S1</text>
+    <text x="40" y="115" class="box-text">Marketing</text>
+    <text x="40" y="130" class="box-text">Anonymous</text>
+    
+    <rect class="surface" x="165" y="70" width="120" height="70"/>
+    <text x="175" y="95" class="box-title">S2</text>
+    <text x="175" y="115" class="box-text">Service Mgr</text>
+    <text x="175" y="130" class="box-text">Office</text>
+    
+    <rect class="surface" x="300" y="70" width="120" height="70"/>
+    <text x="310" y="95" class="box-title">S3</text>
+    <text x="310" y="115" class="box-text">Dispatch</text>
+    <text x="310" y="130" class="box-text">Dispatcher</text>
+    
+    <rect class="surface" x="435" y="70" width="120" height="70"/>
+    <text x="445" y="95" class="box-title">S4</text>
+    <text x="445" y="115" class="box-text">HQ Dashboard</text>
+    <text x="445" y="130" class="box-text">Leadership</text>
+    
+    <rect class="surface" x="570" y="70" width="120" height="70"/>
+    <text x="580" y="95" class="box-title">S5</text>
+    <text x="580" y="115" class="box-text">Tech Fallback</text>
+    <text x="580" y="130" class="box-text">Technician</text>
+    
+    <rect class="surface" x="705" y="70" width="120" height="70"/>
+    <text x="715" y="95" class="box-title">S6</text>
+    <text x="715" y="115" class="box-text">Customer</text>
+    <text x="715" y="130" class="box-text">Portal</text>
+    
+    <rect class="surface" x="840" y="70" width="120" height="70"/>
+    <text x="850" y="95" class="box-title">S7</text>
+    <text x="850" y="115" class="box-text">Vendor</text>
+    <text x="850" y="130" class="box-text">Portal</text>
+    
+    <rect class="surface" x="975" y="70" width="120" height="70"/>
+    <text x="985" y="95" class="box-title">S8</text>
+    <text x="985" y="115" class="box-text">Subcontractor</text>
+    <text x="985" y="130" class="box-text">Firm</text>
+  </g>
+  
+  <!-- Arrow to S0 -->
+  <line class="arrow" x1="600" y1="150" x2="600" y2="200"/>
+  
+  <!-- S0 -->
+  <rect class="core" x="450" y="210" width="300" height="70"/>
+  <text x="470" y="235" class="box-title">S0 Shared Shell</text>
+  <text x="470" y="255" class="box-text">Login · Context · Events · Refusals</text>
+  
+  <!-- Arrow to GW -->
+  <line class="arrow" x1="600" y1="290" x2="600" y2="340"/>
+  
+  <!-- Gateway -->
+  <rect class="core" x="430" y="350" width="340" height="70"/>
+  <text x="450" y="375" class="box-title">Gateway</text>
+  <text x="450" y="395" class="box-text">Ops catalogue · Unit of work · RLS binding</text>
+  
+  <!-- Arrow to DB -->
+  <line class="arrow" x1="600" y1="430" x2="600" y2="480"/>
+  
+  <!-- DB -->
+  <rect class="data" x="460" y="490" width="280" height="70"/>
+  <text x="480" y="515" class="box-title">PostgreSQL 16</text>
+  <text x="480" y="535" class="box-text">Row-Level Security · Triggers · Migrations</text>
+  
+  <!-- Legend -->
+  <rect class="surface" x="30" y="590" width="30" height="20"/>
+  <text x="70" y="605" class="box-text">Surfaces</text>
+  <rect class="core" x="160" y="590" width="30" height="20"/>
+  <text x="200" y="605" class="box-text">Core</text>
+  <rect class="data" x="260" y="590" width="30" height="20"/>
+  <text x="300" y="605" class="box-text">Data</text>
+</svg>
