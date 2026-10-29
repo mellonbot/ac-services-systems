@@ -130,6 +130,9 @@ export const WORDMARK_FLOOR = 28;
  * so the fallback chain decided what the second channel looked like — different
  * face, different metrics, tofu on a locked-down tablet. The channel that exists
  * for the case where colour fails cannot itself depend on a font that loaded.
+ *
+ * Listing them here was necessary and not sufficient: Plex has none of them, so
+ * the subsetter keeps nothing. MARK_FONT is what actually draws them.
  */
 export const SUBSET_GLYPHS = "°ΔΧ×±½¼¾′″₂" + "●▲▼■✕";
 
@@ -137,8 +140,8 @@ export const SUBSET_GLYPHS = "°ΔΧ×±½¼¾′″₂" + "●▲▼■✕";
  * THE FILES, as shipped. `packages/tokens/fonts/` holds them, subset to Latin-1,
  * the punctuation the copy uses and SUBSET_GLYPHS, and pinned to the source
  * releases named in that folder's README; `build-surface.ts` copies them to every
- * surface's `dist/fonts/`. Plex cuts none of ● ▲ ▼ ■ ✕, so the marks still come
- * from the fallback chain; the subset carries them for a face that does.
+ * surface's `dist/fonts/`. Plex draws none of ● ▲ ▼ ■ ✕ in any release, so the
+ * subset cannot carry them; MARK_FONT below supplies them.
  *
  * Only the weights the sheets set are cut. 800 resolves to 700, the heaviest
  * Plex weight in the set.
@@ -154,10 +157,31 @@ export const FONT_FILES = Object.freeze([
   { family: FACES.instrument.family, weight: 600, file: "plex-mono-600.woff2", display: FACES.instrument.display, preload: false },
 ] as const);
 
+/**
+ * THE MARKS, as a face of their own (E-13). IBM Plex has never drawn ● ▲ ▼ ■ ✕,
+ * so until this file existed the second channel was drawn by whatever system
+ * font the fallback chain found. `ac-marks.woff2` is five geometric shapes drawn
+ * by `tools/fonts/build-marks.py` — no third-party outlines — on Plex's own
+ * metrics, each 600 units wide so a mark holds a tabular column.
+ *
+ * It is declared under every Plex family with a unicode-range naming only the
+ * marks, so the browser takes those five code points from it and everything
+ * else from Plex. One weight-range face covers every weight: a solid shape has
+ * no bold. css.test.ts reads the file's cmap, not this list.
+ */
+const codePoint = (g: string): string => `U+${g.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")}`;
+export const MARK_FONT = Object.freeze({
+  file: "ac-marks.woff2",
+  families: Object.freeze([FACES.display.family, FACES.text.family, FACES.instrument.family]),
+  unicodeRange: [...new Set(Object.values(MARK_GLYPHS))].map(codePoint).sort().join(","),
+  preload: true,
+});
+
 /** The @font-face block. URLs are relative, so they resolve beside ui.css at whatever path a surface is served under. */
-export const fontFaceCss = (): string => FONT_FILES
-  .map((f) => `@font-face{font-family:"${f.family}";font-style:normal;font-weight:${f.weight};font-display:${f.display};src:url("fonts/${f.file}") format("woff2")}`)
-  .join("\n") + "\n";
+export const fontFaceCss = (): string => [
+  ...FONT_FILES.map((f) => `@font-face{font-family:"${f.family}";font-style:normal;font-weight:${f.weight};font-display:${f.display};src:url("fonts/${f.file}") format("woff2")}`),
+  ...MARK_FONT.families.map((family) => `@font-face{font-family:"${family}";font-style:normal;font-weight:100 900;font-display:block;unicode-range:${MARK_FONT.unicodeRange};src:url("fonts/${MARK_FONT.file}") format("woff2")}`),
+].join("\n") + "\n";
 
 /** Third-party hosts a surface must never fetch a face from. The guard reads this list. */
 export const FORBIDDEN_FONT_HOSTS = Object.freeze([

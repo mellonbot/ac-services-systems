@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 import { SURFACES, SURFACE_IDS, type Surface, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import {
   DENSITY, tokenCss, BRAND, FAVICON, semanticFor,
-  SEMANTIC, FACES, ACCENT_GATE, BULLETIN_ERRATA, WORDMARK_FLOOR, FONT_FILES,
+  SEMANTIC, FACES, ACCENT_GATE, BULLETIN_ERRATA, WORDMARK_FLOOR, FONT_FILES, MARK_FONT,
 } from "../../packages/tokens/src/index.ts";
 // Not via index.ts: figures.ts is the table of every number the system states
 // about itself, and it is imported HERE so the generated doc quotes the
@@ -272,7 +272,7 @@ export const renderFrame = (s: Surface): string => `<!doctype html>
 <link rel="icon" type="image/png" sizes="${FAVICON.px}x${FAVICON.px}" href="${FAVICON.href}">
 <link rel="apple-touch-icon" sizes="${FAVICON.touchPx}x${FAVICON.touchPx}" href="${FAVICON.touch}">
 <style>${tokenCss(s.density, { brandLayer: !s.stateRamp })}</style>
-${FONT_FILES.filter((f) => f.preload).map((f) => `<link rel="preload" href="/fonts/${f.file}" as="font" type="font/woff2" crossorigin>`).join("\n")}
+${[...FONT_FILES.filter((f) => f.preload).map((f) => f.file), ...(MARK_FONT.preload ? [MARK_FONT.file] : [])].map((file) => `<link rel="preload" href="/fonts/${file}" as="font" type="font/woff2" crossorigin>`).join("\n")}
 <link rel="stylesheet" href="/ui.css">${s.whiteLabel ? `
 <!-- The tenant's slot. EMPTY in the file, and the order is the mechanism: the
      plate above is what the page renders with when nothing fills this, so a
