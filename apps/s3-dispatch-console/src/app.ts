@@ -360,6 +360,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const waiting = requests.state === "ready" ? requests.value.requests.filter((r) => r.jobId === null) : [];
     const emergencies = waiting.filter((r) => r.priority === "emergency").length;
     return html`<div class="s3-app">
+      <div class="s3-console-head">
+        <p class="s3-console-head__title">Job & Technician Dispatching</p>
+        <p class="s3-console-head__lede">This page is designed to track the scheduling, processes, movements, and changes throughout day-to-day operations.</p>
+      </div>
       <header class="dispatch-header" data-ground="plate">
         <nav class="ac-seg" aria-label="Dispatch navigation">
           <a class="ac-seg__item" href=${router.href("board", {})}
