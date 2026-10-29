@@ -6,6 +6,11 @@
  */
 export const S3_CSS = `
 .s3-app{display:flex;flex-direction:column;gap:var(--space-3)}
+/* The console's own name, under the masthead rule and over the dark tab bar — larger than a screen's page head, which names the tab. */
+.s3-console-head{display:flex;flex-direction:column;gap:var(--space-1);margin-top:var(--space-2)}
+.s3-console-head__title{margin:0;font-family:var(--font-display);font-size:var(--text-mast);font-weight:800;letter-spacing:var(--track-tight);line-height:1.1;color:var(--color-text);text-wrap:balance}
+.s3-console-head__lede{margin:0;max-width:var(--measure-text);color:var(--color-text-muted);font-size:var(--text-md)}
+@media (max-width:640px){.s3-console-head__title{font-size:var(--text-display)}}
 .s3-notice{display:flex;gap:var(--space-3);align-items:baseline;padding:var(--space-2) var(--space-3);background:var(--color-surface-sunken);border:1px solid var(--color-status-at-risk);border-radius:var(--radius-control)}
 .s3-notice p{margin:0}
 .s3-notice__dismiss{min-height:var(--control-height);appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2)}
