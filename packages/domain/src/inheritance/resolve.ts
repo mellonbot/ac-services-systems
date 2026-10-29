@@ -150,7 +150,10 @@ export const resolveTerm = (
         termKey, "no_value",
       );
     }
-    return { termKey, value: policy.fallback, wonAt: "fallback", policy, trace: [...trace, { tier: ordered[0]!.tier, id: "-", outcome: "won", value: policy.fallback, note: "register default" }], asOf };
+    const fallbackStep: TraceStep = ordered.length > 0
+      ? { tier: ordered[0]!.tier, id: "-", outcome: "won", value: policy.fallback, note: "register default" }
+      : { tier: "parent", id: "-", outcome: "won", value: policy.fallback, note: "register default (empty path)" };
+    return { termKey, value: policy.fallback, wonAt: "fallback", policy, trace: [...trace, fallbackStep], asOf };
   }
 
   const finalTrace = trace.map((s) =>
