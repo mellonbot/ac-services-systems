@@ -2,10 +2,11 @@ import { createPool, beginTx } from "../../gateway/src/pg-tx.ts";
 import { relayOnce, notifyPublisher } from "./relay.ts";
 import { sweepCredentialExpiry, sweepSlaCascade, workerScope } from "./sweeps.ts";
 import { sweepHqRollup } from "./rollup.ts";
+import { sweepQuoteJobs } from "./quotes.ts";
 import { HQ_REFRESH_MINUTES } from "../../../packages/contracts/src/hq.ts";
 
 /**
- * THE WORKER. Runs as ac_worker. Three loops, each its own transaction, each
+ * THE WORKER. Runs as ac_worker. Its loops each run in their own transaction, each
  * tolerant of a second worker running beside it (SKIP LOCKED, idempotent
  * emits). Region-pinnable with AC_REGION_ID for Tier 3.
  */
@@ -48,6 +49,11 @@ every(1_000, "relay", async () => {
 every(60_000, "sla-cascade", async () => {
   const tx = await bound();
   try { return await sweepSlaCascade(tx, new Date()); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
+});
+// 0034: a technician's "Quote needed" becomes a QUOTE job within a minute.
+every(60_000, "quote-jobs", async () => {
+  const tx = await bound();
+  try { return await sweepQuoteJobs(tx, new Date()); } catch (e) { await tx.rollback().catch(() => {}); throw e; }
 });
 every(3_600_000, "credential-expiry", async () => {
   const tx = await bound();

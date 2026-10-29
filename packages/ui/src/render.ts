@@ -1,4 +1,4 @@
-import { h, render as preactRender, type VNode, type ComponentChildren } from "preact";
+import { h, Component, Fragment, render as preactRender, type VNode, type ComponentChildren } from "preact";
 import htmImport from "htm";
 import { signal, computed, effect, batch, type Signal, type ReadonlySignal } from "@preact/signals";
 import type { Density } from "../../tokens/src/index.ts";
@@ -28,6 +28,46 @@ export { signal, computed, effect, batch };
 
 /** Render a tree into a mount point. The frame's `<main id="mount">` is the one a surface uses. */
 export const mount = (tree: VNode, into: Element): void => preactRender(tree, into);
+
+/**
+ * Account and Sign out render here, into the frame's `#ac-mast-tools` slot
+ * on the lockup row above the red rule. The slot is the portal's only child,
+ * so a second render into it is enough — no preact/compat import, because
+ * that module patches every vnode and the string tests read the unpatched
+ * prop order. With no document, or no slot, the children stay where the
+ * surface placed them.
+ */
+class MastPortal extends Component<{ children?: ComponentChildren }> {
+  private slot: Element | null = null;
+
+  override componentDidMount(): void {
+    if (typeof document === "undefined") return;
+    this.slot = document.getElementById("ac-mast-tools");
+    this.paint();
+  }
+
+  override componentDidUpdate(): void {
+    this.paint();
+  }
+
+  override componentWillUnmount(): void {
+    if (this.slot) preactRender(null, this.slot);
+    this.slot = null;
+  }
+
+  private paint(): void {
+    if (!this.slot) return;
+    preactRender(h(Fragment, null, this.props.children), this.slot);
+  }
+
+  override render(): ComponentChildren {
+    if (this.slot) return null;
+    if (typeof document !== "undefined" && document.getElementById("ac-mast-tools")) return null;
+    return this.props.children ?? null;
+  }
+}
+
+export const MastTools = MastPortal;
 
 /** The density a component may be handed: its spec's declared set, and nothing wider. */
 export type Admitted<S extends ComponentSpec<Density>> = S["densities"][number];

@@ -1,4 +1,5 @@
 import type { UnitOfWork } from "../unit-of-work.ts";
+import { iso } from "../sql.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type {
   ListEquipmentInput, ListEquipmentOutput, EquipmentWire, EquipmentKind, RegisterEquipmentInput, RegisterEquipmentOutput,
@@ -46,15 +47,6 @@ const requireText = (v: unknown, field: string, max = 200): string => {
 };
 const optionalText = (v: unknown, field: string, max = 200): string | null => (v === undefined || v === null || v === "" ? null : requireText(v, field, max));
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-/**
- * An instant on the wire is UTC and says so. `to_char` on a timestamptz
- * formats in the SESSION's zone, so on any cluster not running UTC the old
- * pattern — the wall clock with a "Z" glued on — was wrong by the cluster's
- * offset. Found by test/integration/s6-site-card.test.ts on a Chicago
- * cluster; the same fix is applied to jobs, devices, service requests and
- * settlements, whose timers it also mislabelled.
- */
-const TS = (col: string) => `to_char(${col} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
 type SiteRow = { id: string; tier: AccountTierWire; org_id: string; region_id: string; active: boolean; path: string[] };
 const visibleNode = async (uow: UnitOfWork, id: string, field: string): Promise<SiteRow> => {
@@ -90,7 +82,7 @@ export const listEquipment = async (uow: UnitOfWork, input: ListEquipmentInput):
   const rows = await uow.tx.query<EquipmentRow>(
     `SELECT e.id, e.site_id, e.kind, e.label, m.name AS manufacturer, e.model, e.serial,
             to_char(e.installed_on, 'YYYY-MM-DD') AS installed_on, e.tonnage_milli::text AS tonnage_milli, e.active,
-            ${TS("last.we")} AS last_serviced_at, last.job_id AS last_serviced_job_id, last.service_code AS last_serviced_service_code,
+            ${iso("last.we")} AS last_serviced_at, last.job_id AS last_serviced_job_id, last.service_code AS last_serviced_service_code,
             (SELECT count(*) FROM job_equipment je WHERE je.equipment_id = e.id) AS job_count
        FROM equipment e
        LEFT JOIN part_manufacturers m ON m.id = e.manufacturer_id
@@ -283,8 +275,8 @@ export const listInvoices = async (uow: UnitOfWork, input: ListInvoicesInput): P
   const rows = await uow.tx.query<InvoiceRow>(
     `SELECT id, bill_to_tier, bill_to_id, contract_id, billing_path,
             to_char(period_start, 'YYYY-MM-DD') AS period_start, to_char(period_end, 'YYYY-MM-DD') AS period_end,
-            total_minor::text, currency, ${TS("issued_at")} AS issued_at, ${TS("due_at")} AS due_at,
-            ${TS("voided_at")} AS voided_at, void_reason,
+            total_minor::text, currency, ${iso("issued_at")} AS issued_at, ${iso("due_at")} AS due_at,
+            ${iso("voided_at")} AS voided_at, void_reason,
             -- 0030: the status is derived from what was paid, never stored.
             (SELECT COALESCE(sum(p.amount_minor), 0) FROM payments p WHERE p.invoice_id = invoices.id AND p.state = 'succeeded')::text AS paid_minor
        FROM invoices WHERE id = ANY($1::uuid[])

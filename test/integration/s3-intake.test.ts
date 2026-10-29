@@ -189,19 +189,14 @@ test("New job, no request behind it: the South dispatcher picks from South's sit
   await refusedWith(disp, disp.gateway.createJob({ siteId: renoRoof, serviceCode: "HVAC-REPAIR", ...window_(2) }), "scope");
 });
 
-test("a call at a site whose agreement has no response time: the refusal names what is missing, Hold for Contracts records it in Intake, and it opens once Contracts sets the term", { skip }, async () => {
+test("a call at a site whose agreement has no response time: the job opens on the register default, and a held call waits on nothing before or after Contracts sets the term", { skip }, async () => {
   const s2 = await shell("S2", "owner.d31@ac.test");
   const h = await s2.gateway.createOrganization({ name: `Halcyon ${RUN}`, externalRef: `${RUN}-h`, firstRegionNode: { regionId: REGION_SOUTH, name: "Halcyon / South" } });
   const lab = (await s2.gateway.createAccount({ orgId: h.orgId, tier: "location", parentId: h.regionNodeId, name: "Lab" })).id;
   const labRoof = (await s2.gateway.createAccount({ orgId: h.orgId, tier: "site", parentId: lab, name: "Lab — Roof" })).id;
 
-  try { await disp.gateway.createJob({ siteId: labRoof, serviceCode: "HVAC-REPAIR", ...window_(1) }); assert.fail("a job opened with no response time"); }
-  catch (e) {
-    const r = disp.refusalOf(e)!;
-    assert.equal(r.kind, "admission");
-    assert.ok(r.kind === "admission" && r.code === "no_value" && r.axis === "incomplete");
-    assert.deepEqual({ ...r.missingTerm, asOf: undefined }, { termKey: "sla_response", siteId: labRoof, siteName: "Lab — Roof", customer: `Halcyon ${RUN}`, asOf: undefined }, "the facts, so S3 need not parse the message");
-  }
+  const unagreed = await disp.gateway.createJob({ siteId: labRoof, serviceCode: "HVAC-REPAIR", ...window_(1) });
+  assert.equal(unagreed.responseTerm, "4_hour", "no agreed response time: the register default, not a refusal");
 
   await refusedWith(fm, fm.gateway.holdServiceRequest({ siteId: labRoof, description: "x" }), "scope");
   await refusedWith(dispWest, dispWest.gateway.holdServiceRequest({ siteId: labRoof, description: "x" }), "scope"); // another region's site: written inside its own tenancy or not at all
@@ -211,14 +206,14 @@ test("a call at a site whose agreement has no response time: the refusal names w
   assert.equal(row.region_id, REGION_SOUTH);
 
   const waiting = (await disp.gateway.listServiceRequests({ siteId: labRoof })).requests;
-  assert.equal(waiting.find((r) => r.id === held)?.waitingOnTerm, "sla_response", "Intake says why it waits");
+  assert.equal(waiting.find((r) => r.id === held)?.waitingOnTerm, null, "the register default means nothing is missing");
   assert.equal((await disp.gateway.listServiceRequests({ siteId: austinRoof })).requests.every((r) => r.waitingOnTerm === null), true, "a complete agreement waits on nothing");
 
   const msa = (await s2.gateway.createContract({ orgId: h.orgId, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: h.orgId, kind: "msa", billingPath: "enterprise_sla", signedAt: "2026-01-05", effectiveFrom: "2026-01-01", diagnosticDataRightsReserved: true })).id;
   await stateMsaTerms(s2.gateway, { contractId: msa, orgId: h.orgId, regionId: REGION_SOUTH, effectiveFrom: "2026-01-01" });
   await s2.gateway.transitionContract({ contractId: msa, to: "active" });
 
-  assert.equal((await disp.gateway.listServiceRequests({ siteId: labRoof })).requests.find((r) => r.id === held)?.waitingOnTerm, null, "derived on every read — it clears itself");
+  assert.equal((await disp.gateway.listServiceRequests({ siteId: labRoof })).requests.find((r) => r.id === held)?.waitingOnTerm, null, "still nothing missing once Contracts states the term");
   const out = await disp.gateway.openServiceRequestJob({ requestId: held, serviceCode: "HVAC-REPAIR", ...window_(1) });
   assert.equal(out.requestId, held);
 });

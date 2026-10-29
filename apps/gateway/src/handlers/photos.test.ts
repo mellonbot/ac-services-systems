@@ -112,7 +112,17 @@ test("getMedia: a visible photo comes back inline as a data: URL; an invisible o
   const { store, objects } = memory();
   const key = `${REGION}/${ORG}/request_photo/${U(30)}` as StorageKey;
   objects.set(key, { body: PNG, contentType: "image/png" });
-  const out = await getMedia(await uowFor(scripted([["FROM service_request_media m", [{ storage_key: key, content_type: "image/png" }]]]).tx), store, { id: U(30) });
+  const out = await getMedia(await uowFor(scripted([["FROM service_request_media m", [{ storage_key: key, content_type: "image/png" }]]]).tx), store, { id: U(30) }, "customer");
   assert.equal(out.image, `data:image/png;base64,${b64(PNG)}`);
-  await assert.rejects(getMedia(await uowFor(scripted([]).tx), store, { id: U(30) }), (e: InputRefused) => e.code === "unknown_photo");
+  await assert.rejects(getMedia(await uowFor(scripted([]).tx), store, { id: U(30) }, "customer"), (e: InputRefused) => e.code === "unknown_photo");
+});
+
+test("getMedia: a job's photo or signature (0034) is the office's — read for an internal principal, unknown to a customer even where the row is visible", async () => {
+  const { store, objects } = memory();
+  const key = `${REGION}/${ORG}/job_signature/${U(31)}` as StorageKey;
+  objects.set(key, { body: PNG, contentType: "image/png" });
+  const jobRow: [string, unknown[]] = ["FROM job_media jm", [{ storage_key: key, content_type: "image/png" }]];
+  const office = await getMedia(await uowFor(scripted([jobRow]).tx), store, { id: U(31) }, "internal");
+  assert.equal(office.image, `data:image/png;base64,${b64(PNG)}`);
+  await assert.rejects(getMedia(await uowFor(scripted([jobRow]).tx), store, { id: U(31) }, "customer"), (e: InputRefused) => e.code === "unknown_photo");
 });

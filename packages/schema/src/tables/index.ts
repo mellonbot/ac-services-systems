@@ -41,6 +41,8 @@ export const ALL_TABLES: readonly Table[] = Object.freeze([
   identity.devices,
   identity.device_grants,
   identity.sessions,
+  identity.staff_messages,
+  identity.staff_message_receipts,
   // contracts
   contracts.contracts,
   contracts.contract_term_overrides,
@@ -59,6 +61,8 @@ export const ALL_TABLES: readonly Table[] = Object.freeze([
   work.job_messages,
   work.job_media,
   work.time_entries,
+  work.shift_punches,
+  work.job_wrap_ups,
   work.checklist_items,
   work.parts_used,
   work.warranty_cases,

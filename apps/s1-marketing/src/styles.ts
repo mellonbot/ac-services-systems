@@ -13,11 +13,11 @@
  * `comfort` density: 44px controls, 15px body, hover affordances allowed.
  * This is also the only surface most people who ever touch the platform will
  * see, and the only one they will read on a phone in a car park.
+ * Mobile rules aligned with the Rankine prototype.
  */
 export const S1_CSS = `
 .s1-app{display:flex;flex-direction:column;gap:var(--space-4)}
 .s1-enquire,.s1-coverage{max-width:var(--measure-text)}
-/* Read by a screen reader, not drawn: the home heading, which the titled masthead already shows. */
 .s1-sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .s1-h1{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-xl);text-transform:uppercase;letter-spacing:var(--track-normal)}
 .s1-h2{margin:var(--space-6) 0 var(--space-2);font-size:var(--text-lg)}
@@ -42,17 +42,6 @@ export const S1_CSS = `
 .s1-missing__portals .s1-portal span{font-family:var(--font-instrument)}
 .s1-missing__ways{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-4)}
 .s1-foot{margin-top:var(--space-6);padding-top:var(--space-3);border-top:1px solid var(--color-border);color:var(--color-text-muted);font-size:var(--text-sm)}
-
-/* ---- The sign-in yard: the outdoor service yard in 3D (src/scene.ts), after the ERS recovery
-   line — the truck turning on a turntable, condensers and RTUs waiting behind it, a pad on the
-   asphalt for each portal, and that portal's plate
-   pinned beside its pad on the side away from the turntable, so no plate crosses the truck's swept
-   volume (r 9.5 m, 6.3 m tall) at any heading. The front page sits on the page grid, so the logo, the heading and the
-   panel share one left edge and the panel runs the page width. Live, each plate takes --x/--y from the scene's projection; until then, and where
-   WebGL is unavailable, the plates sit on a CSS ellipse over the still (public/scene-still.webp),
-   fitted to the pads as the live camera projects them (within 2.4% of the stage). Re-capture the
-   still and re-fit the ellipse whenever the pads or the camera move.
-   Under 45rem the plates leave the floor and stack under it. ---- */
 .s1-scene{position:relative;container-type:inline-size;margin-top:var(--space-4);border-radius:var(--radius-card);overflow:hidden;box-shadow:var(--elevation-card)}
 .s1-scene__stage{aspect-ratio:16/9;background:url(/scene-still.webp) center/cover no-repeat}
 .s1-scene[data-live] .s1-scene__stage{background:none}
@@ -65,7 +54,6 @@ export const S1_CSS = `
 .s1-portal span{color:var(--color-text-muted);font-size:var(--text-xs)}
 .s1-portal:hover{border-color:var(--color-border-hard);box-shadow:var(--elevation-raised)}
 .s1-portal:hover strong{text-decoration:underline}
-/* A stage wide enough to carry them takes the plates a step up; below it the side plates would leave the stage. */
 @container (min-width:56rem){
   .s1-portal{padding:var(--space-2) var(--space-4)}
   .s1-portal strong{font-size:var(--text-md)}
@@ -76,11 +64,16 @@ export const S1_CSS = `
   .s1-scene__plates{position:static;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);padding:var(--space-3);pointer-events:auto}
   .s1-scene__plate,.s1-scene[data-live] .s1-scene__plate{position:static;width:auto;transform:none}
 }
-
 @media (prefers-reduced-motion:reduce){.s1-portal{transition:none}}
-
-/* ---- Rev A (Bulletin No. 2 Rev A): the reference layout's shape — radii and elevation from tokens, colours unchanged ---- */
 .s1-h1{font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);text-transform:none;line-height:1.15}
 .s1-h2{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-tight);text-transform:none}
 .s1-metros li{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);padding:var(--space-3) var(--space-4)}
+
+/* ---- Mobile surfaces (Rankine prototype alignment) ---- */
+@media (max-width: 640px) {
+  .s1-app { gap: var(--space-3); padding-bottom: var(--space-4); }
+  .s1-metros, .s1-missing__portals { grid-template-columns: 1fr; }
+  .s1-call, .s1-portal { min-height: 44px; }
+  .s1-missing__ways { flex-direction: column; align-items: flex-start; }
+}
 `;

@@ -1,6 +1,7 @@
 import type { UnitOfWork } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import { requireUuid, requireText } from "./jobs.ts";
+import { iso } from "../sql.ts";
 import type {
   CreateProjectInput, CreateProjectOutput, ListProjectsInput, ListProjectsOutput, ProjectState,
 } from "../../../../packages/contracts/src/operations.ts";
@@ -23,8 +24,6 @@ const requireIso = (v: unknown, field: string): Date => {
   return d;
 };
 
-const ISO = (col: string) => `to_char(${col} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
-
 export const listProjects = async (uow: UnitOfWork, input: ListProjectsInput): Promise<ListProjectsOutput> => {
   const orgId = input.orgId === undefined || input.orgId === "" ? null : requireUuid(input.orgId, "orgId");
   const projects = await uow.tx.query<{
@@ -32,7 +31,7 @@ export const listProjects = async (uow: UnitOfWork, input: ListProjectsInput): P
     foreman_id: string | null; foreman_name: string | null; ws: string; we: string; state: ProjectState; install_jobs: number;
   }>(
     `SELECT p.id, p.org_id, p.region_id, p.contract_id, o.name AS customer, p.name, p.foreman_id, u.display_name AS foreman_name,
-            ${ISO("lower(p.service_window)")} AS ws, ${ISO("upper(p.service_window)")} AS we, p.state,
+            ${iso("lower(p.service_window)")} AS ws, ${iso("upper(p.service_window)")} AS we, p.state,
             (SELECT count(*)::int FROM jobs j WHERE j.project_id = p.id AND j.work_class = 'install') AS install_jobs
        FROM projects p
        JOIN organizations o ON o.id = p.org_id

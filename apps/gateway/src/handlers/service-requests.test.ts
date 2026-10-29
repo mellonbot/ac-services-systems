@@ -105,7 +105,7 @@ test("listServiceRequests carries the site's name and the job's state, and filte
   await assert.rejects(listServiceRequests(await uowFor(scripted([]).tx), { siteId: "nope" }, NOW, false), BadInput);
 });
 
-test("listServiceRequests (office): a waiting request at a site whose agreement has no response time says so; an answered one does not", async () => {
+test("listServiceRequests (office): a waiting request at a site whose agreement has no response time uses the register default; an answered one does not", async () => {
   const office: Principal = {
     namespace: "internal", subjectId: U(9), orgId: U(90), regionId: REGION_SOUTH, scopeTier: "region", scopeId: REGION_SOUTH,
     roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "sess-3",
@@ -120,7 +120,7 @@ test("listServiceRequests (office): a waiting request at a site whose agreement 
   const uowS3 = async (tx: Tx) => createUnitOfWork({ surfaceId: "S3", principal: office, requestId: "r", now: () => NOW, newId: () => U(600 + ++seq) }, tx);
 
   const missing = await listServiceRequests(await uowS3(scripted(answers([])).tx), {}, NOW, true);
-  assert.deepEqual(missing.requests.map((r) => r.waitingOnTerm), ["sla_response", null]);
+  assert.deepEqual(missing.requests.map((r) => r.waitingOnTerm), [null, null], "register default means no waitingOnTerm");
 
   const set = { id: U(20), contract_id: U(21), scope_tier: "site", scope_id: SITE, term_key: "sla_response", term_value: "4_hour", eff_from: "2026-01-01", eff_to: null };
   const ok = await listServiceRequests(await uowS3(scripted(answers([set])).tx), {}, NOW, true);

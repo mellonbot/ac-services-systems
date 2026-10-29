@@ -149,7 +149,7 @@ export const site: Screen = (ctx, params) => {
 
       <div class="s6-site__grid">
         ${panel(html`${imageryView(ctx, imagery.value, node)}${addressView(node.address, node.timezone)}`, "Where", undefined, undefined, "site-where")}
-        ${panel(whenReady(ctx, contacts.value, (c) => contactsView(c.contacts, node.id), () => ctx.store.invalidate("contacts.list")), "Who is there", undefined, undefined, "site-who")}
+        ${panel(whenReady(ctx, contacts.value, (c) => contactsView(ctx, c.contacts, node.id), () => ctx.store.invalidate("contacts.list")), "Who is there", undefined, undefined, "site-who")}
       </div>
 
       ${panel(whenReady(ctx, equipment.value, (e) => equipmentView(ctx, e.equipment), () => ctx.store.invalidate("equipment.list")), "Equipment", undefined, undefined, "site-equipment")}
@@ -198,19 +198,48 @@ const addressView = (a: AddressWire | null, tz: string | null): VNode => {
   </address>`;
 };
 
-const contactsView = (contacts: readonly ContactWire[], siteId: string): VNode => {
-  if (contacts.length === 0) return html`<p class="s6-muted" id="site-contacts">No contacts on record. Your account manager can add the on-site manager.</p>`;
-  return html`<ul class="s6-contacts" id="site-contacts">
-    ${contacts.map((c) => html`<li class="s6-contact" data-inherited=${c.accountId === siteId ? "false" : "true"} data-primary=${c.isPrimary ? "true" : "false"}>
-      <span class="s6-contact__role">${ROLE_WORD[c.role]}${c.accountId !== siteId ? html` <span class="s6-muted">· ${TIER_WORD[c.accountTier]}: ${c.accountName}</span>` : null}</span>
-      <span class="s6-contact__name">${c.name}</span>
-      <span class="s6-contact__reach">
-        ${c.phone ? html`<a class="ac-link ac-num" href=${`tel:${c.phone.replace(/[^\d+]/g, "")}`}>${c.phone}</a>` : null}
-        ${c.email ? html`<a class="ac-link" href=${`mailto:${c.email}`}>${c.email}</a>` : null}
-      </span>
-      ${c.note ? html`<span class="s6-muted s6-contact__note">${c.note}</span>` : null}
-    </li>`)}
-  </ul>`;
+const contactsView = (ctx: ScreenContext, contacts: readonly ContactWire[], siteId: string): VNode => {
+  const add = async (e: Event) => {
+    e.preventDefault();
+    const form = e.currentTarget as HTMLFormElement;
+    const data = new FormData(form);
+    const name = String(data.get("name") ?? "").trim();
+    const phone = String(data.get("phone") ?? "").trim();
+    const email = String(data.get("email") ?? "").trim();
+    const note = String(data.get("note") ?? "").trim();
+    if (!name || (!phone && !email)) return;
+    await ctx.shell.gateway.setContact({
+      accountId: siteId,
+      name,
+      role: "site_manager",
+      ...(phone ? { phone } : {}),
+      ...(email ? { email } : {}),
+      ...(note ? { note } : {}),
+    });
+    ctx.store.invalidate("contacts.list");
+    form.reset();
+  };
+  const list = contacts.length === 0
+    ? html`<p class="s6-muted" id="site-contacts">No contacts on record yet. Add the on-site manager below.</p>`
+    : html`<ul class="s6-contacts" id="site-contacts">
+        ${contacts.map((c) => html`<li class="s6-contact" data-inherited=${c.accountId === siteId ? "false" : "true"} data-primary=${c.isPrimary ? "true" : "false"}>
+          <span class="s6-contact__role">${ROLE_WORD[c.role]}${c.accountId !== siteId ? html` <span class="s6-muted">· ${TIER_WORD[c.accountTier]}: ${c.accountName}</span>` : null}</span>
+          <span class="s6-contact__name">${c.name}</span>
+          <span class="s6-contact__reach">
+            ${c.phone ? html`<a class="ac-link ac-num" href=${`tel:${c.phone.replace(/[^\d+]/g, "")}`}>${c.phone}</a>` : null}
+            ${c.email ? html`<a class="ac-link" href=${`mailto:${c.email}`}>${c.email}</a>` : null}
+          </span>
+          ${c.note ? html`<span class="s6-muted s6-contact__note">${c.note}</span>` : null}
+        </li>`)}
+      </ul>`;
+  const form = html`<form class="s6-contact-form" onSubmit=${add}>
+    <label class="ac-field"><span>Name</span><input class="ac-input" name="name" required maxlength="120" /></label>
+    <label class="ac-field"><span>Phone</span><input class="ac-input" name="phone" type="tel" maxlength="40" /></label>
+    <label class="ac-field"><span>Email</span><input class="ac-input" name="email" type="email" maxlength="200" /></label>
+    <label class="ac-field"><span>Note</span><input class="ac-input" name="note" maxlength="500" /></label>
+    <button type="submit" class="ac-btn">Add contact</button>
+  </form>`;
+  return html`<div>${list}${form}</div>`;
 };
 
 const equipmentView = (ctx: ScreenContext, units: readonly EquipmentWire[]): VNode => {

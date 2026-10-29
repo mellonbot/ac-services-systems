@@ -360,7 +360,7 @@ test("IMAGERY: the GATEWAY fetches the roof from the configured provider and ans
   assert.equal(tileHits.length, 1, "nothing was fetched for a site that has no coordinates or is not in scope");
 });
 
-test("AT THE TABLE: a customer binding reads its own units and lines and zero rows on every job-hung table — and cannot write a unit or a contact", { skip }, async () => {
+test("AT THE TABLE: a customer binding reads its own units and lines and zero rows on every job-hung table — and cannot write a unit, but can write its own contact", { skip }, async () => {
   const b = customerBinding(amped, REGION_SOUTH, "location", austin, USER_FM_AUSTIN);
   assert.deepEqual((await asBinding(b, `SELECT id FROM equipment ORDER BY id`)).map((r) => r.id), [rtu1, rtu2, ef1].sort(), "Austin's units, not Reno's, not Other Co's — the table was open to all before 0009");
   assert.deepEqual((await asBinding(b, `SELECT id FROM invoice_lines`)).map((r) => r.id), [lineAustin], "one line of a two-line invoice");
@@ -372,13 +372,16 @@ test("AT THE TABLE: a customer binding reads its own units and lines and zero ro
   const rb = customerBinding(amped, REGION_WEST, "location", reno, USER_FM_RENO);
   assert.deepEqual((await asBinding(rb, `SELECT id FROM invoice_lines`)).map((r) => r.id), [lineReno]);
   assert.deepEqual((await asBinding(rb, `SELECT id FROM equipment`)).map((r) => r.id), [renoUnit]);
-  // Writing is ours: a raw INSERT under the customer's binding is refused AT THE TABLE, allowlist or no allowlist.
+  // Writing is ours for equipment and money: a raw INSERT under the customer's binding is refused AT THE TABLE.
+  // Contacts are the exception (0037, OPEN-S6-CONTACTS): the customer may write a contact at a node it can see.
   await assert.rejects(asBinding(b, `INSERT INTO equipment (org_id, region_id, site_id, kind, model) VALUES ($1, $2, $3, 'rtu', 'forged')`, [amped, REGION_SOUTH, austinRoof]), /row-level security/);
-  await assert.rejects(asBinding(b, `INSERT INTO account_contacts (org_id, region_id, account_id, name, phone) VALUES ($1, $2, $3, 'forged', '1')`, [amped, REGION_SOUTH, austinRoof]), /row-level security/);
+  const contact = await asBinding(b, `INSERT INTO account_contacts (org_id, region_id, account_id, name, phone) VALUES ($1, $2, $3, 'On-site', '555-0100') RETURNING id`, [amped, REGION_SOUTH, austinRoof]);
+  assert.equal(contact.length, 1, "customer may insert a contact at a visible node");
   await assert.rejects(asBinding(b, `UPDATE invoice_lines SET amount_minor = 1 WHERE id = $1`, [lineAustin]).then((r) => { if (r.length === 0) throw new Error("row-level security: zero rows updated"); }), /row-level security/);
-  // And through the gateway the surface is refused before any handler runs.
+  // And through the gateway equipment is still refused; contacts are admitted.
   await assert.rejects(fmAustin.gateway.registerEquipment({ siteId: austinRoof, kind: "rtu", model: "x" }), /S6|surface|not admitted|403/i);
-  await assert.rejects(fmAustin.gateway.setContact({ accountId: austinRoof, name: "x", phone: "1" }), /S6|surface|not admitted|403/i);
+  const set = await fmAustin.gateway.setContact({ accountId: austinRoof, name: "Gate", phone: "555-0101" });
+  assert.ok(set.id, "customer may set a contact through the gateway");
 });
 
 test("THE LEDGER'S ROWS: the customer's jobs at the site carry the units' service in their own words; sign out kills the token", { skip }, async () => {

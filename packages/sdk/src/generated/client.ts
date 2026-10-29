@@ -5,11 +5,39 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 114 today. There is no
+ * One method per operation in the catalogue — 128 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
 export const createGatewayClient = (transport: Transport) => ({
+  /** `POST /account/password` · mutation · bearer · surfaces: S2, S3, S4, S5, S6, S7, S8
+   *
+   * Change the caller's own password, given the current one. Wrong guesses count against sign-in's throttle. Ends every other session the person holds; this one stays. */
+  changePassword(input: OperationIO["account.changePassword"]["input"]): Promise<OperationIO["account.changePassword"]["output"]> {
+    return transport.request(OPERATIONS["account.changePassword"], input) as Promise<OperationIO["account.changePassword"]["output"]>;
+  },
+
+  /** `GET /account` · query · bearer · surfaces: S2, S3, S4, S5, S6, S7, S8
+   *
+   * The caller's own name, email, picture, status and when they last set their password. A device principal reads the technician behind the shift. */
+  myAccount(): Promise<OperationIO["account.me"]["output"]> {
+    return transport.request(OPERATIONS["account.me"], undefined) as Promise<OperationIO["account.me"]["output"]>;
+  },
+
+  /** `POST /account/avatar` · mutation · bearer · surfaces: S2, S3, S4, S5, S6, S7, S8
+   *
+   * Set or clear the caller's own picture: a JPEG or PNG by its own bytes, at most AVATAR_MAX_BYTES, as base64 in the body. Null clears it. */
+  setAccountAvatar(input: OperationIO["account.setAvatar"]["input"]): Promise<OperationIO["account.setAvatar"]["output"]> {
+    return transport.request(OPERATIONS["account.setAvatar"], input) as Promise<OperationIO["account.setAvatar"]["output"]>;
+  },
+
+  /** `POST /account` · mutation · bearer · surfaces: S2, S3, S4, S5, S6, S7, S8
+   *
+   * Set the caller's own display name, presence and one-line status. Fields left out are left as they are. */
+  updateMyAccount(input: OperationIO["account.update"]["input"]): Promise<OperationIO["account.update"]["output"]> {
+    return transport.request(OPERATIONS["account.update"], input) as Promise<OperationIO["account.update"]["output"]>;
+  },
+
   /** `POST /s2/accounts` · mutation · bearer · surfaces: S2
    *
    * Author a region node, location or site. region_id is an input for a region node only; below that it derives from the parent edge. D14 is checked for a location. */
@@ -108,9 +136,9 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["contacts.list"], input) as Promise<OperationIO["contacts.list"]["output"]>;
   },
 
-  /** `POST /s2/contacts` · mutation · bearer · surfaces: S2
+  /** `POST /s2/contacts` · mutation · bearer · surfaces: S2, S6
    *
-   * Record or replace a contact at a node: role, name, phone, email, note, primary. The customer's own edit of its contacts is OPEN-S6-CONTACTS; until it closes the office keeps the record. */
+   * Record or replace a contact at a node: role, name, phone, email, note, primary. The customer may edit a contact at a node in its own scope (0037, OPEN-S6-CONTACTS closed). */
   setContact(input: OperationIO["contacts.set"]["input"]): Promise<OperationIO["contacts.set"]["output"]> {
     return transport.request(OPERATIONS["contacts.set"], input) as Promise<OperationIO["contacts.set"]["output"]>;
   },
@@ -332,6 +360,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["jobs.addNote"], input) as Promise<OperationIO["jobs.addNote"]["output"]>;
   },
 
+  /** `POST /s5/jobs/media` · mutation · bearer · surfaces: S5
+   *
+   * One photo or the customer's signature onto a job this device's crew holds, as base64 in the body (0034). JPEG, PNG or HEIC by the file's own bytes — a signature is a PNG — at most PHOTO_MAX_BYTES, at most JOB_MEDIA_MAX per job. Idempotent by the device's mutationId: a retried upload answers with the row it already wrote. */
+  attachJobMedia(input: OperationIO["jobs.attachMedia"]["input"]): Promise<OperationIO["jobs.attachMedia"]["output"]> {
+    return transport.request(OPERATIONS["jobs.attachMedia"], input) as Promise<OperationIO["jobs.attachMedia"]["output"]>;
+  },
+
   /** `GET /jobs/conversation` · query · bearer · surfaces: S6
    *
    * What a customer reads about its job beyond the state: the updates dispatch PUBLISHED and the thread. A draft, an internal note, a crew or a photo key is not here — RLS (0016) returns only published updates to a customer. */
@@ -348,7 +383,7 @@ export const createGatewayClient = (transport: Transport) => ({
 
   /** `GET /s3/jobs/detail` · query · bearer · surfaces: S3, S4
    *
-   * One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — and the customer thread. RLS decides; nothing here filters. */
+   * One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — the customer thread, and how the field wrapped it up (0034). RLS decides; nothing here filters. */
   jobDetail(input: OperationIO["jobs.detail"]["input"]): Promise<OperationIO["jobs.detail"]["output"]> {
     return transport.request(OPERATIONS["jobs.detail"], input) as Promise<OperationIO["jobs.detail"]["output"]>;
   },
@@ -402,6 +437,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["jobs.transition"], input) as Promise<OperationIO["jobs.transition"]["output"]>;
   },
 
+  /** `POST /s5/jobs/wrap-up` · mutation · bearer · surfaces: S5
+   *
+   * Close a visit from the field (0034): complete the job, in progress, and record how — Complete or Quote needed — with the notes, the signature or why there is none, and for a quote the RTU measurements. Every rule (WRAP_UP_MIN_PHOTOS, QUOTE_MIN_PHOTOS, the measurements) is checked against the media already uploaded, not the device's word. Idempotent by wrapUpId. A quote's QUOTE job is opened by the worker, not here. */
+  wrapUpJob(input: OperationIO["jobs.wrapUp"]["input"]): Promise<OperationIO["jobs.wrapUp"]["output"]> {
+    return transport.request(OPERATIONS["jobs.wrapUp"], input) as Promise<OperationIO["jobs.wrapUp"]["output"]>;
+  },
+
   /** `POST /s2/leads/convert` · mutation · bearer · surfaces: S2
    *
    * A lead becomes a residential customer: customers.createResidential with the lead's name and contact, and the lead records the home it became — once; a second conversion is refused, naming the home. */
@@ -432,9 +474,44 @@ export const createGatewayClient = (transport: Transport) => ({
 
   /** `GET /media` · query · bearer · surfaces: S2, S3, S4, S6
    *
-   * One stored photo, returned inline as a data: URL — read through the gateway under the same row security as the request it was sent with. A surface never receives a bucket URL. */
+   * One stored photo, returned inline as a data: URL — read through the gateway under the same row security as the request it was sent with. A job's photos and signature (0034) are the office's alone. A surface never receives a bucket URL. */
   getMedia(input: OperationIO["media.get"]["input"]): Promise<OperationIO["media.get"]["output"]> {
     return transport.request(OPERATIONS["media.get"], input) as Promise<OperationIO["media.get"]["output"]>;
+  },
+
+  /** `GET /messages/directory` · query · bearer · surfaces: S2, S3, S4, S5
+   *
+   * Every other active AC Services employee — name, the presence they set, and their roles. Customers, subcontractors and vendors are not in it. */
+  listColleagues(): Promise<OperationIO["messages.directory"]["output"]> {
+    return transport.request(OPERATIONS["messages.directory"], undefined) as Promise<OperationIO["messages.directory"]["output"]>;
+  },
+
+  /** `POST /messages/dismiss` · mutation · bearer · surfaces: S2, S3, S4, S5
+   *
+   * Dismiss the caller's own copy of a message. It leaves the corner and stays in the recent list. */
+  dismissMessage(input: OperationIO["messages.dismiss"]["input"]): Promise<OperationIO["messages.dismiss"]["output"]> {
+    return transport.request(OPERATIONS["messages.dismiss"], input) as Promise<OperationIO["messages.dismiss"]["output"]>;
+  },
+
+  /** `GET /messages/pending` · query · bearer · surfaces: S2, S3, S4, S5
+   *
+   * Messages sent to the caller that they have not dismissed. What the corner pop-ups show. A person's own send is not in this list. */
+  pendingMessages(): Promise<OperationIO["messages.pending"]["output"]> {
+    return transport.request(OPERATIONS["messages.pending"], undefined) as Promise<OperationIO["messages.pending"]["output"]>;
+  },
+
+  /** `GET /messages/recent` · query · bearer · surfaces: S2, S3, S4, S5
+   *
+   * The caller's recent messages, sent and received, newest first. */
+  recentMessages(): Promise<OperationIO["messages.recent"]["output"]> {
+    return transport.request(OPERATIONS["messages.recent"], undefined) as Promise<OperationIO["messages.recent"]["output"]>;
+  },
+
+  /** `POST /messages` · mutation · bearer · surfaces: S2, S3, S4, S5
+   *
+   * Send a message to one AC Services employee, or to every active AC Services employee. Customers, subcontractors and vendors are not recipients. The sender does not receive a copy of their own. */
+  sendMessage(input: OperationIO["messages.send"]["input"]): Promise<OperationIO["messages.send"]["output"]> {
+    return transport.request(OPERATIONS["messages.send"], input) as Promise<OperationIO["messages.send"]["output"]>;
   },
 
   /** `POST /s2/organizations` · mutation · bearer · surfaces: S2
@@ -470,6 +547,13 @@ export const createGatewayClient = (transport: Transport) => ({
    * Mark a succeeded payment returned (a bounced check, an ACH return) or refunded, with the reason. The row stays; the invoice's status is re-derived without it. Finance and the principals. */
   returnPayment(input: OperationIO["payments.return"]["input"]): Promise<OperationIO["payments.return"]["output"]> {
     return transport.request(OPERATIONS["payments.return"], input) as Promise<OperationIO["payments.return"]["output"]>;
+  },
+
+  /** `POST /webhooks/payments` · system · none · surfaces: S2
+   *
+   * Processor webhook entry point (OPEN-PAYMENTS scaffold). Verifies a signature when AC_PAYMENT_WEBHOOK_SECRET is set and records a succeeded payment the same way the office does. Unset, refuses. Y1–Y5 still decide the real processor and merchant of record. */
+  paymentWebhook(input: OperationIO["payments.webhook"]["input"]): Promise<OperationIO["payments.webhook"]["output"]> {
+    return transport.request(OPERATIONS["payments.webhook"], input) as Promise<OperationIO["payments.webhook"]["output"]>;
   },
 
   /** `POST /s7/procurement/pos/acknowledge` · mutation · bearer · surfaces: S7
@@ -547,6 +631,13 @@ export const createGatewayClient = (transport: Transport) => ({
    * The projects install work is opened under — who sold each, and how much install work sits under it — and the foremen a new one may be sold by. Optionally one customer's. */
   listProjects(input: OperationIO["projects.list"]["input"]): Promise<OperationIO["projects.list"]["output"]> {
     return transport.request(OPERATIONS["projects.list"], input) as Promise<OperationIO["projects.list"]["output"]>;
+  },
+
+  /** `GET /s5/punches/mine` · query · bearer · surfaces: S5
+   *
+   * The signed-in technician's own shift punches between two instants (at most 35 days apart), oldest first — every shift and every device they punched on, and nobody else's (0033). What the timesheet pairs into spans. */
+  myPunches(input: OperationIO["punches.mine"]["input"]): Promise<OperationIO["punches.mine"]["output"]> {
+    return transport.request(OPERATIONS["punches.mine"], input) as Promise<OperationIO["punches.mine"]["output"]>;
   },
 
   /** `GET /network/rate-cards` · query · bearer · surfaces: S2, S4, S8
@@ -666,6 +757,13 @@ export const createGatewayClient = (transport: Transport) => ({
    * The firm states that a statement is wrong, and why: issued or acknowledged → disputed, with the reason on the row. The office reads it on S2 (settlement.disputed on OFC). What happens next is WS-E's ladder, not S8's. */
   disputeSettlement(input: OperationIO["settlements.dispute"]["input"]): Promise<OperationIO["settlements.dispute"]["output"]> {
     return transport.request(OPERATIONS["settlements.dispute"], input) as Promise<OperationIO["settlements.dispute"]["output"]>;
+  },
+
+  /** `POST /s2/money/settlements/issue` · mutation · bearer · surfaces: S2
+   *
+   * Issue a draft statement to a firm: draft → issued, stamped. The office's step that makes a settlement visible to the firm (WS-E). Refused if not a draft. */
+  issueSettlement(input: OperationIO["settlements.issue"]["input"]): Promise<OperationIO["settlements.issue"]["output"]> {
+    return transport.request(OPERATIONS["settlements.issue"], input) as Promise<OperationIO["settlements.issue"]["output"]>;
   },
 
   /** `GET /money/settlements/lines` · query · bearer · surfaces: S2, S4, S8
@@ -812,4 +910,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);
+export const GENERATED_METHODS = Object.freeze(["changePassword", "myAccount", "setAccountAvatar", "updateMyAccount", "createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "attachJobMedia", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "wrapUpJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "listColleagues", "dismissMessage", "pendingMessages", "recentMessages", "sendMessage", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "paymentWebhook", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "myPunches", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "issueSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);

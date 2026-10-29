@@ -74,7 +74,7 @@ const hold = async (ctx: ScreenContext, call: Call): Promise<void> => {
       siteId: call.siteId, priority: call.priority === "pm" ? "routine" : call.priority, description: heldDescription(call),
     });
     state.value = { busy: false, refusal: null, call: null };
-    ctx.store.notice.value = [`Call held as request ${shortRef(out.id)}. It waits in Intake until Contracts sets the missing term, then opens from there.`];
+    ctx.store.notice.value = [`Call held as request ${shortRef(out.id)}. It waits in Portal requests until Contracts sets the missing term, then opens from there.`];
     ctx.store.invalidate("serviceRequests.list");
     ctx.router.navigate("intake", {});
   } catch (e) {
@@ -157,7 +157,7 @@ const form = (ctx: ScreenContext, sites: readonly SiteWire[]): VNode => {
 export const newJob: Screen = (ctx) => {
   const sites = ctx.store.read(keyOf("sites.list", {}), () => ctx.shell.gateway.listSites());
   return html`<section class="s3-new-job">
-    ${pageHead("New job", "Open a job for a customer who called in. Requests sent from the portal are answered from Intake.")}
+    ${pageHead("New job", "Open a job for a customer who called in. Requests sent from the portal are answered from Portal requests.")}
     ${whenReady(ctx, sites.value, (out) => form(ctx, out.sites), () => ctx.store.invalidate("sites.list"))}
   </section>`;
 };

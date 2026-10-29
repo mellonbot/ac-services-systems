@@ -26,11 +26,18 @@ export const users = operationalTable("users", {
     { name: "external_idp_subject", type: "text", nullable: true, comment: "Customer IdP subject — S6 federates, it does not hold passwords." },
     { name: "password_hash", type: "text", nullable: true, comment: "scrypt, internal + subcontractor only." },
     { name: "active", type: "boolean", default: "true" },
+    // 0032 — what a person sets about themselves from the Account button.
+    { name: "presence", type: "text", default: "'available'", check: "presence IN ('available','busy','away','off')" },
+    { name: "status_note", type: "text", nullable: true, check: "char_length(status_note) <= 80" },
+    { name: "avatar", type: "bytea", nullable: true, check: "octet_length(avatar) <= 65536", comment: "A small square JPEG or PNG the browser scaled before sending." },
+    { name: "avatar_type", type: "text", nullable: true, check: "avatar_type IN ('image/jpeg','image/png')" },
+    { name: "password_changed_at", type: "timestamptz", nullable: true },
   ],
   indexes: [["namespace", "email"], ["firm_id"], ["scope_tier", "scope_id"]],
   uniques: [["email"]],
   constraints: [
     { name: "users_subcontractor_have_firm", sql: "CHECK ((namespace = 'subcontractor') = (firm_id IS NOT NULL))" },
+    { name: "users_avatar_has_type", sql: "CHECK ((avatar IS NULL) = (avatar_type IS NULL))" },
   ],
 });
 
@@ -75,4 +82,33 @@ export const sessions = operationalTable("sessions", {
     { name: "surface_id", type: "text" },
   ],
   indexes: [["principal_id"], ["expires_at"]],
+});
+
+/**
+ * 0035 — a message from one company person to another, or to every active
+ * company login. The row is the sender's: their org and home region. A
+ * customer, a vendor and a firm are not senders and not recipients.
+ * `recipient_id` is set only for a direct message; an everyone message names
+ * nobody, and the copies live in staff_message_receipts.
+ */
+export const staff_messages = operationalTable("staff_messages", {
+  columns: [
+    { name: "sender_id", type: "uuid", references: "users(id)" },
+    { name: "audience", type: "text", check: "audience IN ('direct','everyone')" },
+    { name: "recipient_id", type: "uuid", nullable: true, references: "users(id)" },
+    { name: "body", type: "text", check: "length(btrim(body)) BETWEEN 1 AND 2000" },
+  ],
+  indexes: [["sender_id", "created_at"]],
+  constraints: [{ name: "staff_messages_direct_names_one", sql: "CHECK ((audience = 'direct') = (recipient_id IS NOT NULL))" }],
+});
+
+/** One copy of a staff message, for the person it was sent to. Dismissing it is the only change the row ever takes. */
+export const staff_message_receipts = operationalTable("staff_message_receipts", {
+  columns: [
+    { name: "message_id", type: "uuid", references: "staff_messages(id)" },
+    { name: "user_id", type: "uuid", references: "users(id)" },
+    { name: "dismissed_at", type: "timestamptz", nullable: true },
+  ],
+  indexes: [["user_id", "dismissed_at"], ["message_id"]],
+  uniques: [["message_id", "user_id"]],
 });

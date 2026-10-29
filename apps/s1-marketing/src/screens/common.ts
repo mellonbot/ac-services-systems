@@ -5,6 +5,7 @@ import type { Store, Resource } from "../state.ts";
 import { keyOf } from "../state.ts";
 import type { LeadBuffer } from "../buffer.ts";
 import type { SCREENS } from "../screens.ts";
+import { resourceView } from "../../../../packages/ui/src/screen-helpers.ts";
 export { linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
 
 /** What every S1 screen receives. A screen is a function of this and its route params — nothing else. */
@@ -31,13 +32,11 @@ export const coverage = (ctx: ScreenContext): Resource<CoverageOutput> =>
  * of the public rather than for an operator: "Loading…" is fine, and a
  * refusal is a sentence about us, not a code.
  */
-export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) => VNode, retry?: () => void): VNode => {
-  switch (r.state) {
-    case "loading": return html`<p class="s1-loading" role="status">Loading…</p>`;
-    case "ready": return view(r.value);
-    case "refused": return refusalView(ctx, r.refusal, retry && retryable(r.refusal) ? [{ label: "Try again", onSelect: retry, primary: true }] : []);
-  }
-};
+export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) => VNode, retry?: () => void): VNode =>
+  resourceView(r, view, {
+    loadingClass: "s1-loading",
+    refused: (refusal) => refusalView(ctx, refusal, retry && retryable(refusal) ? [{ label: "Try again", onSelect: retry, primary: true }] : []),
+  });
 
 /**
  * A refusal, as a stranger reads it. NOT RefusalCard — that component is

@@ -11,6 +11,9 @@
  *
  * Read-only. `node tools/ci/audit-msa-terms.ts [YYYY-MM-DD]`, as-of defaults
  * to today. Exits 1 when anything is listed, so a run reads green or red.
+ *
+ * With defaults on every parent-authorable non-attach term, the first list is
+ * empty by construction.
  */
 import { execFileSync } from "node:child_process";
 import { REQUIRED_AT_ACTIVATION } from "../../packages/contracts/src/terms.ts";
@@ -32,24 +35,6 @@ const psql = (sql: string): string =>
     stdio: ["ignore", "pipe", "inherit"],
   });
 
-const required = REQUIRED_AT_ACTIVATION.map((k) => `('${k}')`).join(", ");
-
-const missingTerms = `
-  WITH req(term_key) AS (VALUES ${required}),
-  msa AS (
-    SELECT c.id, c.org_id, c.scope_id, o.name
-      FROM contracts c JOIN organizations o ON o.id = c.org_id
-     WHERE c.kind = 'msa' AND c.state = 'active' AND c.effective @> DATE '${asOf}'
-  )
-  SELECT m.name AS organization, m.org_id, m.id AS msa_id, string_agg(r.term_key, ', ' ORDER BY r.term_key) AS missing_at_parent
-    FROM msa m CROSS JOIN req r
-   WHERE NOT EXISTS (
-     SELECT 1 FROM contract_term_overrides t
-      WHERE t.org_id = m.org_id AND t.scope_tier = 'parent' AND t.scope_id = m.scope_id
-        AND t.term_key = r.term_key AND t.effective @> DATE '${asOf}')
-   GROUP BY m.name, m.org_id, m.id
-   ORDER BY m.name`;
-
 const noMsa = `
   SELECT o.name AS organization, o.id AS org_id, o.segment, count(*) AS sites
     FROM organizations o JOIN accounts a ON a.org_id = o.id AND a.tier = 'site'
@@ -62,9 +47,34 @@ const noMsa = `
 
 const rows = (out: string): number => Math.max(0, out.trim().split("\n").length - 2);
 
-console.log(`as of ${asOf}; required at the parent: ${REQUIRED_AT_ACTIVATION.join(", ")}\n`);
-const a = psql(missingTerms);
-console.log(`Active MSAs missing required terms (${rows(a)}):\n${a}`);
+console.log(`as of ${asOf}; required at the parent: ${REQUIRED_AT_ACTIVATION.join(", ") || "(none)"}\n`);
+
+let missingCount = 0;
+if (REQUIRED_AT_ACTIVATION.length === 0) {
+  console.log("Active MSAs missing required terms (0):\n(no terms require an explicit statement)\n");
+} else {
+  const required = REQUIRED_AT_ACTIVATION.map((k) => `('${k}')`).join(", ");
+  const missingTerms = `
+    WITH req(term_key) AS (VALUES ${required}),
+    msa AS (
+      SELECT c.id, c.org_id, c.scope_id, o.name
+        FROM contracts c JOIN organizations o ON o.id = c.org_id
+       WHERE c.kind = 'msa' AND c.state = 'active' AND c.effective @> DATE '${asOf}'
+    )
+    SELECT m.name AS organization, m.org_id, m.id AS msa_id, string_agg(r.term_key, ', ' ORDER BY r.term_key) AS missing_at_parent
+      FROM msa m CROSS JOIN req r
+     WHERE NOT EXISTS (
+       SELECT 1 FROM contract_term_overrides t
+        WHERE t.org_id = m.org_id AND t.scope_tier = 'parent' AND t.scope_id = m.scope_id
+          AND t.term_key = r.term_key AND t.effective @> DATE '${asOf}')
+     GROUP BY m.name, m.org_id, m.id
+     ORDER BY m.name`;
+  const a = psql(missingTerms);
+  missingCount = rows(a);
+  console.log(`Active MSAs missing required terms (${missingCount}):\n${a}`);
+}
+
 const b = psql(noMsa);
-console.log(`Customers with sites and no MSA in effect (${rows(b)}):\n${b}`);
-process.exit(rows(a) + rows(b) > 0 ? 1 : 0);
+const noMsaCount = rows(b);
+console.log(`Customers with sites and no MSA in effect (${noMsaCount}):\n${b}`);
+process.exit(missingCount + noMsaCount > 0 ? 1 : 0);

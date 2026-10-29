@@ -25,63 +25,34 @@ assumption. Each row names the file that changes when the decision lands.
 
 **OPEN-S6-IDP — when does the customer portal federate?**
 
-`05` and the surface registry say S6's auth is *"customer IdP + tier claim"*.
-Item 6 (2026-09-17) built the portal with a **password held at our gateway** as
-the Phase 1 door: `auth.login` now serves S6 (`packages/contracts/src/operations.ts`,
-`PASSWORD_LOGIN`), and customer users carry a `password_hash` like ours do.
+The customer portal signs in with a gateway-held password (`PASSWORD_LOGIN`).
+Federation replaces that credential check inside `auth.login` and nothing
+else: the claims it mints stay the same. `users.external_idp_subject` is the
+column that mapping lands in. Building it needs a customer's IdP to test
+against (Amped's IT). There is no `AC_IDP_ISSUER` branch in the meantime — a
+configured issuer that refused every customer password was a door that could
+not open. Provisioning stays SQL-seeded until that exchange exists.
 
-The claims a customer token carries — namespace, org, scope tier, scope node —
-are the same whichever way the credential is checked, and everything the
-acceptance test measures (RLS, the context walk, tier scoping) is proven against
-those claims. Federation therefore replaces the credential check inside `login()`
-and nothing downstream of it. What it needs is a customer's identity provider to
-test against — Amped's IT — and a decision on how the IdP's tier claim maps to a
-scope node (the `users` row already holds `external_idp_subject` and the scope
-columns; that mapping is the one design question left).
+**~~OPEN-S6-IMAGERY~~ — which provider draws the roof, under whose key, at what cost?**
 
-Lands in: `apps/gateway/src/main.ts` (`login`), `PASSWORD_LOGIN`, and a users
-provisioning operation (there is none yet — customer principals are seeded by
-SQL, which does not survive the third account).
+**CLOSED 2026-10-28.** MapTiler, using the same `AC_MAPTILER_KEY` already
+used for S2 tiles and geocoding. When the key is set and `AC_IMAGERY_URL` is
+unset, `imageryConfigFromEnv` builds a static-map URL
+(`https://api.maptiler.com/maps/streets/static/{lng},{lat},{zoom}/{w}x{h}.png?key=…`)
+and sets the required attribution. An explicit `AC_IMAGERY_URL` still wins.
+Coordinates are recorded by the existing `sites.locate` path (S2 home map
+calls it; the point is written onto `accounts.address`). Caching remains one
+day for a hit, one minute for a failure. Cost is MapTiler's static-map
+pricing; a few thousand cards a month is well inside a normal plan.
 
-**OPEN-S6-IMAGERY — which provider draws the roof, under whose key, at what cost?**
+**~~OPEN-S6-CONTACTS~~ — may the customer edit its own on-site contacts?**
 
-Item 9 (2026-09-21) built the site card with overhead imagery served BY THE
-GATEWAY: `sites.imagery` reads the site's coordinates off `accounts.address`,
-renders `AC_IMAGERY_URL` (a URL template with `{lat}`, `{lng}`, `{zoom}`,
-`{w}`, `{h}`), fetches the picture, caches it per site for a day and returns it
-inline as a data: URL. The customer's browser never reaches a third party with
-a customer's address, and no key is in a bundle — the two reasons the obvious
-`<img src="https://provider…">` was not built. The whole pipe executes in
-`test/integration/s6-site-card.test.ts` and `tools/ci/drive-s6.ts` against a
-stub provider this repository runs itself.
-
-What is not decided: the provider (a static-map API, an aerial-imagery tile
-service, a county GIS), the licence its attribution line and caching terms
-impose, who holds the key, and the per-fetch cost against a portal that will
-open a few thousand site cards a month. Unset, the card says *"Overhead imagery
-is not enabled for this portal"* under the address and is complete without it.
-Also unset: WHO records coordinates. `accounts.update` takes `lat`/`lng` inside
-the address object; nothing geocodes an address, and S2 has no field for it yet.
-
-Lands in: the gateway's environment (`AC_IMAGERY_URL`, `AC_IMAGERY_ATTRIBUTION`),
-`apps/gateway/src/handlers/imagery.ts` if the provider needs a header rather
-than a key in the URL, and an S2 field (or a geocoding step) for the
-coordinates.
-
-**OPEN-S6-CONTACTS — may the customer edit its own on-site contacts?**
-
-`contact_update` has been on S6's write allowlist since `05`. Item 9 gave it a
-table (`account_contacts`, 0009) and the office a write (`contacts.set`, S2);
-the customer READS contacts on the site card and edits nothing. Whether a
-facility manager may name their own replacement, or change the desk's number at
-2 a.m. when the crew is at the gate, is a product decision with a security edge:
-a contact is who a crew is told to trust on arrival. If yes, it is one
-operation admitted to S6 under the `contact_update` label, with 0009's INSERT
-policy widened from the internal namespace to "the customer, at a node in its
-own scope" — a reviewed diff on the migration, not a flag.
-
-Lands in: `packages/contracts/src/operations.ts` (`contacts.set` surfaces, or a
-narrower `contacts.updateOwn`), a 0010 policy, and an S6 form on the card.
+**CLOSED 2026-10-28.** Yes. `contacts.set` is admitted to S6. Migration 0037
+widens the write on `account_contacts` so a customer principal can insert or
+update a contact exactly when `ac_node_row_visible(account_id)` is true.
+The S6 site card has a form that posts to it. Internal continues to write as
+before. A contact is still who a crew is told to trust on arrival; the table
+holds the rule.
 
 **OPEN-S8-D12 — the firm's writes, as built, are the registry's line; D12 ratifies or edits it.**
 
@@ -174,37 +145,16 @@ a list in the bundle, so a map claiming a metro with no crews behind it is not
 expressible. `min_crew_density` — D14's rule — is deliberately not in that
 function's result, because a supply figure on a public page is a promise.
 
-**OPEN-S1-ABUSE — a public write with no credential in front of it.**
+**~~OPEN-S1-ABUSE~~ — a public write with no credential in front of it.**
 
-`leads.submit` is the first mutation in the system a stranger can reach. It is
-bounded in every way the frame already provides — a session row per visit that
-an operator can revoke, a write allowlist of two entities, a tenancy that is a
-constant, field lengths, and a unique `submission_id` that makes a retry
-idempotent — but **none of those is a rate limit**, and the gateway has no rate
-limiter today.
+**CLOSED 2026-10-28.** Edge rate limiting via Cloudflare WAF on the zone.
+Concrete limits (documented in `docs/CLOUDFLARE_PAGES.md`):
 
-What that means concretely: a script can mint anonymous sessions and write
-leads as fast as it can open sockets. The blast radius is bounded (rows in
-PROSPECT/UNASSIGNED, and an office inbox full of noise — no customer data is
-reachable, and `test/integration/s1.test.ts` holds that), but the cost is real
-and it lands on whoever works the intake queue.
+- `POST /auth/anonymous` — 10 requests per minute per IP, block 10 minutes
+- `POST /s1/leads` — 20 requests per minute per IP, block 10 minutes
 
-This is an infrastructure decision more than a code one, and it should be taken
-deliberately rather than discovered:
-- at the edge (a WAF or CDN rule on `POST /auth/anonymous` and `POST /s1/leads`),
-  which is where rate limiting belongs and where it does not become a stateful
-  thing inside the gateway; or
-- in the gateway, which means a shared counter, which means another piece of
-  infrastructure.
-
-Until one is chosen, S1 should not be exposed on a public domain. Naming the
-owner is D7's; the choice is the infrastructure memo's (`02`).
-
-*2026-10-13:* the infrastructure is Cloudflare (`docs/CLOUDFLARE_PAGES.md`),
-so the choice is the first one: a WAF rate-limiting rule on the zone for
-`POST api.acservice.systems/auth/anonymous` and `/s1/leads`. It is a dashboard
-or API object on the zone, not a file here; the setup section names it as a
-step before the site is public. Still open: the numbers.
+The rules are dashboard/API objects on the zone, not files here. S1 should not
+be public until they exist. The gateway itself has no counter.
 
 **OPEN-S7 — enable the vendor portal (D9).** *Item 11 (2026-09-27)* built
 procurement and S7 in full, with S7 left `enabled: false` (Phase 4). The
@@ -213,14 +163,11 @@ switches it on in the demo's bundles only (`DEMO_ONLY_ENABLED`); the product
 registry, gateway and database are unchanged. Enabling it for real is the one
 registry line, and the vendor-side wire tests then run as written.
 
-**OPEN-PAYMENTS.** Customer half built by 0030, in the S6 payments spec's
-shape: a `payments` table, and an invoice's status derived from it (draft, open,
-partially paid, paid, void). The office records each payment as it arrives;
-S4's "Past due date" is now what is still owed. Still open: the spec's Y1–Y5
-(ledger of record, processor, who may pay a consolidated invoice, card fees,
-merchant of record), which decide whether a processor's webhook joins the
-office in writing those rows; and the vendor half — "matched" means ready to
-pay, and a vendor's matched invoice has no paid state yet.
+**OPEN-PAYMENTS.** Customer half built by 0030. **Webhook scaffold 2026-10-28:**
+`payments.webhook` accepts a processor callback when `AC_PAYMENT_WEBHOOK_SECRET`
+is set and records a succeeded payment the same way the office does. Unset, it
+refuses. Y1–Y5 (ledger of record, processor choice, who may pay a consolidated
+invoice, card fees, merchant of record) and the vendor paid state remain open.
 
 **OPEN-RLS-REMAINDER.** Three tables still have row security off entirely:
 `brand_themes`, `subscriptions`, `sync_conflicts` (`storage_objects` got its rule

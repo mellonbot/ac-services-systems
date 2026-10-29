@@ -35,7 +35,6 @@ export const S3_CSS = `
 .dispatch-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);padding-inline:var(--space-4)}
 .dispatch-header__tools{display:flex;align-items:center;gap:var(--space-2);margin-inline-start:auto}
 .dispatch-header__who{color:var(--color-text-muted);font-family:var(--font-label);font-size:var(--text-sm)}
-.dispatch-header__logout{min-height:var(--control-height);appearance:none;border:1px solid var(--color-border-hard);border-radius:var(--radius-control);background:var(--color-text);color:var(--color-surface);padding:var(--space-2) var(--space-3);font-family:var(--font-label);font-size:var(--text-sm);font-weight:600;cursor:pointer}
 .dispatch-dashboard__date-controls{display:flex;gap:var(--space-2);align-items:center}
 .dispatch-dashboard__date{min-height:var(--control-height);appearance:none;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text-muted);padding:var(--space-2) var(--space-3);font-family:var(--font-label);font-size:var(--text-sm);cursor:pointer}
 .dispatch-dashboard__date.is-active{background:var(--color-surface-sunken);color:var(--color-text);border-color:var(--color-border-hard)}
@@ -144,6 +143,10 @@ export const S3_CSS = `
 .s3-photos{display:flex;flex-wrap:wrap;gap:var(--space-2)}
 .s3-photo{display:flex;flex-direction:column;gap:2px;width:6.5rem;margin:0}
 .s3-photo__well{display:block;height:3.5rem;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface-sunken)}
+img.s3-photo__well{width:100%;object-fit:cover}
+.s3-wrapup{display:flex;flex-direction:column;gap:var(--space-2)}
+.s3-wrapup p{margin:0}
+.s3-wrapup__signature{display:block;max-width:100%;height:5rem;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
 .s3-photo figcaption{display:flex;flex-direction:column;font-size:var(--text-sm);min-width:0}
 .s3-photo figcaption strong,.s3-photo figcaption span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .s3-photo figcaption span{color:var(--color-text-muted)}
@@ -228,4 +231,23 @@ export const S3_CSS = `
 .s3-intake__view img{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain;border-radius:var(--radius-control);background:var(--color-surface-sunken)}
 .s3-intake__view figcaption{font-size:var(--text-sm);color:var(--color-text-muted)}
 @media (max-width:1100px){.s3-intake__layout[data-viewing="true"]{grid-template-columns:minmax(0,1fr)}}
+/* ---- Mobile surfaces (Rankine prototype alignment) ---- */
+@media (max-width: 640px) {
+  .s3-app { gap: var(--space-2); padding-bottom: var(--space-4); }
+  .dispatch-header { flex-direction: column; align-items: stretch; gap: var(--space-2); padding: var(--space-3); }
+  .dispatch-header__tools { margin-inline-start: 0; justify-content: space-between; }
+  .s3-buckets { grid-template-columns: 1fr; }
+  .s3-detail-grid { grid-template-columns: 1fr; }
+  .s3-comms { grid-template-columns: 1fr; }
+  .s3-visit { grid-template-columns: 1fr; }
+  .s3-visit__date { align-items: flex-start; padding-top: 0; }
+  .dispatch-board__row { grid-template-columns: 1fr; }
+  .dispatch-board__tech { border-right: 0; border-bottom: 1px solid var(--color-border); }
+  .s3-act { min-height: 44px; }
+  .s3-confirm { max-width: 100%; }
+}
+@media (max-width: 480px) {
+  .dispatch-board__hours { display: none; }
+  .dispatch-board__header { grid-template-columns: 1fr; }
+}
 `;

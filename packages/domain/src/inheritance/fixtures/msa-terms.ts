@@ -1,7 +1,6 @@
-import { REQUIRED_AT_ACTIVATION } from "../../../../contracts/src/terms.ts";
 import type { AuthorOverrideInput } from "../../../../contracts/src/operations.ts";
 
-/** A value for every term an MSA must state before it goes live. Fixtures override the ones they test. */
+/** Commercial defaults used by fixtures. Matches the register fallbacks so resolution is identical whether the override is written or not. */
 export const MSA_TERMS: Readonly<Record<string, unknown>> = Object.freeze({
   sla_response: "4_hour",
   sla_credit_pct: 10,
@@ -11,13 +10,13 @@ export const MSA_TERMS: Readonly<Record<string, unknown>> = Object.freeze({
   diagnostic_data_rights_reserved: true,
 });
 
-/** Authors every activation-required term at the MSA's parent node, so the fixture can then activate it. */
+/** Authors the commercial default terms at the MSA's parent node so fixtures that assert on override rows still see them. */
 export const stateMsaTerms = async (
   gateway: { authorTermOverride(input: AuthorOverrideInput): Promise<unknown> },
   at: { readonly contractId: string; readonly orgId: string; readonly regionId: string; readonly effectiveFrom: string },
   values: Readonly<Record<string, unknown>> = {},
 ): Promise<void> => {
-  for (const termKey of REQUIRED_AT_ACTIVATION) {
+  for (const termKey of Object.keys(MSA_TERMS)) {
     await gateway.authorTermOverride({
       contractId: at.contractId, scopeTier: "parent", scopeId: at.orgId, termKey,
       termValue: termKey in values ? values[termKey] : MSA_TERMS[termKey],

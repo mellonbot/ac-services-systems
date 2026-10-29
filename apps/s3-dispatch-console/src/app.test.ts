@@ -351,7 +351,7 @@ test("New job: a site whose agreement has no response time says so in plain word
   assert.equal(defaultWindow(String(held!["description"]), new Date()).start, "2026-10-24T08:00", "opened from Intake, the form starts on the day the caller asked for");
 });
 
-test("the dark dispatch bar is the only navigation, and its Sign out ends the session at the gateway", async () => {
+test("the dark dispatch bar is the only navigation, and Sign out ends the session at the gateway", async () => {
   const { app, gateway } = await ready({ [OPERATIONS["auth.logout"].path]: { status: 200, body: { ok: true, sessionId: "sess-1" } } });
   await settle();
   const page = render(app.view());
@@ -359,7 +359,7 @@ test("the dark dispatch bar is the only navigation, and its Sign out ends the se
   assert.equal(page.includes('class="ac-nav"'), false, "the old nav above it is gone");
   assert.match(page, /<nav class="ac-seg" aria-label="Dispatch navigation"><a class="ac-seg__item" href="[^"]*\/board" data-current="true" aria-current="page"/, "the bar's nav is the segmented control, the board raised");
   assert.match(page, /dispatcher · AC Services/, "who is signed in stays on screen");
-  const signOut = nodesIn(app.view()).filter((n) => n.props?.class === "dispatch-header__logout");
+  const signOut = nodesIn(app.view()).filter((n) => n.props?.class === "ac-nav__signout");
   assert.equal(signOut.length, 1, "one Sign out");
   await (signOut[0]!.props!.onClick as () => Promise<void>)();
   await settle();
@@ -524,7 +524,7 @@ test("INTAKE: the tab is in the header; requests read from serviceRequests.list,
     [OPERATIONS["serviceRequests.list"].path]: { status: 200, body: { requests: REQUESTS } },
     [OPERATIONS["media.get"].path]: (init) => ({ status: 200, body: { id: "x", contentType: "image/png", image: `data:image/png;base64,${init ? "QQ==" : ""}` } }),
   });
-  assert.match(render(app.view()), />Intake<\/a>/, "a tab, beside the board");
+  assert.match(render(app.view()), />Portal requests<\/a>/, "a tab, beside the board");
   app.router.navigate("intake", {});
   render(app.view()); await settle(); await settle();
   let out = render(app.view());
@@ -606,7 +606,7 @@ test("a board bar is a link inside S3 — under /dispatch, through the router �
   assert.equal(pushed.at(-1), `/dispatch/jobs/${JOB_ASSIGNED}`);
 });
 
-const detailOf = (job: JobWire) => ({ job, contact: null, visits: [], media: [], notes: [], updates: [], messages: [] });
+const detailOf = (job: JobWire) => ({ job, contact: null, visits: [], media: [], notes: [], updates: [], messages: [], wrapUp: null });
 
 test("job detail: an assigned job offers Release where the board's bars lead — asked first, then sent, then said", async () => {
   let released: Record<string, unknown> | null = null;
@@ -789,7 +789,7 @@ test("the Intake tab says what is waiting, and an emergency in a glyph and a wor
   const waiting = REQUESTS.filter((r) => r.jobId === null);
   const emergencies = waiting.filter((r) => r.priority === "emergency").length;
   assert.ok(emergencies > 0, "the fixture has an emergency waiting");
-  assert.match(out, new RegExp(`aria-label="Intake — ${waiting.length} waiting, ${emergencies} emergency"`));
+  assert.match(out, new RegExp(`aria-label="Portal requests — ${waiting.length} waiting, ${emergencies} emergency"`));
   assert.match(out, new RegExp(`id="intake-emergency"><span aria-hidden="true">[^<]+</span> ${emergencies} emergency<`));
 });
 
@@ -847,4 +847,46 @@ test("New job: an install with no open project says why at the button instead of
   assert.match(out, /Nothing sold to this customer is open, so there is no project to open the install under\./);
   change("new-job-service", "HVAC-REPAIR");
   assert.match(render(app.view()), /id="new-job-submit" aria-disabled="false"/, "a service job needs no project");
+});
+
+// ---- 0034: how the field closed the visit, as the office reads it ----
+const wrapUp = {
+  outcome: "quote_needed", submittedAt: "2026-10-27T14:00:00.000Z", submittedByName: "Herberto Vega", crewLabel: "Crew A1",
+  notes: "Coil badly corroded; customer wants pricing.",
+  measurements: { tonnage: 7.5, voltage: "460/3", fuel: "heat_pump", unitLengthIn: 88, unitWidthIn: 58, unitHeightIn: 49, curbLengthIn: 80, curbWidthIn: 50, oldModel: "48TCED08", oldSerial: "1209G40112" },
+  signatureMediaId: null, customerAbsentReason: "Tenant locked the roof hatch and left",
+  quoteJobId: "a0000000-0000-0000-0000-0000000000q1", quoteJobNo: "SOUTH-2610-1501-7", quoteError: null,
+};
+
+test("job detail: a wrap-up leads with the outcome, who sent it, the quote job by its number, the notes, the measurements and why there is no signature", async () => {
+  const { app } = await ready({ [OPERATIONS["jobs.detail"].path]: { status: 200, body: { ...detailOf(jobAssigned), wrapUp } } });
+  app.router.navigate("detail", { jobId: JOB_ASSIGNED });
+  render(app.view()); await settle(); await settle();
+  const out = render(app.view());
+  assert.match(out, /id="wrapup-outcome">Quote needed</);
+  assert.match(out, /Herberto Vega · Crew A1/);
+  assert.match(out, /Quote job <a[^>]*href="[^"]*\/jobs\/a0000000-0000-0000-0000-0000000000q1"[^>]*>SOUTH-2610-1501-7<\/a> is open for pricing/);
+  assert.match(out, /Coil badly corroded/);
+  assert.match(out, /<dt>Fuel<\/dt><dd>Heat pump<\/dd>/);
+  assert.match(out, /<dt>Tonnage<\/dt><dd class="s3-num">7.5<\/dd>/);
+  assert.match(out, /id="wrapup-absent">No signature — Tenant locked the roof hatch and left</);
+});
+
+test("job detail: a quote the worker could not open yet says why; a signature and the job's photos are read through media.get", async () => {
+  const PNG = "data:image/png;base64,iVBORw0K";
+  const { app, gateway } = await ready({
+    [OPERATIONS["jobs.detail"].path]: { status: 200, body: {
+      ...detailOf(jobAssigned),
+      media: [{ id: "a0000000-0000-0000-0000-0000000000m1", kind: "photo", storageKey: "r/o/job_photo/m1", label: null, capturedAt: "2026-10-27T13:00:00.000Z" }],
+      wrapUp: { ...wrapUp, outcome: "quote_needed", quoteJobId: null, quoteJobNo: null, quoteError: "cannot open a job at this site: no sla_response", signatureMediaId: "a0000000-0000-0000-0000-0000000000s1", customerAbsentReason: null },
+    } },
+    [OPERATIONS["media.get"].path]: { status: 200, body: { id: "x", contentType: "image/png", image: PNG } },
+  });
+  app.router.navigate("detail", { jobId: JOB_ASSIGNED });
+  render(app.view()); await settle(); await settle(); render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, /The quote job is not open yet — cannot open a job at this site: no sla_response\. The worker keeps trying\./);
+  assert.match(out, new RegExp(`id="wrapup-signature" src="${PNG.replace(/[+/]/g, "\\$&")}"`));
+  assert.match(out, /<img class="s3-photo__well" src="data:image\/png/, "a job photo is an image now, not a placeholder");
+  assert.ok(gateway.calls.filter((c) => c.path === OPERATIONS["media.get"].path).length >= 2);
 });

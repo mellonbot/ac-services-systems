@@ -40,6 +40,7 @@ export type ConflictPolicy = "append_only" | "device_authoritative" | "server_au
 export const CONFLICT_POLICIES: Readonly<Record<string, ConflictPolicy>> = Object.freeze({
   job_media: "append_only",
   time_entries: "append_only",
+  shift_punches: "append_only",
   parts_used: "append_only",
   checklist_items: "device_authoritative",
   jobs: "state_machine",
@@ -139,7 +140,13 @@ export const resolveMutation = (m: Mutation, server: ServerState | null, already
       if (!DEVICE_TRANSITIONS.includes(to)) {
         return { outcome: "rejected", mutationId: m.mutationId, note: `a device may not move a job to "${to}". That transition belongs to dispatch.` };
       }
-      if ((JOB_TRANSITIONS[from] ?? []).includes(to)) return { outcome: "applied", mutationId: m.mutationId, newVersion: next };
+      if ((JOB_TRANSITIONS[from] ?? []).includes(to)) {
+        // 0034: a device completes a job by its wrap-up (jobs.wrapUp), which carries the photos and the signature a bare
+        // transition cannot. Refused only where it would have applied: a completion that collides with the office's
+        // cancellation still goes to a person below — somebody drove to a site for nothing.
+        if (to === "complete") return { outcome: "rejected", mutationId: m.mutationId, note: "a job is completed by its wrap-up — photos, notes and the customer's signature — not by a state change" };
+        return { outcome: "applied", mutationId: m.mutationId, newVersion: next };
+      }
       if (from === to) return { outcome: "duplicate", mutationId: m.mutationId };
       if (from === "cancelled" || from === "invoiced" || from === "reassigned") {
         return {

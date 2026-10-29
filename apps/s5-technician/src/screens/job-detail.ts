@@ -2,8 +2,9 @@ import { html, pageHead, panel, PrimaryAction, StatusPill, type VNode } from "..
 import { serviceLabel, type FieldJobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { nextDeviceStates, projectedJob } from "../offline.ts";
-import { whenReady, flushQueue, ACTION_LABEL, stateText, addressLine, directionsHref, telHref, windowText, type Screen } from "./common.ts";
+import { whenReady, linkTo, flushQueue, ACTION_LABEL, stateText, addressLine, directionsHref, telHref, windowText, type Screen } from "./common.ts";
 import { forwardState } from "./job-list.ts";
+import { shiftRunning, CLOCK_IN_FIRST } from "./timesheet.ts";
 
 /**
  * A small, fixed checklist. Nothing in the schema names a per-service-code
@@ -69,7 +70,7 @@ export const jobDetail: Screen = (ctx, params) => {
     };
     // A finished or aborted job drops off this list once it syncs, and the clock with it — so the clock stops first.
     const transition = (to: string) => {
-      if (runningSince && (to === "complete" || to === "aborted")) stopClock();
+      if (runningSince && to === "aborted") stopClock();
       ctx.queue.enqueue("jobs", job.id, "transition", { state: to }, projected.version);
       flush();
     };
@@ -92,12 +93,21 @@ export const jobDetail: Screen = (ctx, params) => {
     const where = addressLine(job.site?.address ?? null);
     const directions = directionsHref(job.site);
     const contact = job.site?.contact ?? null;
-    const forward = forwardState(projected.state) ?? (projected.state === "in_progress" ? "complete" : null);
+    // Partner rule, 2026-10-27: no job moves until the shift clock is in.
+    const clockedOut = shiftRunning(ctx) === false;
+    const forward = forwardState(projected.state);
+    // 0034: a job is completed by its wrap-up, never by a bare transition.
+    const wrapped = ctx.wrapUps.pendingFor(job.id);
+    const wrapUpLink = projected.state === "in_progress" && !wrapped
+      ? (clockedOut
+        ? PrimaryAction({ density: ctx.density, label: "Wrap up", id: "wrap-up", disabledReason: CLOCK_IN_FIRST })
+        : linkTo(ctx, "wrapup", { jobId: job.id }, "Wrap up", "ac-action s5-link--action"))
+      : null;
 
     return html`<section class="s5-job">
       ${pageHead(`${job.site?.name ?? "Site not on record"} — ${serviceLabel(job.serviceCode)}`, where || "Move the job on, work the checklist, run the time clock and log the parts used — every tap is saved on this device first.")}
       ${panel(html`<p class="s5-job__state">State: <strong>${stateText(projected.state)}</strong>${projected.queued > 0 ? html` (queued — last synced: ${stateText(job.state)})` : null} · Priority: ${job.priority}${job.jobNo ? html` · <span class="ac-num">${job.jobNo}</span>` : null}</p>
-        <p class="s5-job__window ac-num s5-nowrap">${windowText(job.serviceWindowStart, job.serviceWindowEnd, Date.now())}</p>
+        <p class="s5-job__window ac-num s5-nowrap">${windowText(job.serviceWindowStart, job.serviceWindowEnd, ctx.now)}</p>
         ${contact ? html`<p class="s5-job__contact">Site contact: ${contact.name}${contact.phone ? html` · <span class="ac-num s5-nowrap">${contact.phone}</span>` : null}</p>` : null}
         <div class="s5-actions">
           ${directions ? html`<a class="ac-action s5-link--action" data-kind="quiet" data-density=${ctx.density} href=${directions} target="_blank" rel="noopener">Directions</a>` : null}
@@ -110,9 +120,16 @@ export const jobDetail: Screen = (ctx, params) => {
         <button type="button" class="ac-link" onClick=${() => ctx.queue.dismissAttention(a.mutationId)}>Dismiss</button>
       </div>`)}
 
-      ${panel(html`<div class="s5-actions">
-        ${nextDeviceStates(projected.state).map((to) => PrimaryAction({ density: ctx.density, label: ACTION_LABEL[to] ?? stateText(to), id: `to-${to}`, onClick: () => transition(to), kind: to === forward ? "primary" : "quiet" }))}
-        ${nextDeviceStates(projected.state).length === 0 ? html`<p class="s5-muted">No further state change is this shift's to make from here.</p>` : null}
+      ${wrapped?.refused ? html`<div class="s5-attention" role="alert" id="wrap-up-refused">
+        ${StatusPill({ density: ctx.density, status: "blocked", label: "wrap-up refused" })}
+        <p>${wrapped.refused}</p>
+        <button type="button" class="ac-link" id="wrap-up-reopen" onClick=${() => { ctx.wrapUps.reopen(job.id); ctx.router.navigate("wrapup", { jobId: job.id }); }}>Edit and send again</button>
+      </div>` : null}
+      ${wrapped ? (wrapped.refused ? null : html`<p class="ac-notice" data-tone="at_risk" role="status" id="wrap-up-waiting">Wrapped up — waiting to be sent${ctx.degraded ? " (offline)" : ""}.</p>`)
+        : panel(html`<div class="s5-actions">
+        ${wrapUpLink}
+        ${nextDeviceStates(projected.state).map((to) => PrimaryAction({ density: ctx.density, label: ACTION_LABEL[to] ?? stateText(to), id: `to-${to}`, onClick: () => transition(to), kind: to === forward ? "primary" : "quiet", ...(clockedOut ? { disabledReason: CLOCK_IN_FIRST } : {}) }))}
+        ${nextDeviceStates(projected.state).length === 0 && !wrapUpLink ? html`<p class="s5-muted">No further state change is this shift's to make from here.</p>` : null}
       </div>`, "Move job to")}
 
       ${panel(html`<ul class="s5-checklist">

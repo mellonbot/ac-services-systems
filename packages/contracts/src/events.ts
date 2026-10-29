@@ -30,6 +30,9 @@ export const TOPICS = [
   // 0016: the customer was told something (an update published), or either side
   // wrote in the thread. OFC refetches the job; INV (S6) refetches the conversation.
   "job.update_published", "job.message_posted",
+  // 0034: a photo or the customer's signature reached a job from the field.
+  // No subscriber yet — the office's job view will be the first.
+  "job.media_attached",
   "project.created", "project.crew_requested", "project.crew_released", "project.closed",
   // SLA
   "sla.timer_opened", "sla.escalated", "sla.breached", "sla.satisfied",
@@ -48,6 +51,9 @@ export const TOPICS = [
   // item 4 — D-2a's primitive, recorded. No subscriber yet; added when a
   // screen needs to react rather than in anticipation of one.
   "device.registered", "device.shift_granted",
+  // 0033: a technician clocked in or out. No subscriber yet — S2's payroll
+  // view will be the first; added there rather than in anticipation.
+  "shift.punched",
   // money
   "invoice.issued", "invoice.paid", "invoice.voided", "settlement.statement_issued",
   // 0030: a part payment, and a payment that came back. invoice.paid is the one that settles it.

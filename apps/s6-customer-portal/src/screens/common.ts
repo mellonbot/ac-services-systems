@@ -3,6 +3,7 @@ import type { Shell } from "../../../../packages/shell/src/index.ts";
 import type { Refusal, DensityOf, AccountWire, AccountTierWire } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
 import type { SCREENS } from "../screens.ts";
+import { resourceView } from "../../../../packages/ui/src/screen-helpers.ts";
 export { linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
 
 /** What every S6 screen receives. A screen is a function of this and its route params — nothing else. */
@@ -18,13 +19,11 @@ export type Params = Readonly<Record<string, string>>;
 export type Screen = (ctx: ScreenContext, params: Params) => VNode;
 
 /** Render a resource: the value when ready, a quiet line while loading, the refusal as a decision otherwise. */
-export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) => VNode, retry?: () => void): VNode => {
-  switch (r.state) {
-    case "loading": return html`<p class="s6-loading" role="status">Loading…</p>`;
-    case "ready": return view(r.value);
-    case "refused": return refusalView(ctx, r.refusal, retry && retryable(r.refusal) ? [{ label: "Try again", onSelect: retry, primary: true }] : []);
-  }
-};
+export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) => VNode, retry?: () => void): VNode =>
+  resourceView(r, view, {
+    loadingClass: "s6-loading",
+    refused: (refusal) => refusalView(ctx, refusal, retry && retryable(refusal) ? [{ label: "Try again", onSelect: retry, primary: true }] : []),
+  });
 
 /**
  * A refusal, as a customer reads it. NOT RefusalCard: that component is

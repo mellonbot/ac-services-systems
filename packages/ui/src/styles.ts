@@ -67,6 +67,12 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
    the letter is a MARK and not a word anyone reads. (No hex in this file: the
    sheet names roles, and styles.test.ts fails a colour even in a comment.) */
 .ac-mast{padding:var(--space-4) var(--gutter) var(--space-2);background:var(--color-page);max-width:var(--page-max);margin:0 auto}
+/* The lockup and the signed-in controls share one row, above the rule. The
+   controls centre on the lockup, which is the line the company descriptor
+   stands on. The lockup stays whole; the controls drop to their own line,
+   still above the rule, only when the row cannot hold both. */
+.ac-mast__row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3) var(--space-4)}
+.ac-mast__tools{display:flex;flex:none;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:var(--space-1) var(--space-3);margin-inline-start:auto}
 .ac-mast__lockup{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;
   text-decoration:none;color:inherit}
 .ac-badge-mark{display:inline-flex;flex:none}
@@ -98,8 +104,8 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
    toward the surface, so the word keeps its ink and the fill adds salience
    without adding a hue. FORM still carries the order before hue does: ok is
    fill only, at-risk adds an outline in its ink, breached adds a solid
-   outline and the strongest fill — and on the field ground the breached fill
-   is garnet (--color-status-breached-fill), the tier's only solid chip. The
+   outline and the strongest fill — and on the plate the breached fill
+   is garnet (--color-status-breached-fill), the plate's only solid chip. The
    glyph stays: colour never carries alone. An outline is drawn in the state's
    OWN ink, never in --color-border: a chip's rule carries SHAPE, and the border
    role measures 2.22:1 (errata E-08). */
@@ -114,7 +120,7 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
 /* ---- PrimaryAction: a red fill, sized by the density ----
    The label is --color-action-ink, white at 5.05:1 on the fill, NOT
    --color-surface: the fill is never a small word, so the ink that sits on it
-   is its own role. The rule carries the control's shape; on the field ground
+   is its own role. The rule carries the control's shape; on the plate
    the fill reads 3.48:1 and the press deepens to the text-safe red. */
 .ac-action-wrap{display:inline-flex;flex-direction:column;gap:var(--space-1);align-items:flex-start}
 .ac-action{min-height:var(--control-height);min-width:var(--control-height);padding:0 var(--space-4);border-radius:var(--radius-control);border:1px solid var(--color-action-text);background:var(--color-action);color:var(--color-action-ink);font-family:var(--font-label);font-size:var(--text-md);font-weight:700;letter-spacing:var(--track-tight);cursor:pointer;transition:background-color var(--motion-fast) var(--ease),border-color var(--motion-fast) var(--ease),color var(--motion-fast) var(--ease),filter var(--motion-fast) var(--ease)}
@@ -345,11 +351,61 @@ ac-degraded[hidden]{display:none}
 .ac-facts>div{padding:var(--space-2) var(--space-3);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
 .ac-facts dt{font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted)}
 .ac-facts dd{margin:var(--space-1) 0 0;font-weight:600}
+/* ---- The Account button (0032) ----
+   A nav control like Sign out: the person's picture or initials and one word.
+   The picture is a square on the control radius — there is no round corner in
+   the system outside a chip. The dialog is a panel in the top layer; its
+   backdrop is the text role mixed thin, as a shadow is, never a new ink. */
+.ac-account-wrap{display:inline-flex}
+.ac-account{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;gap:var(--space-2);margin:0;padding:var(--space-1) var(--space-3) var(--space-1) var(--space-1);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit;font-weight:600;font-size:var(--text-sm);min-height:var(--control-height);cursor:pointer;transition:border-color var(--motion-fast) var(--ease)}
+.ac-account:hover{border-color:color-mix(in srgb,var(--color-border-hard) calc(100% * var(--hover)),var(--color-border))}
+.ac-account__avatar{display:inline-flex;align-items:center;justify-content:center;flex:none;width:calc(var(--control-height) - var(--space-3));height:calc(var(--control-height) - var(--space-3));border-radius:var(--radius-control);background:var(--color-surface-sunken);color:var(--color-text);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);object-fit:cover}
+.ac-account__avatar--large{width:calc(var(--control-height) * 2);height:calc(var(--control-height) * 2);font-size:var(--text-lg)}
+.ac-account__dialog{width:var(--measure-text);max-width:calc(100% - 2 * var(--gutter));max-height:calc(100% - 2 * var(--gutter));overflow:auto;padding:var(--space-4);background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border-hard);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.ac-account__dialog::backdrop{background:color-mix(in srgb,var(--color-text) 40%,transparent)}
+.ac-account__head{display:flex;align-items:center;gap:var(--space-4);padding:0 0 var(--space-3);border-bottom:1px solid var(--color-border)}
+.ac-account__title{margin:0;font-family:var(--font-display);font-size:var(--text-xl);font-weight:700}
+.ac-account__meta{margin:0;color:var(--color-text-muted);font-size:var(--text-sm)}
+.ac-account__section{margin:0;padding:var(--space-4) 0;border-bottom:1px solid var(--color-border)}
+.ac-account__dialog .ac-form{max-width:none;padding:var(--space-4) 0;background:transparent;border:0;border-bottom:1px solid var(--color-border);border-radius:var(--radius-none);box-shadow:none}
+.ac-account__section-title{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-md);font-weight:700}
+.ac-account__row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-4)}
+.ac-account__file{position:relative;display:inline-flex;align-items:center;min-height:var(--control-height);padding:0 var(--space-3);border:1px solid var(--color-border-control);border-radius:var(--radius-control);font-weight:600;cursor:pointer}
+.ac-account__file>input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.ac-account__file:focus-within{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}
+.ac-account__foot{display:flex;justify-content:flex-end;padding:var(--space-3) 0 0}
+.ac-account__close{appearance:none;-webkit-appearance:none;margin:0;padding:0 var(--space-3);border:1px solid var(--color-border-control);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit;font-weight:600;min-height:var(--control-height);cursor:pointer}
+@media (max-width:760px){.ac-account__label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.ac-account{padding:var(--space-1)}}
+/* ---- Company messages (0035) ----
+   The button floats in the bottom-right corner and stays there while the
+   page scrolls. What arrives stacks above it, inside the gutter, and does
+   not cover the page. The composer opens in that same corner, and the
+   button stays at the bottom of it. */
+.ac-messages-wrap{display:contents}
+.ac-messages-dock{position:fixed;right:var(--gutter);bottom:var(--gutter);z-index:2;display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-2);width:min(var(--measure-short),calc(100% - 2 * var(--gutter)));max-height:calc(100% - 2 * var(--gutter));pointer-events:none}
+.ac-messages-panel,.ac-messages-stack,.ac-messages-popup,.ac-messages__more,.ac-messages__open{pointer-events:auto}
+.ac-messages__open{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;gap:var(--space-2);flex:0 0 auto;margin:0;padding:0 var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit;font-weight:600;font-size:var(--text-sm);min-height:var(--control-height);cursor:pointer;transition:border-color var(--motion-fast) var(--ease)}
+.ac-messages__open:hover{border-color:color-mix(in srgb,var(--color-border-hard) calc(100% * var(--hover)),var(--color-border))}
+.ac-messages-panel{display:flex;flex-direction:column;gap:var(--space-3);width:100%;min-height:0;flex:1 1 auto;overflow:auto;padding:var(--space-3);background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border-hard);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.ac-messages-panel__head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
+.ac-messages-panel__title{margin:0;font-family:var(--font-display);font-size:var(--text-lg);font-weight:700}
+.ac-messages-panel .ac-form{max-width:none;padding:0;background:transparent;border:0;border-radius:var(--radius-none);box-shadow:none}
+.ac-messages__body{min-height:calc(var(--control-height) * 2);padding:var(--space-2);resize:vertical}
+.ac-messages__close,.ac-messages__dismiss,.ac-messages__more{appearance:none;-webkit-appearance:none;margin:0;padding:0 var(--space-3);border:1px solid var(--color-border-control);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);font:inherit;font-weight:600;min-height:var(--control-height);cursor:pointer}
+.ac-messages-stack{display:flex;flex-direction:column-reverse;align-items:flex-end;gap:var(--space-2);width:100%;min-height:0;flex:0 1 auto;overflow:auto}
+.ac-messages-popup{width:100%;padding:var(--space-3);background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border-hard);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.ac-messages-popup__head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--space-2)}
+.ac-messages-popup__who{font-weight:700}
+.ac-messages-popup__to,.ac-messages-popup__when{color:var(--color-text-muted);font-size:var(--text-sm)}
+.ac-messages-popup__body{margin:var(--space-2) 0 0;white-space:pre-wrap}
+.ac-messages-recent{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3)}
+.ac-messages-recent li{padding-top:var(--space-3);border-top:1px solid var(--color-border)}
+.ac-messages-recent__empty{color:var(--color-text-muted)}
 /* ---- Motion ----
    110/170/260ms on one curve, from the tokens: a control's state change
    moves, data does not. A reader who asked for reduced motion gets none —
    the same selectors, stilled, declared last so they win on source order. */
-@media (prefers-reduced-motion:reduce){.ac-action,.ac-seg__item,.ac-seg__pick,.ac-chip,.ac-link{transition:none}}
+@media (prefers-reduced-motion:reduce){.ac-action,.ac-seg__item,.ac-seg__pick,.ac-chip,.ac-link,.ac-account,.ac-messages__open{transition:none}}
 `;
 
 /** Every `var(--name)` the stylesheet reads. The test checks each is defined by tokenCss for every density. */

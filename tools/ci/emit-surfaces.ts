@@ -119,20 +119,12 @@ ${s.whiteLabel ? BRAND_ENTRYPOINT(s) : ""}`;
  * landmark. S2 owns its richer hand-written browser entry.
  */
 export const renderStatusApp = (): string => `import { html, mount, signal, driveDegraded, type VNode } from "../../../packages/ui/src/index.ts";
-import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
+import { gatewayOrigin as sharedGatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 
-export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string; hostname: string } }): string => {
-  const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
-  if (stamped) return stamped;
-  const host = doc.location.host || "localhost";
-  const hostname = doc.location.hostname || host.split(":")[0] || "localhost";
-  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname.startsWith("127.")) {
-    return "http://127.0.0.1:8080";
-  }
-  const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
-  return \`\${doc.location.protocol}//api.\${site}\`;
-};
+/** Loopback talks to the gateway on this machine. Every other host uses the shared rule. */
+export const gatewayOrigin = (doc: Parameters<typeof sharedGatewayOrigin>[0]): string =>
+  sharedGatewayOrigin(doc, { localFallback: "http://127.0.0.1:8080" });
 
 type Phase = { kind: "connecting" } | { kind: "ready"; shell: ConnectedShell } | { kind: "sign-in" };
 
@@ -234,22 +226,32 @@ export const renderMasthead = (s: Surface): string => {
   const badge = `<span class="ac-mast__mark" aria-hidden="true"></span>`;
   const wordmark = `<span class="ac-wordmark">${escapeHtml(BRAND.name)}</span>`;
   const co = `<span class="ac-wordmark__co">${escapeHtml(BRAND.descriptor)}</span>`;
+  // The slot is where a signed-in surface puts Account and Sign out: on the
+  // lockup row, above the rule, in line with the company descriptor. Empty
+  // until the bundle fills it, including on S1, which has no session.
+  const tools = `<div id="ac-mast-tools" class="ac-mast__tools"></div>`;
   // A titled masthead (S1) runs the rule the full width under the wordmark,
   // sets the company line beneath it, and the site's name under that.
   if (s.id === "S1") return `<header class="ac-mast ac-mast--titled" data-brand-layer="${brandLayer}">
+<div class="ac-mast__row">
 <a class="ac-mast__lockup" href="/" aria-label="${escapeHtml(BRAND.legalName)}">
 ${badge}
 ${wordmark}
 </a>
+${tools}
+</div>
 <div class="ac-mast__rule"></div>
 ${co}
 <p class="ac-mast__title">${escapeHtml(S1_SITE_TITLE)}</p>
 </header>`;
   return `<header class="ac-mast" data-brand-layer="${brandLayer}">
+<div class="ac-mast__row">
 <a class="ac-mast__lockup" href="/" aria-label="${escapeHtml(BRAND.legalName)}">
 ${badge}
 <span class="ac-mast__name">${wordmark}${co}</span>
 </a>
+${tools}
+</div>
 <div class="ac-mast__rule"></div>
 </header>`;
 };
@@ -377,7 +379,7 @@ registry (\`src/screens.ts\`) checked against the operation catalogue.
  * source of truth and the second source is always the one people read.
  */
 export const renderBrandDoc = (): string => {
-  const light = semanticFor("comfort"), dark = semanticFor("field");
+  const light = semanticFor("comfort"), dark = semanticFor("plate");
   return `# ${BRAND.legalName} — brand
 
 > GENERATED from \`packages/tokens/\`. Edit the tokens, run
@@ -411,12 +413,14 @@ that fails the gate still falls behind, and the house is held to it.
 |---|---|---|
 ${(Object.keys(light) as (keyof typeof light)[]).map((k) => `| \`${k}\` | \`${light[k]}\` | light |`).join("\n")}
 
-## Field ground
+## The plate
 
-Not a dark theme — a second substrate. The tablet is read on a roof at 2pm in
-July, so this ground does not follow the viewer's preference. State is carried
-by form first — outline, outline, solid — and the garnet fill is the system's
-only solid chip, with the frost word on it at ${FIGURES.frostOnGarnet.measured.toFixed(2)}:1.
+The dark schedule, a region and not a theme: \`data-ground="plate"\` puts an
+element on it inside a light frame (the dispatch board's header bar). Rev D
+(2026-10-27) moved the field tier — S5, the tablet — onto the light stock, so
+the plate is the only place this schedule renders. State is carried by form
+first — outline, outline, solid — and the garnet fill is the system's only solid
+chip, with the frost word on it at ${FIGURES.frostOnGarnet.measured.toFixed(2)}:1.
 
 | Role | Value |
 |---|---|

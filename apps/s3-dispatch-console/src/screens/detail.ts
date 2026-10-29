@@ -1,5 +1,5 @@
 import { html, signal, StatusPill, pageHead, panel, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
-import { serviceLabel, WORK_DONE_STATES, type JobDetailOutput, type JobMediaWire, type JobNoteWire, type JobUpdateWire, type JobVisitWire, type JobWire } from "../../../../packages/contracts/src/index.ts";
+import { serviceLabel, WORK_DONE_STATES, type JobWrapUpWire, type WrapUpMeasurementsWire, type JobDetailOutput, type JobMediaWire, type JobNoteWire, type JobUpdateWire, type JobVisitWire, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
 import { whenReady, homeMark, linkTo, submitAction, perStore, focusId, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL, initials, placeLine, daysInState } from "./jobs.ts";
@@ -13,9 +13,12 @@ import { isDispatchable, isReleasable } from "./board.ts";
  * A visit is the crews on site on one day: every assignment that started that
  * day, merged, with the span their time entries cover. Photos and notes go to
  * the visit that was under way when they were captured or written; anything
- * before the first visit is the office's, before dispatch. Photos are shown
- * as labelled placeholders — there is no image read path yet, and a tile that
- * names its storage key is honest about that.
+ * before the first visit is the office's, before dispatch. Photos are read
+ * through the gateway (media.get), once each per session.
+ *
+ * How the field closed the visit (0034) leads the page once it has: the
+ * outcome, the technician's notes and measurements, the signature or why there
+ * is none, and the quote job the worker opened from a "Quote needed".
  */
 export type VisitGroup = {
   readonly key: string;
@@ -118,14 +121,46 @@ const dispatchActions = (ctx: ScreenContext, j: JobWire): VNode | null => {
   </div>`;
 };
 
+const MEASURED: readonly (readonly [keyof WrapUpMeasurementsWire, string])[] = [
+  ["tonnage", "Tonnage"], ["voltage", "Voltage / phase"], ["fuel", "Fuel"],
+  ["unitLengthIn", "Unit L (in)"], ["unitWidthIn", "Unit W (in)"], ["unitHeightIn", "Unit H (in)"],
+  ["curbLengthIn", "Curb L (in)"], ["curbWidthIn", "Curb W (in)"], ["oldModel", "Old model"], ["oldSerial", "Old serial"],
+];
+const FUEL: Readonly<Record<string, string>> = { gas: "Gas", electric: "Electric", heat_pump: "Heat pump" };
+
+/** How the field closed the visit — what the technician sent, and where a quote stands. */
+const wrapUpPanel = (ctx: ScreenContext, w: JobWrapUpWire): VNode => {
+  const quote = w.outcome === "quote_needed";
+  const signature = w.signatureMediaId ? imageOf(ctx, w.signatureMediaId) : null;
+  return panel(html`<div class="s3-wrapup">
+    <p class="s3-flags"><span class="s3-flag" id="wrapup-outcome">${quote ? "Quote needed" : "Completed"}</span>
+      <span class="s3-visit__by">${w.submittedByName ?? "Technician"}${w.crewLabel ? ` · ${w.crewLabel}` : ""} · <span class="s3-num">${stamp(w.submittedAt)}</span></span></p>
+    ${quote ? html`<p class="s3-wrapup__quote" id="wrapup-quote">${w.quoteJobId
+      ? html`Quote job ${linkTo(ctx, "detail", { jobId: w.quoteJobId }, w.quoteJobNo ?? w.quoteJobId)} is open for pricing.`
+      : w.quoteError ? html`The quote job is not open yet — ${w.quoteError}. The worker keeps trying.` : "The quote job is being opened."}</p>` : null}
+    ${w.notes ? html`<p class="s3-eyebrow">Technician's notes</p><p class="s3-standing__body">${w.notes}</p>` : null}
+    ${w.measurements ? html`<p class="s3-eyebrow">Unit measurements</p><dl class="s3-jobfacts">${MEASURED.map(([k, label]) => html`<div><dt>${label}</dt><dd class=${typeof w.measurements![k] === "number" ? "s3-num" : undefined}>${k === "fuel" ? FUEL[w.measurements!.fuel] ?? w.measurements!.fuel : String(w.measurements![k])}</dd></div>`)}</dl>` : null}
+    <p class="s3-eyebrow">Customer signature</p>
+    ${w.signatureMediaId
+      ? (signature ? html`<img class="s3-wrapup__signature" id="wrapup-signature" src=${signature} alt="The customer's signature" />` : html`<p class="s3-muted">Loading the signature…</p>`)
+      : html`<p id="wrapup-absent">No signature — ${w.customerAbsentReason}</p>`}
+  </div>`, "Wrap-up", "How the field closed the visit.", undefined, "job-wrapup");
+};
+
 const crewChip = (label: string): VNode => html`<span class="s3-tech"><span class="dispatch-board__avatar" aria-hidden="true">${initials(label)}</span>${label}</span>`;
 
-const photoTile = (m: JobMediaWire): VNode => html`<figure class="s3-photo" title=${m.storageKey}>
-  <span class="s3-photo__well" aria-hidden="true"></span>
+/** One photo or signature, read through the gateway as a data: URL. Immutable, so read once per session. */
+const imageOf = (ctx: ScreenContext, id: string) => {
+  const r = ctx.store.read(keyOf("media.get", { id }), () => ctx.shell.gateway.getMedia({ id })).value;
+  return r.state === "ready" ? r.value.image : null;
+};
+
+const photoTile = (ctx: ScreenContext) => (m: JobMediaWire): VNode => html`<figure class="s3-photo" title=${m.storageKey}>
+  ${imageOf(ctx, m.id) ? html`<img class="s3-photo__well" src=${imageOf(ctx, m.id)} alt=${m.label ?? m.kind.replace(/_/g, " ")} />` : html`<span class="s3-photo__well" aria-hidden="true"></span>`}
   <figcaption><strong>${m.label ?? m.kind.replace(/_/g, " ")}</strong><span class="s3-num">${keyName(m.storageKey)}</span></figcaption>
 </figure>`;
 
-const visitCard = (g: VisitGroup, ui: Signal<UiState>): VNode => {
+const visitCard = (ctx: ScreenContext, g: VisitGroup, ui: Signal<UiState>): VNode => {
   const open = ui.value.open.has(g.key);
   const photos = open ? g.media : g.media.slice(0, PHOTOS_SHOWN);
   const more = g.media.length - photos.length;
@@ -139,7 +174,7 @@ const visitCard = (g: VisitGroup, ui: Signal<UiState>): VNode => {
         ${g.kind === "visit" ? html`<span class="s3-visit__when s3-num">${time(g.start)}${g.end ? ` – ${time(g.end)}` : " – open"}</span>` : null}
       </div>
       ${photos.length ? html`<div class="s3-photos">
-        ${photos.map(photoTile)}
+        ${photos.map(photoTile(ctx))}
         ${more > 0 ? html`<button type="button" class="s3-photo s3-photo--more" onClick=${() => { const o = new Set(ui.value.open); o.add(g.key); ui.value = { ...ui.value, open: o }; }}><span class="s3-num">+${more}</span> more</button>` : null}
       </div>` : null}
       ${g.notes.map((n) => html`<p class="s3-visit__note">${n.body}<span class="s3-visit__by">${n.authorName ?? "Office"} · <span class="s3-num">${time(n.at)}</span></span></p>`)}
@@ -148,7 +183,7 @@ const visitCard = (g: VisitGroup, ui: Signal<UiState>): VNode => {
   </li>`;
 };
 
-const timeline = (d: JobDetailOutput, ui: Signal<UiState>, now: number): VNode => {
+const timeline = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiState>, now: number): VNode => {
   const groups = groupVisits(d);
   const hidden = ui.value.expanded ? [] : groups.slice(0, Math.max(0, groups.length - SHOWN));
   const shown = groups.slice(hidden.length);
@@ -159,7 +194,7 @@ const timeline = (d: JobDetailOutput, ui: Signal<UiState>, now: number): VNode =
       <span><strong class="s3-num">${hidden.length}</strong> earlier visit${hidden.length === 1 ? "" : "s"} ${hidden.length === 1 ? "on" : "between"} <span class="s3-num">${date(hidden[0]!.start)} ${year(hidden[0]!.start)}</span>${hidden.length > 1 ? html` – <span class="s3-num">${date(hidden.at(-1)!.start)} ${year(hidden.at(-1)!.start)}</span>` : null} · <span class="s3-num">${hidden.reduce((n, g) => n + g.media.length, 0)}</span> photos</span>
       <button type="button" class="s3-act" onClick=${() => { ui.value = { ...ui.value, expanded: true }; }}>Expand history</button>
     </li>` : null}
-    ${shown.map((g) => visitCard(g, ui))}
+    ${shown.map((g) => visitCard(ctx, g, ui))}
     ${next ? html`<li class="s3-visit" data-kind="next">
       <div class="s3-visit__date"><strong class="s3-num">${date(d.job.serviceWindowStart)}</strong><span class="s3-num">${year(d.job.serviceWindowStart)}</span></div>
       <div class="s3-visit__card s3-visit__card--next">
@@ -329,8 +364,9 @@ export const detail: Screen = (ctx, params) => {
     ${whenReady(ctx, res.value, (d) => html`
       <div class="s3-detail-grid">
         ${header(ctx, d, ui)}
-        ${panel(ui.value.view === "visit" ? timeline(d, ui, now)
-            : ui.value.view === "photos" ? (d.media.length ? html`<div class="s3-photos">${d.media.map(photoTile)}</div>` : html`<p class="s3-muted">No photos on file.</p>`)
+        ${d.wrapUp ? wrapUpPanel(ctx, d.wrapUp) : null}
+        ${panel(ui.value.view === "visit" ? timeline(ctx, d, ui, now)
+            : ui.value.view === "photos" ? (d.media.length ? html`<div class="s3-photos">${d.media.map(photoTile(ctx))}</div>` : html`<p class="s3-muted">No photos on file.</p>`)
             : html`<ol class="s3-internal__list">${[...d.notes].reverse().map((n) => html`<li><span class="s3-visit__by"><span class="s3-num">${stamp(n.at)}</span> · ${n.authorName ?? "Office"}${n.kind === "standing" ? " · standing" : ""}</span><p>${n.body}</p></li>`)}</ol>`,
           "Visit history", "Grouped by visit · photos and notes in the order they were added",
           html`<nav class="ac-seg" aria-label="Visit history view">${(["visit", "photos", "notes"] as const).map((v) => html`<button type="button" class="ac-seg__item s3-seg-btn" data-current=${ui.value.view === v ? "true" : undefined} aria-pressed=${ui.value.view === v ? "true" : "false"}

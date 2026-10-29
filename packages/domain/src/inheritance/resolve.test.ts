@@ -101,12 +101,11 @@ test("register default: a term nobody set falls back only when the register says
   assert.equal(r.wonAt, "fallback");
 });
 
-test("OQ5: diagnostic_data_rights_reserved has NO default — an org that never stated it cannot resolve it", () => {
+test("OQ5: diagnostic_data_rights_reserved defaults to true so an unstated MSA can still resolve", () => {
   const withoutMsa = OVERRIDES.filter((o) => o.termKey !== "diagnostic_data_rights_reserved");
-  assert.throws(
-    () => resolveTerm(withoutMsa, pathOf("location", N.reno), "diagnostic_data_rights_reserved", "2026-06-01"),
-    (e: unknown) => e instanceof ResolutionError && e.code === "no_value",
-  );
+  const r = resolveTerm(withoutMsa, pathOf("location", N.reno), "diagnostic_data_rights_reserved", "2026-06-01");
+  assert.equal(r.value, true);
+  assert.equal(r.wonAt, "fallback");
 });
 
 test("an unregistered term raises rather than defaulting to cascade", () => {

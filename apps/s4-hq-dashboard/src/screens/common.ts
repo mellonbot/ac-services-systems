@@ -4,6 +4,7 @@ import { HQ_METRICS, type DensityOf, type HqMetricKey, type HqMetricsOutput, typ
 import type { Store, Resource } from "../state.ts";
 import { keyOf } from "../state.ts";
 import type { SCREENS } from "../screens.ts";
+import { resourceView } from "../../../../packages/ui/src/screen-helpers.ts";
 export { linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
 
 export type ScreenContext = {
@@ -18,13 +19,11 @@ export type ScreenContext = {
 export type Params = Readonly<Record<string, string>>;
 export type Screen = (ctx: ScreenContext, params: Params) => VNode;
 
-export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) => VNode, retry?: () => void): VNode => {
-  switch (r.state) {
-    case "loading": return html`<p class="s4-loading" role="status">Loading…</p>`;
-    case "ready": return view(r.value);
-    case "refused": return RefusalNotice({ density: ctx.density, refusal: r.refusal, routes: retry && retryable(r.refusal) ? [{ label: "Try again", onSelect: retry, primary: true }] : [] }) ?? html``;
-  }
-};
+export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) => VNode, retry?: () => void): VNode =>
+  resourceView(r, view, {
+    loadingClass: "s4-loading",
+    refused: (refusal) => RefusalNotice({ density: ctx.density, refusal, routes: retry && retryable(refusal) ? [{ label: "Try again", onSelect: retry, primary: true }] : [] }) ?? html``,
+  });
 
 export const readMetrics = (ctx: ScreenContext) =>
   ctx.store.read(keyOf("hq.metrics", {}), () => ctx.shell.gateway.hqMetrics({}));

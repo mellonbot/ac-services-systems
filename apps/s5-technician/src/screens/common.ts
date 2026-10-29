@@ -2,8 +2,10 @@ import { html, RefusalNotice, type VNode, type Router, type Signal } from "../..
 import type { Shell } from "../../../../packages/shell/src/index.ts";
 import type { Refusal, DensityOf, AddressWire, FieldSiteWire } from "../../../../packages/contracts/src/index.ts";
 import type { Store, Resource } from "../state.ts";
-import type { OfflineQueue } from "../offline.ts";
+import { projectedJob, type OfflineQueue } from "../offline.ts";
+import type { WrapUps } from "../wrap-ups.ts";
 import type { SCREENS } from "../screens.ts";
+import { resourceView } from "../../../../packages/ui/src/screen-helpers.ts";
 export { linkTo } from "../../../../packages/ui/src/screen-helpers.ts";
 
 /**
@@ -24,23 +26,22 @@ export type ScreenContext = {
   readonly shell: Shell;
   readonly store: Store;
   readonly queue: OfflineQueue;
+  /** Wrap-up drafts and the outbox that sends them (0034). */
+  readonly wrapUps: WrapUps;
   readonly crew: { readonly id: string; readonly label: string };
   readonly clock: Signal<Readonly<Record<string, string>>>;
   readonly router: Router<typeof SCREENS>;
   readonly density: DensityOf<"S5">;
   readonly degraded: boolean;
+  /** The app's clock, read once per render and moved on every minute — what a running shift clock counts to. */
+  readonly now: number;
 };
 
 export type Params = Readonly<Record<string, string>>;
 export type Screen = (ctx: ScreenContext, params: Params) => VNode;
 
-export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) => VNode): VNode => {
-  switch (r.state) {
-    case "loading": return html`<p class="s5-loading" role="status">Loading…</p>`;
-    case "ready": return view(r.value);
-    case "refused": return refusalView(ctx, r.refusal);
-  }
-};
+export const whenReady = <T>(ctx: ScreenContext, r: Resource<T>, view: (v: T) => VNode): VNode =>
+  resourceView(r, view, { loadingClass: "s5-loading", refused: (refusal) => refusalView(ctx, refusal) });
 
 /**
  * A refusal on the tablet: RefusalNotice, never RefusalCard (console-only; a
@@ -59,7 +60,7 @@ export const refusalView = (ctx: ScreenContext, refusal: Refusal): VNode =>
 export const flushQueue = (ctx: ScreenContext): void => {
   void ctx.queue.flush((mutations) =>
     ctx.shell.gateway.replaySync({ orgId: ctx.shell.principal.orgId, regionId: ctx.shell.principal.regionId, mutations }),
-  ).then((answered) => { if (answered) ctx.store.invalidate("jobs.mine"); });
+  ).then((answered) => { if (answered) { ctx.store.invalidate("jobs.mine"); ctx.store.invalidate("punches.mine"); } });
 };
 
 /** What a device's state change says on its button — the verb a crew would use, not the enum. */
@@ -69,6 +70,10 @@ export const ACTION_LABEL: Readonly<Record<string, string>> = {
 };
 
 export const stateText = (state: string): string => state.replace(/_/g, " ");
+
+/** Where a job stands on this device: the server's state with the queued moves applied, and complete once its wrap-up is in the outbox. */
+export const deviceState = (ctx: ScreenContext, job: { readonly id: string; readonly state: string; readonly version: number }): string =>
+  ctx.wrapUps.pendingFor(job.id) ? "complete" : projectedJob(job, ctx.queue.pending.value).state;
 
 export const addressLine = (a: AddressWire | null): string =>
   a ? [a.line1, a.line2, a.city, [a.state, a.postal].filter(Boolean).join(" ")].filter(Boolean).join(", ") : "";

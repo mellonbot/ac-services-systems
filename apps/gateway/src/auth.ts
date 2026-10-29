@@ -124,6 +124,14 @@ export const hashPassword = (password: string): string => {
   return `scrypt$${b64u(salt)}$${b64u(hash)}`;
 };
 
+/** `hashPassword` off the event loop, for a request path. */
+export const hashPasswordAsync = async (password: string): Promise<string> => {
+  const salt = randomBytes(16);
+  const hash = await new Promise<Buffer>((resolve, reject) =>
+    scrypt(password, salt, 64, { N: 16384, r: 8, p: 1 }, (e, k) => (e ? reject(e) : resolve(k))));
+  return `scrypt$${b64u(salt)}$${b64u(hash)}`;
+};
+
 export const verifyPassword = (password: string, stored: string): boolean => {
   const [alg, salt, hash] = stored.split("$");
   if (alg !== "scrypt" || !salt || !hash) return false;

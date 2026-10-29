@@ -9,11 +9,11 @@ gateway.
 | ID | Surface | Block | Phase | Density | Auth scope | Writes |
 |----|---------|-------|-------|---------|-----------|--------|
 | S1 | Marketing / lead-gen | OFC | 1 | `comfort` | none (anonymous) | `lead`, `call_record` |
-| S2 | Service Manager | OFC | 1 | `console` | role-based, org-wide | `account`, `contract`, `invoice`, `warranty_case`, `part`, `purchase_order`, `lead`, `subcontractor_firm`, `crew`, `crew_credential`, `technician`, `rate_card`, `brand_theme`, `job`, `device`, `device_grant`, `equipment`, `account_contact`, `vendor`, `receiving_point`, `price_decision`, `po_receipt`, `rma_request`, `project`, `payment` |
+| S2 | Service Manager | OFC | 1 | `console` | role-based, org-wide | `account`, `contract`, `invoice`, `warranty_case`, `part`, `purchase_order`, `lead`, `subcontractor_firm`, `crew`, `crew_credential`, `technician`, `rate_card`, `brand_theme`, `job`, `device`, `device_grant`, `equipment`, `account_contact`, `vendor`, `receiving_point`, `price_decision`, `po_receipt`, `rma_request`, `project`, `settlement`, `payment` |
 | S3 | Dispatch Console | OFC | 1 | `console` | region-scoped | `assignment`, `job_state`, `crew_release`, `escalation`, `job_note`, `job_flag`, `job_update`, `job_message`, `job`, `service_request` |
 | S4 | HQ Ops Dashboard | OFC | 2 | `console` | org-wide READ only | — |
 | S5 | Technician web fallback | FLD | 1 | `field` | tech credential + shift device grant | `job_state`, `checklist`, `photo`, `part_used`, `time_entry`, `signature` |
-| S6 | Customer Portal | INV | 1 | `comfort` | customer IdP + tier claim | `service_request`, `photo`, `payment`, `contact_update`, `job_message` |
+| S6 | Customer Portal | INV | 1 | `comfort` | customer IdP + tier claim | `service_request`, `photo`, `payment`, `contact_update`, `account_contact`, `job_message` |
 | S7 | Vendor Portal | INV | 4 | `comfort` | separate vendor namespace | `po_ack`, `ship_date`, `vendor_invoice`, `catalog_price`, `rma` |
 | S8 | Subcontractor Portal | INV | 1 | `comfort` | subcontractor firm namespace | `compliance_doc`, `crew_roster`, `settlement_ack`, `dispute` |
 

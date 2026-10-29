@@ -228,10 +228,16 @@ CREATE TABLE IF NOT EXISTS users (
   external_idp_subject text,
   password_hash text,
   active boolean NOT NULL DEFAULT true,
+  presence text NOT NULL DEFAULT 'available' CHECK (presence IN ('available','busy','away','off')),
+  status_note text CHECK (char_length(status_note) <= 80),
+  avatar bytea CHECK (octet_length(avatar) <= 65536),
+  avatar_type text CHECK (avatar_type IN ('image/jpeg','image/png')),
+  password_changed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (id),
   UNIQUE (email),
-  CONSTRAINT users_subcontractor_have_firm CHECK ((namespace = 'subcontractor') = (firm_id IS NOT NULL))
+  CONSTRAINT users_subcontractor_have_firm CHECK ((namespace = 'subcontractor') = (firm_id IS NOT NULL)),
+  CONSTRAINT users_avatar_has_type CHECK ((avatar IS NULL) = (avatar_type IS NULL))
 );
 CREATE INDEX IF NOT EXISTS users_region_id_idx ON users (region_id);
 CREATE INDEX IF NOT EXISTS users_namespace_email_idx ON users (namespace, email);
@@ -287,6 +293,36 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS sessions_region_id_idx ON sessions (region_id);
 CREATE INDEX IF NOT EXISTS sessions_principal_id_idx ON sessions (principal_id);
 CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions (expires_at);
+
+CREATE TABLE IF NOT EXISTS staff_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  sender_id uuid NOT NULL REFERENCES users(id),
+  audience text NOT NULL CHECK (audience IN ('direct','everyone')),
+  recipient_id uuid REFERENCES users(id),
+  body text NOT NULL CHECK (length(btrim(body)) BETWEEN 1 AND 2000),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  CONSTRAINT staff_messages_direct_names_one CHECK ((audience = 'direct') = (recipient_id IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS staff_messages_region_id_idx ON staff_messages (region_id);
+CREATE INDEX IF NOT EXISTS staff_messages_sender_id_created_at_idx ON staff_messages (sender_id, created_at);
+
+CREATE TABLE IF NOT EXISTS staff_message_receipts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  message_id uuid NOT NULL REFERENCES staff_messages(id),
+  user_id uuid NOT NULL REFERENCES users(id),
+  dismissed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (message_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS staff_message_receipts_region_id_idx ON staff_message_receipts (region_id);
+CREATE INDEX IF NOT EXISTS staff_message_receipts_user_id_dismissed_at_idx ON staff_message_receipts (user_id, dismissed_at);
+CREATE INDEX IF NOT EXISTS staff_message_receipts_message_id_idx ON staff_message_receipts (message_id);
 
 CREATE TABLE IF NOT EXISTS contracts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -547,6 +583,52 @@ CREATE TABLE IF NOT EXISTS time_entries (
 CREATE INDEX IF NOT EXISTS time_entries_region_id_idx ON time_entries (region_id);
 CREATE INDEX IF NOT EXISTS time_entries_job_id_idx ON time_entries (job_id);
 CREATE INDEX IF NOT EXISTS time_entries_crew_id_idx ON time_entries (crew_id);
+
+CREATE TABLE IF NOT EXISTS shift_punches (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  grant_id uuid NOT NULL REFERENCES device_grants(id),
+  technician_id uuid NOT NULL REFERENCES users(id),
+  crew_id uuid NOT NULL REFERENCES crews(id),
+  kind text NOT NULL CHECK (kind IN ('in','out')),
+  punched_at timestamptz NOT NULL,
+  mutation_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (grant_id, mutation_id)
+);
+CREATE INDEX IF NOT EXISTS shift_punches_region_id_idx ON shift_punches (region_id);
+CREATE INDEX IF NOT EXISTS shift_punches_technician_id_punched_at_idx ON shift_punches (technician_id, punched_at);
+CREATE INDEX IF NOT EXISTS shift_punches_grant_id_idx ON shift_punches (grant_id);
+
+CREATE TABLE IF NOT EXISTS job_wrap_ups (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id),
+  region_id uuid NOT NULL REFERENCES regions(id),
+  job_id uuid NOT NULL REFERENCES jobs(id),
+  wrap_up_id text NOT NULL,
+  crew_id uuid NOT NULL REFERENCES crews(id),
+  submitted_by uuid NOT NULL REFERENCES users(id),
+  submitted_at timestamptz NOT NULL,
+  outcome text NOT NULL CHECK (outcome IN ('complete','quote_needed')),
+  notes text CHECK (notes IS NULL OR length(btrim(notes)) BETWEEN 1 AND 4000),
+  measurements jsonb,
+  signature_media_id uuid REFERENCES job_media(id),
+  customer_absent_reason text,
+  quote_job_id uuid REFERENCES jobs(id),
+  quote_error text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (job_id),
+  UNIQUE (wrap_up_id),
+  CONSTRAINT job_wrap_ups_measured_quote CHECK ((outcome = 'quote_needed') = (measurements IS NOT NULL)),
+  CONSTRAINT job_wrap_ups_signed_or_absent CHECK ((signature_media_id IS NULL) <> (customer_absent_reason IS NULL)),
+  CONSTRAINT job_wrap_ups_absent_says_why CHECK (customer_absent_reason IS NULL OR length(btrim(customer_absent_reason)) BETWEEN 3 AND 500),
+  CONSTRAINT job_wrap_ups_quote_only_from_quote CHECK (quote_job_id IS NULL OR outcome = 'quote_needed')
+);
+CREATE INDEX IF NOT EXISTS job_wrap_ups_region_id_idx ON job_wrap_ups (region_id);
+CREATE INDEX IF NOT EXISTS job_wrap_ups_quote_job_id_idx ON job_wrap_ups (quote_job_id);
 
 CREATE TABLE IF NOT EXISTS checklist_items (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

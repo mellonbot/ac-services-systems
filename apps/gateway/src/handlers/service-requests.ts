@@ -1,6 +1,7 @@
 import type { UnitOfWork } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import { createJob, localDate } from "./jobs.ts";
+import { iso } from "../sql.ts";
 import { resolvedTermsAt } from "./terms.ts";
 import type {
   CreateServiceRequestInput, CreateServiceRequestOutput, ListServiceRequestsInput, ListServiceRequestsOutput,
@@ -106,7 +107,7 @@ export const listServiceRequests = async (uow: UnitOfWork, input: ListServiceReq
   const siteId = input.siteId === undefined ? null : requireUuid(input.siteId, "siteId");
   const rows = await uow.tx.query<Row>(
     `SELECT r.id, r.site_id, a.name AS site_name, r.priority, r.description, r.requested_by,
-            to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
+            ${iso("r.created_at")} AS created_at,
             r.job_id, j.state AS job_state, r.org_id, r.region_id, o.segment AS customer_segment,
             COALESCE((SELECT json_agg(json_build_object('id', m.id, 'contentType', o.content_type, 'bytes', o.byte_size) ORDER BY m.created_at, m.id)
                         FROM service_request_media m JOIN storage_objects o ON o.id = m.storage_object_id

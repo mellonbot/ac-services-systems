@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { OPERATIONS, OPERATION_IDS, routeKey, surfacesFor, isOperationId } from "./operations.ts";
+import { OPERATIONS, OPERATION_IDS, OWN_IDENTITY_MUTATIONS, STAFF_MESSAGE_MUTATIONS, routeKey, surfacesFor, isOperationId, type LoginOutput, type OperationIO } from "./operations.ts";
 import { SURFACES, SURFACE_IDS } from "./surfaces.ts";
 import { classifyRefusal, admissionAxis } from "./refusals.ts";
 
@@ -58,11 +58,18 @@ test("the gated door is callable by S3 alone; term authoring by S2 alone", () =>
   assert.deepEqual([...OPERATIONS["sync.replay"].surfaces], ["S5"]);
 });
 
-test("S4 can call no mutation — read-only by construction reaches the catalogue too (ending its own session is not a write)", () => {
+test("S4 can call no operational mutation — its own session, its own account, and a company message are not a write of a job, a crew, or money", () => {
   for (const id of OPERATION_IDS) {
-    if (OPERATIONS[id].kind !== "mutation" || id === "auth.logout") continue;
+    if (OPERATIONS[id].kind !== "mutation" || OWN_IDENTITY_MUTATIONS.includes(id) || STAFF_MESSAGE_MUTATIONS.includes(id)) continue;
     assert.ok(!(OPERATIONS[id].surfaces as readonly string[]).includes("S4"), `S4 may call mutation ${id}`);
   }
+});
+
+test("company messages are for S2, S3, S4 and S5 — not a customer, a vendor, or a firm", () => {
+  for (const id of ["messages.directory", "messages.pending", "messages.recent", "messages.send", "messages.dismiss"] as const) {
+    assert.deepEqual([...OPERATIONS[id].surfaces], ["S2", "S3", "S4", "S5"]);
+  }
+  assert.deepEqual([...STAFF_MESSAGE_MUTATIONS], ["messages.send", "messages.dismiss"]);
 });
 
 test("surfacesFor narrows by namespace — an internal principal resolving terms is S2 or HQ, a customer is S6", () => {
@@ -70,6 +77,22 @@ test("surfacesFor narrows by namespace — an internal principal resolving terms
   assert.deepEqual([...surfacesFor("terms.resolved", ns, "internal")], ["S2", "S4"], "HQ reads what the office reads");
   assert.deepEqual([...surfacesFor("terms.resolved", ns, "customer")], ["S6"]);
   assert.deepEqual([...surfacesFor("terms.resolved", ns, "subcontractor")], []);
+});
+
+type Eq<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Assert<T extends true> = T;
+type _CatalogueLiterals = [
+  Assert<Eq<(typeof OPERATIONS)["auth.login"]["method"], "POST">>,
+  Assert<Eq<(typeof OPERATIONS)["auth.login"]["path"], "/auth/login">>,
+  Assert<Eq<OperationIO["auth.logout"]["input"], void>>,
+  Assert<Eq<OperationIO["auth.login"]["output"], LoginOutput>>,
+  Assert<Eq<OperationIO["events.stream"]["output"], never>>,
+];
+const _catalogueLiterals: _CatalogueLiterals = [true, true, true, true, true];
+void _catalogueLiterals;
+
+test("a catalogue row carries no runtime wire witness", () => {
+  assert.equal(Object.hasOwn(OPERATIONS["auth.login"], "_io"), false);
 });
 
 test("isOperationId is a real guard", () => {

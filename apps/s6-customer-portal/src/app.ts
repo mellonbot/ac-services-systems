@@ -1,5 +1,6 @@
-import { html, pageHead, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, type VNode } from "../../../packages/ui/src/index.ts";
-import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
+import { html, pageHead, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, type VNode, AccountMenu, createAccountMenu, type AccountMenuState, sessionTools, bindCookieSession } from "../../../packages/ui/src/index.ts";
+import { gatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
+export { gatewayOrigin };
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect, brand } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
@@ -33,14 +34,6 @@ import { S6_CSS } from "./styles.ts";
  */
 export const DENSITY = densityOf("S6");
 
-export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string } }): string => {
-  const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
-  if (stamped) return stamped;
-  const host = doc.location.host;
-  const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
-  return `${doc.location.protocol}//api.${site}`;
-};
-
 /** A residential customer's portal (0019): the same bundle, one home instead of a sites tree. Absent segment reads as commercial. */
 export const isResidential = (ctx: Pick<ScreenContext, "shell">): boolean => ctx.shell.context?.segment === "residential";
 
@@ -49,7 +42,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   work: (ctx, params) => (isResidential(ctx) ? home : work)(ctx, params),
 };
 
-type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
+type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store; account: AccountMenuState };
 
 export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window }) => {
   const now = opts.now ?? (() => Date.now());
@@ -59,7 +52,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
 
   const become = (shell: ConnectedShell) => {
     const store = createStore(shell, now);
-    phase.value = { kind: "ready", shell, store };
+    phase.value = { kind: "ready", shell, store, account: createAccountMenu(shell.gateway, shell.refusalOf) };
     const at = router.current.value;
     if (!at || at.screen === "login") router.navigate("work", {});
     // Envelopes carry no payload; refetch what the event touched (09 §3.5).
@@ -86,42 +79,20 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     ] });
   };
 
-  const login = async (email: string, password: string) => {
-    phase.value = { kind: "login", refusal: null, busy: true };
-    try { become(await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { email, password, session: "cookie" } })); }
-    catch (e) { phase.value = { kind: "login", refusal: refusalOf(e), busy: false }; }
-  };
-
-  const boot = async () => {
-    try { become(await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { session: "cookie" } })); }
-    catch (e) {
-      const r = refusalOf(e);
-      phase.value = { kind: "login", refusal: r.kind === "token" ? null : r, busy: false };
-    }
-  };
-
-  const logout = async () => {
-    const p = phase.value;
-    if (p.kind !== "ready") return;
-    try { await p.shell.logout(); } finally { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("work", {}); }
-  };
-
-  const tick = () => {
-    const p = phase.value;
-    if (p.kind !== "ready") return;
-    degraded.value = p.shell.isDegraded();
-  };
-  let lastProbe = 0;
-  const probe = () => {
-    const p = phase.value;
-    if (p.kind !== "ready" || !degraded.value) return;
-    if (now() - lastProbe < 15_000) return;
-    lastProbe = now();
-    p.shell.gateway.health().catch(() => {});
-  };
+  const session = bindCookieSession({
+    degraded,
+    now,
+    isReady: () => (phase.value.kind === "ready" ? phase.value : null),
+    setLogin: (busy, refusal) => { phase.value = { kind: "login", refusal, busy }; },
+    setReady: become,
+    connect: (credentials) => connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials }),
+    afterLogout: () => { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("work", {}); },
+  });
 
   const nav = (screen: Exclude<ScreenId, "login" | "terms" | "request" | "site">, label: string): VNode =>
     html`<a class="ac-seg__item" data-current=${router.current.value?.screen === screen ? "true" : "false"} href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
+
+  const { login, logout } = session;
 
   const view = (): VNode => {
     const p = phase.value;
@@ -140,17 +111,14 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         ${nav("agreements", "Agreements")}
         <span class="ac-nav__who" id="who">${who}</span>
         ${canRequest(ctx) ? PrimaryAction({ density: DENSITY, label: "Request service", id: "nav-request", onClick: () => router.navigate("request", {}) }) : null}
-        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
+        ${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s6-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}
     </div>`;
   };
 
-  return { phase, degraded, router, view, boot, login, logout, tick, probe };
+  return { phase, degraded, router, view, boot: session.boot, login: session.login, logout: session.logout, tick: session.tick, probe: session.probe };
 };
-
-const refusalOf = (e: unknown): Refusal =>
-  (e as { refusal?: Refusal })?.refusal ?? { kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) };
 
 export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: (email: string, password: string) => void): VNode => {
   const submit = (e: Event) => {

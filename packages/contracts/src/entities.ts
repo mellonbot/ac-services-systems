@@ -40,7 +40,7 @@ export const WRITE_ENTITIES = [
   // S7 — vendor
   "po_ack", "ship_date", "vendor_invoice", "catalog_price", "rma",
   // S8 — subcontractor firm
-  "compliance_doc", "crew_roster", "settlement_ack", "dispute",
+  "compliance_doc", "crew_roster", "settlement", "settlement_ack", "dispute",
 ] as const;
 
 export type WriteEntity = (typeof WRITE_ENTITIES)[number];

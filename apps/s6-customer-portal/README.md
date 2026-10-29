@@ -22,6 +22,7 @@
 - `photo`
 - `payment`
 - `contact_update`
+- `account_contact`
 - `job_message`
 
 ## Degraded mode

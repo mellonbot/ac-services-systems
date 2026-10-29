@@ -20,7 +20,11 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createPool, beginTx, type Pool } from "../../apps/gateway/src/pg-tx.ts";
+import { sweepQuoteJobs } from "../../apps/worker/src/quotes.ts";
+import { workerScope, WORKER_ACTOR } from "../../apps/worker/src/sweeps.ts";
 import { hashPassword } from "../../apps/gateway/src/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
@@ -61,7 +65,7 @@ before(async () => {
     [USER_OWNER, INTERNAL_ORG_ID, REGION_SOUTH, hash, USER_DISP_SOUTH, USER_DISP_WEST, REGION_WEST, USER_TECH, USER_TECH_B]);
 
   gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
-    env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test" }, stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test", AC_STORAGE_DIR: join(tmpdir(), `ac-wrapup-${RUN}`) }, stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";
   gateway.stdout!.on("data", (d) => { log += String(d); });
@@ -98,19 +102,18 @@ let s2: ConnectedShell, s3: ConnectedShell;
 let orgId = "", southNode = "", location = "", site = "", msa = "";
 let crewCleared = "", crewLapsed = "", jobId = "", assignmentId = "", deviceId = "", shiftId = "";
 
-test("a job opens against a site with its SLA due DERIVED from the resolved term — and a site with no term refuses the job", { skip }, async () => {
+test("a job opens against a site with its SLA due DERIVED from the resolved term — and a site with no term opens on the register default", { skip }, async () => {
   s2 = await owner();
   const org = await s2.gateway.createOrganization({ name: `Amped D4 ${RUN}`, externalRef: RUN, firstRegionNode: { regionId: REGION_SOUTH, name: `Amped D4 / South` } });
   orgId = org.orgId; southNode = org.regionNodeId;
   location = (await s2.gateway.createAccount({ orgId, tier: "location", parentId: southNode, name: `Austin ${RUN}` })).id;
   site = (await s2.gateway.createAccount({ orgId, tier: "site", parentId: location, name: `Austin — Roof ${RUN}` })).id;
 
-  // No agreement yet: sla_response resolves to nothing, and the job is refused with the resolver's own reason.
-  await assert.rejects(
-    s2.gateway.createJob({ siteId: site, serviceCode: "HVAC-REPAIR", priority: "urgent", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END }),
-    (e: unknown) => { const r = refusal(s2, e); return r.kind === "admission" && /sla_response|no value/i.test(r.message); },
-    "an SLA nobody agreed to is not one the system invents",
-  );
+  // No agreement yet: sla_response falls back to the register default, and the timer's trace says so.
+  const unagreed = await s2.gateway.createJob({ siteId: site, serviceCode: "HVAC-REPAIR", priority: "urgent", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END });
+  assert.equal(unagreed.responseTerm, "4_hour", "no agreed response time: the register default");
+  const fallbackTrace = (await admin(`SELECT resolution_trace FROM sla_timers WHERE id = $1`, [unagreed.slaTimerId]))[0]!.resolution_trace as Array<{ note?: string }>;
+  assert.ok(fallbackTrace.some((s) => /register default/.test(s.note ?? "")), "the timer's trace names the register default as what priced it");
 
   msa = (await s2.gateway.createContract({
     orgId, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: orgId, kind: "msa", billingPath: "enterprise_sla",
@@ -443,6 +446,150 @@ test("sync.replay: the device log replays in device order, a duplicate replay is
   assert.equal(onBoard.state, "on_site", "the dispatcher's board reads the field's state");
   const onSite = (await admin(`SELECT max(occurred_at) AS at FROM job_state_events WHERE job_id = $1 AND to_state = 'on_site'`, [jobId]))[0]!;
   assert.equal(onBoard.stateChangedAt, (onSite.at as Date).toISOString(), "a field transition restarts the time-in-state clock");
+  await s5.logout();
+});
+
+test("0033 shift punches: a punch is made on the device's own shift, as the grant's technician and crew, append-only; the timesheet reads the technician's own", { skip }, async () => {
+  const s5 = await technician();
+  const t0 = Date.now();
+  const at = (min: number) => new Date(t0 + min * 60_000).toISOString();
+  const punch = (n: number, entityId: string, payload: Record<string, unknown>) => ({
+    mutationId: `${RUN}-punch${n}`, deviceId, deviceSeq: 1000 + n, entityTable: "shift_punches", entityId, op: "insert" as const, payload, clientObservedVersion: null, deviceAt: at(n),
+  });
+  const batch = [
+    punch(1, shiftId, { kind: "in", at: at(-120) }),
+    punch(2, jobId, { kind: "out", at: at(-60) }),          // not this shift's grant
+    punch(3, shiftId, { kind: "sideways", at: at(-60) }),  // not a punch
+    punch(4, shiftId, { kind: "out", at: at(-30) }),
+  ];
+  const outcomes = new Map((await s5.gateway.replaySync({ orgId, regionId: REGION_SOUTH, mutations: batch })).outcomes.map((o) => [o.mutationId, o.outcome]));
+  assert.equal(outcomes.get(`${RUN}-punch1`), "applied");
+  assert.equal(outcomes.get(`${RUN}-punch2`), "rejected", "a punch names this device's own shift and no other");
+  assert.equal(outcomes.get(`${RUN}-punch3`), "rejected");
+  assert.equal(outcomes.get(`${RUN}-punch4`), "applied");
+  const again = await s5.gateway.replaySync({ orgId, regionId: REGION_SOUTH, mutations: [batch[0]!] });
+  assert.equal(again.outcomes[0]!.outcome, "duplicate", "a replayed punch is not a second punch");
+
+  const rows = await admin(`SELECT kind, technician_id, crew_id, region_id, punched_at FROM shift_punches WHERE grant_id = $1 ORDER BY punched_at`, [shiftId]);
+  assert.deepEqual(rows.map((r) => r.kind), ["in", "out"]);
+  assert.equal(rows[0]!.technician_id, USER_TECH, "the grant's technician — the payload names nobody");
+  assert.equal(rows[0]!.crew_id, crewCleared);
+  assert.equal(rows[0]!.region_id, REGION_SOUTH);
+  assert.equal(new Date(rows[0]!.punched_at).toISOString(), at(-120), "the device's time of the tap, not the time it synced");
+  const privileges = (await admin(`SELECT has_table_privilege('ac_gateway', 'shift_punches', 'UPDATE') AS u, has_table_privilege('ac_gateway', 'shift_punches', 'DELETE') AS d`))[0]!;
+  assert.deepEqual([privileges.u, privileges.d], [false, false], "append-only: the gateway can add a punch, never change or remove one");
+
+  // Someone else's punch on the same shift's record is not this technician's timesheet.
+  await admin(
+    `INSERT INTO shift_punches (org_id, region_id, grant_id, technician_id, crew_id, kind, punched_at, mutation_id) VALUES ($1,$2,$3,$4,$5,'in',$6,$7)`,
+    [orgId, REGION_SOUTH, shiftId, USER_TECH_B, crewCleared, at(-90), `${RUN}-other`],
+  );
+  // USER_TECH is the same login every run, so a reused database holds earlier runs' punches too: look at this run's instants.
+  const mine = (await s5.gateway.myPunches({ from: at(-24 * 60), to: at(60) })).punches.map((p) => `${p.kind}@${p.at}`);
+  assert.ok(mine.includes(`in@${at(-120)}`) && mine.includes(`out@${at(-30)}`), "this run's in and out");
+  assert.ok(!mine.includes(`in@${at(-90)}`), "another technician's punch is not on this timesheet");
+  await assert.rejects(s5.gateway.myPunches({ from: at(0), to: at(-1) }), (e: unknown) => /after from/.test(refusal(s5, e).message));
+  await assert.rejects(s5.gateway.myPunches({ from: at(-60 * 24 * 40), to: at(0) }), (e: unknown) => /35 days/.test(refusal(s5, e).message));
+  await s5.logout();
+});
+
+test("0034 wrap-up: media first, then the wrap-up, each idempotent; every rule is counted from what was stored; Quote needed becomes a QUOTE job the worker opens", { skip }, async () => {
+  const inProgress = async () => {
+    const id = (await s2.gateway.createJob({ siteId: site, serviceCode: "HVAC-REPAIR", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;
+    assert.equal((await s3.gateway.assignCrew({ jobId: id, crewId: crewCleared, orgId, regionId: REGION_SOUTH })).ok, true);
+    await admin(`UPDATE jobs SET state = 'in_progress' WHERE id = $1`, [id]);
+    return id;
+  };
+  const done = await inProgress(), quoted = await inProgress();
+  const s5 = await technician();
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, ...Array(64).fill(7)]).toString("base64");
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...Array(64).fill(1)]).toString("base64");
+  const at = new Date().toISOString();
+  const upload = (jobId: string, n: string, kind: "photo" | "signature" = "photo", dataBase64 = kind === "photo" ? jpeg : png) =>
+    s5.gateway.attachJobMedia({ jobId, mutationId: `${RUN}-${n}`, kind, dataBase64, capturedAt: at });
+
+  // Media: stored, replay-safe, judged by its own bytes, and only on this crew's work.
+  const first = await upload(done, "d1");
+  assert.equal(first.duplicate, false);
+  assert.deepEqual(await upload(done, "d1"), { ...first, duplicate: true }, "a retried upload answers with the row it wrote");
+  await upload(done, "d2");
+  await assert.rejects(upload(done, "dsig-bad", "signature", jpeg), (e: unknown) => code(s5, e) === "not_a_photo", "a signature is a PNG");
+  await assert.rejects(upload(done, "d-text", "photo", Buffer.from("not a photo").toString("base64")), (e: unknown) => code(s5, e) === "not_a_photo");
+  const unassigned = (await s2.gateway.createJob({ siteId: site, serviceCode: "HVAC-REPAIR", serviceWindowStart: WINDOW_START, serviceWindowEnd: WINDOW_END })).id;
+  await assert.rejects(upload(unassigned, "foreign"), (e: unknown) => code(s5, e) === "not_your_job", "a job nobody sent this crew to");
+  await upload(done, "dsig", "signature");
+  const media = await admin(`SELECT kind, captured_by, storage_key FROM job_media WHERE job_id = $1 ORDER BY mutation_id`, [done]);
+  assert.deepEqual(media.map((m) => m.kind), ["photo", "photo", "signature"]);
+  assert.equal(media[0]!.captured_by, USER_TECH);
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM storage_objects WHERE storage_key = ANY($1::text[])`, [media.map((m) => m.storage_key)]))[0]!.n, 3);
+
+  // The wrap-up: refused by name on each rule, counted from the stored rows.
+  const wrap = (over: Record<string, unknown>) => s5.gateway.wrapUpJob({
+    jobId: done, wrapUpId: `${RUN}-wrap-done`, outcome: "complete", submittedAt: at,
+    photoMutationIds: [`${RUN}-d1`, `${RUN}-d2`], signatureMutationId: `${RUN}-dsig`, notes: "Replaced the contactor.", ...over,
+  } as never);
+  await assert.rejects(wrap({ photoMutationIds: [`${RUN}-d1`] }), (e: unknown) => code(s5, e) === "too_few_photos");
+  await assert.rejects(wrap({ photoMutationIds: [`${RUN}-d1`, `${RUN}-never-sent`] }), (e: unknown) => code(s5, e) === "media_not_uploaded", "named but not stored is not a photo");
+  await assert.rejects(wrap({ signatureMutationId: undefined }), (e: unknown) => refusal(s5, e).kind === "bad_request", "the signature or why there is none");
+  await assert.rejects(wrap({ jobId: quoted, wrapUpId: `${RUN}-wrap-wrongjob` }), (e: unknown) => code(s5, e) === "media_not_uploaded", "photos are counted on the job they were sent to");
+  const ok = await wrap({});
+  assert.deepEqual([ok.state, ok.duplicate], ["complete", false]);
+  assert.equal((await wrap({})).duplicate, true, "a replayed submit finds the wrap-up it wrote");
+  const row = (await admin(`SELECT outcome, notes, measurements, signature_media_id, customer_absent_reason, crew_id, submitted_by FROM job_wrap_ups WHERE job_id = $1`, [done]))[0]!;
+  assert.deepEqual([row.outcome, row.notes, row.measurements, row.customer_absent_reason, row.crew_id, row.submitted_by], ["complete", "Replaced the contactor.", null, null, crewCleared, USER_TECH]);
+  assert.ok(row.signature_media_id);
+  assert.equal((await admin(`SELECT state FROM jobs WHERE id = $1`, [done]))[0]!.state, "complete");
+  const ev = (await admin(`SELECT from_state, to_state, surface_id FROM job_state_events WHERE job_id = $1 AND mutation_id = $2`, [done, `${RUN}-wrap-done`]))[0]!;
+  assert.deepEqual([ev.from_state, ev.to_state, ev.surface_id], ["in_progress", "complete", "S5"]);
+  await assert.rejects(s5.gateway.wrapUpJob({ jobId: done, wrapUpId: `${RUN}-wrap-again`, outcome: "complete", submittedAt: at, photoMutationIds: [], customerAbsentReason: "gone home" }),
+    (e: unknown) => code(s5, e) === "not_in_progress", "a completed job is not wrapped up twice");
+
+  // Quote needed: ten photos and the RTU set, or no submit; then the worker opens the QUOTE job.
+  for (let i = 0; i < 10; i++) await upload(quoted, `q${i}`);
+  const photos = Array.from({ length: 10 }, (_, i) => `${RUN}-q${i}`);
+  const measurements = { tonnage: 7.5, voltage: "460/3", fuel: "gas", unitLengthIn: 88, unitWidthIn: 58, unitHeightIn: 49, curbLengthIn: 80, curbWidthIn: 50, oldModel: "48TCED08", oldSerial: "1209G40112" };
+  const quote = (over: Record<string, unknown>) => s5.gateway.wrapUpJob({
+    jobId: quoted, wrapUpId: `${RUN}-wrap-quote`, outcome: "quote_needed", submittedAt: at, photoMutationIds: photos,
+    customerAbsentReason: "Tenant locked the roof hatch and left", notes: "Coil badly corroded; customer wants pricing.", measurements, ...over,
+  } as never);
+  await assert.rejects(quote({ photoMutationIds: photos.slice(0, 9) }), (e: unknown) => code(s5, e) === "too_few_photos");
+  await assert.rejects(quote({ measurements: { ...measurements, curbWidthIn: undefined } }), (e: unknown) => code(s5, e) === "measurements_incomplete" && /curb width/.test(refusal(s5, e).message));
+  await assert.rejects(quote({ customerAbsentReason: "x" }), (e: unknown) => code(s5, e) === "absent_needs_reason");
+  await quote({});
+  const w = (await admin(`SELECT id, measurements, quote_job_id FROM job_wrap_ups WHERE job_id = $1`, [quoted]))[0]!;
+  assert.deepEqual(w.measurements, measurements);
+  assert.equal(w.quote_job_id, null, "the device does not open the quote job");
+
+  const tx = await beginTx(pool, "ac_worker");
+  await tx.setLocal(workerScope());
+  const swept = await sweepQuoteJobs(tx, new Date());
+  assert.ok(swept.opened >= 1, `the worker opened the quote job: ${JSON.stringify(swept)}`);
+  const qj = (await admin(`SELECT w.quote_job_id, w.quote_error, j.service_code, j.state, j.site_id FROM job_wrap_ups w JOIN jobs j ON j.id = w.quote_job_id WHERE w.id = $1`, [w.id]))[0]!;
+  assert.deepEqual([qj.service_code, qj.state, qj.site_id, qj.quote_error], ["QUOTE", "quote_requested", site, null]);
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM sla_timers WHERE job_id = $1`, [qj.quote_job_id]))[0]!.n, 1, "the site's SLA, derived the way the office's jobs are");
+  const note = (await admin(`SELECT body, kind, author_id FROM job_notes WHERE job_id = $1`, [qj.quote_job_id]))[0]!;
+  assert.match(note.body, /Coil badly corroded/);
+  assert.deepEqual([note.kind, note.author_id], ["standing", WORKER_ACTOR]);
+  const authored = await admin(`SELECT DISTINCT surface_id, actor_id FROM audit_log WHERE entity_id = $1`, [qj.quote_job_id]);
+  assert.deepEqual(authored.map((a) => [a.surface_id, a.actor_id]), [["worker", WORKER_ACTOR]], "the worker is the quote job's author, not a surface it is not");
+
+  const again = await beginTx(pool, "ac_worker");
+  await again.setLocal(workerScope());
+  await sweepQuoteJobs(again, new Date());
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM jobs WHERE service_code = 'QUOTE' AND site_id = $1 AND id = $2`, [site, qj.quote_job_id]))[0]!.n, 1);
+  assert.equal((await admin(`SELECT quote_job_id FROM job_wrap_ups WHERE id = $1`, [w.id]))[0]!.quote_job_id, qj.quote_job_id, "a second sweep opens nothing more");
+
+  // The office reads both wrap-ups on the job, and the photo and signature through media.get.
+  const qd = (await s3.gateway.jobDetail({ jobId: quoted })).wrapUp!;
+  assert.deepEqual([qd.outcome, qd.quoteJobId, qd.measurements, qd.customerAbsentReason, qd.signatureMediaId, qd.crewLabel],
+    ["quote_needed", qj.quote_job_id, measurements, "Tenant locked the roof hatch and left", null, `Crew Cleared ${RUN}`]);
+  assert.equal(qd.quoteJobNo, (await admin(`SELECT job_no FROM jobs WHERE id = $1`, [qj.quote_job_id]))[0]!.job_no);
+  const dd = await s3.gateway.jobDetail({ jobId: done });
+  assert.deepEqual([dd.wrapUp!.outcome, dd.wrapUp!.notes, dd.wrapUp!.submittedByName], ["complete", "Replaced the contactor.", "Technician"]);
+  const sig = await s3.gateway.getMedia({ id: dd.wrapUp!.signatureMediaId! });
+  assert.equal(sig.image, `data:image/png;base64,${png}`, "the signature the device sent, read back by the office");
+  const photo = dd.media.find((m) => m.kind === "photo")!;
+  assert.equal((await s3.gateway.getMedia({ id: photo.id })).contentType, "image/jpeg");
   await s5.logout();
 });
 

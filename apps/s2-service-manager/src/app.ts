@@ -1,5 +1,6 @@
-import { html, pageHead, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, type VNode } from "../../../packages/ui/src/index.ts";
-import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
+import { html, pageHead, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, type VNode, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, bindCookieSession } from "../../../packages/ui/src/index.ts";
+import { gatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
+export { gatewayOrigin };
 import { densityOf, SURFACE_PATHS, type AccountWire, type CrewWire, type FirmWire, type OrganizationWire, type PurchaseOrderDetailOutput, type Refusal, type TechnicianWire, type VendorWire } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
@@ -35,19 +36,6 @@ import { S2_CSS } from "./styles.ts";
  * degraded slot driven by `shell.isDegraded()`, account events → refetch.
  */
 export const DENSITY = densityOf("S2");
-
-/**
- * The gateway origin — the one URL the surface layer names (ConnectConfig.baseUrl).
- * Stamped into the frame at build (`<meta name="ac-gateway">`, from AC_GATEWAY);
- * absent, derived from the site: s2.<site> talks to api.<site>.
- */
-export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string } }): string => {
-  const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
-  if (stamped) return stamped;
-  const host = doc.location.host;
-  const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
-  return `${doc.location.protocol}//api.${site}`;
-};
 
 export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = {
   "accounts.tree": accountsTree,
@@ -102,52 +90,20 @@ const networkFirmOf = (params: Readonly<Record<string, string>>, store: Store): 
   return null;
 };
 
-const ROUTE_LABELS: Readonly<Record<Exclude<ScreenId, "login">, string>> = {
-  "accounts.tree": "Accounts",
-  "accounts.new": "New account node",
-  "accounts.move": "Move account node",
-  "organizations.new": "New customer",
-  "leads": "Leads",
-  "contracts.list": "Agreements",
-  "projects": "Projects",
-  "contracts.new": "New agreement",
-  "terms.override": "Term overrides",
-  "terms.resolved": "Resolved terms",
-  "network": "Technician Network",
-  "network.firm.new": "New firm",
-  "network.crew.new": "New crew",
-  "network.crew.documents": "Crew documents",
-  "network.rates": "Rate card",
-  "network.technician.new": "New technician",
-  "network.technician.edit": "Edit technician",
-  "purchasing": "Purchasing",
-  "purchasing.vendor": "Vendor catalogue",
-  "purchasing.po": "Purchase order",
-  "billing": "Billing",
-  "billing.invoice": "Invoice",
-  "devices": "Field devices",
-  "devices.new": "New device",
-  "devices.grant": "Grant a shift",
+/** The tab a screen belongs under: its own id, or the `nav` it names in the registry. */
+const navTargetFor = (id: Exclude<ScreenId, "login">): Exclude<ScreenId, "login"> => {
+  const spec = SCREENS[id];
+  return ("nav" in spec ? spec.nav : id) as Exclude<ScreenId, "login">;
 };
 
-const navGroupFor = (screen: Exclude<ScreenId, "login">): (typeof NAV_GROUPS)[number] | undefined =>
-  NAV_GROUPS.find((group) => (group.screens as readonly Exclude<ScreenId, "login">[]).some((id) =>
-    id === screen ||
-    (id === "accounts.tree" && screen === "organizations.new") ||
-    (id === "contracts.list" && (screen.startsWith("contracts.") || screen.startsWith("terms."))) ||
-    (id === "network" && screen.startsWith("network.")) ||
-    (id === "purchasing" && screen.startsWith("purchasing.")) ||
-    (id === "billing" && screen.startsWith("billing.")) ||
-    (id === "devices" && screen.startsWith("devices."))));
+const screenTitle = (id: Exclude<ScreenId, "login">): string => {
+  const spec = SCREENS[id];
+  return "title" in spec ? spec.title : id;
+};
 
-const navTargetFor = (screen: Exclude<ScreenId, "login">): Exclude<ScreenId, "login"> => {
-  if (screen === "organizations.new" || screen.startsWith("accounts.")) return "accounts.tree";
-  if (screen.startsWith("contracts.") || screen.startsWith("terms.")) return "contracts.list";
-  if (screen.startsWith("network.")) return "network";
-  if (screen.startsWith("purchasing.")) return "purchasing";
-  if (screen.startsWith("billing.")) return "billing";
-  if (screen.startsWith("devices.")) return "devices";
-  return screen;
+const navGroupFor = (screen: Exclude<ScreenId, "login">): (typeof NAV_GROUPS)[number] | undefined => {
+  const target = navTargetFor(screen);
+  return NAV_GROUPS.find((group) => (group.screens as readonly string[]).includes(target));
 };
 
 const activeEntity = (params: Readonly<Record<string, string>>, store: Store): string | null => {
@@ -186,7 +142,7 @@ const activeEntity = (params: Readonly<Record<string, string>>, store: Store): s
   return null;
 };
 
-type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
+type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store; account: AccountMenuState; messages: MessengerState };
 
 export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window }) => {
   const now = opts.now ?? (() => Date.now());
@@ -196,7 +152,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
 
   const become = (shell: ConnectedShell) => {
     const store = createStore(shell, now);
-    phase.value = { kind: "ready", shell, store };
+    phase.value = { kind: "ready", shell, store, account: createAccountMenu(shell.gateway, shell.refusalOf), messages: createMessenger(shell.gateway, shell.refusalOf) };
     // "/" and "/login" are not screens once signed in; the tree is home.
     const at = router.current.value;
     if (!at || at.screen === "login") router.navigate("accounts.tree", {});
@@ -232,41 +188,18 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     shell.subscribe(() => refreshBilling(store), { topics: ["payment.recorded", "payment.returned", "invoice.paid", "invoice.voided", "invoice.issued"] });
   };
 
-  const login = async (email: string, password: string) => {
-    phase.value = { kind: "login", refusal: null, busy: true };
-    try { become(await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { email, password, session: "cookie" } })); }
-    catch (e) { phase.value = { kind: "login", refusal: refusalOf(e), busy: false }; }
-  };
+  const session = bindCookieSession({
+    degraded,
+    now,
+    isReady: () => (phase.value.kind === "ready" ? phase.value : null),
+    setLogin: (busy, refusal) => { phase.value = { kind: "login", refusal, busy }; },
+    setReady: become,
+    connect: (credentials) => connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials }),
+    onLogout: (ready) => { ready.messages.stop(); },
+    afterLogout: () => { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("accounts.tree", {}); },
+  });
 
-  const boot = async () => {
-    try { become(await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { session: "cookie" } })); }
-    catch (e) {
-      const r = refusalOf(e);
-      // No session is the normal first visit; anything else is worth showing above the login form.
-      phase.value = { kind: "login", refusal: r.kind === "token" ? null : r, busy: false };
-    }
-  };
-
-  const logout = async () => {
-    const p = phase.value;
-    if (p.kind !== "ready") return;
-    try { await p.shell.logout(); } finally { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("accounts.tree", {}); }
-  };
-
-  /** Poll the flag the transport writes; while degraded, probe health so recovery is noticed without a click (09 §3.9). */
-  const tick = () => {
-    const p = phase.value;
-    if (p.kind !== "ready") return;
-    degraded.value = p.shell.isDegraded();
-  };
-  let lastProbe = 0;
-  const probe = () => {
-    const p = phase.value;
-    if (p.kind !== "ready" || !degraded.value) return;
-    if (now() - lastProbe < 15_000) return;
-    lastProbe = now();
-    p.shell.gateway.health().catch(() => {});
-  };
+  const { login, logout } = session;
 
   const view = (): VNode => {
     const p = phase.value;
@@ -306,21 +239,19 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           </span>`] : []),
         ];
       }
-      return navGroup.screens.map((id) => {
-        const spec = SCREENS[id];
-        return tab(id, {}, "title" in spec ? spec.title : ROUTE_LABELS[id], open && navTargetFor(routeId!) === id);
-      });
+      return navGroup.screens.map((id) => tab(id, {}, screenTitle(id), open && navTargetFor(routeId!) === id));
     };
     // The trail says only what the tabs and the page head do not: the domain, the
     // tab a sub-screen sits under, and the record open in it.
     const target = routeId ? navTargetFor(routeId) : undefined;
-    const parentTab = routeId && target && routeId !== target && ROUTE_LABELS[target] !== group?.label ? ROUTE_LABELS[target] : null;
+    const targetTitle = target ? screenTitle(target) : undefined;
+    const parentTab = routeId && target && routeId !== target && targetTitle !== group?.label ? targetTitle : null;
     return html`<div class="s2-app">
       <nav class="ac-nav ac-nav--grouped" aria-label="Workspace">
         <div class="ac-nav__end">
           <span class="ac-nav__group-label">Signed-in scope</span>
           <span class="ac-nav__who"><span class="s2-scope">${path.map((node) => html`<span>${node.name ?? node.tier}</span>`)}</span> · ${p.shell.principal.roles.join(", ")}</span>
-          <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
+          ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
         </div>
         <div class="ac-nav__groups">
           ${NAV_GROUPS.map((navGroup) => html`<div class="ac-nav__group" role="group" aria-label=${navGroup.label} data-current=${group?.label === navGroup.label ? "true" : "false"}>
@@ -339,11 +270,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     </div>`;
   };
 
-  return { phase, degraded, router, view, boot, login, logout, tick, probe };
+  return { phase, degraded, router, view, boot: session.boot, login: session.login, logout: session.logout, tick: session.tick, probe: session.probe };
 };
-
-const refusalOf = (e: unknown): Refusal =>
-  (e as { refusal?: Refusal })?.refusal ?? { kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) };
 
 export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: (email: string, password: string) => void): VNode => {
   const submit = (e: Event) => {

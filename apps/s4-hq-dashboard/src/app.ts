@@ -1,5 +1,6 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, type VNode } from "../../../packages/ui/src/index.ts";
-import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, type VNode, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, bindCookieSession } from "../../../packages/ui/src/index.ts";
+import { gatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
+export { gatewayOrigin };
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
@@ -29,14 +30,6 @@ import { S4_CSS } from "./styles.ts";
  */
 export const DENSITY = densityOf("S4");
 
-export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string } }): string => {
-  const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
-  if (stamped) return stamped;
-  const host = doc.location.host;
-  const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
-  return `${doc.location.protocol}//api.${site}`;
-};
-
 export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = {
   overview, area, region,
   "office.customers": officeCustomers, "office.customer": officeCustomer, "office.leads": officeLeads, "office.projects": officeProjects,
@@ -48,7 +41,7 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
 /** How often the open dashboard re-reads what it shows. S4 is not realtime (the registry); the figures move when the worker's do, the records when S2 and S3 write them. */
 export const REREAD_MS = 60_000;
 
-type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store };
+type Phase = { kind: "booting" } | { kind: "login"; refusal: Refusal | null; busy: boolean } | { kind: "ready"; shell: ConnectedShell; store: Store; account: AccountMenuState; messages: MessengerState };
 
 export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window }) => {
   const now = opts.now ?? (() => Date.now());
@@ -58,49 +51,35 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
 
   const become = (shell: ConnectedShell) => {
     const store = createStore(shell, now);
-    phase.value = { kind: "ready", shell, store };
+    phase.value = { kind: "ready", shell, store, account: createAccountMenu(shell.gateway, shell.refusalOf), messages: createMessenger(shell.gateway, shell.refusalOf) };
     const at = router.current.value;
     if (!at || at.screen === "login") router.navigate("overview", {});
   };
 
-  const login = async (email: string, password: string) => {
-    phase.value = { kind: "login", refusal: null, busy: true };
-    try { become(await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { email, password, session: "cookie" } })); }
-    catch (e) { phase.value = { kind: "login", refusal: refusalOf(e), busy: false }; }
-  };
-
-  const boot = async () => {
-    try { become(await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { session: "cookie" } })); }
-    catch (e) {
-      const r = refusalOf(e);
-      phase.value = { kind: "login", refusal: r.kind === "token" ? null : r, busy: false };
-    }
-  };
-
-  const logout = async () => {
-    const p = phase.value;
-    if (p.kind !== "ready") return;
-    try { await p.shell.logout(); } finally { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("overview", {}); }
-  };
+  const session = bindCookieSession({
+    degraded,
+    now,
+    isReady: () => (phase.value.kind === "ready" ? phase.value : null),
+    setLogin: (busy, refusal) => { phase.value = { kind: "login", refusal, busy }; },
+    setReady: become,
+    connect: (credentials) => connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials }),
+    onLogout: (ready) => { ready.messages.stop(); },
+    afterLogout: () => { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("overview", {}); },
+  });
 
   let lastRead = now();
   const tick = () => {
+    session.tick();
     const p = phase.value;
     if (p.kind !== "ready") return;
-    degraded.value = p.shell.isDegraded();
+    // HQ reads the office's and dispatch's lists too, not only the hq.* rollup — re-read every key.
     if (now() - lastRead >= REREAD_MS) { lastRead = now(); p.store.invalidate(""); }
-  };
-  let lastProbe = 0;
-  const probe = () => {
-    const p = phase.value;
-    if (p.kind !== "ready" || !degraded.value) return;
-    if (now() - lastProbe < 15_000) return;
-    lastProbe = now();
-    p.shell.gateway.health().catch(() => {});
   };
 
   const nav = (screen: "overview" | "office.customers" | "dispatch.board", label: string, current: boolean): VNode =>
     html`<a class="ac-seg__item" data-current=${current ? "true" : "false"} href=${router.href(screen, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(screen, {}); }}>${label}</a>`;
+
+  const { login, logout } = session;
 
   const view = (): VNode => {
     const p = phase.value;
@@ -117,17 +96,14 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         ${nav("office.customers", "Office", loc?.screen.startsWith("office.") ?? false)}
         ${nav("dispatch.board", "Dispatch", loc?.screen.startsWith("dispatch.") ?? false)}
         <span class="ac-nav__who" id="who">${who} · ${p.shell.context?.parent.name ?? ""} · read only</span>
-        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
+        ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
       </nav>
       ${screen ? screen(ctx, loc!.params) : html`<p class="s4-empty">Nothing at this address.</p>`}
     </div>`;
   };
 
-  return { phase, degraded, router, view, boot, login, logout, tick, probe };
+  return { phase, degraded, router, view, boot: session.boot, login: session.login, logout: session.logout, tick, probe: session.probe };
 };
-
-const refusalOf = (e: unknown): Refusal =>
-  (e as { refusal?: Refusal })?.refusal ?? { kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) };
 
 export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: (email: string, password: string) => void): VNode => {
   const submit = (e: Event) => {

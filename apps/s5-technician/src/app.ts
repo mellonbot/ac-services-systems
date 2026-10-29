@@ -1,5 +1,6 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
-import type { ConnectedShell } from "../../../packages/shell/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
+import { gatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
+export { gatewayOrigin };
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
@@ -8,6 +9,9 @@ import { createOfflineQueue, othersPending, type OfflineQueue, type QueueStore }
 import type { Screen, ScreenContext } from "./screens/common.ts";
 import { jobList } from "./screens/job-list.ts";
 import { jobDetail } from "./screens/job-detail.ts";
+import { timesheet } from "./screens/timesheet.ts";
+import { wrapUp } from "./screens/wrap-up.ts";
+import { createWrapUps, indexedDbMedia, memoryMedia, type MediaStore, type WrapUps } from "./wrap-ups.ts";
 import { S5_CSS } from "./styles.ts";
 
 /**
@@ -26,28 +30,23 @@ import { S5_CSS } from "./styles.ts";
  */
 export const DENSITY = densityOf("S5");
 
-export const gatewayOrigin = (doc: { querySelector(sel: string): { getAttribute(n: string): string | null } | null; location: { protocol: string; host: string } }): string => {
-  const stamped = doc.querySelector('meta[name="ac-gateway"]')?.getAttribute("content")?.trim();
-  if (stamped) return stamped;
-  const host = doc.location.host;
-  const site = host.includes(".") ? host.slice(host.indexOf(".") + 1) : host;
-  return `${doc.location.protocol}//api.${site}`;
-};
-
 export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> = {
   jobs: jobList,
   job: jobDetail,
+  timesheet,
+  wrapup: wrapUp,
 };
 
 type Phase =
   | { kind: "login"; refusal: Refusal | null; busy: boolean }
-  | { kind: "ready"; shell: ConnectedShell; store: Store; queue: OfflineQueue; crew: { id: string; label: string }; clock: Signal<Readonly<Record<string, string>>> };
+  | { kind: "ready"; shell: ConnectedShell; store: Store; queue: OfflineQueue; wrapUps: WrapUps; crew: { id: string; label: string }; clock: Signal<Readonly<Record<string, string>>>; account: AccountMenuState; messages: MessengerState };
 
-export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window; newId?: () => string; store?: QueueStore | null }) => {
+export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window; newId?: () => string; store?: QueueStore | null; media?: MediaStore }) => {
   const now = opts.now ?? (() => Date.now());
   const newId = opts.newId ?? (() => (globalThis.crypto?.randomUUID?.() ?? `${now()}-${Math.random()}`));
   const phase = signal<Phase>({ kind: "login", refusal: null, busy: false });
   const degraded = signal(false);
+  const minute = signal(Math.floor(now() / 60_000));
   const router = createRouter(SCREENS, opts.window ? browserHistory(opts.window, SURFACE_PATHS.S5) : { path: () => "/", push: () => {}, onPop: () => () => {} });
 
   const login = async (hardwareId: string, email: string, password: string) => {
@@ -59,9 +58,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
       // A device principal's subject is the technician who signed in (auth.deviceLogin's `sub`).
       const deviceId = shell.principal.deviceId ?? hardwareId;
       const queue = createOfflineQueue({ deviceId, subjectId: shell.principal.subjectId, newId, now, store: opts.store ?? null });
+      const wrapUps = createWrapUps({ deviceId, subjectId: shell.principal.subjectId, newId, now, store: opts.store ?? null, media: opts.media ?? memoryMedia() });
       const others = othersPending(opts.store, deviceId, shell.principal.subjectId);
       if (others > 0) store.notice.value = [...store.notice.value, `${others} change(s) another technician saved on this device are kept for them and will be sent when they sign in on it.`];
-      phase.value = { kind: "ready", shell, store, queue, crew: shell.deviceCrew, clock: queue.clock };
+      phase.value = { kind: "ready", shell, store, queue, wrapUps, crew: shell.deviceCrew, clock: queue.clock, account: createAccountMenu(shell.gateway, shell.refusalOf), messages: createMessenger(shell.gateway, shell.refusalOf) };
       router.navigate("jobs", {});
       // Envelopes carry no payload; a job assigned to or pulled off this
       // shift's crew, or a term change affecting the field ground, is a
@@ -75,6 +75,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const logout = async () => {
     const p = phase.value;
     if (p.kind !== "ready") return;
+    p.messages.stop();
     try { await p.shell.logout(); } finally { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("login", {}); }
   };
 
@@ -82,17 +83,29 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   // minute while they do not — a dead zone is not a reason to send a request a second.
   let retryAt = 0;
   let retryDelay = 1000;
+  let wrapRetryAt = 0;
+  let wrapRetryDelay = 1000;
   const tick = () => {
     const p = phase.value;
     if (p.kind !== "ready") return;
     degraded.value = p.shell.isDegraded();
+    minute.value = Math.floor(now() / 60_000);
     // Offline-first: a queue with something in it is retried on every tick
     // while the gateway is reachable, not only when a tech taps a button —
     // reconnecting after a dead zone should not need a second tap to notice.
+    // Wrap-ups go once the sync queue is empty: the moves that put the job in
+    // progress reach the office before the wrap-up that completes it.
+    if (p.queue.pending.value.length === 0 && p.wrapUps.outbox.value.some((e) => e.refused === null) && now() >= wrapRetryAt) {
+      void p.wrapUps.flush(p.shell.gateway, (e) => (e as { refusal?: Refusal })?.refusal ?? null).then((reached) => {
+        if (reached) { wrapRetryDelay = 1000; wrapRetryAt = 0; p.store.invalidate("jobs.mine"); return; }
+        wrapRetryAt = now() + wrapRetryDelay;
+        wrapRetryDelay = Math.min(wrapRetryDelay * 2, 60_000);
+      });
+    }
     if (p.queue.pending.value.length > 0 && now() >= retryAt && !p.queue.flushing.value) {
       void p.queue.flush((mutations) => p.shell.gateway.replaySync({ orgId: p.shell.principal.orgId, regionId: p.shell.principal.regionId, mutations }))
         .then((answered) => {
-          if (answered) { retryDelay = 1000; retryAt = 0; p.store.invalidate("jobs.mine"); return; }
+          if (answered) { retryDelay = 1000; retryAt = 0; p.store.invalidate("jobs.mine"); p.store.invalidate("punches.mine"); return; }
           const refusal = refusalOf(p.queue.failure.value);
           if (refusal.kind === "token") {
             // The shift's token is over. The work is on this device; signing in again replays it.
@@ -111,17 +124,19 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const view = (): VNode => {
     const p = phase.value;
     if (p.kind === "login") return loginView(p, login);
-    const ctx: ScreenContext = { shell: p.shell, store: p.store, queue: p.queue, crew: p.crew, clock: p.clock, router, density: DENSITY, degraded: degraded.value };
+    const ctx: ScreenContext = { shell: p.shell, store: p.store, queue: p.queue, wrapUps: p.wrapUps, crew: p.crew, clock: p.clock, router, density: DENSITY, degraded: degraded.value, now: now() };
+    void minute.value; // subscribe: a running shift clock moves on every minute
     void p.store.version.value; // subscribe: an invalidate re-renders the mounted screen, which re-reads its resources
-    void p.queue.pending.value; void p.queue.attention.value; // subscribe: enqueue/flush re-render the queued-count and any attention items
+    void p.queue.pending.value; void p.queue.attention.value; void p.wrapUps.drafts.value; void p.wrapUps.outbox.value; void p.wrapUps.previews.value; // subscribe: enqueue/flush re-render the queued-count and any attention items
     const loc = router.current.value;
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     const notice = p.store.notice.value;
     return html`<div class="s5-app">
       <nav class="ac-nav" aria-label="Screens">
         <a class="ac-seg__item" data-current=${loc?.screen === "jobs" ? "true" : "false"} href=${router.href("jobs", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("jobs", {}); }}>Today</a>
+        <a class="ac-seg__item" data-current=${loc?.screen === "timesheet" ? "true" : "false"} href=${router.href("timesheet", {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate("timesheet", {}); }}>Timesheet</a>
         <span class="ac-nav__who">${p.crew.label}</span>
-        <button type="button" class="ac-nav__signout" onClick=${logout}>Sign out</button>
+        ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
       </nav>
       ${notice.length ? html`<div class="s5-notice" role="status">${notice.map((n) => html`<p>${n}</p>`)}<button type="button" class="s5-notice__dismiss" onClick=${() => { p.store.notice.value = []; }} aria-label="Dismiss">×</button></div>` : null}
       ${screen ? screen(ctx, loc!.params) : html`<p class="s5-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}
@@ -162,7 +177,7 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
 
   let store: QueueStore | null = null;
   try { store = window.localStorage; } catch { /* site data blocked: the queue lives in memory */ }
-  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window, store });
+  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window, store, ...(typeof indexedDB !== "undefined" ? { media: indexedDbMedia("ac-s5-media") } : {}) });
   const el = document.getElementById("mount")!;
   const slot = document.querySelector("ac-degraded") as (HTMLElement | null);
   const Root = () => app.view();

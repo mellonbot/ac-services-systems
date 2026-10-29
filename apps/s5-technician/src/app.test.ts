@@ -7,7 +7,7 @@ import { priorityStatus, forwardState } from "./screens/job-list.ts";
 import { CHECKLIST, PART_SOURCES } from "./screens/job-detail.ts";
 import { nextDeviceStates, JOB_TRANSITIONS, DEVICE_TRANSITIONS, queueKey, type QueueStore } from "./offline.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import type { HierarchyContext, FieldJobWire, SyncMutationWire, SyncOutcomeWire } from "../../../packages/contracts/src/index.ts";
+import type { HierarchyContext, FieldJobWire, ShiftPunchWire, SyncMutationWire, SyncOutcomeWire } from "../../../packages/contracts/src/index.ts";
 import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
 
 /**
@@ -41,8 +41,10 @@ const job: FieldJobWire = {
 type Reply = { status: number; body: unknown };
 type SyncHandler = (mutations: readonly SyncMutationWire[]) => Reply;
 
-const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJobWire[] } = {}) => {
+const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJobWire[]; punches?: readonly ShiftPunchWire[]; wrapUpReply?: (b: Record<string, unknown>) => Reply } = {}) => {
   let session = false;
+  const sentMedia: { mutationId: string; kind: string }[] = [];
+  const sentWrapUps: Record<string, unknown>[] = [];
   const calls: { path: string; init: Parameters<FetchLike>[1] }[] = [];
   const reply = (status: number, body: unknown) => ({ status, ok: status < 300, json: async () => body, text: async () => JSON.stringify(body), body: null });
   const fetch: FetchLike = async (url, init) => {
@@ -52,6 +54,19 @@ const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJob
     if (!session) return reply(401, { error: "AuthError", code: "malformed", message: "no session" });
     if (path === OPERATIONS["session.me"].path) return reply(200, deviceContext);
     if (path === OPERATIONS["jobs.mine"].path) return reply(200, { jobs: opts.jobs ?? [job] });
+    // Clocked in by default: a job does not move until the shift clock is in (partner rule, 2026-10-27).
+    if (path === OPERATIONS["punches.mine"].path) return reply(200, { punches: opts.punches ?? [{ id: "p-default", kind: "in", at: "1970-01-01T00:00:00.000Z" }] });
+    if (path === OPERATIONS["jobs.attachMedia"].path) {
+      const b = JSON.parse(init!.body as string) as { mutationId: string; kind: string };
+      sentMedia.push(b);
+      return reply(200, { id: `m-${b.mutationId}`, jobId: JOB, duplicate: false });
+    }
+    if (path === OPERATIONS["jobs.wrapUp"].path) {
+      const b = JSON.parse(init!.body as string) as Record<string, unknown>;
+      if (opts.wrapUpReply) { const r = opts.wrapUpReply(b); return reply(r.status, r.body); }
+      sentWrapUps.push(b);
+      return reply(200, { jobId: JOB, wrapUpId: b.wrapUpId, state: "complete", duplicate: false });
+    }
     if (path === OPERATIONS["sync.replay"].path) {
       const body = JSON.parse(init!.body as string) as { mutations: readonly SyncMutationWire[] };
       if (opts.syncHandler) { const r = opts.syncHandler(body.mutations); return reply(r.status, r.body); }
@@ -61,7 +76,7 @@ const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJob
     if (path === OPERATIONS["events.stream"].path) return { status: 200, ok: true, json: async () => ({}), text: async () => "", body: null };
     return reply(404, { error: "NoRoute", message: `no route ${path}` });
   };
-  return { fetch, calls };
+  return { fetch, calls, sentMedia, sentWrapUps };
 };
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
@@ -83,9 +98,9 @@ const memory = (): QueueStore & { map: Map<string, string> } => {
   return { map, getItem: (k) => map.get(k) ?? null, setItem: (k, v) => { map.set(k, v); }, get length() { return map.size; }, key: (i) => [...map.keys()][i] ?? null };
 };
 let seq = 0;
-const ready = async (opts?: Parameters<typeof fakeGateway>[0] & { store?: QueueStore }) => {
+const ready = async (opts?: Parameters<typeof fakeGateway>[0] & { store?: QueueStore; now?: number }) => {
   const g = fakeGateway(opts);
-  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000, newId: () => `mut-${++seq}`, store: opts?.store ?? null });
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => opts?.now ?? 1_000, newId: () => `mut-${++seq}`, store: opts?.store ?? null });
   await app.login("hw-001", "tech@ac.test", "pw");
   return { app, gateway: g };
 };
@@ -111,12 +126,12 @@ test("priorityStatus: emergency reads as breached, urgent as at risk, routine an
 test("nextDeviceStates offers only what JOB_TRANSITIONS and DEVICE_TRANSITIONS both admit — never assignment or cancellation", () => {
   assert.deepEqual(nextDeviceStates("assigned"), ["en_route"], "reassigned and cancelled are the office's, not a device transition");
   assert.deepEqual(nextDeviceStates("en_route"), ["on_site"]);
-  assert.deepEqual([...nextDeviceStates("in_progress")].sort(), ["aborted", "awaiting_customer", "awaiting_parts", "complete"].sort());
+  assert.deepEqual([...nextDeviceStates("in_progress")].sort(), ["aborted", "awaiting_customer", "awaiting_parts"].sort(), "complete is the wrap-up's (0034), never a bare transition");
   assert.deepEqual([...nextDeviceStates("awaiting_customer")].sort(), ["aborted", "in_progress"], "a hold for the customer resumes or stops; it is not the field's to quote");
   assert.deepEqual(nextDeviceStates("quote_requested"), [], "a quote before dispatch is the office's");
   assert.deepEqual(nextDeviceStates("invoiced"), []);
   for (const [from, tos] of Object.entries(JOB_TRANSITIONS)) {
-    const admitted = tos.filter((to) => DEVICE_TRANSITIONS.includes(to));
+    const admitted = tos.filter((to) => DEVICE_TRANSITIONS.includes(to) && to !== "complete");
     assert.deepEqual([...nextDeviceStates(from)].sort(), [...admitted].sort(), from);
   }
 });
@@ -399,7 +414,8 @@ test("offline, each tapped transition moves the screen on: the next is queued ag
   click(app.view(), "to-in_progress"); await offline();
   out = render(app.view());
   assert.match(out, /State: <strong>in progress<\/strong>/);
-  assert.match(out, /id="to-complete"/);
+  assert.match(out, new RegExp(`href="/jobs/${JOB}/wrap-up"`), "in progress, the job is finished by its wrap-up");
+  assert.doesNotMatch(out, /id="to-complete"/);
 
   const queued = p.queue.pending.value.map((e) => [e.mutation.payload.state, e.mutation.clientObservedVersion]);
   assert.deepEqual(queued, [["en_route", 3], ["on_site", 4], ["in_progress", 5]], "each observes the version the server will hold once the one before it lands");
@@ -425,7 +441,7 @@ test("a running time clock is saved with the queue: a new sign-in on the same de
   assert.match(render(second.app.view()), /Running since/);
 });
 
-test("finishing a job with the clock running stops the clock first: the span is sent ahead of the transition, because a finished job drops off this list", async () => {
+test("aborting a job with the clock running stops the clock first: the span is sent ahead of the transition, because a finished job drops off this list", async () => {
   const sent: SyncMutationWire[] = [];
   const { app } = await ready({
     jobs: [{ ...job, state: "in_progress" }],
@@ -437,7 +453,7 @@ test("finishing a job with the clock running stops the clock first: the span is 
   render(app.view()); await settle(); await settle();
   click(app.view(), "clock-toggle");
   assert.ok(p.clock.value[JOB]);
-  click(app.view(), "to-complete");
+  click(app.view(), "to-aborted");
   for (let i = 0; i < 4; i++) await settle();
   assert.deepEqual(sent.map((m) => m.entityTable), ["time_entries", "jobs"]);
   assert.equal(p.clock.value[JOB], undefined, "the clock is not left running on a job the device can no longer open");
@@ -478,4 +494,168 @@ test("attention survives a reload until it is dismissed", async () => {
   const p3 = third.app.phase.value;
   if (p3.kind !== "ready") return assert.fail("not ready");
   assert.equal(p3.queue.attention.value.length, 0, "a dismissed item stays dismissed");
+});
+
+// ---- the shift clock (0033) and its partner rule: in before the first job, out after the last ----
+const NOW = Date.parse("2026-10-27T15:00:00Z");
+const down = () => ({ status: 503, body: { error: "Unavailable", message: "down" } });
+
+test("before the first job, Today offers Clock in; the tap queues a punch on this shift's grant and the clock runs at once", async () => {
+  const { app } = await ready({ now: NOW, syncHandler: down, punches: [] });
+  render(app.view()); await settle(); await settle(); render(app.view()); await settle();
+  let out = render(app.view());
+  assert.match(out, /Clocked out/);
+  assert.match(out, /id="clock-in"/);
+  assert.doesNotMatch(out, /id="clock-out"/);
+
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  click(app.view(), "clock-in"); await settle();
+  const m = p.queue.pending.value.at(-1)!.mutation;
+  assert.deepEqual([m.entityTable, m.entityId, m.op, m.payload.kind], ["shift_punches", SHIFT, "insert", "in"], "the punch names the shift grant, never a job");
+  out = render(app.view());
+  assert.match(out, /Clocked in/);
+  assert.match(out, /waiting to sync/);
+  assert.doesNotMatch(out, /id="clock-in"/);
+  assert.doesNotMatch(out, /id="clock-out"/, "the job is still open");
+  assert.match(out, /Clock out opens when every job is complete or on hold/);
+});
+
+test("no job moves until the shift clock is in: the card and the detail say so on the control, and Clock in lifts it", async () => {
+  const { app } = await ready({ now: NOW, syncHandler: down, punches: [] });
+  render(app.view()); await settle(); await settle(); render(app.view()); await settle();
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  let out = render(app.view());
+  assert.match(out, new RegExp(`id="card-${JOB}-en_route" aria-disabled="true"`));
+  assert.match(out, /Clock in first/);
+  click(app.view(), `card-${JOB}-en_route`); await settle();
+  assert.equal(p.queue.pending.value.length, 0, "a tap on a gated move queues nothing");
+
+  app.router.navigate("job", { jobId: JOB });
+  render(app.view()); await settle();
+  assert.match(render(app.view()), /id="to-en_route" aria-disabled="true"/);
+
+  app.router.navigate("jobs", {});
+  click(app.view(), "clock-in"); await settle();
+  out = render(app.view());
+  assert.match(out, new RegExp(`id="card-${JOB}-en_route" aria-disabled="false"`), "a queued clock-in counts at once");
+});
+
+test("a job already under way with the clock stopped is not a dead end: Clock in is offered and lifts the gate", async () => {
+  const { app } = await ready({ now: NOW, jobs: [{ ...job, state: "en_route" }], punches: [], syncHandler: down });
+  render(app.view()); await settle(); await settle(); render(app.view()); await settle();
+  let out = render(app.view());
+  assert.match(out, /id="clock-in"/);
+  assert.match(out, new RegExp(`id="card-${JOB}-on_site" aria-disabled="true"`));
+  click(app.view(), "clock-in"); await settle();
+  out = render(app.view());
+  assert.match(out, new RegExp(`id="card-${JOB}-on_site" aria-disabled="false"`));
+});
+
+test("clocked in with every job finished or on hold — off the list, completed on this device, or waiting on parts — Today offers Clock out", async () => {
+  const punches = [{ id: "p1", kind: "in" as const, at: "2026-10-27T13:00:00Z" }];
+  const empty = await ready({ now: NOW, jobs: [], punches });
+  render(empty.app.view()); await settle(); await settle(); render(empty.app.view()); await settle();
+  let out = render(empty.app.view());
+  assert.match(out, /id="clock-out"/);
+  assert.match(out, />2h 00m</, "two hours on the clock at 15:00");
+
+  const { app } = await ready({ now: NOW, jobs: [{ ...job, state: "in_progress" }], punches, syncHandler: down });
+  render(app.view()); await settle(); await settle(); render(app.view()); await settle();
+  assert.doesNotMatch(render(app.view()), /id="clock-out"/);
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  p.queue.enqueue("jobs", JOB, "transition", { state: "complete" }, job.version);
+  out = render(app.view());
+  assert.match(out, /id="clock-out"/, "a completion still waiting to sync counts");
+
+  const held = await ready({ now: NOW, jobs: [{ ...job, state: "awaiting_parts" }], punches });
+  render(held.app.view()); await settle(); await settle(); render(held.app.view()); await settle();
+  assert.match(render(held.app.view()), /id="clock-out"/, "a job waiting on parts does not keep the crew on the clock");
+});
+
+test("the timesheet lists the week's punches by day with each day's total and the week's, and a running span says so", async () => {
+  const punches = [
+    { id: "p1", kind: "in" as const, at: "2026-10-26T12:58:00Z" }, { id: "p2", kind: "out" as const, at: "2026-10-26T21:32:00Z" },
+    { id: "p3", kind: "in" as const, at: "2026-10-27T13:00:00Z" },
+  ];
+  const { app } = await ready({ now: NOW, punches });
+  app.router.navigate("timesheet", {});
+  render(app.view()); await settle(); await settle(); render(app.view()); await settle();
+  const out = render(app.view());
+  assert.match(out, /id="week-total"[^>]*>10h 34m</, "8h 34m Monday and 2h 00m running today");
+  assert.match(out, /Mon/);
+  assert.match(out, /→ <span class="s5-nowrap">running</);
+  assert.match(out, /data-today="true"/);
+  assert.equal((out.match(/class="s5-day"/g) ?? []).length, 7);
+});
+
+// ---- the wrap-up (0034): the job is finished by its wrap-up, sent media first ----
+test("in progress, the card and the job offer Wrap up — gated on the shift clock like every move", async () => {
+  const running = await ready({ now: NOW, jobs: [{ ...job, state: "in_progress" }] });
+  render(running.app.view()); await settle(); await settle(); render(running.app.view()); await settle();
+  assert.match(render(running.app.view()), new RegExp(`href="/jobs/${JOB}/wrap-up"`));
+
+  const stopped = await ready({ now: NOW, jobs: [{ ...job, state: "in_progress" }], punches: [] });
+  render(stopped.app.view()); await settle(); await settle(); render(stopped.app.view()); await settle();
+  const out = render(stopped.app.view());
+  assert.match(out, new RegExp(`id="card-${JOB}-wrap-up" aria-disabled="true"`));
+  assert.doesNotMatch(out, new RegExp(`href="/jobs/${JOB}/wrap-up"`));
+});
+
+test("Submit says what is still needed until the wrap-up is whole; submitted, the job reads complete at once and the crew may clock out", async () => {
+  const { app, gateway } = await ready({ now: NOW, jobs: [{ ...job, state: "in_progress" }], punches: [{ id: "p1", kind: "in", at: "2026-10-27T13:00:00Z" }] });
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  app.router.navigate("wrapup", { jobId: JOB });
+  render(app.view()); await settle(); await settle();
+  let out = render(app.view());
+  assert.match(out, /id="submit-wrap-up" aria-disabled="true"/);
+  assert.match(out, /Still needed: 2 more photos · the customer's signature, or tick that no one was there to sign\./);
+  click(app.view(), "outcome-quote_needed");
+  assert.match(render(app.view()), /10 more photos/);
+  assert.match(render(app.view()), /id="m-curbWidthIn"/, "a quote asks for the unit's measurements");
+  click(app.view(), "outcome-complete");
+
+  await p.wrapUps.addShot(JOB, "photo", "/9j/AAAA");
+  await p.wrapUps.addShot(JOB, "photo", "/9j/BBBB");
+  await p.wrapUps.addShot(JOB, "signature", "iVBORw0K");
+  out = render(app.view());
+  assert.match(out, /Photos — 2 of 2/);
+  assert.match(out, /id="submit-wrap-up" aria-disabled="false"/);
+  click(app.view(), "submit-wrap-up");
+  assert.equal(app.router.current.value?.screen, "jobs", "back to Today");
+  render(app.view()); await settle(); render(app.view()); await settle();
+  out = render(app.view());
+  assert.match(out, /complete \(waiting to send\)/);
+  assert.match(out, /id="clock-out"/, "a wrapped-up job is finished for the clock before the office has it");
+
+  app.tick(); for (let i = 0; i < 8; i++) await settle();
+  assert.deepEqual(gateway.sentMedia.map((m) => m.kind), ["photo", "photo", "signature"]);
+  assert.equal(gateway.sentWrapUps.length, 1);
+  assert.equal(gateway.sentWrapUps[0]!.outcome, "complete");
+  assert.equal(p.wrapUps.outbox.value.length, 0, "sent, and gone from the device");
+});
+
+test("a wrap-up the office refuses comes back to the job with its words, and opens again as a draft", async () => {
+  const { app } = await ready({
+    now: NOW, jobs: [{ ...job, state: "in_progress" }],
+    wrapUpReply: () => ({ status: 422, body: { error: "InputRefused", code: "not_in_progress", message: "this job is cancelled — a wrap-up completes a job in progress" } }),
+  });
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  await p.wrapUps.addShot(JOB, "photo", "/9j/AAAA");
+  await p.wrapUps.addShot(JOB, "photo", "/9j/BBBB");
+  p.wrapUps.edit(JOB, { absent: true, absentReason: "No one home" });
+  assert.deepEqual(p.wrapUps.submit(JOB), []);
+  app.tick(); for (let i = 0; i < 8; i++) await settle();
+  app.router.navigate("job", { jobId: JOB });
+  render(app.view()); await settle(); await settle();
+  const out = render(app.view());
+  assert.match(out, /id="wrap-up-refused"/);
+  assert.match(out, /this job is cancelled/);
+  click(app.view(), "wrap-up-reopen");
+  assert.equal(app.router.current.value?.screen, "wrapup");
+  assert.equal(p.wrapUps.draftFor(JOB).photos.length, 2);
 });

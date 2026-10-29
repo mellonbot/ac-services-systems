@@ -7,7 +7,7 @@ import { figures, metShare, money, freshness, densityStatus } from "./screens/co
 import { headline } from "./screens/overview.ts";
 import { metricsOf, rowsFor, series } from "./screens/area.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import { OPERATIONS, SURFACES, HQ_METRIC_KEYS, HQ_AREAS, type Principal, type HierarchyContext, type HqMetricsOutput, type HqHistoryOutput } from "../../../packages/contracts/src/index.ts";
+import { OPERATIONS, OWN_IDENTITY_MUTATIONS, STAFF_MESSAGE_MUTATIONS, SURFACES, HQ_METRIC_KEYS, HQ_AREAS, type Principal, type HierarchyContext, type HqMetricsOutput, type HqHistoryOutput } from "../../../packages/contracts/src/index.ts";
 
 /**
  * S4 against a scripted gateway, through the REAL shell and the REAL
@@ -96,7 +96,7 @@ test("SCREENS and SCREEN_VIEWS agree, and every screen reads through hq.* or sig
   }
   assert.deepEqual(SURFACES.S4.writes, [], "the registry still says read only");
   for (const op of Object.values(OPERATIONS)) {
-    if ((op.surfaces as readonly string[]).includes("S4")) assert.ok(op.kind !== "mutation" || op.id === "auth.logout", `${op.id} is served to S4 and writes`);
+    if ((op.surfaces as readonly string[]).includes("S4")) assert.ok(op.kind !== "mutation" || OWN_IDENTITY_MUTATIONS.includes(op.id) || STAFF_MESSAGE_MUTATIONS.includes(op.id), `${op.id} is served to S4 and writes`);
   }
 });
 

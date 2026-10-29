@@ -2,6 +2,7 @@ import type { UnitOfWork } from "../unit-of-work.ts";
 import type { Tx } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
+import { iso } from "../sql.ts";
 import type {
   DeviceKind, DeviceWire, ListDevicesInput, ListDevicesOutput, RegisterDeviceInput, RegisterDeviceOutput,
   GrantShiftInput, GrantShiftOutput,
@@ -188,7 +189,7 @@ export const resolveDeviceLogin = async (
   const device = (await tx.query<{ id: string; active: boolean }>(`SELECT id, active FROM devices WHERE hardware_id = $1`, [hardwareId]))[0];
   if (!device || !device.active) return null;
   const grant = (await tx.query<{ id: string; crew_id: string; org_id: string; region_id: string; ends_at: string }>(
-    `SELECT id, crew_id, org_id, region_id, to_char(upper(service_window) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS ends_at
+    `SELECT id, crew_id, org_id, region_id, ${iso("upper(service_window)")} AS ends_at
        FROM device_grants
       WHERE device_id = $1 AND technician_id = $2 AND revoked_at IS NULL AND service_window @> $3::timestamptz
       ORDER BY created_at DESC LIMIT 1`,

@@ -1,9 +1,10 @@
 import type { UnitOfWork } from "../unit-of-work.ts";
+import { iso } from "../sql.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import type {
   SettlementWire, SettlementState, ListSettlementsInput, ListSettlementsOutput,
   ListSettlementLinesInput, ListSettlementLinesOutput,
-  AcknowledgeSettlementInput, AcknowledgeSettlementOutput, DisputeSettlementInput, DisputeSettlementOutput,
+  IssueSettlementInput, IssueSettlementOutput, AcknowledgeSettlementInput, AcknowledgeSettlementOutput, DisputeSettlementInput, DisputeSettlementOutput,
 } from "../../../../packages/contracts/src/operations.ts";
 
 /**
@@ -46,9 +47,9 @@ const COLUMNS = `s.id, s.firm_id, s.region_id, s.org_id,
   to_char(lower(s.period), 'YYYY-MM-DD') AS period_from,
   to_char(upper(s.period) - 1, 'YYYY-MM-DD') AS period_to,
   s.total_minor::text AS total_minor, s.currency, s.state,
-  to_char(s.issued_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS issued_at,
-  to_char(s.acknowledged_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS acknowledged_at,
-  to_char(s.disputed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS disputed_at,
+  ${iso("s.issued_at")} AS issued_at,
+  ${iso("s.acknowledged_at")} AS acknowledged_at,
+  ${iso("s.disputed_at")} AS disputed_at,
   s.dispute_reason,
   (SELECT count(*) FROM settlement_lines l WHERE l.settlement_id = s.id)::text AS line_count`;
 
@@ -110,6 +111,25 @@ const loadForPosition = async (uow: UnitOfWork, id: string): Promise<Row> => {
   const row = (await uow.tx.query<Row>(`SELECT ${COLUMNS} FROM settlements s WHERE s.id = $1`, [id]))[0];
   if (!row) throw new InputRefused(`no statement ${id} visible in this scope`, "unknown_settlement");
   return row;
+};
+
+export const issueSettlement = async (uow: UnitOfWork, input: IssueSettlementInput, now: Date): Promise<IssueSettlementOutput> => {
+  const id = requireUuid(input.settlementId, "settlementId");
+  const s = await loadForPosition(uow, id);
+  if (s.state !== "draft") throw new InputRefused(`statement for ${s.period_from} → ${s.period_to} is ${s.state}; only a draft is issued`, "not_draft");
+  const issuedAt = now.toISOString();
+  const eventId = await uow.apply(
+    {
+      entity: "settlement", entityId: id, action: "settlement.issue", topic: "settlement.statement_issued",
+      before: { state: s.state, issuedAt: null }, after: { state: "issued", issuedAt },
+      orgId: s.org_id, regionId: s.region_id,
+      payload: { firmId: s.firm_id, periodFrom: s.period_from, periodTo: s.period_to, totalMinor: s.total_minor, currency: s.currency },
+    },
+    async (tx) => {
+      await tx.query("UPDATE settlements SET state = 'issued', issued_at = $2::timestamptz WHERE id = $1", [id, issuedAt]);
+    },
+  );
+  return { id, state: "issued", issuedAt, eventId };
 };
 
 export const acknowledgeSettlement = async (uow: UnitOfWork, input: AcknowledgeSettlementInput, now: Date): Promise<AcknowledgeSettlementOutput> => {

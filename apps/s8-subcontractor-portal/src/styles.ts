@@ -4,6 +4,7 @@
  * works under Rankine's plate, `stateRamp: true`), so nothing here is a
  * tenant's to re-point; it is the arrangement of a firm's row, its roster,
  * a crew's documents, its work and its statements around the two forms.
+ * Mobile rules aligned with the Rankine prototype.
  */
 export const S8_CSS = `
 .s8-app{display:flex;flex-direction:column;gap:var(--space-3)}
@@ -17,4 +18,12 @@ export const S8_CSS = `
 .s8-field--pair{display:flex;gap:var(--space-3)}
 .s8-position{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--tile-wide)),1fr));gap:var(--space-4)}
 @media (max-width:760px){.s8-field--pair{flex-direction:column}}
+
+/* ---- Mobile surfaces (Rankine prototype alignment) ---- */
+@media (max-width: 640px) {
+  .s8-app { gap: var(--space-2); padding-bottom: var(--space-4); }
+  .s8-position { grid-template-columns: 1fr; }
+  .s8-row__actions { min-height: 44px; }
+  .s8-field--pair { flex-direction: column; }
+}
 `;

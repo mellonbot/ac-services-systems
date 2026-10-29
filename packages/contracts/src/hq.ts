@@ -17,8 +17,14 @@
  *
  * `window` says what the number covers: `now` is the state at the rollup's
  * moment; `30d` is the thirty days ending then.
+ *
+ * Platform Health (added 2026-10-28) surfaces operational trackers that sit
+ * beside the business figures: outbox lag, live sessions, device grants, and
+ * scaffolding for gateway latency / refusal rates. Gateway-level metrics that
+ * require request instrumentation are registered here so the UI and register
+ * stay in lock-step; their SQL is a stub until the collector lands.
  */
-export const HQ_AREAS = ["service", "money", "network", "growth"] as const;
+export const HQ_AREAS = ["service", "money", "network", "growth", "platform"] as const;
 export type HqArea = (typeof HQ_AREAS)[number];
 
 export const HQ_AREA_TITLES: Readonly<Record<HqArea, string>> = {
@@ -26,6 +32,7 @@ export const HQ_AREA_TITLES: Readonly<Record<HqArea, string>> = {
   money: "Revenue & money",
   network: "Network & compliance",
   growth: "Growth & web",
+  platform: "Platform health",
 };
 
 export type HqUnit = "count" | "minor";
@@ -84,6 +91,40 @@ export const HQ_METRICS = {
   customers_total: { area: "growth", label: "Customers", unit: "count", window: "now", means: "Customer organizations with an active node anywhere, each counted once. Held on the unplaced row so the company figure is not a sum of regions." },
   customers_new_total_30d: { area: "growth", label: "New customers", unit: "count", window: "30d", means: "Customer organizations recorded in the thirty days, each counted once." },
   sites_active: { area: "growth", label: "Sites", unit: "count", window: "now", means: "Active customer sites in the region." },
+
+  // ---- platform health (operational trackers) ----
+  // These are the figures that tell leadership and on-call whether the *platform*
+  // itself is healthy, independent of the business numbers above.
+  outbox_pending_now: {
+    area: "platform", label: "Outbox pending", unit: "count", window: "now",
+    means: "Events waiting in the outbox to be relayed. A rising number means the worker is behind or stuck.",
+  },
+  outbox_oldest_age_seconds: {
+    area: "platform", label: "Outbox lag (seconds)", unit: "count", window: "now",
+    means: "Age of the oldest unrelayed outbox row, in seconds. Zero when the outbox is empty.",
+  },
+  sessions_active_now: {
+    area: "platform", label: "Active sessions", unit: "count", window: "now",
+    means: "Browser and device sessions that have not been revoked and have not expired.",
+  },
+  devices_active_now: {
+    area: "platform", label: "Active device grants", unit: "count", window: "now",
+    means: "Shift device grants that are currently valid (technician tablets / field devices).",
+  },
+  sync_mutations_pending_now: {
+    area: "platform", label: "Offline mutations pending", unit: "count", window: "now",
+    means: "Client-side mutation intents (S5 offline queue) that have not yet been accepted by the gateway.",
+  },
+  // Scaffolding for gateway instrumentation (collector lands in a follow-up).
+  // Registered now so the area UI and the register stay in lock-step; SQL returns 0 until the recorder exists.
+  gateway_requests_30d: {
+    area: "platform", label: "Gateway requests (30 d)", unit: "count", window: "30d",
+    means: "Authenticated requests handled by the gateway in the thirty days. Requires the request recorder.",
+  },
+  gateway_refusals_30d: {
+    area: "platform", label: "Gateway refusals (30 d)", unit: "count", window: "30d",
+    means: "Requests refused with 401 / 403 / 422 in the thirty days. Requires the request recorder.",
+  },
 } as const satisfies Record<string, HqMetric>;
 
 export type HqMetricKey = keyof typeof HQ_METRICS;

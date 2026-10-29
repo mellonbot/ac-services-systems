@@ -199,7 +199,7 @@ export const intake: Screen = (ctx) => {
   ];
 
   return html`<section class="s3-intake">
-    ${pageHead("Intake", "What customers asked for in their portal, and calls held for Contracts — waiting first, with the photos they sent, under the reference they were given.")}
+    ${pageHead("Portal requests", "What customers asked for in their portal, and calls held for Contracts — waiting first, with the photos they sent, under the reference they were given.")}
     ${whenReady(ctx, list.value, (out) => {
       const waiting = out.requests.filter(isWaiting);
       const emergency = waiting.filter((r) => r.priority === "emergency").length;

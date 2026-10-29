@@ -1,4 +1,4 @@
-import { html, type VNode, type ComponentChildren } from "./render.ts";
+import { html, MastTools, type VNode, type ComponentChildren } from "./render.ts";
 
 /**
  * Rev A PAGE STRUCTURE (Bulletin No. 2 Rev A, 2026-09-27) — the two pieces
@@ -8,6 +8,14 @@ import { html, type VNode, type ComponentChildren } from "./render.ts";
  * screen's own). Plain markup over the .ac-page-head / .ac-stats rules in
  * UI_CSS; no density variant, because the variables already carry it.
  */
+/**
+ * The signed-in person's Account control and Sign out. The frame's masthead
+ * slot is on the lockup row, above the red rule and in line with the company
+ * descriptor. One place draws them, so every surface agrees.
+ */
+export const sessionTools = (account: ComponentChildren, onSignOut: () => void): VNode =>
+  html`<${MastTools}>${account}<button type="button" class="ac-nav__signout" onClick=${onSignOut}>Sign out</button></${MastTools}>`;
+
 export const pageHead = (title: ComponentChildren, lede?: ComponentChildren, side?: ComponentChildren): VNode =>
   html`<header class="ac-page-head">
     <div><h1 class="ac-page-head__title">${title}</h1>${lede ? html`<p class="ac-page-head__lede">${lede}</p>` : null}</div>

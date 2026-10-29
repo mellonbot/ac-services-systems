@@ -42,6 +42,7 @@
 - `po_receipt`
 - `rma_request`
 - `project`
+- `settlement`
 - `payment`
 
 ## Degraded mode

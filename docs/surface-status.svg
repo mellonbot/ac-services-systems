@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600">
+  <style>
+    .title { font: bold 28px sans-serif; fill: #212121; }
+    .subtitle { font: 14px sans-serif; fill: #666; }
+    .header { font: bold 14px sans-serif; fill: white; }
+    .cell { font: 14px sans-serif; fill: #212121; }
+    .status-ok { fill: #2e7d32; }
+    .status-phase { fill: #e65100; }
+    .row-even { fill: #f8f8f8; }
+    .row-odd { fill: #ffffff; }
+    .header-bg { fill: #0066cc; }
+  </style>
+  <text x="20" y="40" class="title">Surface Build Status</text>
+  <text x="20" y="65" class="subtitle">As of late September 2026 · All flows proven in real browsers against the real gateway</text>
+  
+  <!-- Header -->
+  <rect class="header-bg" x="30" y="90" width="70" height="36"/>
+  <text x="40" y="113" class="header">ID</text>
+  <rect class="header-bg" x="100" y="90" width="280" height="36"/>
+  <text x="110" y="113" class="header">Name</text>
+  <rect class="header-bg" x="380" y="90" width="180" height="36"/>
+  <text x="390" y="113" class="header">Principal</text>
+  <rect class="header-bg" x="560" y="90" width="400" height="36"/>
+  <text x="570" y="113" class="header">Status</text>
+  
+  <!-- Rows -->
+  <rect class="row-even" x="30" y="126" width="930" height="44"/>
+  <text x="40" y="153" class="cell">S0</text>
+  <text x="110" y="153" class="cell">Shared shell</text>
+  <text x="390" y="153" class="cell">All</text>
+  <text x="570" y="153" class="status-ok">✅ Built</text>
+  
+  <rect class="row-odd" x="30" y="170" width="930" height="44"/>
+  <text x="40" y="197" class="cell">S1</text>
+  <text x="110" y="197" class="cell">Marketing / Lead-gen</text>
+  <text x="390" y="197" class="cell">Anonymous</text>
+  <text x="570" y="197" class="status-ok">✅ Built</text>
+  
+  <rect class="row-even" x="30" y="214" width="930" height="44"/>
+  <text x="40" y="241" class="cell">S2</text>
+  <text x="110" y="241" class="cell">Service Manager</text>
+  <text x="390" y="241" class="cell">Office</text>
+  <text x="570" y="241" class="status-ok">✅ Built</text>
+  
+  <rect class="row-odd" x="30" y="258" width="930" height="44"/>
+  <text x="40" y="285" class="cell">S3</text>
+  <text x="110" y="285" class="cell">Dispatch Console</text>
+  <text x="390" y="285" class="cell">Dispatcher</text>
+  <text x="570" y="285" class="status-ok">✅ Built</text>
+  
+  <rect class="row-even" x="30" y="302" width="930" height="44"/>
+  <text x="40" y="329" class="cell">S4</text>
+  <text x="110" y="329" class="cell">HQ Ops Dashboard</text>
+  <text x="390" y="329" class="cell">Leadership</text>
+  <text x="570" y="329" class="status-ok">✅ Built</text>
+  
+  <rect class="row-odd" x="30" y="346" width="930" height="44"/>
+  <text x="40" y="373" class="cell">S5</text>
+  <text x="110" y="373" class="cell">Technician Web Fallback</text>
+  <text x="390" y="373" class="cell">Technician</text>
+  <text x="570" y="373" class="status-ok">✅ Built</text>
+  
+  <rect class="row-even" x="30" y="390" width="930" height="44"/>
+  <text x="40" y="417" class="cell">S6</text>
+  <text x="110" y="417" class="cell">Customer Portal</text>
+  <text x="390" y="417" class="cell">Customer</text>
+  <text x="570" y="417" class="status-ok">✅ Built + Site Card</text>
+  
+  <rect class="row-odd" x="30" y="434" width="930" height="44"/>
+  <text x="40" y="461" class="cell">S7</text>
+  <text x="110" y="461" class="cell">Vendor Portal</text>
+  <text x="390" y="461" class="cell">Vendor</text>
+  <text x="570" y="461" class="status-phase">🟡 Built, disabled (Phase 4)</text>
+  
+  <rect class="row-even" x="30" y="478" width="930" height="44"/>
+  <text x="40" y="505" class="cell">S8</text>
+  <text x="110" y="505" class="cell">Subcontractor Portal</text>
+  <text x="390" y="505" class="cell">Firm</text>
+  <text x="570" y="505" class="status-ok">✅ Built</text>
+</svg>
