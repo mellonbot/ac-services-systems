@@ -53,6 +53,8 @@ flowchart TB
     class DB data
 ```
 
+![Architecture diagram](docs/architecture-diagram.svg)
+
 ### Key flows
 
 ```mermaid
@@ -84,6 +86,8 @@ sequenceDiagram
 | **S6** | Customer Portal | Customer | Sites, work, agreements, **site card** (units, contacts, imagery, ledger) | ✅ |
 | **S7** | Vendor Portal | Vendor | Catalogue, POs, shipments, 3-way match, returns | 🟡 Phase 4 |
 | **S8** | Subcontractor Portal | Firm | Roster, documents, work, settlements (ack/dispute) | ✅ |
+
+![Surface status chart](docs/surface-status.svg)
 
 ## Current build state (as of late Sept 2026)
 
@@ -140,7 +144,7 @@ packages/
   schema/           tables + migrations
   tokens/           brand + design tokens
 tools/ci/           guards, emitters, migrate, build-surface, drives
-docs/               BRAND.md, BACKBONE_CONTRACT.md, architecture frame
+docs/               BRAND.md, BACKBONE_CONTRACT.md, architecture frame, diagrams
 claude/             per-item build records
 ```
 
