@@ -6,7 +6,9 @@ import { S2_CSS } from "./styles.ts";
 import { UI_CSS } from "../../../packages/ui/src/styles.ts";
 import { SCREENS } from "./screens.ts";
 import { confirmPanel } from "./screens/common.ts";
-import { orderTree, treeGuides, showSegment, showCustomerCard } from "./screens/accounts-tree.ts";
+import { orderTree, treeGuides, showSegment, showCustomerCard, openFilter } from "./screens/accounts-tree.ts";
+import { agreementsOnFile } from "./screens/customer-detail.ts";
+import { findCustomers, setFind, clearFind, filterCount, NO_FIND, RECENT_DAYS, type Find } from "./screens/customer-find.ts";
 import { serviceHistoryOf, panMap, recentreMap, forgetLocating } from "./screens/home-card.ts";
 import { parentCandidates } from "./screens/accounts-move.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
@@ -166,17 +168,38 @@ test("boot with no session shows login, not an error; a bad password is a refusa
   if (ready.kind !== "ready") return;
   assert.equal(ready.shell.token(), null, "cookie mode: script never sees the token");
   const chrome = render(app.view());
-  assert.match(chrome, /aria-label="Customer records"/);
-  assert.match(chrome, /aria-label="Technician Network"/);
-  assert.match(chrome, /aria-label="Purchasing"/);
-  assert.match(chrome, /aria-label="Billing"/);
-  assert.match(chrome, /aria-label="Field devices"/);
-  assert.match(chrome, /data-current="true" aria-current="page" href="\/accounts"/);
-  // Each domain is its own track, never one shared strip; the open one is marked on the group.
-  assert.equal(chrome.match(/<div class="ac-seg">/g)?.length, 5, "customer records, the technician network, purchasing, billing and field devices each get a track");
+  // The department bar: one tile per domain, each its name and what is inside, in order.
+  const tiles = [...chrome.matchAll(/<a class="ac-nav__domain" data-current="(true|false)"[^>]*href="([^"]+)"><span class="ac-nav__domain-name">([^<]+)<\/span><span class="ac-nav__domain-sub">([^<]+)<\/span>/g)];
+  assert.deepEqual(tiles.map((m) => m[3]), ["Customer records", "Technician Network", "Purchasing"]);
+  assert.deepEqual(tiles.map((m) => m[2]), ["/accounts", "/network", "/purchasing"]);
+  assert.ok(tiles.every((m) => m[4]!.length > 0), "every tile says what is inside it");
+  assert.deepEqual(tiles.map((m) => m[1]), ["true", "false", "false"], "the open domain is marked on its tile");
+  assert.match(chrome, /class="ac-nav__domain" data-current="true" aria-current="true" href="\/accounts"/, "the tile is the domain; the tab below is the page");
+  // The open domain's screens are one track beneath; the closed domains show none.
+  assert.equal(chrome.match(/<div class="ac-seg">/g)?.length, 1, "only the open domain's screens get a track");
+  assert.match(chrome, /role="group" aria-label="Customer records" data-current="true"><div class="ac-seg">/);
+  assert.match(chrome, /data-current="true" aria-current="page" href="\/accounts">Accounts</);
   assert.match(chrome, /class="ac-nav ac-nav--grouped"/, "the plain ac-nav is one shared track and would merge the domains again");
-  assert.match(chrome, /aria-label="Customer records" data-current="true"/);
-  assert.match(chrome, /aria-label="Technician Network" data-current="false"/);
+  // A one-screen domain's tile is the page itself, with no track repeating it.
+  app.router.navigate("purchasing", {});
+  const buying = render(app.view()).split('<nav class="s2-trail"')[0]!;
+  assert.match(buying, /class="ac-nav__domain" data-current="true" aria-current="page" href="\/purchasing"/);
+  assert.doesNotMatch(buying, /<div class="ac-seg">/, "a track holding one segment only repeats the tile above it");
+  // Invoicing is part of the customer's records; field devices are the technicians' hardware.
+  const tabsOf = (out: string) => [...out.split('<nav class="s2-trail"')[0]!.matchAll(/<a class="ac-seg__item" data-current="(true|false)"[^>]*>([^<]+)<\/a>/g)].map((m) => `${m[2]}${m[1] === "true" ? "*" : ""}`);
+  app.router.navigate("billing", {});
+  let moved = render(app.view());
+  assert.deepEqual(tabsOf(moved), ["Projects", "Accounts", "Agreements", "Invoicing*", "Follow-ups"]);
+  assert.match(moved, /class="ac-nav__domain" data-current="true" aria-current="true" href="\/accounts"/);
+  assert.match(moved, /href="\/invoicing">Invoicing</);
+  assert.match(moved, /<h1 class="ac-page-head__title">Invoicing<\/h1>/);
+  assert.match(moved, /<li>Customer records<\/li><\/ol>/, "the trail names the domain it now sits in");
+  app.router.navigate("devices", {});
+  moved = render(app.view());
+  assert.deepEqual(tabsOf(moved), ["AC Services DFW", "Field devices*"], "on field devices, our crews' tab is not also lit");
+  assert.match(moved, /class="ac-nav__domain" data-current="true" aria-current="true" href="\/network"/);
+  assert.doesNotMatch(moved, /Billing/, "nowhere called Billing any more");
+  app.router.navigate("accounts.tree", {});
   assert.doesNotMatch(chrome, /Signed-in scope/, "the header no longer spells out the signed-in scope and roles");
   const login = gw.calls.find((c) => c.path === "/auth/login")!;
   assert.equal(login.init.credentials, "include");
@@ -193,7 +216,7 @@ test("Technician Network: AC Services DFW is a tab, and every firm that can stil
   const nav = render(app.view()).split('<nav class="s2-trail"')[0]!;
   const group = nav.split('aria-label="Technician Network"')[1]!.split('aria-label="Purchasing"')[0]!;
   const tabs = [...group.matchAll(/<a class="ac-seg__item"[^>]*>([^<]+)<\/a>/g)].map((m) => m[1]);
-  assert.deepEqual(tabs, ["AC Services DFW"], "a firm is a choice in the picker, never a tab of its own");
+  assert.deepEqual(tabs, ["AC Services DFW", "Field devices"], "a firm is a choice in the picker, never a tab of its own");
   const options = [...group.matchAll(/<option[^>]*>([^<]+)<\/option>/g)].map((m) => m[1]);
   assert.deepEqual(options, ["Subcontractor firms (2)", "Cool Air Partners LLC", "North Texas Mechanical"], "a terminated firm fields no crews, so the picker does not offer it");
   assert.match(group, /<span class="ac-seg__pick" data-current="true"><select aria-label="Subcontractor firm"/);
@@ -250,7 +273,7 @@ test("the Customers list: one heading (the panel's), and a selectable row that c
   await app.login("owner@ac.test", "pw");
   render(app.view()); await settle();
   const out = render(app.view());
-  assert.match(out, /class="s2-two-col s2-two-col--wide-side"/);
+  assert.match(out, /class="s2-two-col s2-two-col--wide-side[ "]/);
   const customers = out.split('id="customers"')[1]!.split("</section>")[0]!;
   assert.doesNotMatch(customers, /<caption/, "the panel title already names the table");
   assert.match(S2_CSS, /\.s2-two-col--wide-side\{grid-template-columns:minmax\(min-content,2fr\)/, "the side column is never narrower than the table it holds");
@@ -270,7 +293,8 @@ test("the tree screen: customers on the left, the selected tree ordered region �
   assert.match(out, /aria-current="location">Amped Fitness Inc\.<\/li>/);
   assert.match(out, /data-current="true" aria-current="page" href="\/accounts"/, "child routes retain their domain as the active nav target");
   assert.match(out, /Amped \/ South/);
-  const order = ["Amped / South", "Amped Austin", "Rooftop units", "Amped / West"].map((n) => out.indexOf(n));
+  const treeOnly = out.split('id="account-tree"')[1]!;
+  const order = ["Amped / South", "Amped Austin", "Rooftop units", "Amped / West"].map((n) => treeOnly.indexOf(n));
   assert.ok(order.every((i) => i >= 0), `all nodes rendered: ${order}`);
   assert.deepEqual([...order].sort((a, b) => a - b), order, "depth-first: the site sits under its location, the location under its region node");
   assert.match(out, /data-depth="2" data-tier="site"/);
@@ -388,11 +412,12 @@ test("NEW CUSTOMER: commercial by default, as before; Residential asks for the h
   (nodesIn(app.view()).find((n) => n.type === "input" && n.props?.value === "commercial")!.props!.onChange as () => void)();
 });
 
-test("LEADS: a tab under Customer records; waiting leads with a way to reach them; Convert opens the home form, named for them", async () => {
+test("FOLLOW-UPS (leads): a tab under Customer records; waiting leads with a way to reach them; Convert opens the home form, named for them", async () => {
   const gw = fakeGateway();
   const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
   await app.login("owner@ac.test", "pw");
-  assert.match(render(app.view()), />Leads<\/a>/);
+  assert.match(render(app.view()), /href="\/follow-ups">Follow-ups<\/a>/);
+  assert.doesNotMatch(render(app.view()), />Leads</, "renamed: the office follows these people up");
   app.router.navigate("leads", {});
   render(app.view()); await settle(); await settle();
   let out = render(app.view());
@@ -430,17 +455,30 @@ test("ACCOUNTS: each customer says residential or commercial, and the type chips
   showSegment("all");
 });
 
-test("ACCOUNTS: a residential customer, selected, gets its card with the home pinned on a map and every finished visit there, oldest first", async () => {
+test("ACCOUNTS: a residential customer, selected, gets its card beside the home from above, then its agreements, then every finished visit there, oldest first", async () => {
   const gw = fakeGateway();
   const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
   await app.login("owner@ac.test", "pw");
   app.router.navigate("accounts.tree", { orgId: TURNER });
   for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
   const out = render(app.view());
-  assert.match(out, /id="home-card"/);
-  assert.match(out, /id="home-customer-card"/);
+  assert.match(out, /id="customer-detail"/);
+  assert.match(out, /id="selected-customer-card"/);
   assert.match(out, /4012 Ridgeview Dr/);
-  assert.match(out, /id="home-map"[^>]*data-basemap="grid"/, "no provider configured → the pin on the bare grid");
+  assert.match(out, /id="site-map"[^>]*data-basemap="grid"/, "no provider configured → the pin on the bare grid");
+  // The order the user asked for: where it is, what it is signed up for, what we have done, then the tree.
+  const at = ["customer-overview", "customer-agreements", "customer-history", "account-tree"].map((id) => out.indexOf(`id="${id}"`));
+  assert.ok(at.every((i) => i >= 0), `every block rendered: ${at}`);
+  assert.deepEqual([...at].sort((a, b) => a - b), at, "site from above → agreements on file → service history → tree");
+  const agreements = out.split('id="customer-agreements"')[1]!.split("</section>")[0]!;
+  assert.match(agreements, /Master agreement/);
+  assert.match(agreements, /Premium Cool Club/, "the plan the agreement bills on");
+  assert.match(agreements, /Whole customer/);
+  assert.match(agreements, /evergreen/);
+  assert.match(agreements, /href="\/contracts\/0e000000-0000-4000-8000-000000000099"/, "managed on Agreements, not here");
+  assert.doesNotMatch(agreements, /Terminate|Expire|Activate/, "read-only here: the state ladder stays on Agreements with its confirmation");
+  // The zoom controls sit on the map, as S3's do.
+  assert.match(out, /class="s2-map__view"[^>]*>.*<div class="s2-map__controls">.*<\/div><\/div><figcaption/s);
   assert.match(out, /class="s2-map__pin"/);
   assert.match(out, /32\.71010, -97\.38120/);
   assert.match(out, /No basemap provider is configured/);
@@ -461,16 +499,95 @@ test("ACCOUNTS: a residential customer, selected, gets its card with the home pi
   recentreMap();
 });
 
-test("ACCOUNTS: a commercial customer, selected, gets its tree and no home card", async () => {
+test("ACCOUNTS: a commercial customer, selected, gets the same detail — card, site, agreements, history — above its tree", async () => {
   const gw = fakeGateway();
   const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
   await app.login("owner@ac.test", "pw");
   app.router.navigate("accounts.tree", { orgId: ORG });
-  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
   const out = render(app.view());
   assert.match(out, /Amped \/ South/);
-  assert.doesNotMatch(out, /id="home-card"/);
-  assert.equal(gw.calls.filter((c) => c.path === OPERATIONS["jobs.list"].path).length, 0);
+  assert.match(out, /id="customer-overview"/);
+  assert.match(out, /Rooftop units · no street address recorded/, "a site with no address says so where the address would be");
+  assert.match(out, /id="site-map"/);
+  const agreements = out.split('id="customer-agreements"')[1]!.split("</section>")[0]!;
+  assert.match(agreements, /Master agreement/);
+  assert.match(agreements, /Enterprise SLA|SLA/);
+  const history = out.split('id="customer-history"')[1]!.split("</section>")[0]!;
+  assert.match(history, /Jan 1, 2025/, "the rooftop visit, the one finished job at Amped's site");
+  assert.doesNotMatch(history, /data-label="Site"/, "one site needs no Site column");
+});
+
+test("ACCOUNTS: agreements on file list the live ones first, newest first within each state", () => {
+  const c = (id: string, state: string, from: string) => ({ id, state, effectiveFrom: from }) as never;
+  assert.deepEqual(agreementsOnFile([c("a", "expired", "2026-01-01"), c("b", "active", "2024-01-01"), c("c", "draft", "2026-09-01"), c("d", "active", "2025-06-01"), c("e", "terminated", "2026-02-01")]).map((x: { id: string }) => x.id),
+    ["d", "b", "c", "a", "e"]);
+});
+
+test("ACCOUNTS: the search finds a customer by name, or by a job — its site, street, ZIP, service or job id — and says which job", () => {
+  const orgs = [
+    { id: ORG, name: "Amped Fitness Inc.", kind: "customer", segment: "commercial", externalRef: "AMP-01", active: true, regionNodeCount: 2 },
+    { id: TURNER, name: "Turner residence", kind: "customer", segment: "residential", externalRef: null, active: false, regionNodeCount: 1 },
+  ] as never[];
+  const jobs = [
+    { ...job(31, "invoiced", "2026-05-02T18:00:00.000Z"), siteAddress: { line1: "4012 Ridgeview Dr", city: "Fort Worth", state: "TX", postal: "76109" }, serviceCode: "HVAC-REPAIR" },
+    { ...job(33, "in_progress", "2026-10-22T18:00:00.000Z"), returnTrip: true },
+    { ...job(35, "invoiced", "2025-01-01T18:00:00.000Z", ROOF), orgId: ORG, siteName: "Rooftop units", siteAddress: { line1: "1200 S Main St", city: "Crowley", state: "TX", postal: "76036" } },
+  ] as never[];
+  const now = Date.parse("2026-10-29T12:00:00.000Z");
+  const names = (f: Partial<Find>, seg: "all" | "residential" | "commercial" = "all") => findCustomers(orgs, jobs, { ...NO_FIND, ...f }, seg, now).map((r) => r.org.name);
+  const via = (q: string) => findCustomers(orgs, jobs, { ...NO_FIND, q }, "all", now).map((r) => r.via?.id ?? null);
+  assert.deepEqual(names({}), ["Amped Fitness Inc.", "Turner residence"]);
+  assert.deepEqual(names({ q: "amped" }), ["Amped Fitness Inc."]);
+  assert.deepEqual(via("amped"), [null], "found by name: no job to point at");
+  assert.deepEqual(names({ q: "amp-01" }), ["Amped Fitness Inc."], "the customer's own reference");
+  assert.deepEqual(names({ q: "76109" }), ["Turner residence"], "a ZIP finds the customer through the job there");
+  assert.deepEqual(via("76109"), [U(31)]);
+  assert.deepEqual(names({ q: "main st crowley" }), ["Amped Fitness Inc."], "every word, all in one job");
+  assert.deepEqual(names({ q: "crowley ridgeview" }), [], "words from two different jobs find nothing");
+  assert.deepEqual(names({ q: "repair" }), ["Turner residence"], "the service, by its label");
+  assert.deepEqual(names({ q: U(35).slice(-6) }), ["Amped Fitness Inc."], "the job's own id");
+  // The Filter menu.
+  assert.deepEqual(names({ status: "inactive" }), ["Turner residence"]);
+  assert.deepEqual(names({ work: "open" }), ["Turner residence"], "the in-progress job is open work");
+  assert.deepEqual(names({ work: "return_trip" }), ["Turner residence"]);
+  assert.deepEqual(names({ work: "recent" }), [], `nothing finished in the last ${RECENT_DAYS} days`);
+  assert.deepEqual(names({ work: "never" }), [], "both have finished work on file");
+  assert.deepEqual(names({ service: "HVAC-REPAIR" }), ["Turner residence"]);
+  assert.deepEqual(names({ q: "turner" }, "commercial"), [], "the type chips still apply");
+  assert.equal(filterCount({ ...NO_FIND, q: "x", work: "open", service: "PM-VISIT" }), 2, "the search box is not a menu filter");
+  // Before jobs are read, a work filter answers nobody rather than everybody.
+  assert.deepEqual(findCustomers(orgs, null, { ...NO_FIND, work: "open" }, "all", now), []);
+  assert.deepEqual(findCustomers(orgs, null, { ...NO_FIND, q: "turner" }, "all", now).map((r) => r.org.name), ["Turner residence"]);
+});
+
+test("ACCOUNTS: the list has a search box and a Filter menu; a narrowed list says how many it shows and offers to clear", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("accounts.tree", {});
+  for (let i = 0; i < 3; i++) { render(app.view()); await settle(); }
+  let out = render(app.view());
+  assert.match(out, /<input type="search" class="ac-input s2-find__q"[^>]*aria-label="Search customers"/);
+  assert.match(out, /class="s2-filter__toggle" aria-expanded="false"/);
+  assert.doesNotMatch(out, /id="customer-filter-menu"/, "shut until asked for");
+  openFilter(true);
+  out = render(app.view());
+  const menu = out.split('id="customer-filter-menu"')[1]!.split('class="s2-filter__foot"')[0]!;
+  assert.match(menu, /name="status"/);
+  assert.match(menu, /name="work".*Has open work.*Return trip owed.*Never served/s);
+  assert.match(menu, /name="service".*Preventive maintenance.*Repair/s, "the services on file, by label");
+  setFind({ work: "open" });
+  out = render(app.view());
+  assert.match(out, /class="s2-filter__count s2-num"[^>]*>1</, "the button counts what is set");
+  assert.match(out, /role="status"><span class="s2-num">1<\/span> of <span class="s2-num">2<\/span> customers/);
+  assert.match(out, /Turner residence/);
+  assert.doesNotMatch(out.split('id="customers"')[1]!.split("</section>")[0]!, /Amped Fitness Inc\./);
+  assert.match(out, />Clear search and filters</);
+  setFind({ work: "any", q: "ridgeview" });
+  out = render(app.view());
+  assert.match(out, /class="s2-found">Job at 4012 Ridgeview Dr/, "a customer found by its job says which job");
+  clearFind(); openFilter(false);
 });
 
 test("ACCOUNTS: with a basemap provider, the home's map is the gateway's tiles around the pin, with the provider's credit", async () => {

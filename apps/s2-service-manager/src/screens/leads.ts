@@ -73,13 +73,13 @@ export const leads: Screen = (ctx) => {
   ];
 
   return html`<section class="s2-leads">
-    ${pageHead("Leads", "People who asked us to call them from the website. When one becomes a customer, convert it — the home is made in one step, with their contact on it.")}
+    ${pageHead("Follow-ups", "People who asked us to call them from the website. When one becomes a customer, convert it — the home is made in one step, with their contact on it.")}
     ${whenReady(ctx, list.value, (out) => {
       const open = converting.value ? out.leads.find((l) => l.id === converting.value!.leadId && !l.convertedAccountId) : undefined;
       return html`
         ${open ? whenReady(ctx, regions.value, (r) => convertPanel(ctx, open, r.regions)) : null}
-        ${panel(DataGrid({ density: "console", columns, rows: out.leads, rowKey: (l: LeadWire) => l.id, emptyText: show.value === "waiting" ? "No leads waiting." : "No leads yet.", stack: true }) ?? html``,
-          "Leads", show.value === "waiting" ? "Waiting to be converted, newest first" : "Every lead, newest first",
+        ${panel(DataGrid({ density: "console", columns, rows: out.leads, rowKey: (l: LeadWire) => l.id, emptyText: show.value === "waiting" ? "No follow-ups waiting." : "No follow-ups yet.", stack: true }) ?? html``,
+          "Follow-ups", show.value === "waiting" ? "Waiting to be converted, newest first" : "Every follow-up, newest first",
           html`<div class="s2-chips" role="group" aria-label="Show">
             ${(["waiting", "all"] as const).map((k) => html`<button type="button" class="ac-chip" aria-pressed=${show.value === k ? "true" : "false"} onClick=${() => { show.value = k; }}>${k === "waiting" ? "Waiting" : "All"}</button>`)}
           </div>`, "leads-list")}`;

@@ -69,7 +69,7 @@ test("an invoice's standing is a filing mark with a word, never the status ramp"
   assert.notEqual(INVOICE_STATE.paid.tone, "ended", "a paid one is not: struck through would read as cancelled");
 });
 
-test("/billing: every invoice with its customer, what is still owed and where it stands, linked to its history", async () => {
+test("/invoicing: every invoice with its customer, what is still owed and where it stands, linked to its history", async () => {
   const { app } = await ready();
   app.router.navigate("billing", {});
   render(app.view()); await settle();
@@ -78,10 +78,10 @@ test("/billing: every invoice with its customer, what is still owed and where it
   assert.match(out, /Part paid/);
   assert.match(out, /Paid in full/);
   assert.ok(out.includes("284.50"), "what is still owed on the part-paid invoice");
-  assert.ok(out.includes(`/billing/invoices/${INVOICE}`), "each invoice links to its payment history");
+  assert.ok(out.includes(`/invoicing/invoices/${INVOICE}`), "each invoice links to its payment history");
 });
 
-test("/billing/invoices/:id: every payment in every state — a returned one says when and why — beside received and still owed", async () => {
+test("/invoicing/invoices/:id: every payment in every state — a returned one says when and why — beside received and still owed", async () => {
   const { app, g } = await ready();
   app.router.navigate("billing.invoice", { invoiceId: INVOICE });
   render(app.view()); await settle();

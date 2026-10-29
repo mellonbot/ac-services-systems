@@ -425,7 +425,7 @@ async function main(): Promise<void> {
     const toVoid = await invoiceAt(12000);
     const history = `(document.getElementById("payment-history")?.innerText ?? "")`;
 
-    await cdp.navigate(`${SITE}${SURFACE_PATHS.S2}/billing/invoices/${owed}`);
+    await cdp.navigate(`${SITE}${SURFACE_PATHS.S2}/invoicing/invoices/${owed}`);
     await cdp.waitFor(`document.getElementById("record-payment-form")`, "the record-payment form");
     await cdp.eval(fillAndSubmit("record-payment-form", { amount: "300.00", method: "check", reference: `CHK ${RUN}` }));
     await confirmAction(cdp, "Record payment");
@@ -448,7 +448,7 @@ async function main(): Promise<void> {
     await cdp.waitFor(`${text}.includes("Part paid")`, "the invoice to read part paid again");
     check(16, "a bounced check stays in the history as returned, with why, and the invoice is part paid again");
 
-    await cdp.navigate(`${SITE}${SURFACE_PATHS.S2}/billing/invoices/${toVoid}`);
+    await cdp.navigate(`${SITE}${SURFACE_PATHS.S2}/invoicing/invoices/${toVoid}`);
     await cdp.waitFor(`document.getElementById("void-invoice-form")`, "the void form on an invoice nothing was paid against");
     await cdp.eval(fillAndSubmit("void-invoice-form", { reason: "Billed twice" }));
     await confirmAction(cdp, "Void invoice");

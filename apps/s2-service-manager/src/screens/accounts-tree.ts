@@ -1,12 +1,16 @@
 import { html, pageHead, panel, DataGrid, signal, CustomerCard, PLAN_WORD, KIND_WORD, addressLines, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { AccountWire, OrganizationWire, RegionWire, CustomerSegment } from "../../../../packages/contracts/src/index.ts";
+import { serviceLabel, type AccountWire, type JobWire, type OrganizationWire, type RegionWire, type CustomerSegment } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, linkTo, type Screen, type ScreenContext } from "./common.ts";
-import { homeCard } from "./home-card.ts";
+import { customerDetail } from "./customer-detail.ts";
+import { finding, setFind, clearFind, filterCount, findCustomers, servicesOnFile, STATUS_WORD, WORK_WORD, type Found, type StatusFilter, type WorkFilter } from "./customer-find.ts";
 
 /**
- * C1 — the tree. Left: every customer parent we serve, with how many of our
- * regions it meets. Right: the selected parent's nodes, region node → location
+ * C1 — Accounts. Left: every customer parent we serve, with how many of our
+ * regions it meets, a search over names and jobs and a Filter menu
+ * (customer-find.ts). Right, once one is picked: its card beside the site from
+ * above, the agreements on file, the service history (customer-detail.ts) —
+ * and under them the tree: the parent's nodes, region node → location
  * → site, each row saying which of OUR regions it is dispatched from — the
  * shard key made visible, because "why did Austin's jobs move to West?" is
  * answered by this column and nothing else.
@@ -16,6 +20,9 @@ type Show = "all" | CustomerSegment;
 const SHOW_WORD: Readonly<Record<Show, string>> = { all: "All", residential: "Residential", commercial: "Commercial" };
 const showing = signal<Show>("all");
 export const showSegment = (s: Show) => { showing.value = s; };
+/** The Filter menu, open or shut. Shut whenever focus leaves it, so it never lingers over the list. */
+const filterOpen = signal(false);
+export const openFilter = (open: boolean) => { filterOpen.value = open; };
 export const SEGMENT_WORD: Readonly<Record<CustomerSegment, string>> = { residential: "Residential", commercial: "Commercial" };
 
 /**
@@ -49,8 +56,8 @@ export const showCustomerCard = (orgId: string | null) => { hover.value = orgId 
 
 const shortDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
-/** The card for one customer. `id` tells the hover card from the selected homeowner's card, which can be on screen together. `selected` adds the map and the service history. */
-const customerCard = (ctx: ScreenContext, org: OrganizationWire, id = "customer-card", selected = false): VNode => {
+/** The card for one customer. `id` tells the hover card from the selected customer's card, which can be on screen together. */
+const customerCard = (ctx: ScreenContext, org: OrganizationWire, id = "customer-card"): VNode => {
   const { store, shell } = ctx;
   const nodes = store.read(keyOf("accounts.list", { orgId: org.id }), () => shell.gateway.listAccounts({ orgId: org.id }));
   const contracts = store.read(keyOf("contracts.list", { orgId: org.id }), () => shell.gateway.listContracts({ orgId: org.id }));
@@ -67,7 +74,7 @@ const customerCard = (ctx: ScreenContext, org: OrganizationWire, id = "customer-
     const site = sites[0] ?? null;
     const equipment = site ? store.read(keyOf("equipment.list", { siteId: site.id }), () => shell.gateway.listEquipment({ siteId: site.id })).value : null;
     const member = active.find((x) => x.billingPath === "residential_membership") ?? null;
-    const card = CustomerCard({
+    return CustomerCard({
       ...base,
       home: {
         address: addressLines(site?.address ?? null),
@@ -81,7 +88,6 @@ const customerCard = (ctx: ScreenContext, org: OrganizationWire, id = "customer-
         membership: member ? { name: PLAN_WORD[member.billingPath], since: shortDay(member.effectiveFrom), through: member.effectiveTo ? shortDay(member.effectiveTo) : null } : null,
       },
     }) ?? html``;
-    return selected ? homeCard(ctx, card, site) : card;
   }));
 };
 
@@ -146,29 +152,84 @@ export const accountsTree: Screen = (ctx, params) => {
   const regions = store.read(keyOf("regions.list"), () => shell.gateway.listRegions());
   const orgId = params.orgId;
 
-  const orgGrid = (list: readonly OrganizationWire[]): VNode =>
-    DataGrid({
+  const jobsRes = store.read(keyOf("jobs.list"), () => shell.gateway.listJobs({})).value;
+  const jobs = jobsRes.state === "ready" ? jobsRes.value.jobs : null;
+  const f = finding.value;
+  const narrowed = f.q.trim() !== "" || filterCount(f) > 0;
+
+  const foundBy = (j: JobWire): VNode => html`<span class="s2-found">Job at ${j.siteName ?? "a site"}${j.siteAddress?.line1 && j.siteAddress.line1 !== j.siteName ? html` · ${j.siteAddress.line1}` : null}${j.siteAddress?.postal ? html` · <span class="s2-num">${j.siteAddress.postal}</span>` : null} · ${serviceLabel(j.serviceCode)}</span>`;
+
+  const orgGrid = (list: readonly OrganizationWire[]): VNode => {
+    const found = findCustomers(list, jobs, f, showing.value, Date.now());
+    const segmentOnly = list.filter((o) => showing.value === "all" || o.segment === showing.value).length;
+    return html`${narrowed ? html`<p class="s2-find__tally" role="status"><span class="s2-num">${found.length}</span> of <span class="s2-num">${segmentOnly}</span> ${segmentOnly === 1 ? "customer" : "customers"}
+        <button type="button" class="s2-find__clear" onClick=${clearFind}>Clear search and filters</button></p>` : null}
+      ${DataGrid({
       density: ctx.density,
       stack: true,
       columns: [
         {
           key: "name", header: "Customer",
-          cell: (o: OrganizationWire) => html`<a class="ac-link" href=${ctx.router.href("accounts.tree", { orgId: o.id })}
-            onClick=${(e: Event) => { e.preventDefault(); closeCard(); ctx.router.navigate("accounts.tree", { orgId: o.id }); }}
-            onMouseEnter=${openCard(o)} onMouseLeave=${closeCard} onFocusIn=${openCard(o)} onFocusOut=${closeCard}
-            onKeyDown=${(e: KeyboardEvent) => { if (e.key === "Escape") closeCard(); }}>${o.name}</a>`,
+          cell: (r: Found) => html`<span class="s2-customer"><a class="ac-link" href=${ctx.router.href("accounts.tree", { orgId: r.org.id })}
+            onClick=${(e: Event) => { e.preventDefault(); closeCard(); ctx.router.navigate("accounts.tree", { orgId: r.org.id }); }}
+            onMouseEnter=${openCard(r.org)} onMouseLeave=${closeCard} onFocusIn=${openCard(r.org)} onFocusOut=${closeCard}
+            onKeyDown=${(e: KeyboardEvent) => { if (e.key === "Escape") closeCard(); }}>${r.org.name}</a>${r.via ? foundBy(r.via) : null}</span>`,
         },
-        { key: "segment", header: "Type", cell: (o: OrganizationWire) => (o.segment ? SEGMENT_WORD[o.segment] : "—") },
-        { key: "regionNodeCount", header: "Our regions", align: "end", numeric: true },
-        { key: "active", header: "Status", cell: (o: OrganizationWire) => html`<span class="s2-state" data-tone=${o.active ? "live" : "ended"}>${o.active ? "Active" : "Inactive"}</span>` },
+        { key: "segment", header: "Type", cell: (r: Found) => (r.org.segment ? SEGMENT_WORD[r.org.segment] : "—") },
+        { key: "regionNodeCount", header: "Our regions", align: "end", numeric: true, cell: (r: Found) => html`<span class="s2-num">${r.org.regionNodeCount}</span>` },
+        { key: "active", header: "Status", cell: (r: Found) => html`<span class="s2-state" data-tone=${r.org.active ? "live" : "ended"}>${r.org.active ? "Active" : "Inactive"}</span>` },
       ],
-      rows: list.filter((o) => showing.value === "all" || o.segment === showing.value),
-      rowKey: (o: OrganizationWire) => o.id,
+      rows: found,
+      rowKey: (r: Found) => r.org.id,
       selectedKey: orgId ?? "",
-      onSelect: (o: OrganizationWire) => ctx.router.navigate("accounts.tree", { orgId: o.id }),
+      onSelect: (r: Found) => ctx.router.navigate("accounts.tree", { orgId: r.org.id }),
       linked: true,
-      emptyText: showing.value === "all" ? "No customers yet." : `No ${SHOW_WORD[showing.value].toLowerCase()} customers.`,
-    });
+      emptyText: narrowed ? "No customer matches. Try fewer words, or clear the filters."
+        : showing.value === "all" ? "No customers yet." : `No ${SHOW_WORD[showing.value].toLowerCase()} customers.`,
+    })}`;
+  };
+
+  const filterMenu = (): VNode => {
+    const count = filterCount(f);
+    const services = jobs ? servicesOnFile(jobs) : [];
+    const leave = (e: FocusEvent) => {
+      const to = e.relatedTarget as Node | null;
+      if (!to || !(e.currentTarget as HTMLElement).contains(to)) filterOpen.value = false;
+    };
+    return html`<div class="s2-filter" id="customer-filter" onFocusOut=${leave}
+      onKeyDown=${(e: KeyboardEvent) => { if (e.key === "Escape" && filterOpen.value) { e.stopPropagation(); filterOpen.value = false; } }}>
+      <button type="button" class="s2-filter__toggle" aria-expanded=${filterOpen.value ? "true" : "false"} aria-controls="customer-filter-menu"
+        onClick=${() => { filterOpen.value = !filterOpen.value; }}>
+        Filter${count ? html` <span class="s2-filter__count s2-num" aria-label=${`${count} set`}>${count}</span>` : null}
+      </button>
+      ${filterOpen.value ? html`<div class="s2-filter__menu" id="customer-filter-menu" role="group" aria-label="Filter customers" tabindex="-1">
+        <label class="s2-filter__field"><span>Status</span>
+          <select class="ac-input" name="status" onChange=${(e: Event) => setFind({ status: (e.currentTarget as HTMLSelectElement).value as StatusFilter })}>
+            ${(Object.keys(STATUS_WORD) as StatusFilter[]).map((k) => html`<option value=${k} selected=${f.status === k}>${STATUS_WORD[k]}</option>`)}
+          </select></label>
+        <label class="s2-filter__field"><span>Work</span>
+          <select class="ac-input" name="work" onChange=${(e: Event) => setFind({ work: (e.currentTarget as HTMLSelectElement).value as WorkFilter })}>
+            ${(Object.keys(WORK_WORD) as WorkFilter[]).map((k) => html`<option value=${k} selected=${f.work === k}>${WORK_WORD[k]}</option>`)}
+          </select></label>
+        <label class="s2-filter__field"><span>Service</span>
+          <select class="ac-input" name="service" disabled=${!services.length} onChange=${(e: Event) => setFind({ service: (e.currentTarget as HTMLSelectElement).value })}>
+            <option value="" selected=${!f.service}>${jobs ? "Any service" : "Loading jobs…"}</option>
+            ${services.map((sv) => html`<option value=${sv.code} selected=${f.service === sv.code}>${sv.label}</option>`)}
+          </select></label>
+        <div class="s2-filter__foot">
+          <button type="button" class="s2-mutation s2-mutation--quiet" disabled=${!count} onClick=${() => setFind({ status: "any", work: "any", service: "" })}>Clear filters</button>
+          <button type="button" class="s2-mutation" onClick=${() => { filterOpen.value = false; }}>Done</button>
+        </div>
+      </div>` : null}
+    </div>`;
+  };
+
+  const finder = html`<div class="s2-find" id="customer-find">
+    <input type="search" class="ac-input s2-find__q" name="q" aria-label="Search customers" autocomplete="off"
+      placeholder="Name, site, street, ZIP or job number" value=${f.q}
+      onInput=${(e: Event) => setFind({ q: (e.currentTarget as HTMLInputElement).value })} />
+    ${filterMenu()}
+  </div>`;
 
   const treeGrid = (nodes: readonly AccountWire[], regionList: readonly RegionWire[], org: OrganizationWire | undefined): VNode => {
     const regionName = (id: string) => regionList.find((r) => r.id === id)?.name ?? id;
@@ -194,26 +255,25 @@ export const accountsTree: Screen = (ctx, params) => {
       rowKey: (n: AccountWire) => n.id,
       groupHead: (n: AccountWire) => n.tier === "region",
       emptyText: "No nodes. A customer parent always has at least one region node — if this is empty, the tree failed to load.",
-    }), org?.name ?? "Customer", undefined, linkTo(ctx, "accounts.new", { orgId: orgId!, tier: "region" }, "+ Region node", "ac-action s2-link--action"), "account-tree");
+    }), "Account tree", org ? `How ${org.name} is filed: region nodes, locations and sites, and which of our regions serves each` : undefined, linkTo(ctx, "accounts.new", { orgId: orgId!, tier: "region" }, "+ Region node", "ac-action s2-link--action"), "account-tree");
   };
 
   const selected = orgId && orgs.value.state === "ready" ? orgs.value.value.organizations.find((o) => o.id === orgId) : undefined;
-  const selectedHome = selected?.segment === "residential" ? selected : undefined;
   const hovered = hover.value && orgs.value.state === "ready" ? orgs.value.value.organizations.find((o) => o.id === hover.value!.orgId) : undefined;
-  return html`${hovered ? html`<div class="s2-hovercard" role="tooltip" aria-hidden="true" style=${`left:${hover.value!.left}px;top:${hover.value!.top}px`}>${customerCard(ctx, hovered)}</div>` : null}${pageHead("Accounts", "Every customer and its tree of regions, locations and sites, against the regions we serve them from. Pick a customer to see its tree.", linkTo(ctx, "organizations.new", {}, "+ New customer", "ac-action s2-link--action"))}<div class="s2-two-col s2-two-col--wide-side">
+  return html`${hovered ? html`<div class="s2-hovercard" role="tooltip" aria-hidden="true" style=${`left:${hover.value!.left}px;top:${hover.value!.top}px`}>${customerCard(ctx, hovered)}</div>` : null}${pageHead("Accounts", "Every customer, where its sites are, what it is signed up for and what we have done there — and the tree of regions, locations and sites it is filed under. Search or filter to find one.", linkTo(ctx, "organizations.new", {}, "+ New customer", "ac-action s2-link--action"))}<div class="s2-two-col s2-two-col--wide-side s2-accounts">
     <aside class="s2-col s2-col--orgs">
-      ${panel(whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations), () => store.invalidate("organizations.list")), "Customers", undefined,
+      ${panel(html`${finder}${whenReady(ctx, orgs.value, (o) => orgGrid(o.organizations), () => store.invalidate("organizations.list"))}`, "Customers", undefined,
         html`<div class="s2-chips" role="group" aria-label="Customer type" id="customer-type">
           ${(Object.keys(SHOW_WORD) as Show[]).map((k) => html`<button type="button" class="ac-chip" aria-pressed=${showing.value === k ? "true" : "false"} onClick=${() => showSegment(k)}>${SHOW_WORD[k]}</button>`)}
         </div>`, "customers")}
     </aside>
     <div class="s2-col s2-col--tree">
-      ${selectedHome ? panel(customerCard(ctx, selectedHome, "home-customer-card", true), "Home", "Where it is, and every visit we have finished there.", undefined, "home") : null}
+      ${selected ? customerDetail(ctx, selected, customerCard(ctx, selected, "selected-customer-card")) : null}
       ${orgId
         ? whenReady(ctx, store.read(keyOf("accounts.list", { orgId }), () => shell.gateway.listAccounts({ orgId })).value,
-            (t) => whenReady(ctx, regions.value, (r) => treeGrid(t.nodes, r.regions, orgs.value.state === "ready" ? orgs.value.value.organizations.find((o) => o.id === orgId) : undefined)),
+            (t) => whenReady(ctx, regions.value, (r) => treeGrid(t.nodes, r.regions, selected)),
             () => store.invalidate(keyOf("accounts.list", { orgId })))
-        : html`<p class="s2-empty">Select a customer to see its tree.</p>`}
+        : html`<p class="s2-empty">Select a customer to see its site, agreements, service history and tree.</p>`}
     </div>
   </div>`;
 };

@@ -63,7 +63,7 @@ export const billing: Screen = (ctx) => {
   const names = orgs.value.state === "ready" ? orgs.value.value.organizations : [];
 
   return html`<section class="s2-billing">
-    ${pageHead("Billing", "Every invoice, what was paid against it and what is still owed. Open one for its payment history.")}
+    ${pageHead("Invoicing", "Every invoice, what was paid against it and what is still owed. Open one for its payment history.")}
     ${panel(whenReady(ctx, invoices.value, (o) => DataGrid({
       density: ctx.density,
       stack: true, caption: "Every invoice, newest issued first",
@@ -82,7 +82,7 @@ export const billing: Screen = (ctx) => {
 };
 
 // ---------------------------------------------------------------------------
-// /billing/invoices/:invoiceId — one invoice's payment history.
+// /invoicing/invoices/:invoiceId — one invoice's payment history.
 // ---------------------------------------------------------------------------
 export const billingInvoice: Screen = (ctx, params) => {
   const { shell, store } = ctx;
