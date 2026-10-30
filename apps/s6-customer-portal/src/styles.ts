@@ -138,8 +138,10 @@ export const S6_CSS = `
   .s6-app { gap: var(--space-2); padding-bottom: var(--space-4); }
   .s6-home, .s6-house-row, .s6-site__grid, .s6-job__grid { grid-template-columns: 1fr; }
   .s6-seg-button { min-height: 44px; }
-  .s6-steps { grid-template-columns: 1fr; }
-  .s6-steps .s6-step::before { display: none; }
+  /* the track turns vertical: dot on a left rail, label beside it, connector runs dot to dot */
+  .s6-steps { grid-template-columns: 1fr; row-gap: var(--space-2); }
+  .s6-step { flex-direction: row; gap: var(--space-2); text-align: start; }
+  .s6-step::before { top: auto; bottom: 50%; left: calc(var(--space-4) / 2 + 1px); width: 2px; height: calc(100% + var(--space-2)); }
   .s6-account, .s6-order__head { flex-direction: column; align-items: flex-start; }
   .s6-ledger__row, .s6-term { grid-template-columns: 1fr; }
   .s6-ledger__amount { text-align: start; }
