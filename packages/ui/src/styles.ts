@@ -93,6 +93,11 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
    site's name under the company line. */
 .ac-mast__title{margin:var(--space-2) 0 0;font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);line-height:1.15;color:var(--color-text)}
 .ac-mast--titled .ac-wordmark__co{display:block;margin-top:var(--space-2)}
+/* On a phone the company line stacks under the script, so the lockup is narrow
+   enough to keep Account and Sign out on its row instead of orphaning them on a
+   line of their own above the rule. The row only wraps below ~340px now. */
+@media (max-width:760px){.ac-mast__row{flex-wrap:nowrap;column-gap:var(--space-3)}.ac-mast__name{flex-direction:column;gap:0}.ac-mast:not(.ac-mast--titled) .ac-wordmark__co{letter-spacing:var(--track-wide)}.ac-mast__tools{flex-wrap:nowrap;column-gap:var(--space-1)}.ac-mast__tools .ac-nav__signout{padding-inline:var(--space-2)}}
+@media (max-width:339px){.ac-mast__row{flex-wrap:wrap}}
 
 /* ---- Plate head: a titled section is numbered, like a plate ---- */
 .ac-plate__head{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-2) var(--space-4);padding-bottom:var(--space-2);border-bottom:3px solid var(--color-text);margin-bottom:var(--space-3)}
@@ -277,7 +282,10 @@ ac-degraded[hidden]{display:none}
 .ac-nav{display:flex;margin:0 0 var(--space-2)}
 .ac-nav__who{margin-inline-start:auto;padding:0 var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm)}
 .ac-nav__signout{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);cursor:pointer;color:var(--color-action-text);font:inherit;min-height:var(--control-height)}
-@media (max-width:760px){.ac-nav{align-items:stretch}.ac-nav__who{order:2;width:100%;margin-inline-start:0}}
+/* On a phone the track reads top to bottom: whose account, the screens sharing
+   the width two to a row, then the surface's one action across the full width —
+   not a ragged run with the name left over as a caption. */
+@media (max-width:760px){.ac-nav{align-items:stretch}.ac-nav__who{order:-1;width:100%;margin-inline-start:0;padding:var(--space-1) var(--space-2) 0}.ac-nav>.ac-seg__item{flex:1 1 calc(50% - 4px);justify-content:center}.ac-nav>.ac-action-wrap{flex:1 1 100%;align-items:stretch}}
 /* Grouped nav: a surface whose screens split into record domains (S2: customer
    records, the technician network, purchasing, billing, field devices). Two
    tiers. The department bar gives every domain one equal tile — its name, and
