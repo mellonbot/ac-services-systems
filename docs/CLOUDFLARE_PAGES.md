@@ -8,7 +8,8 @@ Production is two Cloudflare deployments from one `main` push, in this order:
    `https://api.acservice.systems`. The `deploy-gateway` job in
    `.github/workflows/guard.yml` migrates the production database, then runs
    `wrangler deploy -c infra/cloudflare/wrangler.jsonc`, which builds and
-   pushes the image, and waits for `/healthz` to answer on the domain. Until
+   pushes the image, and waits for `/healthz` and then `/readyz` to answer
+   on the domain. Until
    `DATABASE_URL` is set on the GitHub `production` environment the job
    records a notice and skips, and the site publishes alone; once it is set,
    a Worker missing either of its secrets fails the job by name before the
@@ -134,7 +135,10 @@ the Worker is overwritten by the next deploy. It must be the migrating
 login: migration 0012 grants that login `SET ROLE` on `ac_gateway` and
 `ac_worker`, which a Postgres 16+ role creator does not get by default. A
 gateway connecting as any other login answers 500 on every request while
-`/healthz` stays green; `db-check` shows the refusal by name.
+`/healthz` stays green — `/healthz` is liveness and never touches the
+database. `/readyz` connects and takes `ac_gateway`, answering 503 when it
+cannot, and the deploy waits for it after `/healthz`; `db-check` shows the
+refusal by name.
 
 Without `AC_SIGNING_KEY_PEM` the gateway mints an ephemeral key and every
 session dies with the container; the Worker refuses to start it. The custom

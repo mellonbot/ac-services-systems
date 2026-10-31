@@ -331,6 +331,19 @@ jobs:
           done
           echo "::error::api.acservice.systems/healthz did not answer within five minutes. \`npx wrangler@4.148.0 tail -c infra/cloudflare/wrangler.jsonc\` shows why the Worker would not start it."
           exit 1
+      # /healthz is liveness and never touches the database, so a gateway with a
+      # wrong or missing DATABASE_URL passed it while every real request failed.
+      # /readyz connects and takes the ac_gateway role: the deploy is not green
+      # until the gateway can do the one thing it is for.
+      - name: The gateway reaches its database
+        if: steps.configured.outputs.ready == 'true'
+        run: |
+          for i in $(seq 1 12); do
+            if curl -fsS --max-time 15 https://api.acservice.systems/readyz; then echo; exit 0; fi
+            sleep 10
+          done
+          echo "::error::api.acservice.systems/readyz did not answer 200 within two minutes: the gateway is up but cannot reach Postgres as ac_gateway. Check the Worker's DATABASE_URL is the migrating login (docs/CLOUDFLARE_PAGES.md, 'The gateway'); \`npx wrangler@4.148.0 tail -c infra/cloudflare/wrangler.jsonc\` shows the driver's refusal on a 'readyz:' line, and Actions → db-check names it."
+          exit 1
 
   deploy:
     if: needs.latest.outputs.current == 'true'

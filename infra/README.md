@@ -20,7 +20,8 @@ What is still held elsewhere, and why:
   here, because no file can run a restore for you.
 - **monitoring** — external by construction (#12). Monitoring that lives on the
   thing it monitors reports green while the thing is on fire. The gateway's
-  `/healthz` and the Worker's cron are what it watches; what watches them is
+  `/healthz` (liveness), `/readyz` (the database, as `ac_gateway`) and the
+  Worker's cron are what it watches; what watches them is
   not yet chosen.
 - **storage** — an R2 bucket (`ac-media`) behind `packages/storage`'s key
   scheme. The gateway speaks R2's S3 API (`s3Store`, SigV4 over `node:crypto`),
