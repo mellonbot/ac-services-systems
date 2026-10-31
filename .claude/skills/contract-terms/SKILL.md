@@ -78,8 +78,13 @@ A new code needs an axis entry, or S2 renders a generic error — which 05 Rev D
 
 - **Add a term** — cheap. Edit `terms.ts` (label, rationale, fallback decided on purpose),
   run `node tools/ci/emit-schema.ts`, migrate, add resolve/admit tests against the Amped
-  fixture (`packages/domain/src/inheritance/fixtures/amped.ts`). No-fallback terms may need
-  the MSA activation gate (`fixtures/msa-terms.ts`) and will show up in `msa-terms-audit`.
+  fixture (`packages/domain/src/inheritance/fixtures/amped.ts`). A term with **no fallback**,
+  not `attach`, and authorable at `parent` joins `REQUIRED_AT_ACTIVATION` (derived in
+  `terms.ts`) automatically: from then on no MSA activates without it
+  (`handlers/contracts.ts`), and every already-active MSA lacking it shows red in
+  `msa-terms-audit` — dispatchers on those accounts get `no_value`. Today the list is empty
+  because every such term has a fallback; giving a new term none is a commercial decision,
+  so raise it with the user.
 - **Change a term's policy** — a migration project, not an edit. Every existing override
   must be re-admitted under the new policy; the rows that fail are terms a customer
   currently believes they have. Write the re-admission check first, run it against
