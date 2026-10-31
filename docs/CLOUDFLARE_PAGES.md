@@ -63,7 +63,6 @@ From a laptop logged into wrangler, once:
 # An Ed25519 signing key. Rotating it is rotating this secret (AC_SIGNING_KID names the generation).
 node -e 'const {generateKeyPairSync}=require("node:crypto");process.stdout.write(generateKeyPairSync("ed25519").privateKey.export({type:"pkcs8",format:"pem"}))' > /tmp/ac-signing.pem
 npx wrangler@4 secret put AC_SIGNING_KEY_PEM -c infra/cloudflare/wrangler.jsonc < /tmp/ac-signing.pem
-npx wrangler@4 secret put DATABASE_URL       -c infra/cloudflare/wrangler.jsonc   # paste the connection string
 rm /tmp/ac-signing.pem
 ```
 
@@ -128,7 +127,10 @@ drops it (`apps/gateway/src/pg-url.ts`). If the gateway container starts
 and exits, **Actions → db-check → Run workflow** connects to the production
 database with the same library and prints what it sees, naming no secret.
 
-The Worker's `DATABASE_URL` and the GitHub `production` one must be the same
+The Worker's `DATABASE_URL` is **copied from the GitHub `production`
+environment on every deploy** (the `deploy-gateway` job's "the Worker holds
+its secrets" step), so GitHub is the one place to set or rotate it; an edit on
+the Worker is overwritten by the next deploy. It must be the migrating
 login: migration 0012 grants that login `SET ROLE` on `ac_gateway` and
 `ac_worker`, which a Postgres 16+ role creator does not get by default. A
 gateway connecting as any other login answers 500 on every request while

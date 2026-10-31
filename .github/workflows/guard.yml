@@ -254,8 +254,9 @@ jobs:
       - if: steps.configured.outputs.ready == 'true'
         uses: actions/setup-node@v7
         with: { node-version: 22 }
-      # The Worker holds its own copy of DATABASE_URL and the signing key, set once
-      # from a laptop (docs/CLOUDFLARE_PAGES.md, 'The gateway') — and, while a live
+      # The Worker holds the signing key, set once from a laptop
+      # (docs/CLOUDFLARE_PAGES.md, 'The gateway'), DATABASE_URL, copied from the
+      # GitHub 'production' environment below on every deploy — and, while a live
       # surface takes photos, the R2 bucket's four storage secrets. Without the key the
       # Worker refuses to start the container and the wait below would time out
       # saying nothing. Ask the Worker what it holds, and name what it does not.
@@ -264,7 +265,18 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
+          # The Worker's DATABASE_URL must be the same login as the one that
+          # migrates (0012 grants SET ROLE to that login alone), and the GitHub
+          # 'production' copy is the one every deploy proves by migrating with
+          # it. So that copy is the source: put it on the Worker each deploy,
+          # and the two cannot drift — nor be lost by an edit in the dashboard.
+          if ! out=$(printf '%s' "$DATABASE_URL" | pnpm dlx wrangler@4.148.0 secret put DATABASE_URL -c infra/cloudflare/wrangler.jsonc 2>&1); then
+            echo "$out" | grep -v -i 'postgres' || true
+            echo "::error::Could not put DATABASE_URL on the Worker from the GitHub 'production' environment."
+            exit 1
+          fi
           if ! held=$(pnpm dlx wrangler@4.148.0 secret list -c infra/cloudflare/wrangler.jsonc 2>&1); then
             echo "$held"
             echo "::error::The Worker 'ac-gateway' has no secrets yet. Run the one-time setup in docs/CLOUDFLARE_PAGES.md, 'The gateway'."
