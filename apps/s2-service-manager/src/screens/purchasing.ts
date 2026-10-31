@@ -92,7 +92,7 @@ export const purchasing: Screen = (ctx) => {
       return `Receiving point ${v.code?.toUpperCase()} recorded.`;
     });
   };
-  const regionOptions = (rs: readonly RegionWire[]) => rs.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.name}</option>`);
+  const regionOptions = (rs: readonly RegionWire[]) => rs.filter((r) => r.assignable).map((r) => html`<option value=${r.id}>${r.name}</option>`);
 
   return html`<section class="s2-purchasing">
     ${pageHead("Purchasing", "Orders to vendors, the vendors themselves, and where they deliver. A vendor sees an order once it is issued.")}
@@ -121,7 +121,7 @@ export const purchasing: Screen = (ctx) => {
     }) ?? html``)}
     <form class="ac-form ac-form--inline" onSubmit=${newVendor} id="vendor-form">
       <label class="ac-field"><span>Legal name</span><input class="ac-input" name="legalName" required /></label>
-      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice("Administered from", "No region of ours is active.") : html`<label class="ac-field"><span>Administered from</span><select class="ac-input" name="regionId" required>${regionOptions(r.regions)}</select></label>`, () => store.invalidate("regions.list"))}
+      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.assignable) ? noChoice("Administered from", "No region of ours is active.") : html`<label class="ac-field"><span>Administered from</span><select class="ac-input" name="regionId" required>${regionOptions(r.regions)}</select></label>`, () => store.invalidate("regions.list"))}
       <label class="ac-field"><span>Payment terms (days)</span><input class="ac-input" name="paymentTermsDays" type="number" min="0" step="1" required defaultValue="30" /></label>
       <label class="ac-field"><span>Contact email</span><input class="ac-input" name="contactEmail" type="email" /></label>
       <div class="s2-form__actions">${submitAction(ctx, outcome.value.busy === "add-vendor" ? "Adding…" : "Add vendor", "add-vendor", noActiveRegion(regions.value))}</div>
@@ -140,7 +140,7 @@ export const purchasing: Screen = (ctx) => {
     <form class="ac-form ac-form--inline" onSubmit=${newPoint} id="point-form">
       <label class="ac-field"><span>Code</span><input class="ac-input" name="code" required placeholder="SOUTH-HUB" /></label>
       <label class="ac-field"><span>Tier</span><select class="ac-input" name="tier">${Object.entries(TIER_WORD).map(([k, w]) => html`<option value=${k}>${w}</option>`)}</select></label>
-      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice("Region", "No region of ours is active.") : html`<label class="ac-field"><span>Region</span><select class="ac-input" name="regionId" required>${regionOptions(r.regions)}</select></label>`, () => store.invalidate("regions.list"))}
+      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.assignable) ? noChoice("Region", "No region of ours is active.") : html`<label class="ac-field"><span>Region</span><select class="ac-input" name="regionId" required>${regionOptions(r.regions)}</select></label>`, () => store.invalidate("regions.list"))}
       <label class="ac-field"><span>Street</span><input class="ac-input" name="line1" required /></label>
       <label class="ac-field"><span>City</span><input class="ac-input" name="city" required /></label>
       <label class="ac-field"><span>State</span><input class="ac-input" name="state" /></label>

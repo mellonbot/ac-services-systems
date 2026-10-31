@@ -147,9 +147,9 @@ const technicianForm = (ctx: ScreenContext, mode: { readonly firmId: string | nu
       ${whenReady(ctx, crews.value, (c) => crewField(c.crews))}
       ${t
         ? html`<label class="s2-radio"><input type="checkbox" name="active" checked=${t.active} /> Active — works our jobs</label>`
-        : whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice("Works from", "No region of ours is active.") : html`<label class="ac-field">
+        : whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.assignable) ? noChoice("Works from", "No region of ours is active.") : html`<label class="ac-field">
             <span>Works from</span>
-            <select name="homeRegionId" required class="ac-input">${r.regions.filter((x: RegionWire) => x.active).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
+            <select name="homeRegionId" required class="ac-input">${r.regions.filter((x: RegionWire) => x.assignable).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
           </label>`)}
       <div class="s2-form__actions">
         ${submitAction(ctx, f.busy ? "Saving…" : t ? "Save technician" : "Add technician", "save-technician", t ? null : noActiveRegion(regions.value))}

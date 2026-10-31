@@ -68,10 +68,10 @@ export const organizationsNew: Screen = (ctx) => {
     }
   };
 
-  const noRegion = (list: readonly RegionWire[]): string | null => list.some((r) => r.active) ? null : "No region of ours is active to serve this customer from.";
+  const noRegion = (list: readonly RegionWire[]): string | null => list.some((r) => r.assignable) ? null : "No region of ours is active to serve this customer from.";
   const regionSelect = (list: readonly RegionWire[]): VNode => noRegion(list) ? noChoice("Our service region", "No region of ours is active.") : html`<label class="ac-field">
       <span>Our service region</span>
-      <select class="ac-input" name="regionId" required>${list.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}</select>
+      <select class="ac-input" name="regionId" required>${list.filter((r) => r.assignable).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}</select>
     </label>`;
   const kindChoice = (): VNode => html`<fieldset class="s2-fieldset" id="org-segment">
       <legend>Kind of customer</legend>

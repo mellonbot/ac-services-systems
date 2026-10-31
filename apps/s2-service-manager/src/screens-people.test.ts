@@ -16,7 +16,7 @@ import { OPERATIONS, PASSWORD_CHANGE_REQUIRED } from "../../../packages/contract
  * (tools/ci/drive-s2-people.ts): it appears after a submitted form.
  */
 const U = (n: number) => `e5000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
-const SOUTH = U(2), ME = U(1), DANA = U(3), THEO = U(4), UNIT = U(5);
+const SOUTH = U(2), ME = U(1), DANA = U(3), THEO = U(4), UNIT = U(5), UNASSIGNED = U(6), CLOSED = U(7);
 
 const gateway = (roles: string[], crews: unknown[] = []): FetchLike => {
   const principal: Principal = {
@@ -38,7 +38,11 @@ const gateway = (roles: string[], crews: unknown[] = []): FetchLike => {
     if (path === OPERATIONS["auth.login"].path) { session = true; return reply(200, { token: "x", expiresAt: "2026-11-01T00:00:00Z", context: {} }); }
     if (!session) return reply(401, { error: "AuthError", code: "malformed", message: "no session" });
     if (path === OPERATIONS["session.me"].path) return reply(200, context);
-    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true }] });
+    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [
+      { id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true, assignable: true },
+      { id: UNASSIGNED, code: "UNASSIGNED", name: "Unassigned (pre-account)", timezone: "America/Chicago", minCrewDensity: 0, active: true, assignable: false },
+      { id: CLOSED, code: "OKC", name: "Oklahoma City", timezone: "America/Chicago", minCrewDensity: 0, active: false, assignable: false },
+    ] });
     if (path === OPERATIONS["firms.list"].path) return reply(200, { firms: [] });
     if (path === OPERATIONS["crews.list"].path) return reply(200, { crews });
     if (path === OPERATIONS["devices.list"].path) return reply(200, { devices: [{ id: U(20), hardwareId: "RK-WEB-0001", kind: "web_fallback", firmId: null, active: true, orgId: "org-internal", regionId: SOUTH }] });
@@ -108,4 +112,18 @@ test("sign-in asks for a new password when the gateway refuses the temporary one
   assert.match(asked, /Set password and sign in/);
   const differ = render(loginView({ refusal: { kind: "admission", code: "passwords_differ", axis: "structural", message: "Not the same." }, busy: false }, () => {}));
   assert.match(differ, /name="newPassword"/);
+});
+
+test("0039: the Regions panel lists every region; Unassigned has no page, and no create form offers it or a closed region", async () => {
+  const { app } = await appFor(["principal"]);
+  const panel = (await at(app, "people")).split('id="regions"')[1]!;
+  assert.match(panel, /South/);
+  const unassignedRow = panel.split("Unassigned (pre-account)")[1]!.split("</tr>")[0]!;
+  assert.match(unassignedRow, /never offered/);
+  assert.doesNotMatch(unassignedRow, /<a /, "Unassigned has no page to open");
+  assert.match(panel, /data-tone="ended">Closed/);
+  const form = await at(app, "people.new", { kind: "staff" });
+  const options = form.split('name="regionId"')[1]!.split("</select>")[0]!;
+  assert.match(options, /South \(SOUTH\)/);
+  assert.doesNotMatch(options, /UNASSIGNED|OKC/);
 });

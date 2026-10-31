@@ -46,8 +46,11 @@ export const SCREENS = {
   "devices":           { path: "/devices",                               uses: ["devices.list", "firms.list", "devices.listGrants", "devices.extendShift", "devices.revokeShift"], title: "Field devices" },
   // 0038: People — a principal's. The forms before `people.person`, whose :userId would otherwise claim "/people/new".
   "people.new":        { path: "/people/new/:kind?",                     uses: ["people.createStaff", "people.createTechnician", "regions.list", "firms.list"], nav: "people" },
+  // 0039: Regions, inside People and a principal's too. Before `people.person`, whose :userId would claim "/people/regions".
+  "people.region.new": { path: "/people/regions/new",                     uses: ["regions.create"], nav: "people" },
+  "people.region":     { path: "/people/regions/:regionId",               uses: ["regions.list", "regions.update", "regions.setActive"], nav: "people" },
   "people.person":     { path: "/people/:userId",                        uses: ["people.list", "people.update", "people.setActive", "people.resetPassword", "regions.list"], nav: "people" },
-  "people":            { path: "/people",                                uses: ["people.list"], title: "People" },
+  "people":            { path: "/people",                                uses: ["people.list", "regions.list"], title: "People" },
   "billing":           { path: "/invoicing",                             uses: ["invoices.list", "organizations.list"], title: "Invoicing" },
   "purchasing":        { path: "/purchasing",                            uses: ["pos.list", "vendors.list", "vendors.create", "receivingPoints.list", "receivingPoints.create", "regions.list"], title: "Purchasing" },
 } as const satisfies Record<string, ScreenSpec>;

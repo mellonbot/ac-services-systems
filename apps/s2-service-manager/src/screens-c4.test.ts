@@ -74,7 +74,7 @@ const fakeGateway = (overrides: Partial<Record<string, Reply>> = {}) => {
     const o = overrides[path];
     if (o) return reply(o.status, o.body);
     if (path === OPERATIONS["session.me"].path) return reply(200, context);
-    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true }] });
+    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true, assignable: true }] });
     if (path === OPERATIONS["firms.list"].path) return reply(200, { firms: FIRMS });
     if (path === OPERATIONS["crews.list"].path) return reply(200, { crews: CREWS });
     if (path === OPERATIONS["credentials.list"].path) return reply(200, { credentials: DOCS });

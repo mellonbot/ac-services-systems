@@ -25,6 +25,7 @@ import { purchasing, purchasingVendor, purchasingPo, refreshProcurement } from "
 import { billing, billingInvoice, refreshBilling } from "./screens/billing.ts";
 import { devices, devicesNew, devicesGrant } from "./screens/devices.ts";
 import { peopleList, peopleNew, peoplePerson } from "./screens/people.ts";
+import { regionNew, regionPage } from "./screens/regions.ts";
 import { S2_CSS } from "./styles.ts";
 
 /**
@@ -66,6 +67,8 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "devices.grant": devicesGrant,
   "people": peopleList,
   "people.new": peopleNew,
+  "people.region.new": regionNew,
+  "people.region": regionPage,
   "people.person": peoplePerson,
 };
 
@@ -79,7 +82,7 @@ const NAV_GROUPS = [
   { label: "Technician Network", inside: "Crews, subcontractor firms, field devices", screens: ["network", "devices"] as const },
   { label: "Purchasing", inside: "Vendors, purchase orders, receiving", screens: ["purchasing"] as const },
   // 0038: shown to principals only — the gateway refuses people.* to everyone else.
-  { label: "People", inside: "Staff and technician logins, password resets", screens: ["people"] as const },
+  { label: "People", inside: "Staff and technician logins, password resets, regions", screens: ["people"] as const },
 ] as const;
 /** A domain with more than one screen gets a second tier of tabs. */
 const hasSubTabs = (g: (typeof NAV_GROUPS)[number]) => g.screens.length > 1;
@@ -198,6 +201,8 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     // 0030: a payment recorded or returned, an invoice paid or voided — here or by another office user.
     // 0038: a login made or changed — here, or in AC Logins.
     shell.subscribe(() => store.invalidate("people.list"), { topics: ["user.created", "user.updated"] });
+    // 0039: a region opened, renamed or closed — every form that picks one reads it fresh.
+    shell.subscribe(() => store.invalidate("regions.list"), { topics: ["region.created", "region.updated"] });
     shell.subscribe(() => store.invalidate("devices.listGrants"), { topics: ["device.shift_granted", "device.shift_extended", "device.shift_revoked"] });
     shell.subscribe(() => refreshBilling(store), { topics: ["payment.recorded", "payment.returned", "invoice.paid", "invoice.voided", "invoice.issued"] });
   };

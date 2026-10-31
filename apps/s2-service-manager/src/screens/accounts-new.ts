@@ -55,10 +55,10 @@ export const accountsNew: Screen = (ctx, params) => {
     }
   };
 
-  const regionField = (regions: readonly RegionWire[]): VNode => !regions.some((r) => r.active) ? noChoice("Our service region", "No region of ours is active.") : html`<label class="ac-field">
+  const regionField = (regions: readonly RegionWire[]): VNode => !regions.some((r) => r.assignable) ? noChoice("Our service region", "No region of ours is active.") : html`<label class="ac-field">
     <span>Our service region</span>
     <select name="regionId" required class="ac-input">
-      ${regions.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}
+      ${regions.filter((r) => r.assignable).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}
     </select>
     <small>The region node is where this customer's tree meets one of our regions. Everything under it is dispatched from here.</small>
   </label>`;

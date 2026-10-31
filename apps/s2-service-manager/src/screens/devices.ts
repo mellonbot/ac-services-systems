@@ -174,9 +174,9 @@ export const devicesNew: Screen = (ctx) => {
       ${f.kind === "web_fallback"
         ? null
         : html`<label class="ac-field"><span>Public key</span><input class="ac-input" name="publicKey" required autocomplete="off" /><small>Base64, from the device. Recorded now; not yet checked at sign-in.</small></label>`}
-      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice("Region", "No region of ours is active.") : html`<label class="ac-field">
+      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.assignable) ? noChoice("Region", "No region of ours is active.") : html`<label class="ac-field">
         <span>Region</span>
-        <select name="regionId" required class="ac-input">${r.regions.filter((x: RegionWire) => x.active).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
+        <select name="regionId" required class="ac-input">${r.regions.filter((x: RegionWire) => x.assignable).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
       </label>`)}
       ${whenReady(ctx, firms.value, (fs) => html`<label class="ac-field">
         <span>Owner</span>

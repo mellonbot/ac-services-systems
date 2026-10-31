@@ -12,10 +12,14 @@ import { defaultWindow, JOB_PRIORITIES, PRIORITY_WORD } from "./intake.ts";
  * The site list (`sites.list`) is the dispatcher's own region; a site that is
  * not on it is a customer S2 has not signed in yet.
  *
- * A call at a site whose agreement is missing the response time cannot open
- * a job, and the dispatcher cannot set the term. "Hold for Contracts" records
- * the call as a request at that site (`serviceRequests.hold`), so it waits in
- * Intake — flagged until Contracts sets the term — instead of being lost.
+ * A site with no agreed response time opens on the register's default
+ * (`sla_response` 4_hour, packages/contracts/src/terms.ts), and the timer's
+ * trace says so. A job is refused only when the term cannot be resolved — a
+ * looser override under a tighter one, two rows in force at one node, a value
+ * off the register — and those are Contracts' to fix. "Hold for Contracts" is
+ * offered for a refusal that names a missing term (`no_value`, a term the
+ * register gives no default): it records the call as a request at that site
+ * (`serviceRequests.hold`), so it waits in Intake instead of being lost.
  *
  * 0024/0025: the service is picked from the catalogue, and its work decides
  * who is sent. Service and commissioning go to a technician; install goes to

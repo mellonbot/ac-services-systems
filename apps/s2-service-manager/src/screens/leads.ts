@@ -35,7 +35,7 @@ const convertPanel = (ctx: ScreenContext, lead: LeadWire, regions: readonly Regi
       converting.value = { leadId: lead.id, busy: false, refusal: ctx.shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) } };
     }
   };
-  const active = regions.filter((r) => r.active);
+  const active = regions.filter((r) => r.assignable);
   return panel(html`<form class="ac-form" id="lead-convert-form" onSubmit=${submit}>
       <label class="ac-field"><span>Household name</span><input class="ac-input" name="name" defaultValue=${`${lead.contact.name} residence`} required /></label>
       ${addressFields()}

@@ -1,6 +1,7 @@
 import { html, pageHead, panel, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
 import { ROLES, type FirmWire, type PersonWire, type Refusal, type RegionWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
+import { regionsPanel } from "./regions.ts";
 import { whenReady, refusalView, linkTo, submitAction, noChoice, noActiveRegion, confirmPanel, type Screen, type ScreenContext } from "./common.ts";
 
 /**
@@ -56,6 +57,7 @@ export const peopleList: Screen = (ctx) => {
     }), () => ctx.store.invalidate("people.list")),
     "Logins", null,
     html`<span class="s2-row-actions">${linkTo(ctx, "people.new", { kind: "staff" }, "+ Staff login", "ac-action s2-link--action")}${linkTo(ctx, "people.new", { kind: "technician" }, "+ Technician", "ac-action s2-link--action")}</span>`, "people")}
+    ${regionsPanel(ctx)}
   </section>`;
 };
 
@@ -65,9 +67,9 @@ const newForm = signal<{ readonly refusal: Refusal | null; readonly busy: boolea
 
 const regionSelect = (ctx: ScreenContext, name: string, label: string, selected?: string): VNode => {
   const regions = ctx.store.read(keyOf("regions.list"), () => ctx.shell.gateway.listRegions());
-  return whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice(label, "No region of ours is active.") : html`<label class="ac-field">
+  return whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.assignable) ? noChoice(label, "No region of ours is active.") : html`<label class="ac-field">
     <span>${label}</span>
-    <select name=${name} required class="ac-input">${r.regions.filter((x: RegionWire) => x.active).map((x: RegionWire) => html`<option value=${x.id} selected=${x.id === selected}>${x.name} (${x.code})</option>`)}</select>
+    <select name=${name} required class="ac-input">${r.regions.filter((x: RegionWire) => x.assignable).map((x: RegionWire) => html`<option value=${x.id} selected=${x.id === selected}>${x.name} (${x.code})</option>`)}</select>
   </label>`);
 };
 

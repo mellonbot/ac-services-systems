@@ -10,7 +10,10 @@
  * from the shifts panel, reset the staff login's password, and sign in as that
  * person — the temporary password alone is answered with "choose a new one",
  * a mismatch keeps the form, and the new password signs in. Last: the only
- * principal cannot remove their own login.
+ * principal cannot remove their own login. Then Regions (0039), in the same
+ * area: DFW is listed and Unassigned is marked and offered by no form; a
+ * region is opened and renamed from the panel; closing one still in use is
+ * refused naming who is in it, and a closed one leaves the create forms.
  *
  * Its own database, created, migrated and dropped, as drive-s2-c4's is: the
  * last check needs to know every principal on the server.
@@ -256,6 +259,48 @@ async function main(): Promise<void> {
     await cdp.waitFor(`${refusalText}.includes("last active company-wide principal")`, "the last-principal refusal");
     must((await admin(`SELECT active FROM users WHERE id = $1`, [USER]))[0].active === true, "the principal should still be active");
     check(9, "the only principal is refused removing their own login, by name");
+
+    // ── 10. Regions, inside People: DFW from the migration, Unassigned listed but never a choice
+    await cdp.navigate(`${S2}/people`);
+    await cdp.waitFor(`[...document.querySelectorAll("#regions tbody tr")].some(r => r.innerText.includes("Dallas–Fort Worth") && r.innerText.includes("Active"))`, "DFW in the Regions panel");
+    must(await cdp.eval<boolean>(`[...document.querySelectorAll("#regions tbody tr")].some(r => r.innerText.includes("Unassigned") && r.innerText.includes("never offered") && !r.querySelector("a"))`), "Unassigned should be listed, marked, and have no page");
+    await cdp.navigate(`${S2}/people/new/staff`);
+    await cdp.waitFor(`document.querySelectorAll('#person-form [name="regionId"] option').length > 0`, "the staff form's regions");
+    const offered = await cdp.eval<string[]>(`[...document.querySelectorAll('#person-form [name="regionId"] option')].map(o => o.textContent)`);
+    must(offered.some((o) => o.includes("DFW")) && !offered.some((o) => /unassigned/i.test(o)), `the form should offer DFW and never Unassigned: ${offered.join(" | ")}`);
+    check(10, "the Regions panel lists DFW and marks Unassigned, which no create form offers");
+
+    // ── 11. a region opened from the panel, then renamed on its page
+    const REGION_CODE = `D${RUN.slice(-6).toUpperCase()}`;
+    await cdp.navigate(`${S2}/people`);
+    await cdp.waitFor(`[...document.querySelectorAll("#regions a")].some(a => a.textContent.trim() === "+ Region")`, "the + Region action");
+    await cdp.eval(clickText("#regions a", "+ Region"));
+    await cdp.waitFor(`document.getElementById("region-form")?.querySelector('[name="code"]')`, "the new region form");
+    await cdp.eval(fillAndSubmit("region-form", { code: REGION_CODE, name: `Drive ${RUN}`, timezone: "America/Chicago" }));
+    await cdp.waitFor(`document.querySelector(".ac-page-head__title")?.textContent === ${JSON.stringify(`Drive ${RUN}`)} && !document.querySelector('#region-form [name="code"]')`, "the region's own page");
+    await cdp.eval(fillAndSubmit("region-form", { name: `Drive Renamed ${RUN}` }));
+    await cdp.waitFor(`document.querySelector(".ac-page-head__title")?.textContent === ${JSON.stringify(`Drive Renamed ${RUN}`)}`, "the new name");
+    const opened = (await admin(`SELECT id, code, name, active FROM regions WHERE code = $1`, [REGION_CODE]))[0];
+    must(opened?.name === `Drive Renamed ${RUN}` && opened.active === true, "the region should be open, renamed, its code unchanged");
+    check(11, "a region is opened from the panel and renamed on its page; its code stays");
+
+    // ── 12. a region in use is refused by name; an empty one closes and leaves the forms
+    await cdp.navigate(`${S2}/people/regions/${REGION_SOUTH}`);
+    await cdp.waitFor(`document.getElementById("set-region-active")`, "the close button");
+    await cdp.eval(click("#set-region-active"));
+    await cdp.eval(clickText("#confirm-region button", "Close region"));
+    await cdp.waitFor(`${refusalText}.includes("still holds") && ${refusalText}.includes("Drive Principal")`, "the in-use refusal, naming who");
+    must((await admin(`SELECT active FROM regions WHERE id = $1`, [REGION_SOUTH]))[0].active === true, "South should still be open");
+    await cdp.navigate(`${S2}/people/regions/${opened.id}`);
+    await cdp.waitFor(`document.getElementById("set-region-active")`, "the close button");
+    await cdp.eval(click("#set-region-active"));
+    await cdp.eval(clickText("#confirm-region button", "Close region"));
+    await cdp.waitFor(`document.getElementById("set-region-active")?.textContent === "Open again"`, "the region closed");
+    must((await admin(`SELECT active FROM regions WHERE id = $1`, [opened.id]))[0].active === false, "closed at the table");
+    await cdp.navigate(`${S2}/people/new/staff`);
+    await cdp.waitFor(`document.querySelectorAll('#person-form [name="regionId"] option').length > 0`, "the staff form's regions");
+    must(!(await cdp.eval<string[]>(`[...document.querySelectorAll('#person-form [name="regionId"] option')].map(o => o.textContent)`)).some((o) => o.includes(REGION_CODE)), "a closed region is offered nowhere");
+    check(12, "closing a region in use is refused by name; an empty one closes and leaves the create forms");
 
     must(!(await cdp.eval<boolean>(`${text}.includes("scrypt$")`)), "no hash should ever reach the page");
     console.log(`\ndrive-s2-people: ${passed} checks passed`);
