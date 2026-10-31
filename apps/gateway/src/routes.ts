@@ -423,6 +423,12 @@ export const handlers: { readonly [K in OperationId]: Handler<K> } = {
    * logins that would fail in production. The Worker keeps starting the
    * container on /healthz: a database outage must not stop the gateway
    * coming up to say so.
+   *
+   * The same for photo storage: deploy-gateway proves the four AC_STORAGE_*
+   * secrets are held, not that they work, and a wrong endpoint, bucket or
+   * token deployed green while every technician's wrap-up was refused. When
+   * a store is configured it is probed; none configured answers
+   * "not_configured" — deploy-gateway's secret check owns that case.
    */
   "system.ready": async () => {
     let tx;
@@ -438,6 +444,14 @@ export const handlers: { readonly [K in OperationId]: Handler<K> } = {
     } finally {
       await tx?.rollback().catch(() => {});
     }
-    return { ok: true, database: "reachable" };
+    if (!STORE) return { ok: true, database: "reachable", storage: "not_configured" };
+    try {
+      await STORE.probe();
+    } catch (e) {
+      // The store's answer names the status and S3 error code, never the secret.
+      console.error(`readyz: storage: ${(e as Error).message}`);
+      throw new HttpError(503, "the gateway cannot reach its photo storage");
+    }
+    return { ok: true, database: "reachable", storage: "reachable" };
   },
 };

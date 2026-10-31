@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, constants, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { ObjectStore, StorageKey } from "./index.ts";
 
@@ -15,5 +15,9 @@ export const diskStore = (root: string): ObjectStore => ({
   },
   async get(key: StorageKey) {
     return new Uint8Array(await readFile(join(root, key)));
+  },
+  async probe() {
+    await mkdir(root, { recursive: true });
+    await access(root, constants.R_OK | constants.W_OK);
   },
 });

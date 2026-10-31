@@ -49,6 +49,7 @@ const memory = (log: string[] = []) => {
   const store: ObjectStore = {
     async put(key, body, contentType) { log.push(`PUT ${key}`); objects.set(key, { body, contentType }); },
     async get(key) { const o = objects.get(key); if (!o) throw new Error("NoSuchKey"); return o.body; },
+    async probe() {},
   };
   return { store, objects };
 };
@@ -82,7 +83,7 @@ test("attachPhoto: the rows first, then the object, keyed region/org/request_pho
 
 test("attachPhoto: a store that does not answer refuses in words (not a 500 that flips the portal degraded), and nothing is committed", async () => {
   const s = scripted([["FROM service_requests r", [reqRow()]]]);
-  const down: ObjectStore = { async put() { throw new Error("ECONNRESET"); }, async get() { return new Uint8Array(); } };
+  const down: ObjectStore = { async put() { throw new Error("ECONNRESET"); }, async get() { return new Uint8Array(); }, async probe() {} };
   const uow = await uowFor(s.tx);
   const orig = console.error; console.error = () => {};
   try {

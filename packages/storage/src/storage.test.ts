@@ -61,3 +61,27 @@ test("storeFromEnv: a full bucket, a directory, nothing, or a half-configured bu
   assert.ok(storeFromEnv({ AC_STORAGE_ENDPOINT: "https://e", AC_STORAGE_BUCKET: "b", AC_STORAGE_KEY_ID: "k", AC_STORAGE_SECRET: "s" }, f));
   assert.throws(() => storeFromEnv({ AC_STORAGE_ENDPOINT: "https://e", AC_STORAGE_BUCKET: "b" }, f), /AC_STORAGE_KEY_ID, AC_STORAGE_SECRET not set/);
 });
+
+test("s3Store.probe: a signed GET of a never-written key — only 404 NoSuchKey (or 200) passes", async () => {
+  const answer = (status: number, body: string): S3Fetch => async (url, init) => {
+    assert.equal(url, "https://acct.r2.cloudflarestorage.com/ac-media/readyz-probe");
+    assert.equal(init.method, "GET");
+    assert.match(init.headers.authorization!, /^AWS4-HMAC-SHA256 Credential=id\//);
+    return { ok: status === 200, status, arrayBuffer: async () => new ArrayBuffer(0), text: async () => body };
+  };
+  const cfg = { endpoint: "https://acct.r2.cloudflarestorage.com", bucket: "ac-media", region: "auto", accessKeyId: "id", secretAccessKey: "secret" };
+  await s3Store(cfg, answer(404, "<Error><Code>NoSuchKey</Code></Error>")).probe();
+  await s3Store(cfg, answer(200, "")).probe();
+  await assert.rejects(s3Store(cfg, answer(403, "<Error><Code>AccessDenied</Code></Error>")).probe(), /probe ac-media → 403 .*AccessDenied/);
+  await assert.rejects(s3Store(cfg, answer(404, "<Error><Code>NoSuchBucket</Code></Error>")).probe(), /404 .*NoSuchBucket/);
+  const silent: S3Fetch = async () => { throw new Error("fetch failed"); };
+  await assert.rejects(s3Store(cfg, silent).probe(), /fetch failed/);
+});
+
+test("diskStore.probe: a writable directory passes, created if absent", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "ac-store-"));
+  try {
+    await diskStore(join(dir, "nested")).probe();
+    await assert.rejects(diskStore(join(dir, "nested", "\0")).probe());
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

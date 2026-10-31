@@ -831,7 +831,7 @@ export const createGatewayClient = (transport: Transport) => ({
 
   /** `GET /readyz` · system · none · surfaces: S1, S2, S3, S4, S5, S6, S7, S8
    *
-   * Readiness: the gateway's login connects to Postgres and takes the ac_gateway role. 503 when it cannot. What a deploy waits for; /healthz never touches the database. */
+   * Readiness: the gateway's login connects to Postgres and takes the ac_gateway role, and its photo storage, when configured, answers a signed read. 503 when either cannot. What a deploy waits for; /healthz never touches the database. */
   ready(): Promise<OperationIO["system.ready"]["output"]> {
     return transport.request(OPERATIONS["system.ready"], undefined) as Promise<OperationIO["system.ready"]["output"]>;
   },

@@ -119,7 +119,13 @@ All four or none: a half-configured bucket stops the gateway at start rather
 than failing uploads one at a time. A secret reaches the container when it
 next starts, so finish with **Actions → guard → Run workflow** on `main`. The
 `deploy-gateway` job's "the Worker holds its secrets" step going green is the
-confirmation that all four are held.
+confirmation that all four are held; "The gateway reaches its database and
+photo storage" going green is the confirmation that they work. `/readyz`
+makes a signed read of a key that is never written: only `404 NoSuchKey` is
+proof. A wrong key id or secret, or a token scoped to another bucket, answers
+`403`; a misspelt bucket `404 NoSuchBucket`; a wrong endpoint does not answer.
+Each is a 503 from `/readyz`, with the status and S3 error code on a
+`readyz: storage:` line in `wrangler tail`.
 
 Paste the connection string exactly as the provider shows it for psql.
 PlanetScale's ends in `sslmode=verify-full&sslrootcert=system`; the gateway
@@ -136,7 +142,8 @@ login: migration 0012 grants that login `SET ROLE` on `ac_gateway` and
 `ac_worker`, which a Postgres 16+ role creator does not get by default. A
 gateway connecting as any other login answers 500 on every request while
 `/healthz` stays green — `/healthz` is liveness and never touches the
-database. `/readyz` connects and takes `ac_gateway`, answering 503 when it
+database. `/readyz` connects and takes `ac_gateway`, and probes photo
+storage when it is configured (see 'Photo storage'), answering 503 when it
 cannot, and the deploy waits for it after `/healthz`; `db-check` shows the
 refusal by name.
 
