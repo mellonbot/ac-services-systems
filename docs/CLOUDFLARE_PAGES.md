@@ -85,6 +85,42 @@ another style or provider, set `AC_MAP_TILE_URL` (`{z}/{x}/{y}`) or
 map says no provider is configured. A secret reaches the container when it
 next starts — the next deploy.
 
+### Photo storage
+
+Required while any live surface takes photos (today S5: a wrap-up needs at
+least two photos and a signature). Without it every upload is refused as
+`storage_not_configured`, no technician can complete a job, and the
+`deploy-gateway` job fails by name until it is set. The gateway speaks R2's
+S3 API (`packages/storage`); bytes never go in Postgres.
+
+In the Cloudflare dashboard, once:
+
+1. **R2 → enable R2** for the account (accept the R2 plan; storage and
+   operations are billed on the Cloudflare invoice).
+2. **R2 → Create bucket** — name `ac-media`, location Automatic. Leave public
+   access off: the gateway reads and serves every photo itself, scoped to the
+   job's region, so the bucket is never reached from a browser.
+3. **R2 → Manage R2 API tokens → Create API token** — permission
+   **Object Read & Write**, applied to **`ac-media` only**, no expiry (or put
+   its rotation on the calendar). Copy the **Access Key ID** and **Secret Access
+   Key**; the secret is shown once. Note the account's S3 endpoint shown on the
+   same page: `https://<account-id>.r2.cloudflarestorage.com`.
+
+Then from a laptop logged into wrangler (paste each value when asked):
+
+```bash
+npx wrangler@4 secret put AC_STORAGE_ENDPOINT -c infra/cloudflare/wrangler.jsonc   # https://<account-id>.r2.cloudflarestorage.com
+npx wrangler@4 secret put AC_STORAGE_BUCKET   -c infra/cloudflare/wrangler.jsonc   # ac-media
+npx wrangler@4 secret put AC_STORAGE_KEY_ID   -c infra/cloudflare/wrangler.jsonc   # the token's Access Key ID
+npx wrangler@4 secret put AC_STORAGE_SECRET   -c infra/cloudflare/wrangler.jsonc   # the token's Secret Access Key
+```
+
+All four or none: a half-configured bucket stops the gateway at start rather
+than failing uploads one at a time. A secret reaches the container when it
+next starts, so finish with **Actions → guard → Run workflow** on `main`. The
+`deploy-gateway` job's "the Worker holds its secrets" step going green is the
+confirmation that all four are held.
+
 Paste the connection string exactly as the provider shows it for psql.
 PlanetScale's ends in `sslmode=verify-full&sslrootcert=system`; the gateway
 reads libpq's `sslrootcert=system` as what node `pg` does by default and

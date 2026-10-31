@@ -22,13 +22,11 @@ What is still held elsewhere, and why:
   thing it monitors reports green while the thing is on fire. The gateway's
   `/healthz` and the Worker's cron are what it watches; what watches them is
   not yet chosen.
-- **storage** — object storage behind `packages/storage`'s key scheme. The
-  gateway speaks R2's S3 API (`s3Store`, SigV4 over `node:crypto`), so binding
-  it is a dashboard step plus four Worker secrets: create a bucket and an R2
-  API token scoped to it, then `wrangler secret put` `AC_STORAGE_ENDPOINT`
-  (`https://<account>.r2.cloudflarestorage.com`), `AC_STORAGE_BUCKET`,
-  `AC_STORAGE_KEY_ID`, `AC_STORAGE_SECRET`. Until then photo uploads are
-  refused as `storage_not_configured`; the request itself is still taken.
+- **storage** — an R2 bucket (`ac-media`) behind `packages/storage`'s key
+  scheme. The gateway speaks R2's S3 API (`s3Store`, SigV4 over `node:crypto`),
+  so binding it is a dashboard step plus four Worker secrets —
+  `docs/CLOUDFLARE_PAGES.md`, 'Photo storage'. Required while a live surface
+  takes photos: `deploy-gateway` fails by name until all four are held.
 - **network** — regions are the shard boundary. A container per region
   (`AC_REGION_ID`) is a second Durable Object name in `worker.mjs` when Tier 3
   arrives; nothing structural changes.
