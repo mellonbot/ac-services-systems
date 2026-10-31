@@ -135,18 +135,26 @@ jobs:
   #           checked at all: the durable buffer surviving a reload, and the
   #           D7a/OQ6 copy ceiling against the PAINTED page, so a promise
   #           arriving through a stylesheet fails too.
+  #   s3    — the dispatcher's day: New job to the gated door, the lapsed crew
+  #           refused with its reason and no Assign, assign, note, release
+  #           through the confirm, another region's job not on this board
+  #           (test/integration/s3-s5.test.ts is the wire half).
+  #   s5    — a technician's shift on a phone-sized page: device sign-in on a
+  #           grant, moves gated on the shift clock, en route → in progress
+  #           through the offline queue, checklist, a part, and a wrap-up with
+  #           two photos through the real file input and a drawn signature.
   #   c3-amped — the C3 acceptance drive: Amped's fixture authored through the
   #           real operations against a live gateway, then resolved and its
   #           illegal rows refused by the real resolver. No browser.
   # One job per drive: each creates, migrates and drops its own database, so
   # they share nothing, and side by side they cost the deploy one drive's
-  # time (~40s) instead of four (~2.5m).
+  # time (~40s) instead of all of theirs.
   drive:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        surface: [s2-c4, s6, s8, s1, c3-amped]
+        surface: [s2-c4, s3, s5, s6, s8, s1, c3-amped]
     name: drive (${{ matrix.surface }})
     services:
       postgres:
