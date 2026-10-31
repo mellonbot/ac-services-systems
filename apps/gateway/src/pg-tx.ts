@@ -157,7 +157,7 @@ export const listenEvents = async (connectionString: string, onEnvelope: (payloa
   let stopped = false;
   let delay = 1000;
   const open = async (): Promise<void> => {
-    const c = new pg.Client({ connectionString: forNodePg(connectionString), application_name: "ac-gateway-listen" });
+    const c = new pg.Client({ connectionString: forNodePg(connectionString), application_name: "ac-gateway-listen", connectionTimeoutMillis: 10_000 });
     // A dropped LISTEN connection is reopened with backoff. Without this the
     // 'error' event kills the gateway, and without the reconnect every SSE
     // subscriber goes quiet until a restart.
@@ -175,8 +175,14 @@ export const listenEvents = async (connectionString: string, onEnvelope: (payloa
       await c.query("LISTEN ac_events");
       delay = 1000;
     } catch (e) {
+      // Unreachable at boot as on a reconnect: retry with the same backoff and
+      // never throw. A throw here at boot took the gateway down before it
+      // listened, so neither /healthz nor /readyz could say the database was gone.
+      console.error(`gateway: event listener could not connect: ${(e as Error).message}`);
+      client = null;
       await c.end().catch(() => {});
-      throw e;
+      if (!stopped) setTimeout(() => { void open(); }, delay);
+      delay = Math.min(delay * 2, 30_000);
     }
   };
   await open();
