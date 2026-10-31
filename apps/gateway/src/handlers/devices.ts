@@ -5,7 +5,8 @@ import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
 import { iso } from "../sql.ts";
 import type {
   DeviceKind, DeviceWire, ListDevicesInput, ListDevicesOutput, RegisterDeviceInput, RegisterDeviceOutput,
-  GrantShiftInput, GrantShiftOutput,
+  GrantShiftInput, GrantShiftOutput, GrantWire, ListGrantsInput, ListGrantsOutput,
+  ExtendShiftInput, ExtendShiftOutput, RevokeShiftInput, RevokeShiftOutput,
 } from "../../../../packages/contracts/src/operations.ts";
 
 /**
@@ -168,6 +169,99 @@ export const grantDeviceShift = async (uow: DeviceWriter, actorId: string, input
     },
   );
   return { id, orgId: crew.org_id, regionId: crew.home_region_id, eventId };
+};
+
+/**
+ * 0038 — a grant moved later, or ended now. Granted by any role S2 admits
+ * (devices.grantShift has no writeRoles), so extended and revoked by the same.
+ * Both act on a grant still live: one already revoked, or past its end, has
+ * nothing left to move or end.
+ */
+type GrantRow = { id: string; device_id: string; org_id: string; region_id: string; revoked_at: string | null; ends_at: string; ended: boolean };
+
+const liveGrant = async (uow: UnitOfWork, v: unknown): Promise<GrantRow> => {
+  const id = requireUuid(v, "grantId");
+  const g = (await uow.tx.query<GrantRow>(
+    `SELECT id, device_id, org_id, region_id, revoked_at, ${iso("upper(service_window)")} AS ends_at, upper(service_window) <= now() AS ended
+       FROM device_grants WHERE id = $1 FOR UPDATE`, [id]))[0];
+  if (!g) throw new InputRefused(`no shift grant ${id} visible in this scope`, "unknown_grant");
+  if (g.revoked_at) throw new InputRefused(`that shift was already ended at ${g.revoked_at}`, "grant_revoked");
+  if (g.ended) throw new InputRefused(`that shift already ended at ${g.ends_at}`, "grant_ended");
+  return g;
+};
+
+export const listGrants = async (uow: UnitOfWork, input: ListGrantsInput): Promise<ListGrantsOutput> => {
+  const deviceId = input.deviceId === undefined || input.deviceId === "" ? null : requireUuid(input.deviceId, "deviceId");
+  const rows = await uow.tx.query<{
+    id: string; device_id: string; hardware_id: string; crew_id: string; crew_label: string; technician_id: string; technician_name: string;
+    window_start: string; window_end: string; revoked_at: string | null; state: GrantWire["state"];
+  }>(
+    `SELECT g.id, g.device_id, d.hardware_id, g.crew_id, c.label AS crew_label, g.technician_id, u.display_name AS technician_name,
+            ${iso("lower(g.service_window)")} AS window_start, ${iso("upper(g.service_window)")} AS window_end, ${iso("g.revoked_at")} AS revoked_at,
+            CASE WHEN g.revoked_at IS NOT NULL THEN 'revoked'
+                 WHEN upper(g.service_window) <= now() THEN 'ended'
+                 WHEN lower(g.service_window) > now() THEN 'upcoming'
+                 ELSE 'open' END AS state
+       FROM device_grants g
+       JOIN devices d ON d.id = g.device_id
+       JOIN crews c ON c.id = g.crew_id
+       JOIN users u ON u.id = g.technician_id
+      WHERE ($1::uuid IS NULL OR g.device_id = $1)
+        AND upper(g.service_window) > now() - interval '1 day'
+        AND (g.revoked_at IS NULL OR g.revoked_at > now() - interval '1 day')
+      ORDER BY lower(g.service_window) DESC
+      LIMIT 200`,
+    [deviceId],
+  );
+  return {
+    grants: rows.map((r) => ({
+      id: r.id, deviceId: r.device_id, hardwareId: r.hardware_id, crewId: r.crew_id, crewLabel: r.crew_label,
+      technicianId: r.technician_id, technicianName: r.technician_name, windowStart: r.window_start, windowEnd: r.window_end,
+      revokedAt: r.revoked_at, state: r.state,
+    })),
+  };
+};
+
+export const extendShift = async (uow: UnitOfWork, input: ExtendShiftInput): Promise<ExtendShiftOutput> => {
+  const g = await liveGrant(uow, input.grantId);
+  const windowEnd = requireIso(input.windowEnd, "windowEnd");
+  if (windowEnd.getTime() <= new Date(g.ends_at).getTime()) throw new InputRefused(`the new end must be later than the shift's current end, ${g.ends_at}`, "bad_window");
+  const overlap = await uow.tx.query(
+    `SELECT 1 FROM device_grants WHERE device_id = $1 AND id <> $2 AND revoked_at IS NULL AND service_window && tstzrange($3::timestamptz, $4::timestamptz, '[)')`,
+    [g.device_id, g.id, g.ends_at, windowEnd.toISOString()],
+  );
+  if (overlap.length > 0) throw new InputRefused("the device already holds a later grant inside the new end — end it there, or revoke that grant first", "grant_overlap");
+  const eventId = await uow.apply(
+    {
+      entity: "device_grant", entityId: g.id, action: "device.extend_shift", topic: "device.shift_extended",
+      before: { windowEnd: g.ends_at }, after: { windowEnd: windowEnd.toISOString() }, orgId: g.org_id, regionId: g.region_id,
+      payload: { deviceId: g.device_id },
+    },
+    async (tx) => {
+      await tx.query(`UPDATE device_grants SET service_window = tstzrange(lower(service_window), $2::timestamptz, '[)') WHERE id = $1`, [g.id, windowEnd.toISOString()]);
+    },
+  );
+  return { id: g.id, windowEnd: windowEnd.toISOString(), eventId };
+};
+
+export const revokeShift = async (uow: UnitOfWork, input: RevokeShiftInput): Promise<RevokeShiftOutput> => {
+  const g = await liveGrant(uow, input.grantId);
+  let revokedAt = "";
+  let endedSessions = 0;
+  const eventId = await uow.apply(
+    {
+      entity: "device_grant", entityId: g.id, action: "device.revoke_shift", topic: "device.shift_revoked",
+      before: { revokedAt: null }, after: { revoked: true }, orgId: g.org_id, regionId: g.region_id,
+      payload: { deviceId: g.device_id },
+    },
+    async (tx) => {
+      revokedAt = (await tx.query<{ at: string }>(`UPDATE device_grants SET revoked_at = now() WHERE id = $1 RETURNING ${iso("revoked_at")} AS at`, [g.id]))[0]!.at;
+      // The session check already refuses a revoked grant's token; ending its sessions says so in the row.
+      endedSessions = (await tx.query(
+        `UPDATE sessions SET revoked_at = now() WHERE principal_kind = 'device_grant' AND principal_id = $1 AND revoked_at IS NULL RETURNING id`, [g.id])).length;
+    },
+  );
+  return { id: g.id, revokedAt, endedSessions, eventId };
 };
 
 // ---------------------------------------------------------------------------

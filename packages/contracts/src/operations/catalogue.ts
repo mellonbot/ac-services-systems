@@ -482,6 +482,53 @@ export const OPERATIONS = {
     surfaces: ["S2"], carrier: "body", sdkMethod: "grantDeviceShift",
     summary: "The primitive: this device, this crew, this technician, this window. What auth.deviceLogin mints a token against. Refused if the technician is not on the named crew, the crew is inactive, or the device already holds an overlapping grant.",
   }),
+  // ---- 0038: a shift moved later or ended now — the same roles that grant one ----
+  "devices.listGrants": op<Wire.ListGrantsInput, Wire.ListGrantsOutput>()({
+    id: "devices.listGrants", method: "GET", path: "/s2/devices/grants", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "query", sdkMethod: "listDeviceGrants",
+    summary: "Shift grants still to come, open now, or ended in the last day — with the device, the technician's unit and name, the window and whether the office revoked it.",
+  }),
+  "devices.extendShift": op<Wire.ExtendShiftInput, Wire.ExtendShiftOutput>()({
+    id: "devices.extendShift", method: "POST", path: "/s2/devices/grant/extend", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "extendDeviceShift",
+    summary: "Move a live grant's end later. Refused for a revoked or ended grant, an end that is not later, or one that would overlap the device's next grant. A device session already minted keeps its expiry; signing in again picks up the new end.",
+  }),
+  "devices.revokeShift": op<Wire.RevokeShiftInput, Wire.RevokeShiftOutput>()({
+    id: "devices.revokeShift", method: "POST", path: "/s2/devices/grant/revoke", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "revokeDeviceShift",
+    summary: "End a grant now, no grace period: its device sessions are ended and the token is refused on its next request. The device is free for another grant.",
+  }),
+  // ---- 0038: People — the company's logins, managed by a principal ----
+  "people.list": op<void, Wire.ListPeopleOutput>()({
+    id: "people.list", method: "GET", path: "/s2/people", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "none", sdkMethod: "listPeople",
+    summary: "The company's own logins — staff and technicians, active and removed — with roles, scope, a technician's unit and employer, and whether a temporary password is outstanding. Principals only. Never a hash.",
+  }),
+  "people.createStaff": op<Wire.CreateStaffInput, Wire.CreatePersonOutput>()({
+    id: "people.createStaff", method: "POST", path: "/s2/people/staff", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createStaffLogin",
+    summary: "A staff login: email, name, roles from ROLES, company-wide or one region. The gateway issues a one-time temporary password, returned here once; the person sets their own at first sign-in. Principals only.",
+  }),
+  "people.createTechnician": op<Wire.CreateTechnicianInput, Wire.CreatePersonOutput>()({
+    id: "people.createTechnician", method: "POST", path: "/s2/people/technician", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createTechnicianLogin",
+    summary: "A technician's login together with their own service unit (crews.create's rules, kind service), ours or a firm's, in one unit of work. Temporary password as people.createStaff. Principals only.",
+  }),
+  "people.update": op<Wire.UpdatePersonInput, Wire.UpdatePersonOutput>()({
+    id: "people.update", method: "POST", path: "/s2/people/update", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "updatePerson",
+    summary: "Change a login's email, name, roles or scope. A change of access ends the person's sessions. Refused if it would leave no active company-wide principal. Principals only.",
+  }),
+  "people.setActive": op<Wire.SetPersonActiveInput, Wire.SetPersonActiveOutput>()({
+    id: "people.setActive", method: "POST", path: "/s2/people/active", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "setPersonActive",
+    summary: "Remove a login (ending every session, and retiring a technician's own unit when it holds no open work) or bring it back. Refused for the last active company-wide principal. Principals only.",
+  }),
+  "people.resetPassword": op<Wire.ResetPasswordInput, Wire.ResetPasswordOutput>()({
+    id: "people.resetPassword", method: "POST", path: "/s2/people/reset-password", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "resetPersonPassword",
+    summary: "Issue a one-time temporary password, returned here once and stored only as a hash; every session the person holds ends, and they must set a new password at their next sign-in (S2, S3 or S5). No email or text is sent. Principals only.",
+  }),
   // ---- S5: what a technician reads before replaying a sync batch ----
   "jobs.mine": op<void, Wire.MyJobsOutput>()({
     id: "jobs.mine", method: "GET", path: "/s5/jobs/mine", kind: "query", auth: "bearer",

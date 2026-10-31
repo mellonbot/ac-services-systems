@@ -32,6 +32,8 @@ export const users = operationalTable("users", {
     { name: "avatar", type: "bytea", nullable: true, check: "octet_length(avatar) <= 65536", comment: "A small square JPEG or PNG the browser scaled before sending." },
     { name: "avatar_type", type: "text", nullable: true, check: "avatar_type IN ('image/jpeg','image/png')" },
     { name: "password_changed_at", type: "timestamptz", nullable: true },
+    // 0038 — an office-issued temporary password: true until the person sets their own at sign-in.
+    { name: "must_change_password", type: "boolean", default: "false" },
   ],
   indexes: [["namespace", "email"], ["firm_id"], ["scope_tier", "scope_id"]],
   uniques: [["email"]],

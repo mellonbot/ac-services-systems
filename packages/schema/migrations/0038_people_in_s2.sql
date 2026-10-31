@@ -1,0 +1,28 @@
+-- ===========================================================================
+-- 0038 — PEOPLE IN S2: LOGINS ARE MANAGED BY A PRINCIPAL, THROUGH THE GATEWAY.
+--
+-- Until now a login could only be made, edited, reset or removed in AC Logins,
+-- the desktop app that writes straight to Postgres. The office's People screen
+-- does it through the gateway instead: audited, in the unit of work, written
+-- only by the `principal` role (S2's writeRoles for `user`).
+--
+--   must_change_password
+--                 set when a principal issues a temporary password (a new
+--                 login, or a reset). The gateway generates it, shows it once
+--                 and keeps only its hash. While this is true, auth.login and
+--                 auth.deviceLogin mint NO token: the sign-in must carry a new
+--                 password, which is set, and this cleared, in the same
+--                 transaction that mints the session. A password the person
+--                 sets themselves (account.changePassword) clears it too.
+--
+-- users has no row-level policy beyond 0007's (internal writes it) and
+-- ac_gateway already writes it, so no grant changes. The column grants 0021
+-- and 0027 gave ac_readonly, ac_worker and ac_logins were computed then; none
+-- of them needs to read this column.
+--
+-- Shift grants gain Extend and Revoke as gateway operations; both write
+-- columns device_grants already has (service_window, revoked_at), and the
+-- session check (assertSessionLive) already refuses a device session whose
+-- grant is revoked. No schema change for them.
+-- ===========================================================================
+ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean NOT NULL DEFAULT false;

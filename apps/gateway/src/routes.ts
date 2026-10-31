@@ -27,7 +27,8 @@ import { listColleagues, listPending, listRecent, sendStaffMessage, dismissStaff
 import { createJob, listJobs, listMyJobs, listMyPunches, transitionJob, addJobNote, setReturnTrip, requireUuid } from "./handlers/jobs.ts";
 import { createProject, listProjects } from "./handlers/projects.ts";
 import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "./handlers/job-detail.ts";
-import { listDevices, registerDevice, grantDeviceShift } from "./handlers/devices.ts";
+import { listDevices, registerDevice, grantDeviceShift, listGrants, extendShift, revokeShift } from "./handlers/devices.ts";
+import { listPeople, createStaffLogin, createTechnicianLogin, updatePerson, setPersonActive, resetPersonPassword } from "./handlers/people.ts";
 import { createServiceRequest, listServiceRequests, openJobFromRequest } from "./handlers/service-requests.ts";
 import { attachPhoto, getMedia } from "./handlers/photos.ts";
 import { attachJobMedia, wrapUpJob } from "./handlers/wrap-up.ts";
@@ -284,6 +285,16 @@ export const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "devices.list": (req, input) => openTx(req, "devices.list", "read", (uow) => listDevices(uow, input)),
   "devices.register": (req, input) => openTx(req, "devices.register", "uow", (uow) => registerDevice(uow, input, randomUUID)),
   "devices.grantShift": (req, input) => openTx(req, "devices.grantShift", "uow", (uow, p) => grantDeviceShift(uow, p.subjectId, input, randomUUID)),
+  "devices.listGrants": (req, input) => openTx(req, "devices.listGrants", "read", (uow) => listGrants(uow, input)),
+  "devices.extendShift": (req, input) => openTx(req, "devices.extendShift", "uow", (uow) => extendShift(uow, input)),
+  "devices.revokeShift": (req, input) => openTx(req, "devices.revokeShift", "uow", (uow) => revokeShift(uow, input)),
+  // 0038 — People: the company's logins, a principal's to make, edit, remove and reset.
+  "people.list": (req) => openTx(req, "people.list", "read", (uow, p, s) => listPeople(uow, p, s)),
+  "people.createStaff": (req, input) => openTx(req, "people.createStaff", "uow", (uow, p, s) => createStaffLogin(uow, p, s, input, randomUUID)),
+  "people.createTechnician": (req, input) => openTx(req, "people.createTechnician", "uow", (uow, p, s) => createTechnicianLogin(uow, p, s, input, randomUUID)),
+  "people.update": (req, input) => openTx(req, "people.update", "uow", (uow, p, s) => updatePerson(uow, p, s, input)),
+  "people.setActive": (req, input) => openTx(req, "people.setActive", "uow", (uow, p, s) => setPersonActive(uow, p, s, input)),
+  "people.resetPassword": (req, input) => openTx(req, "people.resetPassword", "uow", (uow, p, s) => resetPersonPassword(uow, p, s, input)),
 
   // S5 — what a technician reads before replaying a sync batch, and the replay itself.
   "jobs.mine": onShift("jobs.mine", "read", (uow, p) => listMyJobs(uow, p.shiftId)),

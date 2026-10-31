@@ -12,7 +12,17 @@ import type { HierarchyContext } from "../../context.ts";
 // contracts in the dependency order and are not imported here; the
 // integration suite is what holds the two shapes together.
 
-export type LoginInput = { readonly email: string; readonly password: string; readonly surface: SurfaceId };
+export type LoginInput = {
+  readonly email: string; readonly password: string; readonly surface: SurfaceId;
+  /**
+   * 0038: only read when the login holds a temporary password a principal issued. Absent then, the sign-in is
+   * refused `password_change_required` and no token is minted; present, it is set (ACCOUNT_PASSWORD_MIN..MAX,
+   * not the temporary one) in the same transaction that mints the session.
+   */
+  readonly newPassword?: string;
+};
+/** 0038: the refusal code a sign-in with a temporary password gets until it carries `newPassword`. */
+export const PASSWORD_CHANGE_REQUIRED = "password_change_required";
 export type LoginOutput = {
   /** Also set as the httpOnly `ac_session` cookie. A browser surface ignores this field; devices and tests use it as a bearer. */
   readonly token: string;
@@ -91,7 +101,11 @@ export type DismissStaffMessageOutput = { readonly ok: true };
  * `auth.login`, the surface is not a caller's choice among several — S5 is
  * the only one this mints for — so there is no `surface` field to lie about.
  */
-export type DeviceLoginInput = { readonly hardwareId: string; readonly email: string; readonly password: string };
+export type DeviceLoginInput = {
+  readonly hardwareId: string; readonly email: string; readonly password: string;
+  /** 0038: as on `LoginInput` — a temporary password is replaced at the device's sign-in, not after it. */
+  readonly newPassword?: string;
+};
 export type DeviceLoginOutput = {
   readonly token: string;
   readonly expiresAt: string;
@@ -144,3 +158,70 @@ export type ResolvedTermsOutput = {
   readonly resolved: Readonly<Record<string, ResolutionWire>>;
   readonly refused: Readonly<Record<string, { readonly code: string; readonly message: string }>>;
 };
+
+/**
+ * 0038 — PEOPLE. The company's own logins, managed in S2 by a principal: staff,
+ * and technicians, each made with their own service unit (0024). Customer,
+ * firm and vendor logins are not here. A temporary password is in the output
+ * of the call that made it and nowhere else — the gateway keeps its hash.
+ */
+export type PersonKind = "staff" | "technician";
+export type PersonWire = {
+  readonly userId: string;
+  readonly email: string;
+  readonly displayName: string;
+  readonly kind: PersonKind;
+  readonly roles: readonly string[];
+  /** org: company-wide (S2, S4); region: one region (S3). A technician's follows their unit. */
+  readonly scope: "org" | "region";
+  readonly regionId: string;
+  readonly regionCode: string;
+  /** A technician's own service unit; null for staff. */
+  readonly crewId: string | null;
+  readonly crewLabel: string | null;
+  /** Who employs a technician: null is us. */
+  readonly firmId: string | null;
+  readonly firmName: string | null;
+  readonly active: boolean;
+  /** A temporary password is outstanding: the person sets their own at their next sign-in. */
+  readonly mustChangePassword: boolean;
+  readonly passwordChangedAt: string | null;
+};
+export type ListPeopleOutput = { readonly people: readonly PersonWire[] };
+export type CreateStaffInput = {
+  readonly email: string; readonly displayName: string;
+  /** From ROLES, at least one. `technician` is not a staff role here — a technician is made with their unit (people.createTechnician). */
+  readonly roles: readonly string[];
+  readonly scope: "org" | "region";
+  /** The login's home region; with scope `region`, the one region it sees. */
+  readonly regionId: string;
+};
+export type CreateTechnicianInput = {
+  readonly email: string; readonly displayName: string;
+  /** Their unit's home region — where they are dispatched. */
+  readonly homeRegionId: string;
+  /** A subcontractor firm that employs them. Absent: they are ours. */
+  readonly firmId?: string;
+};
+export type CreatePersonOutput = {
+  readonly userId: string;
+  /** The technician's own service unit; null for staff. */
+  readonly crewId: string | null;
+  /** Shown once. The person must replace it at their first sign-in. */
+  readonly temporaryPassword: string;
+  readonly eventId: string;
+};
+/** Fields left out are left as they are. A technician's roles and region follow their unit and are refused here. */
+export type UpdatePersonInput = {
+  readonly userId: string;
+  readonly email?: string;
+  readonly displayName?: string;
+  readonly roles?: readonly string[];
+  readonly scope?: "org" | "region";
+  readonly regionId?: string;
+};
+export type UpdatePersonOutput = { readonly userId: string; readonly endedSessions: number; readonly eventId: string };
+export type SetPersonActiveInput = { readonly userId: string; readonly active: boolean };
+export type SetPersonActiveOutput = { readonly userId: string; readonly active: boolean; readonly endedSessions: number; readonly eventId: string };
+export type ResetPasswordInput = { readonly userId: string };
+export type ResetPasswordOutput = { readonly userId: string; readonly temporaryPassword: string; readonly endedSessions: number; readonly eventId: string };

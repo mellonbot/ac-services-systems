@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 128 today. There is no
+ * One method per operation in the catalogue — 137 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -241,6 +241,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["customers.createResidential"], input) as Promise<OperationIO["customers.createResidential"]["output"]>;
   },
 
+  /** `POST /s2/devices/grant/extend` · mutation · bearer · surfaces: S2
+   *
+   * Move a live grant's end later. Refused for a revoked or ended grant, an end that is not later, or one that would overlap the device's next grant. A device session already minted keeps its expiry; signing in again picks up the new end. */
+  extendDeviceShift(input: OperationIO["devices.extendShift"]["input"]): Promise<OperationIO["devices.extendShift"]["output"]> {
+    return transport.request(OPERATIONS["devices.extendShift"], input) as Promise<OperationIO["devices.extendShift"]["output"]>;
+  },
+
   /** `POST /s2/devices/grant` · mutation · bearer · surfaces: S2
    *
    * The primitive: this device, this crew, this technician, this window. What auth.deviceLogin mints a token against. Refused if the technician is not on the named crew, the crew is inactive, or the device already holds an overlapping grant. */
@@ -255,11 +262,25 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["devices.list"], input) as Promise<OperationIO["devices.list"]["output"]>;
   },
 
+  /** `GET /s2/devices/grants` · query · bearer · surfaces: S2
+   *
+   * Shift grants still to come, open now, or ended in the last day — with the device, the technician's unit and name, the window and whether the office revoked it. */
+  listDeviceGrants(input: OperationIO["devices.listGrants"]["input"]): Promise<OperationIO["devices.listGrants"]["output"]> {
+    return transport.request(OPERATIONS["devices.listGrants"], input) as Promise<OperationIO["devices.listGrants"]["output"]>;
+  },
+
   /** `POST /s2/devices` · mutation · bearer · surfaces: S2
    *
    * Record a physical device. firmId ties it to hardware the firm already owns; absent, it is ours (INTERNAL_ORG). */
   registerDevice(input: OperationIO["devices.register"]["input"]): Promise<OperationIO["devices.register"]["output"]> {
     return transport.request(OPERATIONS["devices.register"], input) as Promise<OperationIO["devices.register"]["output"]>;
+  },
+
+  /** `POST /s2/devices/grant/revoke` · mutation · bearer · surfaces: S2
+   *
+   * End a grant now, no grace period: its device sessions are ended and the token is refused on its next request. The device is free for another grant. */
+  revokeDeviceShift(input: OperationIO["devices.revokeShift"]["input"]): Promise<OperationIO["devices.revokeShift"]["output"]> {
+    return transport.request(OPERATIONS["devices.revokeShift"], input) as Promise<OperationIO["devices.revokeShift"]["output"]>;
   },
 
   /** `POST /s3/assign` · mutation · bearer · surfaces: S3
@@ -554,6 +575,48 @@ export const createGatewayClient = (transport: Transport) => ({
    * Processor webhook entry point (OPEN-PAYMENTS scaffold). Verifies a signature when AC_PAYMENT_WEBHOOK_SECRET is set and records a succeeded payment the same way the office does. Unset, refuses. Y1–Y5 still decide the real processor and merchant of record. */
   paymentWebhook(input: OperationIO["payments.webhook"]["input"]): Promise<OperationIO["payments.webhook"]["output"]> {
     return transport.request(OPERATIONS["payments.webhook"], input) as Promise<OperationIO["payments.webhook"]["output"]>;
+  },
+
+  /** `POST /s2/people/staff` · mutation · bearer · surfaces: S2
+   *
+   * A staff login: email, name, roles from ROLES, company-wide or one region. The gateway issues a one-time temporary password, returned here once; the person sets their own at first sign-in. Principals only. */
+  createStaffLogin(input: OperationIO["people.createStaff"]["input"]): Promise<OperationIO["people.createStaff"]["output"]> {
+    return transport.request(OPERATIONS["people.createStaff"], input) as Promise<OperationIO["people.createStaff"]["output"]>;
+  },
+
+  /** `POST /s2/people/technician` · mutation · bearer · surfaces: S2
+   *
+   * A technician's login together with their own service unit (crews.create's rules, kind service), ours or a firm's, in one unit of work. Temporary password as people.createStaff. Principals only. */
+  createTechnicianLogin(input: OperationIO["people.createTechnician"]["input"]): Promise<OperationIO["people.createTechnician"]["output"]> {
+    return transport.request(OPERATIONS["people.createTechnician"], input) as Promise<OperationIO["people.createTechnician"]["output"]>;
+  },
+
+  /** `GET /s2/people` · query · bearer · surfaces: S2
+   *
+   * The company's own logins — staff and technicians, active and removed — with roles, scope, a technician's unit and employer, and whether a temporary password is outstanding. Principals only. Never a hash. */
+  listPeople(): Promise<OperationIO["people.list"]["output"]> {
+    return transport.request(OPERATIONS["people.list"], undefined) as Promise<OperationIO["people.list"]["output"]>;
+  },
+
+  /** `POST /s2/people/reset-password` · mutation · bearer · surfaces: S2
+   *
+   * Issue a one-time temporary password, returned here once and stored only as a hash; every session the person holds ends, and they must set a new password at their next sign-in (S2, S3 or S5). No email or text is sent. Principals only. */
+  resetPersonPassword(input: OperationIO["people.resetPassword"]["input"]): Promise<OperationIO["people.resetPassword"]["output"]> {
+    return transport.request(OPERATIONS["people.resetPassword"], input) as Promise<OperationIO["people.resetPassword"]["output"]>;
+  },
+
+  /** `POST /s2/people/active` · mutation · bearer · surfaces: S2
+   *
+   * Remove a login (ending every session, and retiring a technician's own unit when it holds no open work) or bring it back. Refused for the last active company-wide principal. Principals only. */
+  setPersonActive(input: OperationIO["people.setActive"]["input"]): Promise<OperationIO["people.setActive"]["output"]> {
+    return transport.request(OPERATIONS["people.setActive"], input) as Promise<OperationIO["people.setActive"]["output"]>;
+  },
+
+  /** `POST /s2/people/update` · mutation · bearer · surfaces: S2
+   *
+   * Change a login's email, name, roles or scope. A change of access ends the person's sessions. Refused if it would leave no active company-wide principal. Principals only. */
+  updatePerson(input: OperationIO["people.update"]["input"]): Promise<OperationIO["people.update"]["output"]> {
+    return transport.request(OPERATIONS["people.update"], input) as Promise<OperationIO["people.update"]["output"]>;
   },
 
   /** `POST /s7/procurement/pos/acknowledge` · mutation · bearer · surfaces: S7
@@ -910,4 +973,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["changePassword", "myAccount", "setAccountAvatar", "updateMyAccount", "createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "attachJobMedia", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "wrapUpJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "listColleagues", "dismissMessage", "pendingMessages", "recentMessages", "sendMessage", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "paymentWebhook", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "myPunches", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "issueSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);
+export const GENERATED_METHODS = Object.freeze(["changePassword", "myAccount", "setAccountAvatar", "updateMyAccount", "createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "extendDeviceShift", "grantDeviceShift", "listDevices", "listDeviceGrants", "registerDevice", "revokeDeviceShift", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "attachJobMedia", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "wrapUpJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "listColleagues", "dismissMessage", "pendingMessages", "recentMessages", "sendMessage", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "paymentWebhook", "createStaffLogin", "createTechnicianLogin", "listPeople", "resetPersonPassword", "setPersonActive", "updatePerson", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "myPunches", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "issueSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);

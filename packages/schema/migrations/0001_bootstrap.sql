@@ -233,6 +233,7 @@ CREATE TABLE IF NOT EXISTS users (
   avatar bytea CHECK (octet_length(avatar) <= 65536),
   avatar_type text CHECK (avatar_type IN ('image/jpeg','image/png')),
   password_changed_at timestamptz,
+  must_change_password boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (id),
   UNIQUE (email),

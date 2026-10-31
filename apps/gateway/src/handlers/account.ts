@@ -117,7 +117,7 @@ export const changeMyPassword = async (tx: Tx, a: AccountActor, input: ChangePas
   if (input.newPassword.length > ACCOUNT_PASSWORD_MAX) throw new InputRefused(`a new password is at most ${ACCOUNT_PASSWORD_MAX} characters`, "password_too_long");
   if (input.newPassword === input.currentPassword) throw new InputRefused("the new password is the same as the current one", "password_unchanged");
   const changed = (await tx.query<{ password_changed_at: Date }>(
-    "UPDATE users SET password_hash = $2, password_changed_at = now() WHERE id = $1 RETURNING password_changed_at",
+    "UPDATE users SET password_hash = $2, password_changed_at = now(), must_change_password = false WHERE id = $1 RETURNING password_changed_at",
     [r.id, await hashPasswordAsync(input.newPassword)]))[0]!;
   // Every other session the person holds ends: their other browsers, and a
   // technician's device sessions. A password changed because it leaked is

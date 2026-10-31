@@ -21,6 +21,9 @@ export const WRITE_ENTITIES = [
   // positioned to author it; reassigning that is a one-line diff on the
   // registry below, not a schema change.
   "job", "device", "device_grant",
+  // 0038: a login — staff or a technician's — made, edited, reset or removed
+  // by a principal on S2's People screen (AC Logins remains the fallback).
+  "user",
   // 0024: what an install was sold under, and by whom (its foreman).
   "project",
   // item 9: the site record — what a site is, recorded by the office.

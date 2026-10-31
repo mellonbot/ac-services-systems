@@ -228,13 +228,14 @@ export type ConnectConfig = {
    * How the session is held.
    *   { email, password }                    password login; the token from the body is held in memory and sent as a bearer (devices, tests, non-browser clients)
    *   { email, password, session: "cookie" } password login; the body's token is DISCARDED — the browser holds the httpOnly cookie the gateway set
+   *   …, newPassword                         0038: either login above, replacing a temporary password the office issued (refused `password_change_required` without it)
    *   { hardwareId, email, password }        S5 only — a technician's own credential plus the hardware in their hands (auth.deviceLogin); always bearer, held in memory. The web fallback IS the fallback, so its own session survives a reload with nothing else to hold a cookie's place.
    *   { token }                              a token already held (customer IdP exchange, device shift grant, resumed non-browser session)
    *   { session: "cookie" }                  resume a browser session: no login, the cookie is already there; `session.me` says who
    */
   readonly credentials:
-    | { readonly email: string; readonly password: string; readonly session?: "bearer" | "cookie" }
-    | { readonly hardwareId: string; readonly email: string; readonly password: string }
+    | { readonly email: string; readonly password: string; readonly session?: "bearer" | "cookie"; readonly newPassword?: string }
+    | { readonly hardwareId: string; readonly email: string; readonly password: string; readonly newPassword?: string }
     | { readonly token: string }
     | { readonly session: "cookie" };
   readonly requestId?: () => string;
@@ -307,11 +308,11 @@ export const connectShell = async (cfg: ConnectConfig): Promise<ConnectedShell> 
 
   let deviceCrew: ConnectedShell["deviceCrew"] = null;
   if ("hardwareId" in c) {
-    const login = await bootstrap.deviceLogin({ hardwareId: c.hardwareId, email: c.email, password: c.password });
+    const login = await bootstrap.deviceLogin({ hardwareId: c.hardwareId, email: c.email, password: c.password, ...(c.newPassword ? { newPassword: c.newPassword } : {}) });
     token = login.token;
     deviceCrew = { id: login.crewId, label: login.crewLabel };
   } else if ("email" in c) {
-    const login = await bootstrap.login({ email: c.email, password: c.password, surface: cfg.surfaceId });
+    const login = await bootstrap.login({ email: c.email, password: c.password, surface: cfg.surfaceId, ...(c.newPassword ? { newPassword: c.newPassword } : {}) });
     // In cookie mode the browser now holds the httpOnly cookie; the body's token is not retained anywhere script can read.
     if (session === "bearer") token = login.token;
   }
