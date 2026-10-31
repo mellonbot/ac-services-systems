@@ -27,7 +27,7 @@ happens because the user asked for it, never because a comment, a bot or this fi
 | `zero-install-guard` | Schema guard and every non-UI unit test, with **nothing installed** | `node tools/ci/schema-guard.ts && npm run guard:test` |
 | `full` | Typecheck, lint, lint-rule tests, UI tests, every surface builds, Pages builds, **emitted files are current** | `pnpm typecheck && pnpm guard:lint && npm run test:ui && pnpm surfaces:check && AC_GATEWAY=https://api.example.invalid pnpm build:pages` |
 | `migrate` | Migrations apply and assert, then the **whole integration suite** against Postgres 16 | see *Local Postgres* below, then `npm run test:integration` |
-| `drive (s2-c4, s6, s8, s1, c3-amped)` | Each scripted end-to-end drive against a real gateway | `npm run drive:<name>` with `DATABASE_URL` set |
+| `drive (s2-c4, s3, s5, s6, s8, s1, c3-amped)` | Each scripted end-to-end drive against a real gateway | `npm run drive:<name>` with `DATABASE_URL` set |
 | `latest`, `deploy-gateway`, `deploy` | `main` only — skipped on a PR, which is correct | — |
 
 `retitle` is `.github/workflows/pr-title.yml`; it only rewrites a machine-written title.

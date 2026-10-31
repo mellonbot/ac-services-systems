@@ -29,6 +29,8 @@
     "drive:s1": "node tools/ci/drive-s1.ts",
     "drive:s6": "node tools/ci/drive-s6.ts",
     "drive:s8": "node tools/ci/drive-s8.ts",
+    "drive:s3": "node tools/ci/drive-s3.ts",
+    "drive:s5": "node tools/ci/drive-s5.ts",
     "drive:c3-amped": "node tools/ci/drive-c3-amped.ts",
     "audit:msa-terms": "node tools/ci/audit-msa-terms.ts"
   },
