@@ -736,4 +736,9 @@ export const OPERATIONS = {
     surfaces: ["S1", ...AUTHENTICATED], carrier: "none", sdkMethod: "health",
     summary: "Liveness and the enabled surface list. The shell's degraded probe.",
   }),
+  "system.ready": op<void, Wire.ReadyOutput>()({
+    id: "system.ready", method: "GET", path: "/readyz", kind: "system", auth: "none",
+    surfaces: ["S1", ...AUTHENTICATED], carrier: "none", sdkMethod: "ready",
+    summary: "Readiness: the gateway's login connects to Postgres and takes the ac_gateway role. 503 when it cannot. What a deploy waits for; /healthz never touches the database.",
+  }),
 } as const satisfies Record<string, OperationSpec>;
