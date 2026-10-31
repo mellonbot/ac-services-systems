@@ -46,23 +46,32 @@ export const S1_CSS = `
 .s1-scene__stage{aspect-ratio:16/9;background:url(/scene-still.webp) center/cover no-repeat}
 .s1-scene[data-live] .s1-scene__stage{background:none}
 .s1-scene__stage canvas{display:block;width:100%;height:100%}
-.s1-scene__plates{position:absolute;inset:0;margin:0;padding:0;list-style:none;pointer-events:none}
-.s1-scene__plate{position:absolute;left:calc(49.4% + sin(var(--slot)) * 30.6% + cos(var(--slot)) * 3.2%);top:calc(57.3% + sin(var(--slot)) * 5.4% - cos(var(--slot)) * 23.5%);width:max-content;--out-x:clamp(-1, 2 * sin(var(--slot)), 1);--out-y:clamp(-1, -2 * cos(var(--slot)), 1);transform:translate(calc(-50% + var(--out-x) * (50% + var(--space-3))),calc(-50% + var(--out-y) * (50% + var(--space-3))));pointer-events:auto}
-.s1-scene[data-live] .s1-scene__plate{left:var(--x);top:var(--y)}
+/* The yard's composition: the live portals stand large in front, a column down the left; the ones not open yet sit small and far, high on the right. */
+.s1-scene__plates{position:absolute;margin:0;padding:0;list-style:none;display:flex;gap:var(--space-3)}
+.s1-scene__plates--live{top:var(--space-6);bottom:var(--space-6);left:var(--space-6);width:34%;flex-direction:column;justify-content:space-between}
+.s1-scene__plates--closed{top:var(--space-6);left:47%;right:var(--space-6);justify-content:space-between}
+.s1-scene__plates--closed .s1-scene__plate{flex:1 1 0;min-width:0}
+.s1-scene__plates--live .s1-portal{min-height:calc(3 * var(--control-height));padding:var(--space-3) var(--space-6);text-align:left;align-items:flex-start;box-shadow:var(--elevation-raised)}
+.s1-scene__plates--live .s1-portal strong{font-size:var(--text-xl)}
+.s1-scene__plates--live .s1-portal span{font-size:var(--text-md)}
+.s1-scene__plates--closed .s1-portal strong{font-size:var(--text-xs)}
 .s1-portal{display:flex;flex-direction:column;justify-content:center;min-height:var(--control-height);padding:var(--space-1) var(--space-3);white-space:nowrap;line-height:1.25;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card);color:var(--color-text);text-align:center;text-decoration:none;transition:border-color var(--motion-base) var(--ease),box-shadow var(--motion-base) var(--ease)}
 .s1-portal strong{font-family:var(--font-display);font-size:var(--text-sm);font-weight:700;letter-spacing:var(--track-tight)}
 .s1-portal span{color:var(--color-text-muted);font-size:var(--text-xs)}
 .s1-portal:hover{border-color:var(--color-border-hard);box-shadow:var(--elevation-raised)}
 .s1-portal:hover strong{text-decoration:underline}
 @container (min-width:56rem){
-  .s1-portal{padding:var(--space-2) var(--space-4)}
-  .s1-portal strong{font-size:var(--text-md)}
-  .s1-portal span{font-size:var(--text-sm)}
+  .s1-scene__plates--live .s1-portal strong{font-size:var(--text-display)}
+  .s1-scene__plates--live .s1-portal span{font-size:var(--text-lg)}
+  .s1-scene__plates--closed .s1-portal strong{font-size:var(--text-sm)}
 }
 @container (max-width:45rem){
   .s1-scene__stage{aspect-ratio:4/3}
-  .s1-scene__plates{position:static;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);padding:var(--space-3);pointer-events:auto}
-  .s1-scene__plate,.s1-scene[data-live] .s1-scene__plate{position:static;width:auto;transform:none}
+  .s1-scene__plates,.s1-scene__plates--live,.s1-scene__plates--closed{position:static;width:auto;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);padding:var(--space-3) var(--space-3) 0}
+  .s1-scene__plates--closed{padding-bottom:var(--space-3)}
+  .s1-scene__plates--live .s1-portal{min-height:var(--control-height);padding:var(--space-2) var(--space-3)}
+  .s1-scene__plates--live .s1-portal strong{font-size:var(--text-md)}
+  .s1-scene__plates--live .s1-portal span{font-size:var(--text-sm)}
 }
 /* A portal that is enabled but not in the production ROLLOUT: barrier tape on the brand layer (no yellow ink exists; amber is state-only). */
 .s1-portal--closed{overflow:hidden;cursor:not-allowed;background:var(--color-surface-sunken);box-shadow:none}
