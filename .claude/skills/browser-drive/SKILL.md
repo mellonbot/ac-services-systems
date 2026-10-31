@@ -46,8 +46,9 @@ name while debugging; drop it yourself afterwards.
   reviewer reads; each line states a claim in plain words.
 - **The 09 §3.11 check.** Any form that calls `form.reset()` must assert `value` versus
   `defaultValue` after a submit — that defect cost C4 a silent second rate.
-- **Built output.** Drives serve `dist/`; a stale build drives old code. `build:surface`
-  first if you changed the surface.
+- **Built output.** Each drive runs `build-surface.ts <S>` itself with `AC_GATEWAY` pointed
+  at its own gateway, then serves that `dist/`. A build failure surfaces as the drive's
+  first `must`, not a separate job.
 
 ## Reading a red drive
 
