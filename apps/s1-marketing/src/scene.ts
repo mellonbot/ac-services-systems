@@ -21,7 +21,8 @@ const TRUCK_SCALE = 2.8;
 const BAY_X = 26, BAY_Z = 18;
 /** Equipment in the yard waiting to go out — [model, x, z, heading], on a pallet or skid, at the truck's scale. */
 const STOCK: readonly (readonly [string, number, number, number])[] = [
-  ["/condenser.glb", -30, -26, 0.1], ["/condenser.glb", -25.5, -26, -0.05], ["/condenser.glb", -30, -21.5, 0.05], ["/condenser.glb", -25.5, -21.5, 0.3],
+  // The condensers stand above the truck's rear bumper in the shot, where the forklift drives to them.
+  ["/condenser.glb", 14, -26, 0.1], ["/condenser.glb", 9.5, -26, -0.05], ["/condenser.glb", 14, -21.5, 0.05], ["/condenser.glb", 9.5, -21.5, 0.3],
   ["/rtu.glb", 24, -27.5, 0], ["/rtu.glb", 22, -21, 0.08],
 ];
 /** Below this stage width the plates stack under the stage; the camera frames the truck alone. */
@@ -286,19 +287,20 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     add(new Mesh(new CylinderGeometry(0.085, 0.1, 0.1, 24), stripe), c).position.y = 0.4;
   }
 
-  // A dumpster against the shop, and a stack of empty pallets beside the RTUs.
+  // A dumpster against the shop, and a stack of empty pallets beside it.
   const bin = prop(-14, -30.5, 0.05);
   box(1.9, 1.15, 1.2, 0, 0.62, 0, mat("text-muted", 0.6), bin);
   box(1.95, 0.06, 1.25, 0, 1.22, -0.03, black, bin).rotation.x = -0.12;
   for (const x of [-0.8, 0.8]) box(0.1, 0.1, 1.25, x, 0.05, 0, black, bin);
-  const stack = prop(13, -27, -0.2);
+  const stack = prop(-13, -27, 0.2);
   for (let i = 0; i < 6; i++) box(1.2, 0.14, 1.0, (i % 2) * 0.04, 0.07 + i * 0.145, 0, pallet, stack);
 
   // Tyre ruts along the forklift's lane across the back of the yard, in front of the condenser pallets, and the forklift itself.
   const rut = new MeshStandardMaterial({ color: role("text"), transparent: true, opacity: 0.22, roughness: 1 });
-  const LANE_Z = -21.5, LANE_NEAR = -7, LANE_FAR = -19;
+  // It starts on the left and drives right, forks first, to the condenser pallets.
+  const LANE_Z = -21.5, LANE_NEAR = -12, LANE_FAR = 3;
   for (const dz of [-1.4, 1.4]) paint(LANE_NEAR - LANE_FAR + 8, 0.9, (LANE_NEAR + LANE_FAR) / 2, LANE_Z + dz, rut);
-  const lift = prop(LANE_NEAR, LANE_Z, Math.PI / 2);
+  const lift = prop(LANE_NEAR, LANE_Z, -Math.PI / 2);
   box(1.1, 0.5, 2.0, 0, 0.5, 0, red, lift);
   box(1.12, 0.75, 0.5, 0, 0.85, 0.85, red, lift);
   box(0.8, 0.35, 0.7, 0, 0.9, 0.2, black, lift);
@@ -318,7 +320,7 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   for (const x of [-0.26, 0.26]) box(0.1, 0.05, 1.1, x, 0.02, -0.58, black, carriage);
   const liftPallet = box(1.1, 0.14, 1.0, 0, 0.12, -0.6, pallet, carriage);
 
-  // One shuttle every 26 s: drive to the condenser pallets, raise, lower, reverse to the bay, wait.
+  // One shuttle every 26 s: drive to the condenser pallets, raise, lower, reverse to the left, wait.
   const SHUTTLE_MS = 26_000;
   const ease = (t: number): number => t * t * (3 - 2 * t);
   const span = (t: number, a: number, b: number): number => ease(Math.min(Math.max((t - a) / (b - a), 0), 1));
@@ -329,8 +331,8 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     carriage.position.y = 0.3 + 1.1 * (span(t, 0.36, 0.45) - span(t, 0.48, 0.56));
     liftPallet.visible = t > 0.47 && t < 0.97;
   };
-  // Start (and, under reduced motion, rest) at the pallets, forks up.
-  const SHUTTLE_FROM = SHUTTLE_MS * 0.4;
+  // Start (and, under reduced motion, rest) at the left end, in view — at the pallets it is behind the truck's cab.
+  const SHUTTLE_FROM = 0;
   shuttle(SHUTTLE_FROM);
 
   // Tall weeds along the back — the foot of the shop wall and the fence beside it — and a fringe of uncut grass where the lawn
@@ -339,7 +341,7 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   let seed = 14402;
   const rand = (): number => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
   const KEEP_CLEAR: readonly (readonly [number, number, number])[] = [
-    [0, 0, 11], [-27.5, -23.5, 6], [23, -24, 7], [26.5, -8, 3], [26, 4, 2.5], [-14, -30.5, 3], [13, -27, 2.5], [-31, -26, 2],
+    [0, 0, 11], [11.75, -23.75, 6], [23, -24, 7], [26.5, -8, 3], [26, 4, 2.5], [-14, -30.5, 3], [-13, -27, 2.5], [-31, -26, 2],
   ];
   const onRoad = (x: number, z: number): boolean => ROADS.some((r) => { const [u, v] = toRoad(r, x, z); return Math.abs(u) < r[0] / 2 && Math.abs(v) < r[1] / 2; });
   const clear = (x: number, z: number): boolean => !onRoad(x, z) && KEEP_CLEAR.every(([cx, cz, r]) => Math.hypot(x - cx, z - cz) > r);
