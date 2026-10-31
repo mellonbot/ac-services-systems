@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""S1's yard vegetation: two alpha textures drawn as crossed planes by apps/s1-marketing/src/scene.ts.
+"""S1's yard vegetation for apps/s1-marketing/src/scene.ts: the trimmed lawn the yard is laid
+in (tileable, opaque), and two alpha textures drawn as crossed planes — a grass tuft for the
+road edges and tall weeds for the fence line.
 
-    python3 tools/textures/vegetation.py   # writes apps/s1-marketing/public/{grass,weeds}.webp
+    python3 tools/textures/vegetation.py   # writes apps/s1-marketing/public/{lawn,grass,weeds}.webp
 
 Like dirt.webp, the vegetation's colour is the asset's, not an ink: a dry
 Texas yard — olive, sage and straw — never a lawn green, which would sit on the
@@ -15,6 +17,7 @@ from PIL import Image, ImageDraw
 
 OUT = Path(__file__).resolve().parents[2] / "apps/s1-marketing/public"
 BLADE = [(78, 90, 43), (107, 122, 58), (128, 134, 72), (154, 143, 82), (184, 164, 106), (96, 104, 52)]
+LAWN = [(86, 100, 50), (98, 112, 56), (110, 122, 62), (78, 92, 46), (122, 128, 70), (104, 110, 60)]
 SEED_HEAD = [(170, 150, 98), (140, 118, 74), (196, 178, 128)]
 
 
@@ -39,6 +42,23 @@ def grass(rng):
     for _ in range(90):
         x0 = w / 2 + rng.gauss(0, w * 0.17)
         blade(d, rng, x0, h, rng.uniform(0.45, 0.95) * h, rng.uniform(5, 10), rng.uniform(-0.45, 0.45), rng.choice(BLADE))
+    return im
+
+
+def lawn(rng):
+    """Mown grass seen from above: short strokes on an olive ground, drawn wrapped so it tiles."""
+    n = 512
+    im = Image.new("RGB", (n, n), LAWN[0])
+    d = ImageDraw.Draw(im)
+    for _ in range(26000):
+        x, y = rng.uniform(0, n), rng.uniform(0, n)
+        a = rng.uniform(-math.pi, math.pi)
+        r = rng.uniform(1.5, 4.5)
+        dx, dy = math.cos(a) * r, math.sin(a) * r
+        colour = rng.choice(LAWN)
+        for ox in (-n, 0, n):
+            for oy in (-n, 0, n):
+                d.line((x + ox, y + oy, x + ox + dx, y + oy + dy), fill=colour, width=2)
     return im
 
 
@@ -74,5 +94,6 @@ def weeds(rng):
 if __name__ == "__main__":
     rng = random.Random(14402)
     grass(rng).save(OUT / "grass.webp", "WEBP", lossless=True)
+    lawn(rng).save(OUT / "lawn.webp", "WEBP", quality=82)
     weeds(rng).save(OUT / "weeds.webp", "WEBP", lossless=True)
-    print("vegetation: grass.webp, weeds.webp")
+    print("vegetation: lawn.webp, grass.webp, weeds.webp")

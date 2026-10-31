@@ -13,6 +13,8 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 /** The truck's heading: a low front three-quarter, nose to the left, the lettered side to the camera. */
 const HEADING = -2.25;
+/** The drive runs along the truck's length, which lies on the model's local z. */
+const ROAD_TURN = Math.PI / 2;
 /** The truck is the subject, so it is drawn larger than the floor around it is to scale. */
 const TRUCK_SCALE = 2.8;
 /** The bay the truck stands in, in metres: its cones stand on these corners. */
@@ -26,8 +28,8 @@ const STOCK: readonly (readonly [string, number, number, number])[] = [
 const FLAT_BELOW_PX = 720;
 
 /**
- * THE SIGN-IN YARD — the outdoor service yard on packed dirt, seen low and
- * close: Unit TACLA-14402C parked on the dirt, right of centre in a front
+ * THE SIGN-IN YARD — the outdoor service yard, trimmed lawn with dirt roads
+ * worn through it, seen low and close: Unit TACLA-14402C parked on the dirt, right of centre in a front
  * three-quarter, with the live portals' plates standing large down the left
  * (CSS, in front of the canvas) and the ones not open yet small and far, high
  * on the right. Behind the bay the stock waiting to go out — residential condensers on
@@ -48,12 +50,12 @@ const FLAT_BELOW_PX = 720;
  * and sky from the page ground — so no colour literal
  * enters the surface. The truck, condensers and RTUs are assets
  * (public/truck.glb, condenser.glb, rtu.glb) and wear their own paint; the
- * grass and weeds are alpha textures (public/grass.webp, weeds.webp, drawn by
- * tools/textures/vegetation.py) on crossed planes, so their colour is the
- * asset's too. The models ship meshopt-compressed (`gltf-transform optimize --compress meshopt
+ * lawn, the roadside grass and the fence-line weeds are textures too
+ * (public/lawn.webp, grass.webp, weeds.webp, drawn by
+ * tools/textures/vegetation.py), so their colour is the asset's. The models ship meshopt-compressed (`gltf-transform optimize --compress meshopt
  * --texture-compress false --simplify false`, textures lossless WebP first) — a
- * raw exporter GLB is ~8x the bytes and ~10x the draw calls; the
- * ground is one too (public/dirt.webp), so its earth is the texture's, not an ink.
+ * raw exporter GLB is ~8x the bytes and ~10x the draw calls. The roads' earth is
+ * a texture as well (public/dirt.webp), not an ink.
  *
  * `[data-live]` goes on the scene root at the truck's first frame; until then,
  * and where WebGL is unavailable, the still poster and the CSS ring stand in.
@@ -111,24 +113,47 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   fill.position.set(-18, 12, -16);
   scene.add(fill);
 
-  // --- The yard: packed dirt (public/dirt.webp, tiled every 8 m; the hard border stands in until it
-  // arrives).
-  const dirt = mat("border-hard", 1);
-  const yard = new Mesh(new PlaneGeometry(260, 260), dirt);
-  yard.rotation.x = -Math.PI / 2;
-  yard.receiveShadow = true;
-  scene.add(yard);
-  void new TextureLoader().loadAsync("/dirt.webp").then((map) => {
-    if (stopped) return;
-    map.wrapS = map.wrapT = RepeatWrapping;
-    map.repeat.set(32, 32);
-    map.colorSpace = SRGBColorSpace;
-    map.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    dirt.map = map;
-    dirt.color.setScalar(1);
-    dirt.needsUpdate = true;
-    if (still && loaded) draw();
-  }, () => { /* no texture: the ground stays in the hard border */ });
+  // --- The yard: trimmed lawn (public/lawn.webp), with dirt roads (public/dirt.webp) worn through it.
+  // Each texture is tiled in world metres, so the grain matches across every strip; the hard border
+  // and the sunken well stand in until they arrive.
+  const surfaceOf = (url: string, every: number, fallback: string): MeshStandardMaterial => {
+    const m = mat(fallback, 1);
+    void new TextureLoader().loadAsync(url).then((map) => {
+      if (stopped) return;
+      map.wrapS = map.wrapT = RepeatWrapping;
+      map.repeat.set(1 / every, 1 / every);
+      map.colorSpace = SRGBColorSpace;
+      map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      m.map = map;
+      m.color.setScalar(1);
+      m.needsUpdate = true;
+      if (still && loaded) draw();
+    }, () => { /* no texture: the ground stays in its role */ });
+    return m;
+  };
+  const lay = (w: number, d: number, x: number, z: number, y: number, m: MeshStandardMaterial, heading = 0): void => {
+    const g = new PlaneGeometry(w, d);
+    // World-space UVs: one unit of UV per metre, offset by the strip's position.
+    const uv = g.attributes.uv!, pos = g.attributes.position!;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) + x, pos.getY(i) - z);
+    const p = new Mesh(g, m);
+    p.rotation.set(-Math.PI / 2, 0, heading);
+    p.position.set(x, y, z);
+    p.receiveShadow = true;
+    scene.add(p);
+  };
+  lay(260, 260, 0, 0, 0, surfaceOf("/lawn.webp", 6, "border-hard"));
+  const dirt = surfaceOf("/dirt.webp", 8, "surface-sunken");
+  /** The roads, [width, length, x, z, heading]: the drive the truck is parked on, along its length, and the back lane the forklift and the stock use. */
+  const ROADS: readonly (readonly [number, number, number, number, number])[] = [
+    [11, 130, 0, 0, HEADING + ROAD_TURN], [78, 9, -2, -23, 0],
+  ];
+  ROADS.forEach(([w, d, x, z, a], i) => lay(w, d, x, z, 0.004 + i * 0.002, dirt, a));
+  /** World (x, z) to a road's own (across, along), and back. */
+  const toRoad = ([, , rx, rz, a]: (typeof ROADS)[number], x: number, z: number): readonly [number, number] =>
+    [(x - rx) * Math.cos(a) - (z - rz) * Math.sin(a), (x - rx) * Math.sin(a) + (z - rz) * Math.cos(a)];
+  const fromRoad = ([, , rx, rz, a]: (typeof ROADS)[number], u: number, v: number): readonly [number, number] =>
+    [rx + u * Math.cos(a) + v * Math.sin(a), rz - u * Math.sin(a) + v * Math.cos(a)];
   const stripe = mat("surface", 0.8);
   const kerb = mat("border-hard");
   const bx = BAY_X, bz = BAY_Z;
@@ -308,16 +333,16 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   const SHUTTLE_FROM = SHUTTLE_MS * 0.4;
   shuttle(SHUTTLE_FROM);
 
-  // Grass and tall weeds: crossed planes, one instanced draw per texture, placed by a seeded walk
-  // so every load (and the poster) grows the same yard. Thick along the shop wall and the fence,
-  // sparse in the open, a few tall ones in the foreground for the depth of field to soften.
+  // Tall weeds along the back — the foot of the shop wall and the fence beside it — and a fringe of uncut grass where the lawn
+  // meets a road: crossed planes, one instanced draw per texture, placed by a seeded walk so every
+  // load (and the poster) grows the same yard.
   let seed = 14402;
   const rand = (): number => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
   const KEEP_CLEAR: readonly (readonly [number, number, number])[] = [
     [0, 0, 11], [-27.5, -23.5, 6], [23, -24, 7], [26.5, -8, 3], [26, 4, 2.5], [-14, -30.5, 3], [13, -27, 2.5], [-31, -26, 2],
   ];
-  const clear = (x: number, z: number): boolean =>
-    !(z > -25 && z < -18 && x > -24 && x < -4) && KEEP_CLEAR.every(([cx, cz, r]) => Math.hypot(x - cx, z - cz) > r);
+  const onRoad = (x: number, z: number): boolean => ROADS.some((r) => { const [u, v] = toRoad(r, x, z); return Math.abs(u) < r[0] / 2 && Math.abs(v) < r[1] / 2; });
+  const clear = (x: number, z: number): boolean => !onRoad(x, z) && KEEP_CLEAR.every(([cx, cz, r]) => Math.hypot(x - cx, z - cz) > r);
   const scatter = (n: number, zone: () => readonly [number, number]): (readonly [number, number])[] => {
     const out: (readonly [number, number])[] = [];
     for (let tries = 0; out.length < n && tries < n * 20; tries++) {
@@ -326,8 +351,13 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     }
     return out;
   };
-  const along = (x0: number, x1: number, z: number, spread: number) => (): readonly [number, number] => [x0 + rand() * (x1 - x0), z + (rand() - 0.5) * spread];
-  const open = (): readonly [number, number] => [(rand() - 0.5) * 80, -32 + rand() * 62];
+  /** A point just off one edge of a road, on the grass side. */
+  const roadside = (): readonly [number, number] => {
+    const r = ROADS[Math.floor(rand() * ROADS.length)]!;
+    return fromRoad(r, (rand() < 0.5 ? -1 : 1) * (r[0] / 2 + 0.3 + rand() * 0.9), (rand() - 0.5) * r[1]);
+  };
+  const back = (): readonly [number, number] => [(rand() - 0.5) * 90, fenceBack - 1 + rand() * 3];
+  const fence = (side: number) => (): readonly [number, number] => [side * (fenceX - 0.8 - rand() * 2.6), fenceBack + rand() * 20];
   const tufts = new PlaneGeometry(1, 1).translate(0, 0.5, 0);
   const crossed = mergeGeometries([tufts, tufts.clone().rotateY(Math.PI / 2)]);
   const plant = (url: string, spots: readonly (readonly [number, number])[], height: () => number): void => {
@@ -344,20 +374,10 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
       m.receiveShadow = true;
       scene.add(m);
       if (still && loaded) draw();
-    }, () => { /* no texture: the yard is bare dirt */ });
+    }, () => { /* no texture: no vegetation */ });
   };
-  plant("/grass.webp", [
-    ...scatter(140, along(-45, 45, shopZ + 8.5, 3)),
-    ...scatter(60, () => [-fenceX + 1 + rand() * 2, -32 + rand() * 62]),
-    ...scatter(60, () => [fenceX - 1 - rand() * 2, -32 + rand() * 62]),
-    ...scatter(110, open),
-  ], () => 0.9 + rand() * 1.1);
-  plant("/weeds.webp", [
-    ...scatter(55, along(-45, 45, shopZ + 8, 2)),
-    ...scatter(18, () => [-fenceX + 1 + rand() * 3, -32 + rand() * 62]),
-    ...scatter(18, () => [fenceX - 1 - rand() * 3, -32 + rand() * 62]),
-    ...scatter(10, () => [(rand() < 0.5 ? -1 : 1) * (14 + rand() * 18), 16 + rand() * 14]),
-  ], () => 2.6 + rand() * 2.2);
+  plant("/grass.webp", scatter(170, roadside), () => 0.5 + rand() * 0.5);
+  plant("/weeds.webp", [...scatter(70, back), ...scatter(20, fence(-1)), ...scatter(20, fence(1))], () => 2.6 + rand() * 2.2);
 
   for (const [url, x, z, heading] of STOCK) {
     void load(url).then((model) => {

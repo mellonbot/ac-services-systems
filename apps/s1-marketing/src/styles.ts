@@ -48,10 +48,11 @@ export const S1_CSS = `
 .s1-scene__stage canvas{display:block;width:100%;height:100%}
 /* The yard's composition: the live portals stand large in front, a column down the left; the ones not open yet sit small and far, high on the right. */
 .s1-scene__plates{position:absolute;margin:0;padding:0;list-style:none;display:flex;gap:var(--space-3)}
-.s1-scene__plates--live{top:var(--space-6);bottom:var(--space-6);left:var(--space-6);width:34%;flex-direction:column;justify-content:space-between}
-.s1-scene__plates--closed{top:var(--space-6);left:47%;right:var(--space-6);justify-content:space-between}
+.s1-scene__plates--live{top:50%;left:5%;width:32%;transform:translateY(-50%);flex-direction:column;gap:var(--space-8)}
+.s1-scene__plates--closed{top:var(--space-8);left:44%;right:5%;justify-content:center;gap:var(--space-6)}
 .s1-scene__plates--closed .s1-scene__plate{flex:1 1 0;min-width:0}
-.s1-scene__plates--live .s1-portal{min-height:calc(3 * var(--control-height));padding:var(--space-3) var(--space-6);text-align:left;align-items:flex-start;box-shadow:var(--elevation-raised)}
+/* The live plates carry the messages panel's glow — the action red at 22%, so they read as the ones that open. */
+.s1-scene__plates--live .s1-portal{min-height:calc(3 * var(--control-height));padding:var(--space-3) var(--space-6);text-align:left;align-items:flex-start;box-shadow:var(--elevation-card),0 0 var(--space-8) color-mix(in srgb,var(--color-action) 22%,transparent)}
 .s1-scene__plates--live .s1-portal strong{font-size:var(--text-xl)}
 .s1-scene__plates--live .s1-portal span{font-size:var(--text-md)}
 .s1-scene__plates--closed .s1-portal strong{font-size:var(--text-xs)}
@@ -60,6 +61,7 @@ export const S1_CSS = `
 .s1-portal span{color:var(--color-text-muted);font-size:var(--text-xs)}
 .s1-portal:hover{border-color:var(--color-border-hard);box-shadow:var(--elevation-raised)}
 .s1-portal:hover strong{text-decoration:underline}
+.s1-scene__plates--live .s1-portal:hover{box-shadow:var(--elevation-raised),0 0 var(--space-8) color-mix(in srgb,var(--color-action) 34%,transparent)}
 @container (min-width:56rem){
   .s1-scene__plates--live .s1-portal strong{font-size:var(--text-display)}
   .s1-scene__plates--live .s1-portal span{font-size:var(--text-lg)}
@@ -67,7 +69,7 @@ export const S1_CSS = `
 }
 @container (max-width:45rem){
   .s1-scene__stage{aspect-ratio:4/3}
-  .s1-scene__plates,.s1-scene__plates--live,.s1-scene__plates--closed{position:static;width:auto;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);padding:var(--space-3) var(--space-3) 0}
+  .s1-scene__plates,.s1-scene__plates--live,.s1-scene__plates--closed{position:static;width:auto;transform:none;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);padding:var(--space-3) var(--space-3) 0}
   .s1-scene__plates--closed{padding-bottom:var(--space-3)}
   .s1-scene__plates--live .s1-portal{min-height:var(--control-height);padding:var(--space-2) var(--space-3)}
   .s1-scene__plates--live .s1-portal strong{font-size:var(--text-md)}
