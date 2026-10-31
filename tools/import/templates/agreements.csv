@@ -1,0 +1,2 @@
+customer_ref,region,billing_path,signed_at,effective_from,effective_to,diagnostic_data_rights_reserved,activate,sla_response,sla_credit_pct,pm_visits_per_year,payment_terms_days,labor_rate_minor
+CUST-1001,DFW,enterprise_sla,2026-10-01,2026-11-01,,yes,yes,4_hour,10,2,30,12500

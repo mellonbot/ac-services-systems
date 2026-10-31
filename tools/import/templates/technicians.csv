@@ -1,0 +1,4 @@
+name,region,firm,role,crew,email,phone,specialties
+Maria Lopez,DFW,,technician,,maria.lopez@example.com,214-555-0141,commercial_rtu;controls_bas
+Dev Patel,DFW,Trinity Air Contractors LLC,technician,,dev.patel@example.com,817-555-0177,light_commercial
+Sam Okafor,DFW,,lead_installer,DFW Install 1,,972-555-0110,residential_hvac;light_commercial
