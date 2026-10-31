@@ -102,7 +102,8 @@ branch name. Give it a body: what changes, why, how it was verified.
 2. **Squash**-merge: `main` is one commit per PR, subject `<PR title> (#N)` — which is why
    the title has to say what the change does.
 3. The push to `main` runs `guard` again, then `latest` (stops if `main` moved on), then
-   **`deploy-gateway`** — migrates production and `wrangler deploy`s the container behind
+   **`deploy-gateway`** — copies the Worker's secrets from the GitHub `production`
+   environment (a notice names any held only on the Worker), migrates production and `wrangler deploy`s the container behind
    `api.acservice.systems`, waiting for `/healthz`. It **skips with a notice** when the
    GitHub `production` environment has no `DATABASE_URL`; then the site publishes alone and
    staff sign-ins will not work. Then **`deploy`** publishes Pages (`acservice.systems`).

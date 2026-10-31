@@ -12,7 +12,7 @@
  * and nothing else.
  *
  * Secrets reach the container as environment variables at start, from the
- * Worker's own secrets (`wrangler secret put`); nothing is baked into the
+ * Worker's own secrets (copied from GitHub 'production' each deploy); nothing is baked into the
  * image. The cron keeps the container's inactivity timer from ever elapsing,
  * so the relay, SLA cascade and expiry sweep run whether or not a browser
  * is open.
@@ -78,7 +78,7 @@ export class Gateway extends DurableObject {
     if (!c) throw new Error("no container is bound to this Durable Object");
     if (!c.running) {
       const missing = REQUIRED.filter((k) => !this.env[k]);
-      if (missing.length) throw new Error(`gateway secrets not set: ${missing.join(", ")} — wrangler secret put <NAME> -c infra/cloudflare/wrangler.jsonc`);
+      if (missing.length) throw new Error(`gateway secrets not set: ${missing.join(", ")} — set them on the GitHub 'production' environment and re-run guard on main, which copies them here (docs/CLOUDFLARE_PAGES.md, 'The gateway')`);
       // The gateway trusts CF-Connecting-IP (and the host header below) only when told it is behind this Worker.
       const env = { PORT: String(PORT), AC_BEHIND_CLOUDFLARE: "1" };
       for (const k of [...REQUIRED, ...PASSTHROUGH]) if (this.env[k]) env[k] = String(this.env[k]);

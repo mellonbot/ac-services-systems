@@ -57,14 +57,33 @@ The account needs the **Workers Paid** plan (Containers are not on Free).
 
 ### The gateway
 
-From a laptop logged into wrangler, once:
+Every Worker secret is set on the **GitHub `production` environment**
+(Settings → Environments → production → Environment secrets), never on the
+Worker. The `deploy-gateway` job's "the Worker holds its secrets" step copies
+them to the Worker on every deploy in one `wrangler secret bulk`, so an edit in
+the Cloudflare dashboard loses a secret only until the next deploy, and
+rotating one is changing it in GitHub and re-running guard on `main`. A secret
+the Worker holds that GitHub does not is left as it is and named in a notice
+on each deploy; move it to GitHub to clear the notice.
+
+Copied: `DATABASE_URL`, `AC_SIGNING_KEY_PEM`, the four `AC_STORAGE_*`
+('Photo storage' below), `AC_MAPTILER_KEY` and the two
+`AC_IMAGERY_*`. Plain settings stay `vars` in `wrangler.jsonc`. A Worker secret cannot be read
+back, so moving one that was set from a laptop needs its value from where it
+was kept — or a new one.
+
+`AC_SIGNING_KEY_PEM` is an Ed25519 key. Generate it, paste the whole PEM
+(header lines included) as the GitHub secret, and delete the file:
 
 ```bash
-# An Ed25519 signing key. Rotating it is rotating this secret (AC_SIGNING_KID names the generation).
 node -e 'const {generateKeyPairSync}=require("node:crypto");process.stdout.write(generateKeyPairSync("ed25519").privateKey.export({type:"pkcs8",format:"pem"}))' > /tmp/ac-signing.pem
-npx wrangler@4 secret put AC_SIGNING_KEY_PEM -c infra/cloudflare/wrangler.jsonc < /tmp/ac-signing.pem
+cat /tmp/ac-signing.pem   # paste into the GitHub secret
 rm /tmp/ac-signing.pem
 ```
+
+A new key is a rotation: every session signed by the old one is refused and
+everyone signs in again. Bump `AC_SIGNING_KID` in `wrangler.jsonc` with it, and
+do it out of hours.
 
 Optional — S2's home map (Accounts → a residential customer). One MapTiler
 key gives it both its tiles and the address lookup that places a typed
@@ -73,16 +92,14 @@ once and writes the point onto the site's address — an audited
 `accounts.update`). The key lives here and never in a bundle. Use a key with
 **no allowed-origin restriction** — the gateway sends no browser Origin:
 
-```bash
-npx wrangler@4 secret put AC_MAPTILER_KEY -c infra/cloudflare/wrangler.jsonc   # paste the key alone
-```
+Set it as `AC_MAPTILER_KEY` on the GitHub `production` environment (the key alone).
 
 That fills satellite-with-labels 256px tiles and US address geocoding. For
 another style or provider, set `AC_MAP_TILE_URL` (`{z}/{x}/{y}`) or
 `AC_GEOCODE_URL` (`{q}`) as full URL templates; either wins over the key.
 `AC_MAP_ATTRIBUTION` is already a plain var in `wrangler.jsonc`. Unset, the
 map says no provider is configured. A secret reaches the container when it
-next starts — the next deploy.
+next starts — the next deploy, which is also what copies it.
 
 ### Photo storage
 
@@ -105,18 +122,18 @@ In the Cloudflare dashboard, once:
    Key**; the secret is shown once. Note the account's S3 endpoint shown on the
    same page: `https://<account-id>.r2.cloudflarestorage.com`.
 
-Then from a laptop logged into wrangler (paste each value when asked):
+Then set all four on the GitHub `production` environment:
 
-```bash
-npx wrangler@4 secret put AC_STORAGE_ENDPOINT -c infra/cloudflare/wrangler.jsonc   # https://<account-id>.r2.cloudflarestorage.com
-npx wrangler@4 secret put AC_STORAGE_BUCKET   -c infra/cloudflare/wrangler.jsonc   # ac-media
-npx wrangler@4 secret put AC_STORAGE_KEY_ID   -c infra/cloudflare/wrangler.jsonc   # the token's Access Key ID
-npx wrangler@4 secret put AC_STORAGE_SECRET   -c infra/cloudflare/wrangler.jsonc   # the token's Secret Access Key
-```
+| Secret | Value |
+|---|---|
+| `AC_STORAGE_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
+| `AC_STORAGE_BUCKET` | `ac-media` |
+| `AC_STORAGE_KEY_ID` | the token's Access Key ID |
+| `AC_STORAGE_SECRET` | the token's Secret Access Key |
 
-All four or none: a half-configured bucket stops the gateway at start rather
-than failing uploads one at a time. A secret reaches the container when it
-next starts, so finish with **Actions → guard → Run workflow** on `main`. The
+All four or none: GitHub holding some of them fails the deploy by name, and a
+half-configured bucket stops the gateway at start rather than failing uploads
+one at a time. Finish with **Actions → guard → Run workflow** on `main`; the
 `deploy-gateway` job's "the Worker holds its secrets" step going green is the
 confirmation that all four are held.
 

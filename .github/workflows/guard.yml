@@ -254,34 +254,72 @@ jobs:
       - if: steps.configured.outputs.ready == 'true'
         uses: actions/setup-node@v7
         with: { node-version: 22 }
-      # The Worker holds the signing key, set once from a laptop
-      # (docs/CLOUDFLARE_PAGES.md, 'The gateway'), DATABASE_URL, copied from the
-      # GitHub 'production' environment below on every deploy — and, while a live
-      # surface takes photos, the R2 bucket's four storage secrets. Without the key the
-      # Worker refuses to start the container and the wait below would time out
-      # saying nothing. Ask the Worker what it holds, and name what it does not.
+      # The Worker's secrets are copied from the GitHub 'production' environment
+      # on every deploy, so an edit in the Cloudflare dashboard cannot lose one
+      # for longer than the next deploy (#187 lost DATABASE_URL that way), and
+      # GitHub is the one place to set or rotate them. DATABASE_URL is always
+      # copied. The others are copied when GitHub holds them; one GitHub does
+      # not hold yet is left as the Worker has it and named in a notice, so
+      # moving a secret to GitHub is never a deploy that drops it. Then ask the
+      # Worker what it holds and name what it does not: without the signing key
+      # it refuses to start the container and the wait below would time out
+      # saying nothing.
       - name: the Worker holds its secrets
         if: steps.configured.outputs.ready == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AC_SIGNING_KEY_PEM: ${{ secrets.AC_SIGNING_KEY_PEM }}
+          AC_STORAGE_ENDPOINT: ${{ secrets.AC_STORAGE_ENDPOINT }}
+          AC_STORAGE_BUCKET: ${{ secrets.AC_STORAGE_BUCKET }}
+          AC_STORAGE_KEY_ID: ${{ secrets.AC_STORAGE_KEY_ID }}
+          AC_STORAGE_SECRET: ${{ secrets.AC_STORAGE_SECRET }}
+          AC_MAPTILER_KEY: ${{ secrets.AC_MAPTILER_KEY }}
+          AC_IMAGERY_URL: ${{ secrets.AC_IMAGERY_URL }}
+          AC_IMAGERY_ATTRIBUTION: ${{ secrets.AC_IMAGERY_ATTRIBUTION }}
         run: |
           # The Worker's DATABASE_URL must be the same login as the one that
           # migrates (0012 grants SET ROLE to that login alone), and the GitHub
-          # 'production' copy is the one every deploy proves by migrating with
-          # it. So that copy is the source: put it on the Worker each deploy,
-          # and the two cannot drift — nor be lost by an edit in the dashboard.
-          if ! out=$(printf '%s' "$DATABASE_URL" | pnpm dlx wrangler@4.148.0 secret put DATABASE_URL -c infra/cloudflare/wrangler.jsonc 2>&1); then
-            echo "$out" | grep -v -i 'postgres' || true
-            echo "::error::Could not put DATABASE_URL on the Worker from the GitHub 'production' environment."
+          # copy is the one every deploy proves by migrating with it.
+          mirrored="DATABASE_URL AC_SIGNING_KEY_PEM AC_STORAGE_ENDPOINT AC_STORAGE_BUCKET AC_STORAGE_KEY_ID AC_STORAGE_SECRET AC_MAPTILER_KEY AC_IMAGERY_URL AC_IMAGERY_ATTRIBUTION"
+          # The bucket is all four or none (the gateway refuses half of it at
+          # start); two sources for one bucket is how half of it happens.
+          storage=0
+          for name in AC_STORAGE_ENDPOINT AC_STORAGE_BUCKET AC_STORAGE_KEY_ID AC_STORAGE_SECRET; do
+            [ -n "${!name}" ] && storage=$((storage + 1))
+          done
+          if [ "$storage" != 0 ] && [ "$storage" != 4 ]; then
+            echo "::error::The GitHub 'production' environment holds $storage of the four AC_STORAGE_* secrets. Set all four there, or none. See docs/CLOUDFLARE_PAGES.md, 'Photo storage'."
             exit 1
           fi
+          copy=""
+          for name in $mirrored; do
+            [ -n "${!name}" ] && copy="$copy $name"
+          done
+          # One bulk put: one new Worker version, not one per secret. The JSON is
+          # built by node (a PEM is multi-line), written owner-only, and removed.
+          umask 077
+          bulk="$RUNNER_TEMP/worker-secrets.json"
+          trap 'rm -f "$bulk"' EXIT
+          COPY="$copy" node -e 'const o={};for(const n of process.env.COPY.trim().split(/\s+/))o[n]=process.env[n];process.stdout.write(JSON.stringify(o))' > "$bulk"
+          if ! out=$(pnpm dlx wrangler@4.148.0 secret bulk "$bulk" -c infra/cloudflare/wrangler.jsonc 2>&1); then
+            echo "$out" | grep -v -i -E 'postgres|BEGIN|PRIVATE' || true
+            echo "::error::Could not put$copy on the Worker from the GitHub 'production' environment."
+            exit 1
+          fi
+          rm -f "$bulk"
+          echo "Copied to the Worker from GitHub:$copy"
           if ! held=$(pnpm dlx wrangler@4.148.0 secret list -c infra/cloudflare/wrangler.jsonc 2>&1); then
             echo "$held"
             echo "::error::The Worker 'ac-gateway' has no secrets yet. Run the one-time setup in docs/CLOUDFLARE_PAGES.md, 'The gateway'."
             exit 1
           fi
+          for name in $mirrored; do
+            if [[ " $copy " != *" $name "* ]] && grep -q "\"$name\"" <<< "$held"; then
+              echo "::notice::$name is held only on the Worker, so a dashboard edit can lose it. Add it to the GitHub 'production' environment and every deploy will put it back."
+            fi
+          done
           required="AC_SIGNING_KEY_PEM DATABASE_URL"
           # A live surface that writes photos needs the bucket: without it every
           # wrap-up is refused as storage_not_configured and no job can complete.
@@ -297,7 +335,7 @@ jobs:
                 AC_STORAGE_*) why=" — $photos live and taking photos; see docs/CLOUDFLARE_PAGES.md, 'Photo storage'" ;;
                 *) why="" ;;
               esac
-              echo "::error::$name is not set on the Worker$why: npx wrangler@4.148.0 secret put $name -c infra/cloudflare/wrangler.jsonc"
+              echo "::error::$name is not set on the Worker$why. Add it to the GitHub 'production' environment and re-run guard on main: the deploy puts it on the Worker."
               missing=1
             fi
           done
