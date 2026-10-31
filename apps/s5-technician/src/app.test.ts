@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToString as render } from "../../../packages/ui/src/testing.ts";
-import { createApp, SCREEN_VIEWS } from "./app.ts";
+import { createApp, SCREEN_VIEWS, loginView } from "./app.ts";
 import { SCREENS } from "./screens.ts";
 import { priorityStatus, forwardState } from "./screens/job-list.ts";
 import { CHECKLIST, PART_SOURCES } from "./screens/job-detail.ts";
@@ -658,4 +658,14 @@ test("a wrap-up the office refuses comes back to the job with its words, and ope
   click(app.view(), "wrap-up-reopen");
   assert.equal(app.router.current.value?.screen, "wrapup");
   assert.equal(p.wrapUps.draftFor(JOB).photos.length, 2);
+});
+
+test("0038: a temporary password is answered with new-password fields, kept on a mismatch, and sent with the sign-in", () => {
+  const plain = render(loginView({ refusal: null, busy: false }, () => {}));
+  assert.doesNotMatch(plain, /name="newPassword"/);
+  const asked = render(loginView({ refusal: { kind: "admission", code: "password_change_required", axis: "structural", message: "Choose a new password." }, busy: false }, () => {}));
+  assert.match(asked, /name="newPassword"/);
+  assert.match(asked, /name="repeatPassword"/);
+  assert.match(asked, /Set password and sign in/);
+  assert.match(render(loginView({ refusal: { kind: "admission", code: "passwords_differ", axis: "structural", message: "Not the same." }, busy: false }, () => {})), /name="newPassword"/);
 });

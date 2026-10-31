@@ -1,7 +1,8 @@
 import { html, pageHead, panel, signal, DataGrid, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { CrewWire, DeviceKind, DeviceWire, FirmWire, Refusal, RegionWire } from "../../../../packages/contracts/src/index.ts";
+import type { CrewWire, DeviceKind, DeviceWire, FirmWire, GrantState, GrantWire, Refusal, RegionWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, noChoice, noActiveRegion, formValues, linkTo, boundEnd, type Screen } from "./common.ts";
+import { whenReady, refusalView, submitAction, noChoice, noActiveRegion, formValues, linkTo, boundEnd, confirmPanel, type Screen, type ScreenContext } from "./common.ts";
+import { mayManagePeople } from "./people.ts";
 
 /**
  * D-2a in S2: the hardware a technician signs in to S5 with, and the shift
@@ -21,6 +22,89 @@ export const DEVICE_KIND_LABEL: Readonly<Record<DeviceKind, string>> = Object.fr
   yocto_tablet: "Field tablet",
 });
 const DEVICE_KINDS = Object.keys(DEVICE_KIND_LABEL) as DeviceKind[];
+
+/** The grant's state as a form, not a hue: open is the live outline, upcoming dashed, ended and revoked struck. */
+const GRANT_TONE: Readonly<Record<GrantState, string>> = { open: "live", upcoming: "pending", ended: "ended", revoked: "ended" };
+const GRANT_WORD: Readonly<Record<GrantState, string>> = { open: "Open", upcoming: "Upcoming", ended: "Ended", revoked: "Revoked" };
+
+/** The browser's wall clock for a `datetime-local` value, from an instant. */
+const localOf = (instant: string): string => {
+  const d = new Date(instant);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+};
+const when = (instant: string): VNode => html`<span class="s2-num">${localOf(instant).replace("T", " ")}</span>`;
+
+type GrantAction = { readonly grantId: string; readonly mode: "extend" | "revoke" } | null;
+const grantAction = signal<{ readonly open: GrantAction; readonly refusal: Refusal | null; readonly busy: boolean }>({ open: null, refusal: null, busy: false });
+
+/**
+ * 0038 — the shifts on the hardware: Extend moves a live grant's end later,
+ * Revoke ends it now and the device's session with it. Any role that can grant
+ * a shift can do both (devices.grantShift is not role-gated beyond S2).
+ */
+const grantsPanel = (ctx: ScreenContext): VNode => {
+  const { shell, store } = ctx;
+  const grants = store.read(keyOf("devices.listGrants"), () => shell.gateway.listDeviceGrants({}));
+  const a = grantAction.value;
+  const done = (notice: string) => {
+    store.invalidate("devices.listGrants");
+    store.notice.value = [notice];
+    grantAction.value = { open: null, refusal: null, busy: false };
+  };
+  const fail = (err: unknown) => {
+    grantAction.value = { ...grantAction.value, refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: false };
+  };
+  const extend = async (g: GrantWire, e: Event) => {
+    e.preventDefault();
+    if (ctx.degraded || a.busy) return;
+    const v = formValues(e.currentTarget as HTMLFormElement);
+    grantAction.value = { ...a, refusal: null, busy: true };
+    try { await shell.gateway.extendDeviceShift({ grantId: g.id, windowEnd: instantOf(v.windowEnd ?? "") }); done(`${g.technicianName}'s shift on ${g.hardwareId} now ends later.`); }
+    catch (err) { fail(err); }
+  };
+  const revoke = async (g: GrantWire) => {
+    grantAction.value = { ...a, refusal: null, busy: true };
+    try { await shell.gateway.revokeDeviceShift({ grantId: g.id }); done(`${g.technicianName}'s shift on ${g.hardwareId} has ended. The device is signed out.`); }
+    catch (err) { fail(err); }
+  };
+  const live = (g: GrantWire) => g.state === "open" || g.state === "upcoming";
+  const actions = (g: GrantWire): VNode => {
+    if (!live(g)) return html``;
+    const opened = a.open?.grantId === g.id ? a.open.mode : null;
+    const toggle = (mode: "extend" | "revoke") => { grantAction.value = { open: opened === mode ? null : { grantId: g.id, mode }, refusal: null, busy: false }; };
+    return html`<span class="s2-row-actions">
+      <button type="button" class="s2-mutation" aria-expanded=${opened === "extend"} aria-label=${`Extend ${g.technicianName}'s shift on ${g.hardwareId}`} disabled=${ctx.degraded || a.busy} onClick=${() => toggle("extend")}>Extend</button>
+      <button type="button" class="s2-mutation s2-mutation--danger" aria-expanded=${opened === "revoke"} aria-label=${`Revoke ${g.technicianName}'s shift on ${g.hardwareId}`} disabled=${ctx.degraded || a.busy} onClick=${() => toggle("revoke")}>Revoke</button>
+    </span>
+    ${opened === "extend" ? html`<form class="ac-form" id=${`extend-${g.id}`} onSubmit=${(e: Event) => { void extend(g, e); }}>
+      <label class="ac-field"><span>New end</span><input class="ac-input" type="datetime-local" name="windowEnd" required min=${localOf(g.windowEnd)} value=${localOf(g.windowEnd)} /><small>Later than the current end. The technician signs in again to carry the new end on the device.</small></label>
+      <div class="s2-form__actions">${submitAction(ctx, a.busy ? "Saving…" : "Extend shift", `extend-shift-${g.id}`)}</div>
+    </form>` : null}
+    ${opened === "revoke" ? confirmPanel({
+      id: `confirm-revoke-${g.id}`, title: `End ${g.technicianName}'s shift now?`,
+      detail: `${g.hardwareId} is signed out on its next request. There is no grace period; unsent changes on the device stay queued for the technician's next shift.`,
+      confirmLabel: "Revoke shift", danger: true, busy: a.busy, disabled: ctx.degraded,
+      onConfirm: () => { void revoke(g); }, onCancel: () => { grantAction.value = { open: null, refusal: null, busy: false }; },
+    }) : null}`;
+  };
+  return panel(html`${whenReady(ctx, grants.value, (gs) => DataGrid({
+      density: ctx.density,
+      stack: true,
+      columns: [
+        { key: "hardwareId", header: "Device", cell: (g: GrantWire) => html`<span class="s2-num">${g.hardwareId}</span>` },
+        { key: "technicianName", header: "Technician", cell: (g: GrantWire) => g.technicianName },
+        { key: "windowStart", header: "Starts", cell: (g: GrantWire) => when(g.windowStart) },
+        { key: "windowEnd", header: "Ends", cell: (g: GrantWire) => when(g.revokedAt ?? g.windowEnd) },
+        { key: "state", header: "Shift", cell: (g: GrantWire) => html`<span class="s2-state" data-tone=${GRANT_TONE[g.state]}>${GRANT_WORD[g.state]}</span>` },
+        { key: "actions", header: "", align: "end", cell: actions },
+      ],
+      rows: gs.grants,
+      rowKey: (g: GrantWire) => g.id,
+      emptyText: "No shift is granted, open, or ended in the last day.",
+    }), () => store.invalidate("devices.listGrants"))}
+    ${a.refusal ? refusalView(ctx, a.refusal) : null}`,
+  "Shifts", "Granted, open now, or ended in the last day. Times are this browser's.", linkTo(ctx, "devices.grant", {}, "+ Shift", "ac-action s2-link--action"), "shifts");
+};
 
 export const devices: Screen = (ctx) => {
   const { shell, store } = ctx;
@@ -44,6 +128,7 @@ export const devices: Screen = (ctx) => {
     }), () => store.invalidate("devices.list")),
     "Devices", null,
     linkTo(ctx, "devices.new", {}, "+ Device", "ac-action s2-link--action"), "devices")}
+    ${grantsPanel(ctx)}
   </section>`;
 };
 
@@ -131,6 +216,7 @@ export const devicesGrant: Screen = (ctx, params) => {
         deviceId: v.deviceId ?? "", crewId: v.crewId ?? "",
         windowStart: instantOf(v.windowStart ?? ""), windowEnd: instantOf(v.windowEnd ?? ""),
       });
+      store.invalidate("devices.listGrants");
       store.notice.value = ["Shift granted. The technician can sign in on that device until the shift ends."];
       grantForm.value = { refusal: null, busy: false };
       ctx.router.navigate("devices", {});
@@ -151,7 +237,8 @@ export const devicesGrant: Screen = (ctx, params) => {
   const unitField = (c: readonly CrewWire[]): VNode => {
     const units = c.filter((x) => x.active && x.kind === "service");
     return units.length === 0
-      ? noChoice("Technician", "No active technician unit exists. A technician's unit is made with their login.")
+      ? noChoice("Technician", "No active technician unit exists. A technician's unit is made with their login.",
+          mayManagePeople(ctx) ? linkTo(ctx, "people.new", { kind: "technician" }, "Make a technician login") : html`<span>A principal makes one in People.</span>`)
       : html`<label class="ac-field">
           <span>Technician</span>
           <select name="crewId" required class="ac-input">${units.map((x) => html`<option value=${x.id}>${x.label}</option>`)}</select>

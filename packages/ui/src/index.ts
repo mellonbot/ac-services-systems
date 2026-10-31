@@ -25,6 +25,7 @@ export * from "./router.ts";
 export * from "./resource-store.ts";
 export * from "./screen-helpers.ts";
 export * from "./session-boot.ts";
+export * from "./password-change.ts";
 export * from "./fixed-units.ts";
 export * from "./layout.ts";
 export { spinFavicon } from "./favicon.ts";

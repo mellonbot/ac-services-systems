@@ -9,7 +9,7 @@ import type { Refusal } from "../../contracts/src/index.ts";
  * gateway with a preview. Those are hooks, not a second copy of this sequence.
  */
 type CookieCredentials =
-  | { readonly email: string; readonly password: string; readonly session: "cookie" }
+  | { readonly email: string; readonly password: string; readonly session: "cookie"; readonly newPassword?: string }
   | { readonly session: "cookie" };
 
 type LiveShell = {
@@ -38,9 +38,10 @@ export const bindCookieSession = <P extends { readonly shell: LiveShell }, S ext
 }) => {
   let lastProbe = 0;
 
-  const login = async (email: string, password: string) => {
+  /** `newPassword` replaces a temporary password the office issued (0038). */
+  const login = async (email: string, password: string, newPassword?: string) => {
     opts.setLogin(true, null);
-    try { opts.setReady(await opts.connect({ email, password, session: "cookie" })); }
+    try { opts.setReady(await opts.connect({ email, password, session: "cookie", ...(newPassword ? { newPassword } : {}) })); }
     catch (e) { opts.setLogin(false, refusalOf(e)); }
   };
 

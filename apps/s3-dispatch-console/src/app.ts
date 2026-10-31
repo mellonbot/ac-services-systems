@@ -1,4 +1,4 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, type VNode, bindCookieSession } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, type VNode, bindCookieSession, choosingNewPassword, newPasswordFields, newPasswordFrom } from "../../../packages/ui/src/index.ts";
 import { gatewayOrigin as sharedGatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { admits, densityOf, seesManagerOverview, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -346,7 +346,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const view = (): VNode => {
     const p = phase.value;
     if (p.kind === "booting") return html`<p class="s3-loading" role="status">Connecting…</p>`;
-    if (p.kind === "login") return loginView(p, login);
+    if (p.kind === "login") return loginView(p, login, (refusal) => { phase.value = { kind: "login", refusal, busy: false }; });
     const ctx: ScreenContext = { shell: p.shell, store: p.store, router, density: DENSITY, degraded: degraded.value };
     void p.store.version.value; // subscribe: an invalidate re-renders the mounted screen, which re-reads its resources
     void minute.value; // and a new minute re-renders it, so the board's now-line keeps time
@@ -411,18 +411,25 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   return { phase, degraded, router, view, boot: session.boot, login: session.login, logout: session.logout, tick, probe: session.probe };
 };
 
-export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: (email: string, password: string) => void): VNode => {
+export const loginView = (
+  p: { refusal: Refusal | null; busy: boolean },
+  login: (email: string, password: string, newPassword?: string) => void,
+  refuse: (r: Refusal) => void = () => {},
+): VNode => {
   const submit = (e: Event) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget as HTMLFormElement);
-    login(String(f.get("email") ?? ""), String(f.get("password") ?? ""));
+    const next = newPasswordFrom(f);
+    if ("refusal" in next) { refuse(next.refusal); return; }
+    login(String(f.get("email") ?? ""), String(f.get("password") ?? ""), next.newPassword);
   };
   return html`<section class="s3-login">
     ${pageHead(SURFACE.name, "Sign in to open your region's dispatch board.")}
     <form class="ac-form" onSubmit=${submit} id="login-form">
       <label class="ac-field"><span>Email</span><input class="ac-input" name="email" type="email" required autocomplete="username" /></label>
-      <label class="ac-field"><span>Password</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>
-      ${PrimaryAction({ density: DENSITY, label: p.busy ? "Signing in…" : "Sign in", type: "submit", id: "sign-in" })}
+      <label class="ac-field"><span>${choosingNewPassword(p.refusal) ? "Temporary password" : "Password"}</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>
+      ${newPasswordFields(p.refusal)}
+      ${PrimaryAction({ density: DENSITY, label: p.busy ? "Signing in…" : choosingNewPassword(p.refusal) ? "Set password and sign in" : "Sign in", type: "submit", id: "sign-in" })}
     </form>
     ${p.refusal ? RefusalCard({ density: DENSITY, refusal: p.refusal }) : null}
   </section>`;

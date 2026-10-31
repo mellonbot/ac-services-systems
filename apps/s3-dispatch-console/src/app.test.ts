@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToString as render } from "../../../packages/ui/src/testing.ts";
-import { createApp, SCREEN_VIEWS, gatewayOrigin } from "./app.ts";
+import { createApp, SCREEN_VIEWS, gatewayOrigin, loginView } from "./app.ts";
 import { SCREENS } from "./screens.ts";
 import { slaStatus, isReleasable, isDispatchable, boardModel, boardTone } from "./screens/board.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
@@ -909,4 +909,14 @@ test("job detail: the site from above is the gateway's satellite tiles with a pi
   for (let i = 0; i < 3; i++) { render(bare.app.view()); await settle(); }
   assert.match(render(bare.app.view()), /has not been placed on the map yet/);
   assert.ok(!bare.gateway.calls.some((c) => c.path === OPERATIONS["sites.mapTile"].path), "no point, no tiles asked for");
+});
+
+test("0038: a temporary password is answered with new-password fields, kept on a mismatch, and sent with the sign-in", () => {
+  const plain = render(loginView({ refusal: null, busy: false }, () => {}));
+  assert.doesNotMatch(plain, /name="newPassword"/);
+  const asked = render(loginView({ refusal: { kind: "admission", code: "password_change_required", axis: "structural", message: "Choose a new password." }, busy: false }, () => {}));
+  assert.match(asked, /name="newPassword"/);
+  assert.match(asked, /name="repeatPassword"/);
+  assert.match(asked, /Set password and sign in/);
+  assert.match(render(loginView({ refusal: { kind: "admission", code: "passwords_differ", axis: "structural", message: "Not the same." }, busy: false }, () => {})), /name="newPassword"/);
 });

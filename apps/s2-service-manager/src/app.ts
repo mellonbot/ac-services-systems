@@ -1,4 +1,4 @@
-import { html, pageHead, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, type VNode, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, bindCookieSession } from "../../../packages/ui/src/index.ts";
+import { html, pageHead, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, type VNode, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, bindCookieSession, choosingNewPassword, newPasswordFields, newPasswordFrom } from "../../../packages/ui/src/index.ts";
 import { gatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
 export { gatewayOrigin };
 import { densityOf, SURFACE_PATHS, type AccountWire, type CrewWire, type FirmWire, type OrganizationWire, type PurchaseOrderDetailOutput, type Refusal, type TechnicianWire, type VendorWire } from "../../../packages/contracts/src/index.ts";
@@ -24,6 +24,7 @@ import { networkTechnicianNew, networkTechnicianEdit } from "./screens/network-t
 import { purchasing, purchasingVendor, purchasingPo, refreshProcurement } from "./screens/purchasing.ts";
 import { billing, billingInvoice, refreshBilling } from "./screens/billing.ts";
 import { devices, devicesNew, devicesGrant } from "./screens/devices.ts";
+import { peopleList, peopleNew, peoplePerson } from "./screens/people.ts";
 import { S2_CSS } from "./styles.ts";
 
 /**
@@ -63,6 +64,9 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "devices": devices,
   "devices.new": devicesNew,
   "devices.grant": devicesGrant,
+  "people": peopleList,
+  "people.new": peopleNew,
+  "people.person": peoplePerson,
 };
 
 /** The department bar. `inside` is the tile's second line: what the domain holds, so a tile is a sign and not only a name. */
@@ -74,6 +78,8 @@ const NAV_GROUPS = [
   { label: "Customer records", inside: "Projects, accounts, agreements, invoicing, follow-ups", home: "accounts.tree", screens: ["projects", "accounts.tree", "contracts.list", "billing", "leads"] as const },
   { label: "Technician Network", inside: "Crews, subcontractor firms, field devices", screens: ["network", "devices"] as const },
   { label: "Purchasing", inside: "Vendors, purchase orders, receiving", screens: ["purchasing"] as const },
+  // 0038: shown to principals only — the gateway refuses people.* to everyone else.
+  { label: "People", inside: "Staff and technician logins, password resets", screens: ["people"] as const },
 ] as const;
 /** A domain with more than one screen gets a second tier of tabs. */
 const hasSubTabs = (g: (typeof NAV_GROUPS)[number]) => g.screens.length > 1;
@@ -190,6 +196,9 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     shell.subscribe(() => store.invalidate("leads.list"), { topics: ["lead.captured", "lead.converted"] });
     shell.subscribe(() => refreshProcurement(store), { topics: ["vendor_price.proposed", "vendor_price.withdrawn", "po.acknowledged", "po.shipped", "vendor_invoice.submitted", "rma.responded"] });
     // 0030: a payment recorded or returned, an invoice paid or voided — here or by another office user.
+    // 0038: a login made or changed — here, or in AC Logins.
+    shell.subscribe(() => store.invalidate("people.list"), { topics: ["user.created", "user.updated"] });
+    shell.subscribe(() => store.invalidate("devices.listGrants"), { topics: ["device.shift_granted", "device.shift_extended", "device.shift_revoked"] });
     shell.subscribe(() => refreshBilling(store), { topics: ["payment.recorded", "payment.returned", "invoice.paid", "invoice.voided", "invoice.issued"] });
   };
 
@@ -209,7 +218,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const view = (): VNode => {
     const p = phase.value;
     if (p.kind === "booting") return html`<p class="s2-loading" role="status">Connecting…</p>`;
-    if (p.kind === "login") return loginView(p, login);
+    if (p.kind === "login") return loginView(p, login, (refusal) => { phase.value = { kind: "login", refusal, busy: false }; });
     const ctx: ScreenContext = { shell: p.shell, store: p.store, router, density: DENSITY, degraded: degraded.value };
     void p.store.version.value; // subscribe: an invalidate re-renders the mounted screen, which re-reads its resources
     const loc = router.current.value;
@@ -261,7 +270,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
         </div>
         <ul class="ac-nav__domains" aria-label="Departments">
-          ${NAV_GROUPS.map((navGroup) => {
+          ${NAV_GROUPS.filter((navGroup) => navGroup.label !== "People" || p.shell.principal.roles.includes("principal")).map((navGroup) => {
             const current = group?.label === navGroup.label;
             const home = "home" in navGroup ? navGroup.home : navGroup.screens[0];
             // A one-screen domain's tile IS the tab, so it carries the page; otherwise the tab below does.
@@ -290,18 +299,25 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   return { phase, degraded, router, view, boot: session.boot, login: session.login, logout: session.logout, tick: session.tick, probe: session.probe };
 };
 
-export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: (email: string, password: string) => void): VNode => {
+export const loginView = (
+  p: { refusal: Refusal | null; busy: boolean },
+  login: (email: string, password: string, newPassword?: string) => void,
+  refuse: (r: Refusal) => void = () => {},
+): VNode => {
   const submit = (e: Event) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget as HTMLFormElement);
-    login(String(f.get("email") ?? ""), String(f.get("password") ?? ""));
+    const next = newPasswordFrom(f);
+    if ("refusal" in next) { refuse(next.refusal); return; }
+    login(String(f.get("email") ?? ""), String(f.get("password") ?? ""), next.newPassword);
   };
   return html`<section class="s2-login">
     ${pageHead(SURFACE.name, "Sign in to keep customer records, the technician network and purchasing.")}
     <form class="ac-form" onSubmit=${submit} id="login-form">
       <label class="ac-field"><span>Email</span><input class="ac-input" name="email" type="email" required autocomplete="username" /></label>
-      <label class="ac-field"><span>Password</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>
-      ${PrimaryAction({ density: DENSITY, label: p.busy ? "Signing in…" : "Sign in", type: "submit", id: "sign-in" })}
+      <label class="ac-field"><span>${choosingNewPassword(p.refusal) ? "Temporary password" : "Password"}</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>
+      ${newPasswordFields(p.refusal)}
+      ${PrimaryAction({ density: DENSITY, label: p.busy ? "Signing in…" : choosingNewPassword(p.refusal) ? "Set password and sign in" : "Sign in", type: "submit", id: "sign-in" })}
     </form>
     ${p.refusal ? RefusalCard({ density: DENSITY, refusal: p.refusal }) : null}
   </section>`;

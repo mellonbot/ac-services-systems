@@ -53,6 +53,8 @@ export const S2_CSS = `
 .s2-muted{color:var(--color-text-muted)}
 .s2-hovercard{position:fixed;z-index:20;pointer-events:none}
 .s2-num{font-family:var(--font-instrument);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* 0038: a temporary password, shown once — the instrument face, large enough to read aloud over the phone. */
+.s2-secret{display:block;width:fit-content;font-family:var(--font-instrument);font-variant-numeric:tabular-nums;font-size:var(--text-xl);font-weight:600;letter-spacing:var(--track-wide);padding:var(--space-2) var(--space-3);background:var(--color-surface-sunken);color:var(--color-text);border:1px solid var(--color-border-hard);border-radius:var(--radius-control);user-select:all}
 .s2-chips{display:flex;flex-wrap:wrap;gap:var(--space-1)}
 .s2-oq5{display:flex;flex-direction:column;gap:var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-3)}
 .s2-oq5 legend{padding-inline:var(--space-2);font-weight:600}
