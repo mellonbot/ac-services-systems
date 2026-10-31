@@ -1,5 +1,5 @@
 import { html, type VNode } from "../../../../packages/ui/src/index.ts";
-import { SURFACES, SURFACE_IDS, SURFACE_PATHS, type CoverageOutput, type SurfaceId } from "../../../../packages/contracts/src/index.ts";
+import { SURFACES, SURFACE_IDS, SURFACE_PATHS, isLive, type CoverageOutput, type SurfaceId } from "../../../../packages/contracts/src/index.ts";
 import { BRAND } from "../../../../packages/tokens/src/brand.ts";
 import { coverage, whenReady, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
@@ -67,10 +67,15 @@ export const home: Screen = (ctx: ScreenContext): VNode => {
         <div class="s1-scene__stage" role="img" aria-label="AC Services service truck, Unit TACLA-14402C, on a turntable in the service bay"><canvas ref=${sceneRef}></canvas></div>
         <ul class="s1-scene__plates">
           ${portals.map((id, i) => html`<li class="s1-scene__plate" style=${`--slot:${30 + (i * 360) / portals.length}deg`}>
-            <a class="s1-portal" href="${SURFACE_PATHS[id]}/">
-              <strong>${SURFACES[id].name}</strong>
-              <span>${surfaceLoginLabel(id)}</span>
-            </a>
+            ${isLive(id)
+              ? html`<a class="s1-portal" href="${SURFACE_PATHS[id]}/">
+                  <strong>${SURFACES[id].name}</strong>
+                  <span>${surfaceLoginLabel(id)}</span>
+                </a>`
+              : html`<div class="s1-portal s1-portal--closed" aria-disabled="true">
+                  <strong>${SURFACES[id].name}</strong>
+                  <span class="s1-tape"><span class="s1-tape__label">Section not open yet</span></span>
+                </div>`}
           </li>`)}
         </ul>
       </div>

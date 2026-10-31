@@ -276,12 +276,13 @@ export const SURFACE_PATHS: Readonly<Record<SurfaceId, string>> = Object.freeze(
  * other enabled surface keeps its tests and its demo, and is simply not on
  * acservice.systems.
  *
- * First rollout, 2026-10-31: the office (S2), dispatch (S3) and the
- * technician web fallback (S5). Publishing another surface is one reviewed
+ * First rollout, 2026-10-31: the front page (S1), the office (S2), dispatch
+ * (S3) and the technician web fallback (S5). S1 still shows every other
+ * enabled portal, taped off as not open yet. Publishing another surface is one reviewed
  * line here. The Pages build reads it (tools/ci/build-pages.ts); the gateway
  * enforces it when AC_ROLLOUT=1 (infra/cloudflare/wrangler.jsonc).
  */
-export const ROLLOUT: readonly SurfaceId[] = Object.freeze(["S2", "S3", "S5"]);
+export const ROLLOUT: readonly SurfaceId[] = Object.freeze(["S1", "S2", "S3", "S5"]);
 
 export const isLive = (id: SurfaceId): boolean => SURFACES[id].enabled && ROLLOUT.includes(id);
 

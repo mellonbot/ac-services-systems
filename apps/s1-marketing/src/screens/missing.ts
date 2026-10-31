@@ -1,5 +1,5 @@
 import { html, type VNode } from "../../../../packages/ui/src/index.ts";
-import { SURFACES, SURFACE_IDS, SURFACE_PATHS } from "../../../../packages/contracts/src/index.ts";
+import { SURFACES, SURFACE_IDS, SURFACE_PATHS, isLive } from "../../../../packages/contracts/src/index.ts";
 import { linkTo, type ScreenContext } from "./common.ts";
 
 /**
@@ -10,7 +10,7 @@ import { linkTo, type ScreenContext } from "./common.ts";
  * front page.
  */
 export const missing = (ctx: ScreenContext, path: string): VNode => {
-  const portals = SURFACE_IDS.filter((id) => id !== "S1" && SURFACES[id].enabled);
+  const portals = SURFACE_IDS.filter((id) => id !== "S1" && isLive(id));
   return html`<section class="s1-missing" aria-labelledby="missing-title">
     <p class="s1-label">Not found</p>
     <h2 class="s1-h2 s1-welcome" id="missing-title">Nothing at this address</h2>

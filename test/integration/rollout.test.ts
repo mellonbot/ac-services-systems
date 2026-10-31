@@ -6,8 +6,8 @@
  *
  * One login admitted to both S2 and S4 (account_owner) is the sharpest case:
  * same namespace, same password, same token — S2 is live and S4 is not. The
- * door (login) and every request after it (x-ac-surface) must both refuse S4,
- * and the anonymous door that only S1 uses must not mint a visitor session.
+ * door (login) and every request after it (x-ac-surface) must both refuse S4.
+ * S1 is live, so its anonymous door stays open for the lead form.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -76,8 +76,7 @@ test("a live session cannot reach a surface outside the rollout by naming it", {
   assert.equal((await r.json() as { error: string }).error, "SurfaceNotLive");
 });
 
-test("no visitor session is minted while S1 is not live", { skip }, async () => {
+test("S1 is live: a visitor session is minted for the lead form", { skip }, async () => {
   const r = await fetch(`${BASE}/auth/anonymous`, { method: "POST" });
-  assert.equal(r.status, 404);
-  assert.equal((await r.json() as { error: string }).error, "SurfaceNotLive");
+  assert.equal(r.status, 200);
 });

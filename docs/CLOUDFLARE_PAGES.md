@@ -134,11 +134,12 @@ workflow** on `main` to deploy manually.
 ## Published routes
 
 Production publishes only the surfaces in `ROLLOUT`
-(`packages/contracts/src/surfaces.ts`). The first rollout is AC staff only:
+(`packages/contracts/src/surfaces.ts`). The first rollout is the front page
+and the three staff surfaces:
 
 | Surface | Path | Sign-in audience | Live |
 | --- | --- | --- | --- |
-| S1 Marketing / lead-gen | `/` | Public | no — `/` redirects (302) to `/service-manager/` |
+| S1 Marketing / lead-gen | `/` | Public | **yes** — the first page; every other portal shows taped off, "Section not open yet" |
 | S2 Service Manager | `/service-manager/` | Staff | **yes** |
 | S3 Dispatch Console | `/dispatch/` | Staff | **yes** |
 | S4 HQ Ops Dashboard | `/hq/` | Staff | no |
@@ -149,10 +150,10 @@ Production publishes only the surfaces in `ROLLOUT`
 A surface outside `ROLLOUT` is enabled — built, tested, driven in CI and in the
 demo — but is not published, and the production gateway (`AC_ROLLOUT=1` in
 `infra/cloudflare/wrangler.jsonc`) mints no session and takes no request for
-it: `SurfaceNotLive`, 404. Publishing one is adding its id to `ROLLOUT`; S1
-going live restores `/` and its directory of the live portal sign-ins (and
-needs the WAF rules below first). Each portal retains its own authentication
-flow and gateway-enforced scope. `_redirects` serves deep links through the correct
+it: `SurfaceNotLive`, 404. Publishing one is adding its id to `ROLLOUT`, which
+also takes the tape off its plate on S1. S1 being live means its lead form is
+live: the WAF rules below must exist first. Each portal retains its own
+authentication flow and gateway-enforced scope. `_redirects` serves deep links through the correct
 surface entry point, and each app's router confines navigation to its mount
 path.
 

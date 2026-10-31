@@ -64,6 +64,12 @@ export const S1_CSS = `
   .s1-scene__plates{position:static;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);padding:var(--space-3);pointer-events:auto}
   .s1-scene__plate,.s1-scene[data-live] .s1-scene__plate{position:static;width:auto;transform:none}
 }
+/* A portal that is enabled but not in the production ROLLOUT: barrier tape on the brand layer (no yellow ink exists; amber is state-only). */
+.s1-portal--closed{overflow:hidden;cursor:not-allowed;background:var(--color-surface-sunken);box-shadow:none}
+.s1-portal--closed:hover{border-color:var(--color-border);box-shadow:none}
+.s1-portal--closed:hover strong{text-decoration:none}
+.s1-portal .s1-tape{display:flex;justify-content:center;margin:var(--space-1) calc(-1 * var(--space-6)) 0;padding:var(--space-1) 0;transform:rotate(-3deg);background:repeating-linear-gradient(-45deg,var(--color-brand) 0 var(--space-2),var(--color-brand-ink) var(--space-2) calc(2 * var(--space-2)))}
+.s1-portal .s1-tape__label{padding:0 var(--space-2);background:var(--color-brand);color:var(--color-brand-ink);font-family:var(--font-label);font-size:var(--text-xs);font-weight:700;letter-spacing:var(--track-wide);text-transform:uppercase;white-space:nowrap}
 @media (prefers-reduced-motion:reduce){.s1-portal{transition:none}}
 .s1-h1{font-family:var(--font-display);font-size:var(--text-display);font-weight:800;letter-spacing:var(--track-tight);text-transform:none;line-height:1.15}
 .s1-h2{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-tight);text-transform:none}

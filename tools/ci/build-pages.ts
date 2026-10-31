@@ -16,9 +16,10 @@ const gatewayOrigin = (value: string | undefined): string => {
   return url.origin;
 };
 
-// Only the surfaces in the production ROLLOUT are published. While S1 is not
-// one of them the site has no front page: the apex sends staff to the Service
-// Manager (302, so it is not cached once S1 ships), and any other path is a 404.
+// Only the surfaces in the production ROLLOUT are published. S1 answers every
+// other path (its own screens and its not-found page); were S1 ever out of the
+// rollout, the apex would send staff to the Service Manager instead (302, so it
+// is not cached) and any other path would be a 404.
 export const redirectsForLiveSurfaces = (): string => {
   const redirects = SURFACE_IDS
     .filter((id) => id !== "S1" && isLive(id))
