@@ -62,7 +62,7 @@ test("the migrating login is ready: it reaches Postgres and becomes ac_gateway",
   const base = await start(URL_!);
   const r = await fetch(`${base}/readyz`);
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, database: "reachable" });
+  assert.deepEqual(await r.json(), { ok: true, database: "reachable", storage: "not_configured" });
 });
 
 test("a login without the ac_gateway grant is live but not ready", { skip }, async () => {

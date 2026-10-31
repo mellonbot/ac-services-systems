@@ -47,7 +47,8 @@ Never paste a secret value into a commit, PR, log line or chat.
 |---|---|---|
 | `deploy-gateway` skipped, notice about `DATABASE_URL` | GitHub `production` env has no `DATABASE_URL` | Tell the user — a skip is **not** success |
 | `/healthz` never answers (5 min) | Container won't start | `npx wrangler@4.148.0 tail -c infra/cloudflare/wrangler.jsonc` |
-| `/healthz` ok, `/readyz` not 200 | Gateway can't reach Postgres as `ac_gateway` (TLS, wrong login, role grants) | `tail` shows a `readyz:` line; run **Actions → db-check** (uses `pg` exactly as the gateway does — psql turns TLS on by itself, `pg` doesn't) |
+| `/healthz` ok, `/readyz` 503 "cannot reach its database" | Gateway can't reach Postgres as `ac_gateway` (TLS, wrong login, role grants) | `tail` shows a `readyz:` line; run **Actions → db-check** (uses `pg` exactly as the gateway does — psql turns TLS on by itself, `pg` doesn't) |
+| `/healthz` ok, `/readyz` 503 "cannot reach its photo storage" | `AC_STORAGE_*` held but wrong: 403 = key/secret or token not scoped to the bucket; 404 NoSuchBucket = bucket name; timeout = endpoint | `tail` shows a `readyz: storage:` line; re-put the secret per docs/CLOUDFLARE_PAGES.md 'Photo storage' |
 | Migrate step fails | Migration not safe on a populated DB | Reproduce the upgrade path (**schema-migration** skill) |
 | `latest` stopped | `main` moved on | Correct; the newer run deploys |
 
