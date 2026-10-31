@@ -1,5 +1,5 @@
 import { html, type VNode } from "../../../../packages/ui/src/index.ts";
-import { SURFACES, SURFACE_IDS, SURFACE_PATHS, type CoverageOutput, type SurfaceId } from "../../../../packages/contracts/src/index.ts";
+import { SURFACES, SURFACE_IDS, SURFACE_PATHS, isLive, type CoverageOutput, type SurfaceId } from "../../../../packages/contracts/src/index.ts";
 import { BRAND } from "../../../../packages/tokens/src/brand.ts";
 import { coverage, whenReady, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
@@ -56,6 +56,7 @@ const sceneRef = (canvas: HTMLCanvasElement | null): void => {
  */
 export const home: Screen = (ctx: ScreenContext): VNode => {
   const portals = SURFACE_IDS.filter((id) => id !== "S1" && SURFACES[id].enabled);
+  const live = portals.filter(isLive), closed = portals.filter((id) => !isLive(id));
   return html`<section class="s1-home">
     <h1 class="s1-h1 s1-sr-only">${SITE_TITLE}</h1>
     <h2 class="s1-h2 s1-welcome">Welcome to the shop</h2>
@@ -64,13 +65,21 @@ export const home: Screen = (ctx: ScreenContext): VNode => {
     <section class="s1-surface-access" id="surface-logins" aria-labelledby="surface-logins-title">
       <h2 class="s1-label" id="surface-logins-title">Sign in to a portal</h2>
       <div class="s1-scene">
-        <div class="s1-scene__stage" role="img" aria-label="AC Services service truck, Unit TACLA-14402C, on a turntable in the service bay"><canvas ref=${sceneRef}></canvas></div>
-        <ul class="s1-scene__plates">
-          ${portals.map((id, i) => html`<li class="s1-scene__plate" style=${`--slot:${30 + (i * 360) / portals.length}deg`}>
+        <div class="s1-scene__stage" role="img" aria-label="AC Services service truck, Unit TACLA-14402C, in the service yard"><canvas ref=${sceneRef}></canvas></div>
+        <ul class="s1-scene__plates s1-scene__plates--live">
+          ${live.map((id) => html`<li class="s1-scene__plate">
             <a class="s1-portal" href="${SURFACE_PATHS[id]}/">
               <strong>${SURFACES[id].name}</strong>
               <span>${surfaceLoginLabel(id)}</span>
             </a>
+          </li>`)}
+        </ul>
+        <ul class="s1-scene__plates s1-scene__plates--closed">
+          ${closed.map((id) => html`<li class="s1-scene__plate">
+            <div class="s1-portal s1-portal--closed" aria-disabled="true">
+              <strong>${SURFACES[id].name}</strong>
+              <span class="s1-tape"><span class="s1-tape__label">Section not open yet</span></span>
+            </div>
           </li>`)}
         </ul>
       </div>

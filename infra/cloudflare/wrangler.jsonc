@@ -25,6 +25,8 @@
     // Production posture: Secure cookies; browser origins derived from SURFACES under this site.
     "AC_SITE": "acservice.systems",
     "AC_SIGNING_KID": "k1",
+    // Serve only the surfaces in ROLLOUT (packages/contracts/src/surfaces.ts) — today S2, S3, S5.
+    "AC_ROLLOUT": "1",
     // The credit MapTiler's terms require under its tiles. Not a secret; shown only when a tile is.
     "AC_MAP_ATTRIBUTION": "© MapTiler © OpenStreetMap contributors"
   },

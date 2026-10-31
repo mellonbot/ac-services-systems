@@ -2,12 +2,12 @@ import type { IncomingMessage } from "node:http";
 import { randomUUID } from "node:crypto";
 import { beginTx, bindSystem } from "./pg-tx.ts";
 import { verifyToken, principalFromClaims, AuthError } from "./auth.ts";
-import { createUnitOfWork, type Tx } from "./unit-of-work.ts";
+import { createUnitOfWork, SurfaceNotLive, type Tx } from "./unit-of-work.ts";
 import { cookieToken } from "./session.ts";
-import { keys, pool } from "./env.ts";
+import { keys, pool, ROLLOUT_ENFORCED } from "./env.ts";
 import { HttpError } from "./http.ts";
 import type { AccountActor } from "./handlers/account.ts";
-import { SURFACES, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
+import { SURFACES, isLive, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
 import { OPERATIONS, surfacesFor, type OperationId } from "../../../packages/contracts/src/operations.ts";
 import type { Principal } from "../../../packages/contracts/src/scope.ts";
 
@@ -67,7 +67,15 @@ export const assertSessionLive = async (tx: Tx, p: Principal): Promise<void> => 
  * namespace, that one is used. The header selects; the token authorizes —
  * the unit of work still checks the surface's roles and write allowlist.
  */
-export const surfaceOf = (req: IncomingMessage, opId: OperationId, { principal, viaCookie }: Caller): SurfaceId => {
+/** A surface outside the production ROLLOUT is refused at every door when the gateway enforces it. */
+export const assertLive = (id: SurfaceId): SurfaceId => {
+  if (ROLLOUT_ENFORCED && !isLive(id)) throw new SurfaceNotLive(id);
+  return id;
+};
+
+export const surfaceOf = (req: IncomingMessage, opId: OperationId, caller: Caller): SurfaceId => assertLive(claimedSurface(req, opId, caller));
+
+const claimedSurface = (req: IncomingMessage, opId: OperationId, { principal, viaCookie }: Caller): SurfaceId => {
   const admitted = surfacesFor(opId, (s) => SURFACES[s].namespace, principal.namespace);
   const claimed = req.headers["x-ac-surface"];
   // A cookie is attached by the browser, not by our code. The header is attached

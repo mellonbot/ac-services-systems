@@ -2,7 +2,7 @@
 import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { SURFACE_IDS, SURFACE_PATHS, SURFACES } from "../../packages/contracts/src/index.ts";
+import { SURFACE_IDS, SURFACE_PATHS, isLive } from "../../packages/contracts/src/index.ts";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const OUTPUT = join(ROOT, "dist", "pages");
@@ -16,14 +16,18 @@ const gatewayOrigin = (value: string | undefined): string => {
   return url.origin;
 };
 
-const redirectsForEnabledSurfaces = (): string => {
+// Only the surfaces in the production ROLLOUT are published. S1 answers every
+// other path (its own screens and its not-found page); were S1 ever out of the
+// rollout, the apex would send staff to the Service Manager instead (302, so it
+// is not cached) and any other path would be a 404.
+export const redirectsForLiveSurfaces = (): string => {
   const redirects = SURFACE_IDS
-    .filter((id) => id !== "S1" && SURFACES[id].enabled)
+    .filter((id) => id !== "S1" && isLive(id))
     .flatMap((id) => {
       const path = SURFACE_PATHS[id];
       return [`${path} ${path}/ 308`, `${path}/* ${path}/index.html 200`];
     });
-  redirects.push("/* /index.html 200");
+  redirects.push(isLive("S1") ? "/* /index.html 200" : `/ ${SURFACE_PATHS.S2}/ 302`);
   return `${redirects.join("\n")}\n`;
 };
 
@@ -32,9 +36,9 @@ const redirectsForEnabledSurfaces = (): string => {
 // no-cache keeps the copy but revalidates its ETag on every load. chunks/ is
 // named by content hash, so a copy is never stale: cache it for a year and skip
 // the revalidation round trip.
-export const headersForEnabledSurfaces = (): string =>
+export const headersForLiveSurfaces = (): string =>
   SURFACE_IDS
-    .filter((id) => SURFACES[id].enabled)
+    .filter(isLive)
     .flatMap((id) => {
       const prefix = SURFACE_PATHS[id] === "/" ? "" : SURFACE_PATHS[id];
       return [
@@ -51,7 +55,7 @@ export const buildPages = async (gateway = gatewayOrigin(process.env.AC_GATEWAY)
   rmSync(OUTPUT, { recursive: true, force: true });
   mkdirSync(OUTPUT, { recursive: true });
 
-  for (const id of SURFACE_IDS.filter((surfaceId) => SURFACES[surfaceId].enabled)) {
+  for (const id of SURFACE_IDS.filter(isLive)) {
     const basePath = SURFACE_PATHS[id];
     const built = await buildSurface(id, { minify: true, gateway, basePath });
     const target = basePath === "/" ? OUTPUT : join(OUTPUT, basePath.slice(1));
@@ -60,8 +64,8 @@ export const buildPages = async (gateway = gatewayOrigin(process.env.AC_GATEWAY)
     console.log(`build-pages: ${id} → ${target.replace(ROOT, "")}`);
   }
 
-  writeFileSync(join(OUTPUT, "_redirects"), redirectsForEnabledSurfaces());
-  writeFileSync(join(OUTPUT, "_headers"), headersForEnabledSurfaces());
+  writeFileSync(join(OUTPUT, "_redirects"), redirectsForLiveSurfaces());
+  writeFileSync(join(OUTPUT, "_headers"), headersForLiveSurfaces());
 };
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];

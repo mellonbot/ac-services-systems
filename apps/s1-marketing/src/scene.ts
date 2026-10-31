@@ -1,56 +1,67 @@
 import {
-  Box3, BoxGeometry, CatmullRomCurve3, Color, ConeGeometry, CylinderGeometry, DirectionalLight, DoubleSide, Fog, Group, HemisphereLight, Mesh,
-  MeshStandardMaterial, PerspectiveCamera, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Scene, TextureLoader, TorusGeometry, TubeGeometry,
+  Box3, BoxGeometry, CatmullRomCurve3, Color, ConeGeometry, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Fog, Group, HemisphereLight,
+  InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Quaternion, PerspectiveCamera, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Scene, TextureLoader, TorusGeometry, TubeGeometry,
   Vector3, WebGLRenderer, type Object3D,
 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { BokehPass } from "three/addons/postprocessing/BokehPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
-/** One turn of the truck, in milliseconds. */
-const REVOLUTION_MS = 36_000;
-/** The heading the truck rests at under reduced motion, and starts from otherwise: a front three-quarter. */
-const REST_ANGLE = -0.7;
+/** The truck's heading: a low front three-quarter, nose to the left, the lettered side to the camera. */
+const HEADING = -2.25;
+/** The drive runs along the truck's length, which lies on the model's local z. */
+const ROAD_TURN = Math.PI / 2;
 /** The truck is the subject, so it is drawn larger than the floor around it is to scale. */
 const TRUCK_SCALE = 2.8;
-/** The portal pads sit on this ellipse around the turntable, in metres. */
-const PAD_RX = 21, PAD_RZ = 14;
+/** The bay the truck stands in, in metres: its cones stand on these corners. */
+const BAY_X = 26, BAY_Z = 18;
 /** Equipment in the yard waiting to go out — [model, x, z, heading], on a pallet or skid, at the truck's scale. */
 const STOCK: readonly (readonly [string, number, number, number])[] = [
-  ["/condenser.glb", -30, -26, 0.1], ["/condenser.glb", -25.5, -26, -0.05], ["/condenser.glb", -30, -21.5, 0.05], ["/condenser.glb", -25.5, -21.5, 0.3],
+  // The condensers stand above the truck's rear bumper in the shot, where the forklift drives to them.
+  ["/condenser.glb", 14, -26, 0.1], ["/condenser.glb", 9.5, -26, -0.05], ["/condenser.glb", 14, -21.5, 0.05], ["/condenser.glb", 9.5, -21.5, 0.3],
   ["/rtu.glb", 24, -27.5, 0], ["/rtu.glb", 22, -21, 0.08],
 ];
-/** Below this stage width the plates leave the floor and stack under it; the camera frames the truck alone. */
+/** Below this stage width the plates stack under the stage; the camera frames the truck alone. */
 const FLAT_BELOW_PX = 720;
 
 /**
- * THE SIGN-IN YARD — the outdoor service yard on packed dirt, seen from a camera above it:
- * Unit TACLA-14402C turning on a turntable at the centre, a pad on the
- * asphalt for each portal with that portal's sign-in plate pinned above it,
- * and behind the bay the stock waiting to go out — residential condensers on
+ * THE SIGN-IN YARD — the outdoor service yard, trimmed lawn with dirt roads
+ * worn through it, seen low and close: Unit TACLA-14402C parked on the dirt, right of centre in a front
+ * three-quarter, with the live portals' plates standing large down the left
+ * (CSS, in front of the canvas) and the ones not open yet small and far, high
+ * on the right. Behind the bay the stock waiting to go out — residential condensers on
  * pallets and packaged rooftop units on skids — in front of the shop, inside
  * a chain-link fence. Spiral duct and fittings lie by the bay, a dumpster and
  * empty pallets stand by the shop, and a forklift in the house red works its
  * lane between the bay and the condenser pallets.
  *
  * Modelled on the ERS recovery line (erektor-return.systems): depth depicts
- * plant, not interface. The plates are ordinary links in the page, positioned
- * each frame by projecting their pad into the view; the canvas takes no input.
+ * plant, not interface. The plates are ordinary links in the page laid out by
+ * CSS; the canvas takes no input. A depth-of-field pass holds the truck sharp
+ * and lets the yard behind it — the forklift working its lane — fall just out
+ * of focus.
  *
  * Every colour but the equipment's is read from the page's Arc Foundry roles
  * at mount — the cones' collars from the surface, the
  * shop from the sunken well, posts, rails and doors from the hard border, fog
- * from the page ground, a lit pad from the action fill — so no colour literal
+ * and sky from the page ground — so no colour literal
  * enters the surface. The truck, condensers and RTUs are assets
  * (public/truck.glb, condenser.glb, rtu.glb) and wear their own paint; the
- * models ship meshopt-compressed (`gltf-transform optimize --compress meshopt
+ * lawn, the roadside grass and the fence-line weeds are textures too
+ * (public/lawn.webp, grass.webp, weeds.webp, drawn by
+ * tools/textures/vegetation.py), so their colour is the asset's. The models ship meshopt-compressed (`gltf-transform optimize --compress meshopt
  * --texture-compress false --simplify false`, textures lossless WebP first) — a
- * raw exporter GLB is ~8x the bytes and ~10x the draw calls; the
- * ground is one too (public/dirt.webp), so its earth is the texture's, not an ink.
+ * raw exporter GLB is ~8x the bytes and ~10x the draw calls. The roads' earth is
+ * a texture as well (public/dirt.webp), not an ink.
  *
  * `[data-live]` goes on the scene root at the truck's first frame; until then,
  * and where WebGL is unavailable, the still poster and the CSS ring stand in.
- * Under `prefers-reduced-motion` nothing turns or drives: one frame is drawn, and
- * redrawn on resize, when a unit arrives, or when a pad lights. The returned
+ * Under `prefers-reduced-motion` nothing drives: one frame is drawn, and
+ * redrawn on resize or when a unit arrives. The returned
  * function stops the loop and releases the GPU context.
  */
 export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
@@ -87,7 +98,8 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   };
 
   const scene = new Scene();
-  scene.fog = new Fog(role("page"), 75, 140);
+  scene.background = role("page");
+  scene.fog = new Fog(role("page"), 90, 190);
   const camera = new PerspectiveCamera(28, 16 / 9, 0.5, 400);
 
   scene.add(new HemisphereLight(undefined, role("border-hard"), 1.1));
@@ -102,28 +114,50 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   fill.position.set(-18, 12, -16);
   scene.add(fill);
 
-  // --- The yard: packed dirt (public/dirt.webp, tiled every 8 m; the hard border stands in until it
-  // arrives).
-  const dirt = mat("border-hard", 1);
-  const yard = new Mesh(new PlaneGeometry(260, 260), dirt);
-  yard.rotation.x = -Math.PI / 2;
-  yard.receiveShadow = true;
-  scene.add(yard);
-  void new TextureLoader().loadAsync("/dirt.webp").then((map) => {
-    if (stopped) return;
-    map.wrapS = map.wrapT = RepeatWrapping;
-    map.repeat.set(32, 32);
-    map.colorSpace = SRGBColorSpace;
-    map.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    dirt.map = map;
-    dirt.color.setScalar(1);
-    dirt.needsUpdate = true;
-    if (still && loaded) draw();
-  }, () => { /* no texture: the ground stays in the hard border */ });
+  // --- The yard: trimmed lawn (public/lawn.webp), with dirt roads (public/dirt.webp) worn through it.
+  // Each texture is tiled in world metres, so the grain matches across every strip; the hard border
+  // and the sunken well stand in until they arrive.
+  const surfaceOf = (url: string, every: number, fallback: string): MeshStandardMaterial => {
+    const m = mat(fallback, 1);
+    void new TextureLoader().loadAsync(url).then((map) => {
+      if (stopped) return;
+      map.wrapS = map.wrapT = RepeatWrapping;
+      map.repeat.set(1 / every, 1 / every);
+      map.colorSpace = SRGBColorSpace;
+      map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      m.map = map;
+      m.color.setScalar(1);
+      m.needsUpdate = true;
+      if (still && loaded) draw();
+    }, () => { /* no texture: the ground stays in its role */ });
+    return m;
+  };
+  const lay = (w: number, d: number, x: number, z: number, y: number, m: MeshStandardMaterial, heading = 0): void => {
+    const g = new PlaneGeometry(w, d);
+    // World-space UVs: one unit of UV per metre, offset by the strip's position.
+    const uv = g.attributes.uv!, pos = g.attributes.position!;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) + x, pos.getY(i) - z);
+    const p = new Mesh(g, m);
+    p.rotation.set(-Math.PI / 2, 0, heading);
+    p.position.set(x, y, z);
+    p.receiveShadow = true;
+    scene.add(p);
+  };
+  lay(260, 260, 0, 0, 0, surfaceOf("/lawn.webp", 6, "border-hard"));
+  const dirt = surfaceOf("/dirt.webp", 8, "surface-sunken");
+  /** The roads, [width, length, x, z, heading]: the drive the truck is parked on, along its length, and the back lane the forklift and the stock use. */
+  const ROADS: readonly (readonly [number, number, number, number, number])[] = [
+    [11, 130, 0, 0, HEADING + ROAD_TURN], [78, 9, -2, -23, 0],
+  ];
+  ROADS.forEach(([w, d, x, z, a], i) => lay(w, d, x, z, 0.004 + i * 0.002, dirt, a));
+  /** World (x, z) to a road's own (across, along), and back. */
+  const toRoad = ([, , rx, rz, a]: (typeof ROADS)[number], x: number, z: number): readonly [number, number] =>
+    [(x - rx) * Math.cos(a) - (z - rz) * Math.sin(a), (x - rx) * Math.sin(a) + (z - rz) * Math.cos(a)];
+  const fromRoad = ([, , rx, rz, a]: (typeof ROADS)[number], u: number, v: number): readonly [number, number] =>
+    [rx + u * Math.cos(a) + v * Math.sin(a), rz - u * Math.sin(a) + v * Math.cos(a)];
   const stripe = mat("surface", 0.8);
   const kerb = mat("border-hard");
-  // The bay's corners, where the cones stand.
-  const bx = PAD_RX + 5, bz = PAD_RZ + 4;
+  const bx = BAY_X, bz = BAY_Z;
 
   // --- The shop along the back: metal walls, roll-up doors, a low-pitch roof.
   const shopZ = -40;
@@ -155,58 +189,33 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     box(2.4, 0.3, 0.8, x + (x < 0 ? 1 : -1), 12, fenceBack + 3, kerb, scene);
   }
 
-  // --- The turntable the truck stands on, and the truck's pivot above it.
-  const table = new Group();
-  scene.add(table);
-  const disc = add(new Mesh(new CylinderGeometry(9.4, 9.5, 0.16, 96), mat("surface-sunken", 0.6)), table);
-  disc.position.y = 0.08;
-  const rim = add(new Mesh(new CylinderGeometry(9.55, 9.55, 0.1, 96, 1, true), kerb), table);
-  rim.position.y = 0.11;
-
-  // --- One pad per plate, in the plates' DOM order, around the same ellipse as the CSS ring.
-  const plates = Array.from(root.querySelectorAll<HTMLElement>(".s1-scene__plate"));
-  const idle = mat("surface", 0.7);
-  const lit = new MeshStandardMaterial({ color: role("action"), roughness: 0.5, emissive: role("action"), emissiveIntensity: 0.25 });
-  const pads = plates.map((plate) => {
-    const a = (parseFloat(getComputedStyle(plate).getPropertyValue("--slot")) * Math.PI) / 180;
-    const x = Math.sin(a) * PAD_RX, z = -Math.cos(a) * PAD_RZ;
-    const pad = new Group();
-    pad.position.set(x, 0, z);
-    scene.add(pad);
-    box(3.6, 0.14, 2.4, 0, 0.07, 0, kerb, pad);
-    const top = box(3.3, 0.04, 2.1, 0, 0.16, 0, idle, pad);
-    return { plate, pad, top };
-  });
-
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let loaded = false;
   let flat = false;
-  const draw = (): void => {
-    renderer.render(scene, camera);
-    const w = canvas.clientWidth, h = canvas.clientHeight;
-    const v = new Vector3();
-    for (const { plate, pad } of pads) {
-      if (flat) { plate.style.removeProperty("--x"); plate.style.removeProperty("--y"); continue; }
-      pad.getWorldPosition(v);
-      v.y += 0.4;
-      v.project(camera);
-      plate.style.setProperty("--x", `${((v.x * 0.5 + 0.5) * w).toFixed(1)}px`);
-      plate.style.setProperty("--y", `${((-v.y * 0.5 + 0.5) * h).toFixed(1)}px`);
-    }
-  };
+  // Depth of field: focused on the truck; the far yard and the forklift soften, the truck never does.
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bokeh = new BokehPass(scene, camera, { focus: 40, aperture: 0.0004, maxblur: 0.006 });
+  composer.addPass(bokeh);
+  composer.addPass(new OutputPass());
+  const draw = (): void => { composer.render(); };
 
-  // Frame the bay, or on a narrow stage the truck alone, from above and slightly to the right.
+  // The truck right of centre, low and close; on a narrow stage the truck alone, centred.
+  const VIEW = new Vector3(0.1, 0.3, 1).normalize();
   const frame = (): void => {
-    const [envW, envH, target] = flat ? [26, 16, new Vector3(0, 2.4, 0)] : [2 * (PAD_RX + 6), 2 * PAD_RZ + 12, new Vector3(0, 0, -4)];
+    const [envW, envH, target] = flat ? [22, 14, new Vector3(0, 3, 0)] : [30, 17, new Vector3(-6, 3.5, 0)];
     const half = Math.tan((camera.fov * Math.PI) / 360);
     const dist = Math.max(envH / (2 * half), envW / camera.aspect / (2 * half));
-    camera.position.copy(target).add(new Vector3(0.12, 0.62, 0.78).normalize().multiplyScalar(dist));
+    camera.position.copy(target).add(VIEW.clone().multiplyScalar(dist));
     camera.lookAt(target);
     camera.updateProjectionMatrix();
+    (bokeh.uniforms as { focus: { value: number } }).focus.value = camera.position.length();
   };
   const fit = (): void => {
     const w = canvas.clientWidth || 1, h = canvas.clientHeight || 1;
     renderer.setSize(w, h, false);
+    composer.setPixelRatio(renderer.getPixelRatio());
+    composer.setSize(w, h);
     camera.aspect = w / h;
     flat = root.clientWidth < FLAT_BELOW_PX;
     frame();
@@ -220,15 +229,6 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   let onScreen = true;
   const io = new IntersectionObserver((entries) => { onScreen = entries.at(-1)?.isIntersecting ?? onScreen; });
   io.observe(canvas);
-
-  // A plate under the pointer or the keyboard lights its pad.
-  const light = (e: Event): void => {
-    const on = e.type === "pointerenter" || e.type === "focusin";
-    const hit = pads.find((p) => p.plate === e.currentTarget);
-    if (hit) hit.top.material = on ? lit : idle;
-    if (still && loaded) draw();
-  };
-  for (const { plate } of pads) for (const t of ["pointerenter", "pointerleave", "focusin", "focusout"]) plate.addEventListener(t, light);
 
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   // Each model loads once and is cloned for every unit that wears it.
@@ -287,19 +287,20 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     add(new Mesh(new CylinderGeometry(0.085, 0.1, 0.1, 24), stripe), c).position.y = 0.4;
   }
 
-  // A dumpster against the shop, and a stack of empty pallets beside the RTUs.
+  // A dumpster against the shop, and a stack of empty pallets beside it.
   const bin = prop(-14, -30.5, 0.05);
   box(1.9, 1.15, 1.2, 0, 0.62, 0, mat("text-muted", 0.6), bin);
   box(1.95, 0.06, 1.25, 0, 1.22, -0.03, black, bin).rotation.x = -0.12;
   for (const x of [-0.8, 0.8]) box(0.1, 0.1, 1.25, x, 0.05, 0, black, bin);
-  const stack = prop(13, -27, -0.2);
+  const stack = prop(-13, -27, 0.2);
   for (let i = 0; i < 6; i++) box(1.2, 0.14, 1.0, (i % 2) * 0.04, 0.07 + i * 0.145, 0, pallet, stack);
 
-  // Tyre ruts down the forklift's lane, and the forklift itself.
+  // Tyre ruts along the forklift's lane across the back of the yard, in front of the condenser pallets, and the forklift itself.
   const rut = new MeshStandardMaterial({ color: role("text"), transparent: true, opacity: 0.22, roughness: 1 });
-  const LANE_X = -25.5, LANE_NEAR = 6, LANE_FAR = -13;
-  for (const dx of [-1.4, 1.4]) paint(0.9, LANE_NEAR - LANE_FAR + 8, LANE_X + dx, (LANE_NEAR + LANE_FAR) / 2, rut);
-  const lift = prop(LANE_X, LANE_NEAR, 0);
+  // It starts on the left and drives right, forks first, to the condenser pallets.
+  const LANE_Z = -21.5, LANE_NEAR = -12, LANE_FAR = 3;
+  for (const dz of [-1.4, 1.4]) paint(LANE_NEAR - LANE_FAR + 8, 0.9, (LANE_NEAR + LANE_FAR) / 2, LANE_Z + dz, rut);
+  const lift = prop(LANE_NEAR, LANE_Z, -Math.PI / 2);
   box(1.1, 0.5, 2.0, 0, 0.5, 0, red, lift);
   box(1.12, 0.75, 0.5, 0, 0.85, 0.85, red, lift);
   box(0.8, 0.35, 0.7, 0, 0.9, 0.2, black, lift);
@@ -319,18 +320,66 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   for (const x of [-0.26, 0.26]) box(0.1, 0.05, 1.1, x, 0.02, -0.58, black, carriage);
   const liftPallet = box(1.1, 0.14, 1.0, 0, 0.12, -0.6, pallet, carriage);
 
-  // One shuttle every 26 s: drive to the condenser pallets, raise, lower, reverse to the bay, wait.
+  // One shuttle every 26 s: drive to the condenser pallets, raise, lower, reverse to the left, wait.
   const SHUTTLE_MS = 26_000;
   const ease = (t: number): number => t * t * (3 - 2 * t);
   const span = (t: number, a: number, b: number): number => ease(Math.min(Math.max((t - a) / (b - a), 0), 1));
   const shuttle = (ms: number): void => {
     const t = (ms % SHUTTLE_MS) / SHUTTLE_MS;
     const out = span(t, 0.04, 0.34), back = span(t, 0.58, 0.9);
-    lift.position.z = LANE_NEAR + (LANE_FAR - LANE_NEAR) * (out - back);
+    lift.position.x = LANE_NEAR + (LANE_FAR - LANE_NEAR) * (out - back);
     carriage.position.y = 0.3 + 1.1 * (span(t, 0.36, 0.45) - span(t, 0.48, 0.56));
     liftPallet.visible = t > 0.47 && t < 0.97;
   };
-  shuttle(0);
+  // Start (and, under reduced motion, rest) at the left end, in view — at the pallets it is behind the truck's cab.
+  const SHUTTLE_FROM = 0;
+  shuttle(SHUTTLE_FROM);
+
+  // Tall weeds along the back — the foot of the shop wall and the fence beside it — and a fringe of uncut grass where the lawn
+  // meets a road: crossed planes, one instanced draw per texture, placed by a seeded walk so every
+  // load (and the poster) grows the same yard.
+  let seed = 14402;
+  const rand = (): number => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
+  const KEEP_CLEAR: readonly (readonly [number, number, number])[] = [
+    [0, 0, 11], [11.75, -23.75, 6], [23, -24, 7], [26.5, -8, 3], [26, 4, 2.5], [-14, -30.5, 3], [-13, -27, 2.5], [-31, -26, 2],
+  ];
+  const onRoad = (x: number, z: number): boolean => ROADS.some((r) => { const [u, v] = toRoad(r, x, z); return Math.abs(u) < r[0] / 2 && Math.abs(v) < r[1] / 2; });
+  const clear = (x: number, z: number): boolean => !onRoad(x, z) && KEEP_CLEAR.every(([cx, cz, r]) => Math.hypot(x - cx, z - cz) > r);
+  const scatter = (n: number, zone: () => readonly [number, number]): (readonly [number, number])[] => {
+    const out: (readonly [number, number])[] = [];
+    for (let tries = 0; out.length < n && tries < n * 20; tries++) {
+      const [x, z] = zone();
+      if (clear(x, z)) out.push([x, z]);
+    }
+    return out;
+  };
+  /** A point just off one edge of a road, on the grass side. */
+  const roadside = (): readonly [number, number] => {
+    const r = ROADS[Math.floor(rand() * ROADS.length)]!;
+    return fromRoad(r, (rand() < 0.5 ? -1 : 1) * (r[0] / 2 + 0.3 + rand() * 0.9), (rand() - 0.5) * r[1]);
+  };
+  const back = (): readonly [number, number] => [(rand() - 0.5) * 90, fenceBack - 1 + rand() * 3];
+  const fence = (side: number) => (): readonly [number, number] => [side * (fenceX - 0.8 - rand() * 2.6), fenceBack + rand() * 20];
+  const tufts = new PlaneGeometry(1, 1).translate(0, 0.5, 0);
+  const crossed = mergeGeometries([tufts, tufts.clone().rotateY(Math.PI / 2)]);
+  const plant = (url: string, spots: readonly (readonly [number, number])[], height: () => number): void => {
+    void new TextureLoader().loadAsync(url).then((map) => {
+      if (stopped) return;
+      map.colorSpace = SRGBColorSpace;
+      const m = new InstancedMesh(crossed, new MeshStandardMaterial({ map, alphaTest: 0.5, side: DoubleSide, roughness: 1 }), spots.length);
+      const at = new Matrix4(), turn = new Quaternion(), size = new Vector3(), where = new Vector3();
+      spots.forEach(([x, z], i) => {
+        const h = height();
+        turn.setFromEuler(new Euler(0, rand() * Math.PI, (rand() - 0.5) * 0.12));
+        m.setMatrixAt(i, at.compose(where.set(x, 0, z), turn, size.set(h * (0.8 + rand() * 0.5), h, h * (0.8 + rand() * 0.5))));
+      });
+      m.receiveShadow = true;
+      scene.add(m);
+      if (still && loaded) draw();
+    }, () => { /* no texture: no vegetation */ });
+  };
+  plant("/grass.webp", scatter(170, roadside), () => 0.5 + rand() * 0.5);
+  plant("/weeds.webp", [...scatter(70, back), ...scatter(20, fence(-1)), ...scatter(20, fence(1))], () => 2.6 + rand() * 2.2);
 
   for (const [url, x, z, heading] of STOCK) {
     void load(url).then((model) => {
@@ -356,12 +405,12 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     truck.scale.setScalar(TRUCK_SCALE);
     const box3 = new Box3().setFromObject(truck);
     const centre = box3.getCenter(new Vector3());
-    // Turn about the truck's own centre, standing on the turntable's deck.
-    truck.position.set(-centre.x, 0.16 - box3.min.y, -centre.z);
+    // Headed about the truck's own centre, wheels on the dirt.
+    truck.position.set(-centre.x, -box3.min.y, -centre.z);
     const pivot = new Group();
-    pivot.rotation.y = REST_ANGLE;
+    pivot.rotation.y = HEADING;
     add(truck, pivot);
-    table.add(pivot);
+    scene.add(pivot);
 
     root.setAttribute("data-live", "");
     loaded = true;
@@ -369,8 +418,7 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     const start = performance.now();
     renderer.setAnimationLoop((now) => {
       if (!onScreen) return;
-      table.rotation.y = -((now - start) / REVOLUTION_MS) * Math.PI * 2;
-      shuttle(now - start);
+      shuttle(now - start + SHUTTLE_FROM);
       draw();
     });
   }, () => { /* no model, no WebGL frame: the poster stays */ });
@@ -380,7 +428,7 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     renderer.setAnimationLoop(null);
     ro.disconnect();
     io.disconnect();
-    for (const { plate } of pads) for (const t of ["pointerenter", "pointerleave", "focusin", "focusout"]) plate.removeEventListener(t, light);
+    composer.dispose();
     renderer.dispose();
   };
 };

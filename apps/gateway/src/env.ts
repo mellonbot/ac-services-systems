@@ -66,6 +66,13 @@ if (!SESSION.site) console.warn(`gateway: AC_SITE not set — development postur
 export const BEHIND_CLOUDFLARE = process.env.AC_BEHIND_CLOUDFLARE === "1";
 
 /**
+ * Production serves only the surfaces in ROLLOUT (packages/contracts/src/surfaces.ts):
+ * no session is minted and no request is taken for any other. Unset everywhere
+ * else, so every enabled surface stays reachable to tests, drives and the demo.
+ */
+export const ROLLOUT_ENFORCED = process.env.AC_ROLLOUT === "1";
+
+/**
  * The doors anyone can knock on, throttled. Per address so one client cannot
  * saturate the event loop or the sessions table.
  *
