@@ -413,4 +413,31 @@ export const handlers: { readonly [K in OperationId]: Handler<K> } = {
   },
 
   "system.health": async () => ({ ok: true, surfaces: Object.values(SURFACES).filter((s) => s.enabled).map((s) => s.id) }),
+
+  /**
+   * Readiness, where /healthz is only liveness. /healthz answers from memory,
+   * so a gateway holding a wrong or missing DATABASE_URL stays green while
+   * every real request fails — which is how the Worker's lost secret went
+   * unseen. This takes a connection and SET LOCAL ROLE ac_gateway (the 0012
+   * grant only the migrating login holds), so it fails for exactly the
+   * logins that would fail in production. The Worker keeps starting the
+   * container on /healthz: a database outage must not stop the gateway
+   * coming up to say so.
+   */
+  "system.ready": async () => {
+    let tx;
+    try {
+      tx = await beginTx(pool, "ac_gateway");
+      await bindSystem(tx);
+      await tx.query("SELECT 1");
+    } catch (e) {
+      // The driver's message names the role or host, never the password; it
+      // goes to the log, and the caller gets only the verdict.
+      console.error(`readyz: ${(e as Error).message}`);
+      throw new HttpError(503, "the gateway cannot reach its database as ac_gateway");
+    } finally {
+      await tx?.rollback().catch(() => {});
+    }
+    return { ok: true, database: "reachable" };
+  },
 };

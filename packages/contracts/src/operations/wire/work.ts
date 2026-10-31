@@ -584,6 +584,8 @@ export type ListReturnsInput = { readonly poId?: string };
 export type ListReturnsOutput = { readonly returns: readonly RmaWire[] };
 
 export type HealthOutput = { readonly ok: true; readonly surfaces: readonly SurfaceId[] };
+/** `/readyz`: the gateway's login reached Postgres and became ac_gateway. A refusal is a 503. */
+export type ReadyOutput = { readonly ok: true; readonly database: "reachable" };
 
 /**
  * A TENANT'S THEME, on the wire.

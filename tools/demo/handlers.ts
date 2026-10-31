@@ -177,6 +177,8 @@ const H: Partial<Record<OperationId, Handler>> = {
     return { metric: i.metric, days, points };
   },
   "system.health": () => ({ ok: true, surfaces: Object.values(SURFACES).filter((s) => s.enabled).map((s) => s.id) }),
+  // The demo's store is in memory, so it is always as ready as it is live.
+  "system.ready": () => ({ ok: true, database: "reachable" }),
   "session.me": async (_i, { p }) => buildContext(p, reader),
   // 0032 — the Account button, on the signed-in demo user's own record.
   "account.me": (_i, { session }) => accountOf(session!.user),
