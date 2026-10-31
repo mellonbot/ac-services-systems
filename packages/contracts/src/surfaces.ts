@@ -268,6 +268,23 @@ export const SURFACE_PATHS: Readonly<Record<SurfaceId, string>> = Object.freeze(
   S8: "/subcontractor",
 });
 
+/**
+ * THE PRODUCTION ROLLOUT — the surfaces published on the live site and served
+ * by the production gateway. A subset of the enabled surfaces, and a separate
+ * list on purpose: `enabled` says a surface is built, tested and admitted by a
+ * gateway anywhere; this says which of them AC staff are using today. Every
+ * other enabled surface keeps its tests and its demo, and is simply not on
+ * acservice.systems.
+ *
+ * First rollout, 2026-10-31: the office (S2), dispatch (S3) and the
+ * technician web fallback (S5). Publishing another surface is one reviewed
+ * line here. The Pages build reads it (tools/ci/build-pages.ts); the gateway
+ * enforces it when AC_ROLLOUT=1 (infra/cloudflare/wrangler.jsonc).
+ */
+export const ROLLOUT: readonly SurfaceId[] = Object.freeze(["S2", "S3", "S5"]);
+
+export const isLive = (id: SurfaceId): boolean => SURFACES[id].enabled && ROLLOUT.includes(id);
+
 export const surfacesInPhase = (phase: Phase): readonly Surface[] =>
   SURFACE_IDS.map((id) => SURFACES[id]).filter((s) => s.phase === phase);
 

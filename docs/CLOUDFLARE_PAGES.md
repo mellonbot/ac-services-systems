@@ -133,19 +133,26 @@ workflow** on `main` to deploy manually.
 
 ## Published routes
 
-| Surface | Path | Sign-in audience |
-| --- | --- | --- |
-| S1 Marketing / lead-gen | `/` | Public |
-| S2 Service Manager | `/service-manager/` | Staff |
-| S3 Dispatch Console | `/dispatch/` | Staff |
-| S4 HQ Ops Dashboard | `/hq/` | Staff |
-| S5 Technician web fallback | `/technician/` | Technicians (device ID required) |
-| S6 Customer Portal | `/customer/` | Customers |
-| S8 Subcontractor Portal | `/subcontractor/` | Subcontractor firms |
+Production publishes only the surfaces in `ROLLOUT`
+(`packages/contracts/src/surfaces.ts`). The first rollout is AC staff only:
 
-Disabled surfaces are not published or linked. S1 provides a directory of the
-enabled portal sign-ins; each portal retains its own authentication flow and
-gateway-enforced scope. `_redirects` serves deep links through the correct
+| Surface | Path | Sign-in audience | Live |
+| --- | --- | --- | --- |
+| S1 Marketing / lead-gen | `/` | Public | no — `/` redirects (302) to `/service-manager/` |
+| S2 Service Manager | `/service-manager/` | Staff | **yes** |
+| S3 Dispatch Console | `/dispatch/` | Staff | **yes** |
+| S4 HQ Ops Dashboard | `/hq/` | Staff | no |
+| S5 Technician web fallback | `/technician/` | Technicians (device ID required) | **yes** |
+| S6 Customer Portal | `/customer/` | Customers | no |
+| S8 Subcontractor Portal | `/subcontractor/` | Subcontractor firms | no |
+
+A surface outside `ROLLOUT` is enabled — built, tested, driven in CI and in the
+demo — but is not published, and the production gateway (`AC_ROLLOUT=1` in
+`infra/cloudflare/wrangler.jsonc`) mints no session and takes no request for
+it: `SurfaceNotLive`, 404. Publishing one is adding its id to `ROLLOUT`; S1
+going live restores `/` and its directory of the live portal sign-ins (and
+needs the WAF rules below first). Each portal retains its own authentication
+flow and gateway-enforced scope. `_redirects` serves deep links through the correct
 surface entry point, and each app's router confines navigation to its mount
 path.
 

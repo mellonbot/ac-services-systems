@@ -91,6 +91,15 @@ export class SurfaceDisabled extends Error {
   }
 }
 
+/** Enabled, but not in the production ROLLOUT — refused only by a gateway started with AC_ROLLOUT=1. */
+export class SurfaceNotLive extends SurfaceDisabled {
+  constructor(surfaceId: SurfaceId) {
+    super(surfaceId);
+    this.message = `${surfaceId} (${SURFACES[surfaceId].name}) is not part of the production rollout. Publishing it is a data change in ROLLOUT (packages/contracts/src/surfaces.ts).`;
+    this.name = "SurfaceNotLive";
+  }
+}
+
 export class RoleDenied extends Error {
   constructor(surfaceId: SurfaceId, roles: readonly string[]) {
     super(`${surfaceId} admits [${SURFACES[surfaceId].roles?.join(", ")}]; principal holds [${roles.join(", ") || "—"}]. Roles are data in the surface registry.`);

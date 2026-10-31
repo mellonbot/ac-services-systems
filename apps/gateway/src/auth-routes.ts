@@ -4,7 +4,7 @@ import { mintToken, verifyToken, principalFromClaims, verifyPasswordAsync, AuthE
 import { buildContext, scopeBinding } from "./context.ts";
 import { SurfaceDisabled } from "./unit-of-work.ts";
 import { cookieToken, sessionCookie } from "./session.ts";
-import { assertSessionLive } from "./open-tx.ts";
+import { assertLive, assertSessionLive } from "./open-tx.ts";
 import { HttpError } from "./http.ts";
 import {
   ANONYMOUS_ACTOR, ANONYMOUS_TTL, SESSION, TOKEN_TTL, keypair, keys, pool, signInAllowed, signInFailed, throttled,
@@ -37,6 +37,7 @@ export const login = async (req: IncomingMessage, body: Partial<OperationIO["aut
       throw new AuthError("invalid credentials", "bad_claims");
     }
     if (!SURFACES[surface].enabled) throw new SurfaceDisabled(surface);
+    assertLive(surface);
     if (SURFACES[surface].namespace !== u.namespace) throw new HttpError(403, `${surface} serves the ${SURFACES[surface].namespace} namespace`);
     // The role check the unit of work makes on every request, made at the door:
     // a login no request on this surface would admit is not given a session.
@@ -167,6 +168,7 @@ const refuseOverSignedInCookie = async (req: IncomingMessage): Promise<void> => 
 };
 
 export const anonymousSession = async (req: IncomingMessage, res: ServerResponse): Promise<OperationIO["auth.anonymousSession"]["output"]> => {
+  assertLive("S1");
   await refuseOverSignedInCookie(req);
   const claims: Omit<Claims, "iat" | "exp" | "sid"> = {
     sub: ANONYMOUS_ACTOR, ns: "anonymous", org: PROSPECT_ORG_ID, region: UNASSIGNED_REGION_ID,
