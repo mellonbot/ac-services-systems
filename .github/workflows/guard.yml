@@ -247,7 +247,8 @@ jobs:
         uses: actions/setup-node@v7
         with: { node-version: 22 }
       # The Worker holds its own copy of DATABASE_URL and the signing key, set once
-      # from a laptop (docs/CLOUDFLARE_PAGES.md, 'The gateway'). Without the key the
+      # from a laptop (docs/CLOUDFLARE_PAGES.md, 'The gateway') — and, while a live
+      # surface takes photos, the R2 bucket's four storage secrets. Without the key the
       # Worker refuses to start the container and the wait below would time out
       # saying nothing. Ask the Worker what it holds, and name what it does not.
       - name: the Worker holds its secrets
@@ -261,10 +262,22 @@ jobs:
             echo "::error::The Worker 'ac-gateway' has no secrets yet. Run the one-time setup in docs/CLOUDFLARE_PAGES.md, 'The gateway'."
             exit 1
           fi
+          required="AC_SIGNING_KEY_PEM DATABASE_URL"
+          # A live surface that writes photos needs the bucket: without it every
+          # wrap-up is refused as storage_not_configured and no job can complete.
+          # Which surfaces those are is the registry's answer, not a list here.
+          photos=$(node -e 'import("./packages/contracts/src/surfaces.ts").then(({ ROLLOUT, SURFACES }) => console.log(ROLLOUT.filter((id) => SURFACES[id].writes.includes("photo")).join(" ")))')
+          if [ -n "$photos" ]; then
+            required="$required AC_STORAGE_ENDPOINT AC_STORAGE_BUCKET AC_STORAGE_KEY_ID AC_STORAGE_SECRET"
+          fi
           missing=0
-          for name in AC_SIGNING_KEY_PEM DATABASE_URL; do
+          for name in $required; do
             if ! grep -q "\"$name\"" <<< "$held"; then
-              echo "::error::$name is not set on the Worker: npx wrangler@4.148.0 secret put $name -c infra/cloudflare/wrangler.jsonc"
+              case "$name" in
+                AC_STORAGE_*) why=" — $photos live and taking photos; see docs/CLOUDFLARE_PAGES.md, 'Photo storage'" ;;
+                *) why="" ;;
+              esac
+              echo "::error::$name is not set on the Worker$why: npx wrangler@4.148.0 secret put $name -c infra/cloudflare/wrangler.jsonc"
               missing=1
             fi
           done
