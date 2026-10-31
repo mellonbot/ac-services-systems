@@ -45,6 +45,7 @@
 - `settlement`
 - `payment`
 - `user`
+- `region`
 
 ## Degraded mode
 

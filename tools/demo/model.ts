@@ -95,9 +95,9 @@ export type Settlement = Mutable<Omit<W.SettlementWire, "lineCount">>;
 export type User = { id: string; email: string; password: string; name: string; principal: Omit<Principal, "sessionId">; surfaces: SurfaceId[]; crewId?: string };
 
 export const REGIONS: Region[] = [
-  { id: REGION_WEST, code: "WEST", name: "West", timezone: "America/Los_Angeles", minCrewDensity: 2, active: true },
-  { id: REGION_MOUNTAIN, code: "MOUNTAIN", name: "Mountain", timezone: "America/Denver", minCrewDensity: 1, active: true },
-  { id: REGION_SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 3, active: true },
+  { id: REGION_WEST, code: "WEST", name: "West", timezone: "America/Los_Angeles", minCrewDensity: 2, active: true, assignable: true },
+  { id: REGION_MOUNTAIN, code: "MOUNTAIN", name: "Mountain", timezone: "America/Denver", minCrewDensity: 1, active: true, assignable: true },
+  { id: REGION_SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 3, active: true, assignable: true },
 ];
 
 export const CEDAR = "b0000000-0000-0000-0000-000000000001";

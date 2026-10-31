@@ -1,4 +1,6 @@
 import type { UnitOfWork } from "../unit-of-work.ts";
+import { refuseUnassigned } from "./regions.ts";
+import { UNASSIGNED_REGION_ID } from "../../../../packages/schema/src/tenancy.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import { admitLocationSupply } from "../../../../packages/domain/src/supply/density.ts";
 import type {
@@ -55,7 +57,7 @@ const ACCOUNT_COLUMNS = "id, tier, name, parent_id, region_id, org_id, customer_
 // ---------------------------------------------------------------------------
 export const listRegions = async (uow: UnitOfWork): Promise<ListRegionsOutput> => {
   const rows = await uow.tx.query<RegionRow>("SELECT id, code, name, timezone, min_crew_density, active FROM regions ORDER BY code");
-  return { regions: rows.map((r) => ({ id: r.id, code: r.code, name: r.name, timezone: r.timezone, minCrewDensity: r.min_crew_density, active: r.active })) };
+  return { regions: rows.map((r) => ({ id: r.id, code: r.code, name: r.name, timezone: r.timezone, minCrewDensity: r.min_crew_density, active: r.active, assignable: r.active && r.id !== UNASSIGNED_REGION_ID })) };
 };
 
 export const listOrganizations = async (uow: UnitOfWork, input: ListOrganizationsInput): Promise<ListOrganizationsOutput> => {
@@ -102,6 +104,7 @@ export const listSites = async (uow: UnitOfWork): Promise<ListSitesOutput> => {
 // Writes
 // ---------------------------------------------------------------------------
 const activeRegion = async (uow: UnitOfWork, regionId: string): Promise<RegionRow> => {
+  refuseUnassigned(regionId);
   const r = (await uow.tx.query<RegionRow>("SELECT id, code, name, timezone, min_crew_density, active FROM regions WHERE id = $1", [regionId]))[0];
   if (!r) throw new InputRefused(`no service region ${regionId}`, "unknown_region");
   if (!r.active) throw new InputRefused(`service region ${r.name} (${r.code}) is not active — a node cannot bind to a region we no longer serve`, "unknown_region");

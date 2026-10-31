@@ -1,3 +1,4 @@
+import { refuseUnassigned } from "./regions.ts";
 import type { UnitOfWork } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import { requireUuid, requireText } from "./jobs.ts";
@@ -112,6 +113,7 @@ export const recordTechnician = async (uow: UnitOfWork, input: RecordTechnicianI
   const role = input.role === undefined ? "technician" : requireRole(input.role);
   const homeAddress = input.homeAddress === undefined ? null : requireAddress(input.homeAddress);
   if (homeAddress && !mayReadAddress(principal)) throw addressRefused();
+  refuseUnassigned(requireUuid(input.homeRegionId, "homeRegionId"));
   const region = (await uow.tx.query<{ id: string; active: boolean; name: string }>("SELECT id, active, name FROM regions WHERE id = $1", [requireUuid(input.homeRegionId, "homeRegionId")]))[0];
   if (!region?.active) throw new InputRefused(`no active service region ${input.homeRegionId}`, "unknown_region");
 

@@ -2,8 +2,30 @@ import type { BillingPath } from "./agreements.ts";
 import type { LeadContact } from "./work.ts";
 
 // ---- C1 wire shapes ----
-export type RegionWire = { readonly id: string; readonly code: string; readonly name: string; readonly timezone: string; readonly minCrewDensity: number; readonly active: boolean };
+export type RegionWire = {
+  readonly id: string; readonly code: string; readonly name: string; readonly timezone: string; readonly minCrewDensity: number; readonly active: boolean;
+  /**
+   * 0039: may a form offer it — active, and not "Unassigned (pre-account)", the structural home of
+   * anonymous principals and pre-account rows. Listed so a row already in it can be named; never a choice.
+   */
+  readonly assignable: boolean;
+};
 export type ListRegionsOutput = { readonly regions: readonly RegionWire[] };
+/** 0039: a region's code goes into every job number opened in it (0030), so it is fixed at creation. */
+export const REGION_CODE = /^[A-Z][A-Z0-9]{1,7}$/;
+export type CreateRegionInput = {
+  /** 2–8 capitals and digits, starting with a letter (REGION_CODE). Unique. */
+  readonly code: string;
+  readonly name: string;
+  /** IANA zone the region's days are counted in. Absent: America/Chicago. */
+  readonly timezone?: string;
+};
+export type CreateRegionOutput = { readonly id: string; readonly eventId: string };
+/** A rename. The code is fixed: it is printed in the job numbers the region has already issued. */
+export type UpdateRegionInput = { readonly regionId: string; readonly name: string };
+export type UpdateRegionOutput = { readonly id: string; readonly eventId: string };
+export type SetRegionActiveInput = { readonly regionId: string; readonly active: boolean };
+export type SetRegionActiveOutput = { readonly id: string; readonly active: boolean; readonly eventId: string };
 
 export type OrganizationKind = "customer" | "subcontractor";
 export type ListOrganizationsInput = { readonly kind?: OrganizationKind };

@@ -24,6 +24,8 @@ export const WRITE_ENTITIES = [
   // 0038: a login — staff or a technician's — made, edited, reset or removed
   // by a principal on S2's People screen (AC Logins remains the fallback).
   "user",
+  // 0039: one of OUR service regions, opened, renamed or closed by a principal.
+  "region",
   // 0024: what an install was sold under, and by whom (its foreman).
   "project",
   // item 9: the site record — what a site is, recorded by the office.

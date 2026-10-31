@@ -1,3 +1,4 @@
+import { refuseUnassigned } from "./regions.ts";
 import type { UnitOfWork } from "../unit-of-work.ts";
 import { lineAmount } from "../../../../packages/domain/src/money/allocate.ts";
 import { iso } from "../sql.ts";
@@ -90,6 +91,7 @@ export const createVendor = async (uow: UnitOfWork, input: CreateVendorInput, ne
   const regionId = requireUuid(input.regionId, "regionId");
   const terms = input.paymentTermsDays === undefined ? 30 : requireInt(input.paymentTermsDays, "paymentTermsDays", 0);
   const email = input.contactEmail === undefined ? null : requireText(input.contactEmail, "contactEmail");
+  refuseUnassigned(regionId);
   const region = (await uow.tx.query<{ id: string; active: boolean; name: string }>("SELECT id, active, name FROM regions WHERE id = $1", [regionId]))[0];
   if (!region || !region.active) throw new InputRefused(`no active service region ${regionId}`, "unknown_region");
   const id = newId();
@@ -117,6 +119,7 @@ export const createReceivingPoint = async (uow: UnitOfWork, input: CreateReceivi
   const a = input.address;
   if (!a || typeof a !== "object") throw new BadInput("address is required — a vendor ships to it");
   requireText(a.line1, "address.line1"); requireText(a.city, "address.city");
+  refuseUnassigned(regionId);
   const region = (await uow.tx.query<{ id: string; active: boolean }>("SELECT id, active FROM regions WHERE id = $1", [regionId]))[0];
   if (!region || !region.active) throw new InputRefused(`no active service region ${regionId}`, "unknown_region");
   const id = newId();

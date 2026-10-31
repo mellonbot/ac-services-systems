@@ -53,6 +53,8 @@ export const TOPICS = [
   "device.registered", "device.shift_granted",
   // 0038: a shift moved later, or ended now. S2's devices screen refetches.
   "device.shift_extended", "device.shift_revoked",
+  // 0039: a region opened, renamed or closed. Every surface reads regions.list fresh.
+  "region.created", "region.updated",
   // 0033: a technician clocked in or out. No subscriber yet — S2's payroll
   // view will be the first; added there rather than in anticipation.
   "shift.punched",

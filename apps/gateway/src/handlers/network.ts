@@ -1,3 +1,4 @@
+import { refuseUnassigned } from "./regions.ts";
 import type { UnitOfWork } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
 import { REQUIRED } from "../../../../packages/domain/src/compliance/gate.ts";
@@ -125,6 +126,7 @@ const loadFirm = async (uow: UnitOfWork, id: string): Promise<FirmRow> => {
 };
 
 const activeRegion = async (uow: UnitOfWork, regionId: string): Promise<{ id: string; code: string; name: string }> => {
+  refuseUnassigned(regionId);
   const r = (await uow.tx.query<{ id: string; code: string; name: string; active: boolean }>("SELECT id, code, name, active FROM regions WHERE id = $1", [regionId]))[0];
   if (!r) throw new InputRefused(`no service region ${regionId}`, "unknown_region");
   if (!r.active) throw new InputRefused(`service region ${r.name} (${r.code}) is not active — nothing is dispatched from a region we no longer serve`, "unknown_region");

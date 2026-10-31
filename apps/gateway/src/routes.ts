@@ -28,6 +28,7 @@ import { createJob, listJobs, listMyJobs, listMyPunches, transitionJob, addJobNo
 import { createProject, listProjects } from "./handlers/projects.ts";
 import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "./handlers/job-detail.ts";
 import { listDevices, registerDevice, grantDeviceShift, listGrants, extendShift, revokeShift } from "./handlers/devices.ts";
+import { createRegion, updateRegion, setRegionActive } from "./handlers/regions.ts";
 import { listPeople, createStaffLogin, createTechnicianLogin, updatePerson, setPersonActive, resetPersonPassword } from "./handlers/people.ts";
 import { createServiceRequest, listServiceRequests, openJobFromRequest } from "./handlers/service-requests.ts";
 import { attachPhoto, getMedia } from "./handlers/photos.ts";
@@ -295,6 +296,10 @@ export const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "people.update": (req, input) => openTx(req, "people.update", "uow", (uow, p, s) => updatePerson(uow, p, s, input)),
   "people.setActive": (req, input) => openTx(req, "people.setActive", "uow", (uow, p, s) => setPersonActive(uow, p, s, input)),
   "people.resetPassword": (req, input) => openTx(req, "people.resetPassword", "uow", (uow, p, s) => resetPersonPassword(uow, p, s, input)),
+  // 0039 — our regions: a principal's, beside People.
+  "regions.create": (req, input) => openTx(req, "regions.create", "uow", (uow, p, s) => createRegion(uow, p, s, input, randomUUID)),
+  "regions.update": (req, input) => openTx(req, "regions.update", "uow", (uow, p, s) => updateRegion(uow, p, s, input)),
+  "regions.setActive": (req, input) => openTx(req, "regions.setActive", "uow", (uow, p, s) => setRegionActive(uow, p, s, input)),
 
   // S5 — what a technician reads before replaying a sync batch, and the replay itself.
   "jobs.mine": onShift("jobs.mine", "read", (uow, p) => listMyJobs(uow, p.shiftId)),

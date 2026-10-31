@@ -1,3 +1,4 @@
+import { refuseUnassigned } from "./regions.ts";
 import type { UnitOfWork } from "../unit-of-work.ts";
 import type { Tx } from "../unit-of-work.ts";
 import { InputRefused, BadInput } from "../refusals.ts";
@@ -46,6 +47,7 @@ const DEVICE_KINDS: readonly DeviceKind[] = ["android_pilot", "yocto_tablet", "w
 export type DeviceWriter = Pick<UnitOfWork, "tx" | "apply">;
 
 const activeRegion = async (uow: DeviceWriter, regionId: string): Promise<{ id: string; code: string; name: string }> => {
+  refuseUnassigned(regionId);
   const r = (await uow.tx.query<{ id: string; code: string; name: string; active: boolean }>("SELECT id, code, name, active FROM regions WHERE id = $1", [regionId]))[0];
   if (!r) throw new InputRefused(`no service region ${regionId}`, "unknown_region");
   if (!r.active) throw new InputRefused(`service region ${r.name} (${r.code}) is not active`, "unknown_region");
