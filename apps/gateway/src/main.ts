@@ -157,7 +157,8 @@ const crewsOnJobOf = async (entityId: string): Promise<{ crew_id: string; firm_i
 // Crew-scoped deliveries wait on a read; chained, so they still go out in the order they came in.
 let crewDeliveries: Promise<void> = Promise.resolve();
 
-await listenEvents(DATABASE_URL, (payload) => {
+// Not awaited: the server listens whether or not Postgres answers, so /readyz can report it.
+void listenEvents(DATABASE_URL, (payload) => {
   let env: { eventId: string; topic: string; entityId: string; regionId: string; orgId: string; occurredAt: string };
   // A malformed NOTIFY payload is dropped, not thrown: this runs inside the
   // listener's callback, where a throw takes the gateway down.
