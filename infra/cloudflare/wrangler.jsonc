@@ -2,12 +2,12 @@
 // (the Dockerfile at the repo root) on api.<AC_SITE>.
 //
 //   npx wrangler@4 deploy -c infra/cloudflare/wrangler.jsonc     ← CI does this on main (needs Docker)
-//   npx wrangler@4 secret put DATABASE_URL        -c infra/cloudflare/wrangler.jsonc
-//   npx wrangler@4 secret put AC_SIGNING_KEY_PEM  -c infra/cloudflare/wrangler.jsonc
 //   npx wrangler@4 tail -c infra/cloudflare/wrangler.jsonc
 //
-// Secrets (never in this file): DATABASE_URL, AC_SIGNING_KEY_PEM; while a live
-// surface takes photos (S5), AC_STORAGE_ENDPOINT, AC_STORAGE_BUCKET, AC_STORAGE_KEY_ID,
+// Secrets are never in this file. They are set on the GitHub 'production'
+// environment and every deploy copies them to the Worker (docs/CLOUDFLARE_PAGES.md,
+// 'The gateway'): DATABASE_URL, AC_SIGNING_KEY_PEM; while a live surface
+// takes photos (S5), AC_STORAGE_ENDPOINT, AC_STORAGE_BUCKET, AC_STORAGE_KEY_ID,
 // AC_STORAGE_SECRET — the R2 bucket, docs/CLOUDFLARE_PAGES.md 'Photo storage'; optional
 // AC_IMAGERY_URL, AC_IMAGERY_ATTRIBUTION (OPEN-S6-IMAGERY); AC_MAPTILER_KEY, which
 // gives S2's home map both its tiles and its address lookup (AC_MAP_TILE_URL and

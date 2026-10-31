@@ -25,7 +25,8 @@ What is still held elsewhere, and why:
   not yet chosen.
 - **storage** — an R2 bucket (`ac-media`) behind `packages/storage`'s key
   scheme. The gateway speaks R2's S3 API (`s3Store`, SigV4 over `node:crypto`),
-  so binding it is a dashboard step plus four Worker secrets —
+  so binding it is a dashboard step plus four secrets on the GitHub
+  `production` environment, which every deploy copies to the Worker —
   `docs/CLOUDFLARE_PAGES.md`, 'Photo storage'. Required while a live surface
   takes photos: `deploy-gateway` fails by name until all four are held.
 - **network** — regions are the shard boundary. A container per region
