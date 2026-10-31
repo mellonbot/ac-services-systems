@@ -62,11 +62,15 @@ rows under its **own** 8-hex-digit UUID prefix (`c0…` s0-shell, `d1…` s1, `d
 `f1…` rollout …), and seeds users with `ON CONFLICT (id) DO UPDATE` — which updates the
 password and **not** the email. Two files on one prefix pass alone and fail together:
 the first creates the row under its email, the second's login is refused (`invalid
-credentials`). Before adding a file, check its prefix is free:
+credentials`). Before adding a file, check its prefix is free — this lists each prefix with
+the **files** that use it (counting occurrences hides a shared prefix):
 
 ```bash
-grep -rhoE '[`"][0-9a-f]{8}-0000-0000-0000-' test/integration/*.ts | sort | uniq -c
+grep -oE '[`"][0-9a-f]{8}-0000-0000-0000-' test/integration/*.ts | tr -d '`"' | sort -u \
+  | awk -F: '{a[$2]=a[$2]" "$1} END{for(k in a) print k a[k]}' | sort
 ```
+
+`d4`, `d6` and `d7` are already shared by two files each; see the **integration-test** skill.
 
 **Emitted files out of date.** `full` regenerates schema and surface frames and fails on any
 diff. Never hand-edit `docs/BRAND.md`, `docs/SURFACES.md` or an emitted frame — change the
