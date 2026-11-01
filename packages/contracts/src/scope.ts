@@ -59,7 +59,7 @@ export type Claims = {
  * Every other principal in this system is resolved by the gateway from a
  * token, and `Principal` above says so: "surfaces never construct this; they
  * receive it." S1 is the exception, and it is an exception because there is
- * nothing to resolve — a visitor to a marketing page has no identity, and a
+ * nothing to resolve — a visitor at the front door has no identity yet, and a
  * round trip to be told so would make the site depend on the gateway to
  * render, which is the one thing the registry's degraded line for S1 says it
  * must not do.

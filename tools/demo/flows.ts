@@ -72,21 +72,11 @@ try {
   await sleep(1500);
   await show("S6 after request", "S6", 700);
 
-  // S1: a lead, then one while the gateway is down, then recovery.
+  // S1: the front door — a dispatcher signs in and lands on the board, already signed in.
   await tab("S1");
-  await nav("S1", "/enquire");
-  const lead = (name: string) => inFrame("S1", `setV(d.getElementById("lead-name"), ${JSON.stringify(name)}); setV(d.getElementById("lead-phone"), "512-555-0199"); d.getElementById("lead-form").requestSubmit();`);
-  await lead("Jordan Reyes");
+  await inFrame("S1", `setV(d.getElementById("email"), "dispatch.south@rankine.demo"); setV(d.getElementById("password"), "demo"); d.getElementById("sign-in-form").requestSubmit();`);
   await sleep(1500);
-  await show("S1 after submit", "S1", 500);
-  await cdp.eval(`document.getElementById("outage").click()`);
-  await nav("S1", "/enquire");
-  await lead("Sam Okafor");
-  await sleep(2000);
-  await show("S1 while down", "S1", 700);
-  await cdp.eval(`document.getElementById("outage").click()`);
-  await sleep(4000);
-  await show("S1 after recovery", "S1", 700);
+  await show("S3 after signing in at S1", "S3", 700);
 
   console.log("--- log", await cdp.eval<string>(`document.getElementById("log").innerText.split("\\n").slice(0, 40).join(" | ")`));
   console.log("errors:", await cdp.eval(`JSON.stringify(window.__demoErrors || [])`));

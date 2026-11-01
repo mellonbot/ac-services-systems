@@ -79,7 +79,7 @@ source and run `pnpm emit` (or `node tools/ci/emit-surfaces.ts`), then commit th
 **Design-system guards.** A colour literal anywhere in a surface (`tools/ci/schema-guard.ts`),
 a fill role setting a word, type under the density floor, or a surface redrawing `packages/ui`
 chrome (`tools/ci/sheet-audit.test.ts`). Fix to the tokens; load the **arc-foundry** skill for
-any visual change, and measure, don't eyeball. A change to `apps/s1-marketing/src/scene.ts`
+any visual change, and measure, don't eyeball. A change to `apps/s1-front-door/src/scene.ts`
 also needs `public/scene-still.webp` re-rendered from the new scene.
 
 **Gateway posture.** Production starts the gateway with `AC_ROLLOUT=1` (only `ROLLOUT`
@@ -115,6 +115,6 @@ branch name. Give it a body: what changes, why, how it was verified.
    `deploy-gateway` is something the user needs to hear, not a success.
 5. Unsubscribe from the PR once it is merged.
 
-What no file can do: the Cloudflare WAF rate-limit rules S1's public form depends on
-(`docs/CLOUDFLARE_PAGES.md`) are dashboard objects. If S1 is in `ROLLOUT`, remind the user
-they must exist.
+What no file can do: the Cloudflare WAF rate-limit rule on S1's sign-in (`POST /auth/sign-in`,
+`docs/CLOUDFLARE_PAGES.md`) is a dashboard object. If S1 is in `ROLLOUT`, remind the user
+it must exist.

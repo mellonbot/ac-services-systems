@@ -1,4 +1,4 @@
-/** The demo gateway keeps the real one's tenancy: per-principal event streams, and S1's writes need an anonymous session. */
+/** The demo gateway keeps the real one's tenancy: per-principal event streams, and S1's front door routes a login as the real one does. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { EventEnvelope } from "../../packages/contracts/src/events.ts";
@@ -30,16 +30,16 @@ test("events: S1 has no stream", () => {
   assert.equal(eventFor("S1", env(AMPED, REGION_SOUTH)), null);
 });
 
-test("S1: a lead without an anonymous session is refused; with one it is taken", async () => {
-  const lead = { method: "POST", url: `${BASE}/s1/leads`, body: JSON.stringify({}) };
-  const bare = await handle({ surface: "S1", ...lead, headers: { authorization: "Bearer made-up" } });
-  assert.notEqual(bare, "offline");
-  assert.equal((bare as { status: number }).status, 401);
-  const s = await handle({ surface: "S1", method: "POST", url: `${BASE}/auth/anonymous`, headers: {} });
-  assert.equal((s as { status: number }).status, 200, JSON.stringify(s));
-  const token = ((s as { body: { token: string } }).body).token;
-  const ok = await handle({ surface: "S1", ...lead, headers: { authorization: `Bearer ${token}` } });
-  assert.notEqual((ok as { status: number }).status, 401, JSON.stringify(ok));
+test("S1: the front door sends a login where it belongs — one surface, or S5 with the device", async () => {
+  const signIn = (body: Record<string, unknown>) => handle({ surface: "S1", method: "POST", url: `${BASE}/auth/sign-in`, headers: {}, body: JSON.stringify(body) });
+  const wrong = await signIn({ email: "dispatch.south@rankine.demo", password: "nope" });
+  assert.equal((wrong as { status: number }).status, 401);
+  const dispatch = await signIn({ email: "dispatch.south@rankine.demo", password: "demo" });
+  assert.deepEqual({ ...(dispatch as { body: object }).body, token: undefined, expiresAt: undefined }, { kind: "signed_in", surface: "S3", path: "/dispatch/", token: undefined, expiresAt: undefined });
+  const tech = await signIn({ email: "tech.south1@rankine.demo", password: "demo" });
+  assert.equal((tech as { status: number }).status, 403, "a technician without a device ID is told to give one");
+  const shift = await signIn({ email: "tech.south1@rankine.demo", password: "demo", hardwareId: "RK-TAB-0042" });
+  assert.equal(((shift as { body: { surface: string } }).body).surface, "S5");
 });
 
 const POOL = "j0000000-0000-0000-0000-000000000005";

@@ -24,6 +24,8 @@ if (!URL_) test("gateway hardening", { skip }, () => {});
 const PORT = 26080 + Math.floor(Math.random() * 1000);
 const LAPTOP = `http://127.0.0.1:${PORT}`;
 const EDGE = `http://127.0.0.1:${PORT + 1}`;
+/** A second off-Cloudflare gateway, spent by the address test alone: its one socket address shares the sign-in count with every other request this file sends LAPTOP. */
+const LAPTOP_SPENT = `http://127.0.0.1:${PORT + 2}`;
 const U = (n: number) => `e2400000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 const PASSWORD = "correct horse battery staple";
 const FIRM = U(40);
@@ -74,6 +76,7 @@ before(async () => {
     VALUES ($1,$2,'portal.h24.example','#0e6a46','{}','{}',$3) ON CONFLICT (host) DO NOTHING`, [INTERNAL_ORG_ID, REGION_SOUTH, U(1)]);
   await spawnGateway(PORT, {});
   await spawnGateway(PORT + 1, { AC_BEHIND_CLOUDFLARE: "1" });
+  await spawnGateway(PORT + 2, {});
 });
 
 after(async () => {
@@ -81,19 +84,26 @@ after(async () => {
   await pool?.end();
 });
 
-const anonymous = (base: string, headers: Record<string, string> = {}) =>
-  fetch(`${base}/auth/anonymous`, { method: "POST", headers: { "x-ac-surface": "S1", ...headers } });
+/**
+ * A sign-in at the front door, from a stranger who knows no email: each try
+ * names a different address, so only the per-ADDRESS door count (120 a minute,
+ * taken before the body is read) can stop it — never the per-email lockout.
+ */
+let knock = 0;
+const knockAtDoor = (base: string, headers: Record<string, string> = {}) =>
+  fetch(`${base}/auth/sign-in`, { method: "POST", headers: { "content-type": "application/json", "x-ac-surface": "S1", ...headers }, body: JSON.stringify({ email: `stranger-${++knock}@h24.test`, password: "guess" }) });
+const DOOR_LIMIT = 120;
 
 test("off Cloudflare, CF-Connecting-IP is the caller's own words: a new one per request does not buy a new allowance", { skip }, async () => {
   const statuses: number[] = [];
-  for (let i = 0; i < 22; i++) statuses.push((await anonymous(LAPTOP, { "cf-connecting-ip": `198.51.100.${i}` })).status);
-  assert.ok(statuses.includes(429), `twenty-two mints from one socket address, each claiming another: ${statuses.join(",")}`);
+  for (let i = 0; i < DOOR_LIMIT + 2; i++) statuses.push((await knockAtDoor(LAPTOP_SPENT, { "cf-connecting-ip": `198.51.100.${i % 250}` })).status);
+  assert.ok(statuses.includes(429), `${DOOR_LIMIT + 2} sign-ins from one socket address, each claiming another: ${[...new Set(statuses)].join(",")}`);
 });
 
 test("behind Cloudflare, CF-Connecting-IP is the client: two clients are counted apart", { skip }, async () => {
-  for (let i = 0; i < 20; i++) assert.equal((await anonymous(EDGE, { "cf-connecting-ip": "203.0.113.1" })).status, 200);
-  assert.equal((await anonymous(EDGE, { "cf-connecting-ip": "203.0.113.1" })).status, 429);
-  assert.equal((await anonymous(EDGE, { "cf-connecting-ip": "203.0.113.2" })).status, 200);
+  for (let i = 0; i < DOOR_LIMIT; i++) assert.equal((await knockAtDoor(EDGE, { "cf-connecting-ip": "203.0.113.1" })).status, 401);
+  assert.equal((await knockAtDoor(EDGE, { "cf-connecting-ip": "203.0.113.1" })).status, 429);
+  assert.equal((await knockAtDoor(EDGE, { "cf-connecting-ip": "203.0.113.2" })).status, 401);
 });
 
 test("ten wrong passwords shut the email from that address only: its owner, signing in from elsewhere, is not locked out", { skip }, async () => {
@@ -129,11 +139,9 @@ test("a door anyone can knock on takes 64 KB, not fourteen megabytes; an oversiz
 
 test("the throttle is taken before the body is read: a spent address is a 429, however large the body it declares", { skip }, async () => {
   const ip = "203.0.113.77";
-  for (let i = 0; i < 20; i++) await anonymous(EDGE, { "cf-connecting-ip": ip });
-  assert.equal((await declare(EDGE, "/s1/leads", 14 * 1024 * 1024, { "cf-connecting-ip": ip })).status, 429);
+  for (let i = 0; i < DOOR_LIMIT; i++) await knockAtDoor(EDGE, { "cf-connecting-ip": ip });
+  assert.equal((await declare(EDGE, "/auth/sign-in", 14 * 1024 * 1024, { "cf-connecting-ip": ip })).status, 429);
 });
-
-const cookieOf = (setCookie: string | null) => (setCookie ?? "").split(";")[0]!;
 
 test("login CSRF: a body that is not said to be JSON is refused — a cross-site text/plain form cannot sign this browser into anyone's session", { skip }, async () => {
   const body = JSON.stringify({ email: "csrf.h24@ac.test", password: PASSWORD, surface: "S2" });
@@ -143,20 +151,6 @@ test("login CSRF: a body that is not said to be JSON is refused — a cross-site
     assert.equal(r.headers.get("set-cookie"), null);
   }
   assert.equal((await fetch(`${LAPTOP}/auth/login`, { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body })).status, 200);
-});
-
-test("the anonymous mint does not replace a signed-in browser's live session; an anonymous or dead cookie is replaced as before", { skip }, async () => {
-  const at = (ip: string) => ({ "cf-connecting-ip": ip });
-  const login = await fetch(`${EDGE}/auth/login`, { method: "POST", headers: { "content-type": "application/json", ...at("203.0.113.89") }, body: JSON.stringify({ email: "csrf.h24@ac.test", password: PASSWORD, surface: "S2" }) });
-  const signedIn = cookieOf(login.headers.get("set-cookie"));
-  const over = await anonymous(EDGE, { ...at("203.0.113.89"), cookie: signedIn });
-  assert.equal(over.status, 403);
-  assert.equal(over.headers.get("set-cookie"), null);
-  assert.equal((await fetch(`${EDGE}/me`, { headers: { cookie: signedIn, "x-ac-surface": "S2" } })).status, 200, "still signed in");
-  const visitor = await anonymous(EDGE, at("203.0.113.90"));
-  assert.equal((await anonymous(EDGE, { ...at("203.0.113.90"), cookie: cookieOf(visitor.headers.get("set-cookie")) })).status, 200);
-  await fetch(`${EDGE}/auth/logout`, { method: "POST", headers: { cookie: signedIn, "x-ac-surface": "S2" } });
-  assert.equal((await anonymous(EDGE, { ...at("203.0.113.91"), cookie: signedIn })).status, 200, "a session that has ended is no session to keep");
 });
 
 test("behind Cloudflare a portal's theme is found by the host the Worker forwards; off it, that header is nobody's word", { skip }, async () => {

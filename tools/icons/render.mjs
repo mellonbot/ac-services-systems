@@ -4,7 +4,7 @@
  *
  *   node tools/icons/render.mjs <rtu|truck> <frames-dir>
  *
- * Models are S1's own (apps/s1-marketing/public/<m>.glb); three.js is S1's
+ * Models are S1's own (apps/s1-front-door/public/<m>.glb); three.js is S1's
  * install, so run `pnpm install` first. Needs playwright-core on the path and
  * a Chromium (PW_CHROMIUM, default /opt/pw-browsers/chromium). compose.sh
  * turns the frames into the favicon.
@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const S1 = path.join(HERE, "../../apps/s1-marketing");
+const S1 = path.join(HERE, "../../apps/s1-front-door");
 const FRAMES = 36;
 const [model, out] = process.argv.slice(2);
 if (!model || !out) { console.error("usage: node tools/icons/render.mjs <rtu|truck> <frames-dir>"); process.exit(2); }

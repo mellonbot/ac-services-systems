@@ -58,13 +58,13 @@ Pin wrangler to the version the workflow uses (`4.148.0`) when reproducing.
 
 `ROLLOUT` in `packages/contracts/src/surfaces.ts` (today `S1, S2, S3, S5`) is the whole
 switch: it publishes the frame on Pages, lets the production gateway mint sessions for it,
-and takes the tape off its plate on S1. Outside `ROLLOUT` a surface is built, tested and
+and lets S1's front door send that surface's logins to it. Outside `ROLLOUT` a surface is built, tested and
 driven but answers `SurfaceNotLive` (404) in production.
 
 Before adding one, confirm in the PR:
 - its sign-in path works for real principals (S6/S7/S8 have no production principals —
   `OPEN-S6-IDP`; `seed-logins` only seeds staff);
-- **S1:** the two WAF rate-limit rules (`/auth/anonymous`, `/s1/leads`) exist on the zone.
+- **S1:** the WAF rate-limit rule on `/auth/sign-in` (the front door) exists on the zone.
   They are dashboard objects, not files — no diff can prove them. Ask the user.
 
 ## Manual workflows (Actions → Run workflow, all against production)

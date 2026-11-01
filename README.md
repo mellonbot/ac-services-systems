@@ -11,7 +11,7 @@ Eight web surfaces. One gateway. One hierarchy. One backbone.
 | What | Status | Principal |
 |------|--------|-----------|
 | Shared shell (S0) | ✅ Built | All |
-| Marketing / Lead-gen (S1) | ✅ Built | Anonymous |
+| Front door (S1) | ✅ Built | Everyone, before sign-in |
 | Service Manager (S2) | ✅ Built | Office |
 | Dispatch Console (S3) | ✅ Built | Dispatcher |
 | HQ Ops Dashboard (S4) | ✅ Built | Leadership (read-only) |
@@ -27,7 +27,7 @@ Eight web surfaces. One gateway. One hierarchy. One backbone.
 ```mermaid
 flowchart TB
     subgraph Surfaces["Surfaces (S1–S8)"]
-        S1["S1 Marketing<br/>Anonymous · Lead-gen"]
+        S1["S1 Front door<br/>Everyone · One sign-in, routed"]
         S2["S2 Service Manager<br/>Office · Hierarchy, Contracts, Network"]
         S3["S3 Dispatch<br/>Board + offline queue"]
         S4["S4 HQ Dashboard<br/>36 metrics, 15-min rollup"]
@@ -78,7 +78,7 @@ sequenceDiagram
 | ID | Name | Who | Key capability | Status |
 |----|------|-----|----------------|--------|
 | **S0** | Shared shell | All | Login, hierarchy context, event subscription, typed refusals | ✅ |
-| **S1** | Marketing / Lead-gen | Anonymous | Durable lead buffer, coverage map, zero-copy ceiling | ✅ |
+| **S1** | Front door | Everyone | One sign-in; the gateway routes each login to its surface (or a choice); zero-copy ceiling | ✅ |
 | **S2** | Service Manager | Office | Hierarchy, agreements (OQ5), network (firms/crews/docs/rates), purchasing | ✅ |
 | **S3** | Dispatch Console | Dispatcher | Board, dispatch, offline-first mutation queue | ✅ |
 | **S4** | HQ Ops Dashboard | Leadership | 36 figures across service, revenue, network, growth (15-min rollup) | ✅ |
@@ -133,7 +133,7 @@ npm run worker                  # outbox, SLA, expiry
 
 ```
 apps/
-  s1-marketing/ … s8-*/   surfaces
+  s1-front-door/ … s8-*/   surfaces
 services/
   gateway/          sole access path (src/auth, src/db, src/http, src/handlers)
   worker/           outbox, SLA, expiry

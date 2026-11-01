@@ -8,7 +8,7 @@ gateway.
 
 | ID | Surface | Block | Phase | Density | Auth scope | Writes |
 |----|---------|-------|-------|---------|-----------|--------|
-| S1 | Marketing / lead-gen | OFC | 1 | `comfort` | none (anonymous) | `lead`, `call_record` |
+| S1 | Front door | OFC | 1 | `comfort` | none — signs a person in and hands them to their surface | — |
 | S2 | Service Manager | OFC | 1 | `console` | role-based, org-wide | `account`, `contract`, `invoice`, `warranty_case`, `part`, `purchase_order`, `lead`, `subcontractor_firm`, `crew`, `crew_credential`, `technician`, `rate_card`, `brand_theme`, `job`, `device`, `device_grant`, `equipment`, `account_contact`, `vendor`, `receiving_point`, `price_decision`, `po_receipt`, `rma_request`, `project`, `settlement`, `payment` |
 | S3 | Dispatch Console | OFC | 1 | `console` | region-scoped | `assignment`, `job_state`, `crew_release`, `escalation`, `job_note`, `job_flag`, `job_update`, `job_message`, `job`, `service_request` |
 | S4 | HQ Ops Dashboard | OFC | 2 | `console` | org-wide READ only | — |

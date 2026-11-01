@@ -41,8 +41,9 @@ const job: FieldJobWire = {
 type Reply = { status: number; body: unknown };
 type SyncHandler = (mutations: readonly SyncMutationWire[]) => Reply;
 
-const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJobWire[]; punches?: readonly ShiftPunchWire[]; wrapUpReply?: (b: Record<string, unknown>) => Reply } = {}) => {
-  let session = false;
+const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJobWire[]; punches?: readonly ShiftPunchWire[]; wrapUpReply?: (b: Record<string, unknown>) => Reply; cookie?: "device" | "staff" } = {}) => {
+  // `cookie`: a session the front door (S1) already minted — a shift's, or a staff member's from another surface.
+  let session = opts.cookie !== undefined;
   const sentMedia: { mutationId: string; kind: string }[] = [];
   const sentWrapUps: Record<string, unknown>[] = [];
   const calls: { path: string; init: Parameters<FetchLike>[1] }[] = [];
@@ -52,7 +53,10 @@ const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJob
     calls.push({ path, init });
     if (path === OPERATIONS["auth.deviceLogin"].path) { session = true; return reply(200, { token: "dev-token", expiresAt: "2026-09-18T18:00:00Z", crewId: CREW, crewLabel: "Crew A1", context: {} }); }
     if (!session) return reply(401, { error: "AuthError", code: "malformed", message: "no session" });
-    if (path === OPERATIONS["session.me"].path) return reply(200, deviceContext);
+    if (path === OPERATIONS["session.me"].path) {
+      if (opts.cookie === "staff") return reply(403, { error: "HttpError", message: "session.me is not served to S5 for a internal principal" });
+      return reply(200, opts.cookie === "device" ? { ...deviceContext, deviceCrew: { id: CREW, label: "Crew A1" } } : deviceContext);
+    }
     if (path === OPERATIONS["jobs.mine"].path) return reply(200, { jobs: opts.jobs ?? [job] });
     // Clocked in by default: a job does not move until the shift clock is in (partner rule, 2026-10-27).
     if (path === OPERATIONS["punches.mine"].path) return reply(200, { punches: opts.punches ?? [{ id: "p-default", kind: "in", at: "1970-01-01T00:00:00.000Z" }] });
@@ -142,13 +146,35 @@ test("CHECKLIST and PART_SOURCES stay inside the schema's own constraints", () =
   assert.deepEqual([...PART_SOURCES].sort(), ["location_stock", "national", "regional_hub", "truck"].sort());
 });
 
-test("boot starts at login with no session to resume — this surface tries no cookie", async () => {
+test("creating the app fetches nothing; with no session to resume, resume() lands on this page's own login, with no refusal shown", async () => {
   const g = fakeGateway();
   const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000 });
   assert.equal(app.phase.value.kind, "login");
-  assert.equal(g.calls.length, 0, "nothing is fetched before a credential is offered");
+  assert.equal(g.calls.length, 0, "nothing is fetched before boot asks");
+  await app.resume();
+  const p = app.phase.value;
+  assert.ok(p.kind === "login" && p.refusal === null && !p.busy, "no session is the normal first visit, not an error");
   assert.match(render(app.view()), /id="login-form"/);
   assert.match(render(app.view()), /name="hardwareId"/);
+});
+
+test("a shift S1's front door signed in resumes by cookie: the crew comes from session.me, and the job list opens", async () => {
+  const g = fakeGateway({ cookie: "device" });
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000 });
+  await app.resume();
+  const p = app.phase.value;
+  assert.equal(p.kind, "ready");
+  if (p.kind !== "ready") return;
+  assert.equal(p.crew.label, "Crew A1");
+  assert.equal(g.calls.some((c) => c.path === OPERATIONS["auth.deviceLogin"].path), false, "no second sign-in");
+  assert.equal(app.router.current.value?.screen, "jobs");
+});
+
+test("a staff member's cookie is not a shift — S5 shows its own login rather than resuming it", async () => {
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: fakeGateway({ cookie: "staff" }).fetch, now: () => 1_000 });
+  await app.resume();
+  const p = app.phase.value;
+  assert.ok(p.kind === "login" && p.refusal === null);
 });
 
 test("a device login carries the crew onto the screen — never onto the principal — and lands on the job list", async () => {

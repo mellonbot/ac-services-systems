@@ -18,7 +18,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, type Plugin } from "esbuild";
-import { SURFACES, type SurfaceId } from "../../packages/contracts/src/index.ts";
+import { SURFACES, SURFACE_PATHS, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { UI_CSS } from "../../packages/ui/src/styles.ts";
 import { badgeSvg } from "../../packages/tokens/src/brand.ts";
 
@@ -52,6 +52,24 @@ const demoEnabled: Plugin = {
   },
 };
 
+/**
+ * S1's way out. The front door sends a signed-in person to their surface with
+ * `location.assign(path)`; a demo frame is a srcdoc, so that would load
+ * nothing. Here the default becomes a message, and the launcher opens that
+ * surface's frame, which resumes the session the demo gateway just minted.
+ */
+const frontDoorExit: Plugin = {
+  name: "demo-front-door-exit",
+  setup(b) {
+    b.onLoad({ filter: /apps[\\/]s1-front-door[\\/]src[\\/]app\.ts$/ }, (args) => {
+      const src = readFileSync(args.path, "utf8");
+      const out = src.replace("((path: string) => opts.window?.location.assign(path))", "((path: string) => (globalThis as any).__acOpen?.(path))");
+      if (out === src) throw new Error("S1's app.ts no longer has the exit the demo patches — update tools/demo/build.ts");
+      return { contents: out, loader: "ts" };
+    });
+  },
+};
+
 const memoryHistory: Plugin = {
   name: "demo-memory-history",
   setup(b) {
@@ -75,6 +93,7 @@ const prelude = (id: SurfaceId) => `(() => {
   const post = (m) => parent.postMessage(Object.assign({ ac: "demo", surface: SURFACE }, m), "*");
   globalThis.__acPath = "/";
   globalThis.__acNavigated = (p) => post({ type: "path", path: p });
+  globalThis.__acOpen = (p) => post({ type: "open", path: p });
   const setValue = (el, v) => {
     const proto = Object.getPrototypeOf(el);
     Object.getOwnPropertyDescriptor(proto, "value").set.call(el, v);
@@ -117,7 +136,7 @@ const bundleSurface = async (id: SurfaceId): Promise<string> => {
   const appDir = join(ROOT, "apps", s.app);
   const r = await build({
     entryPoints: [join(appDir, "src/app.ts")], bundle: true, write: false, format: "iife", platform: "browser", target: "es2022",
-    minify: true, legalComments: "none", logLevel: "silent", plugins: [memoryHistory, demoEnabled],
+    minify: true, legalComments: "none", logLevel: "silent", plugins: [memoryHistory, demoEnabled, frontDoorExit],
     define: { "process.env.NODE_ENV": JSON.stringify("production") },
   });
   const js = r.outputFiles[0]!.text;
@@ -141,7 +160,7 @@ const bundleGateway = async (): Promise<string> => {
 
 const frames: Record<string, string> = {};
 for (const id of BUILT) frames[id] = await bundleSurface(id);
-const surfaces = (Object.keys(SURFACES) as SurfaceId[]).map((id) => ({ id, name: SURFACES[id].name, phase: SURFACES[id].phase, demoOnly: DEMO_ONLY_ENABLED.includes(id), block: SURFACES[id].block, built: BUILT.includes(id), density: SURFACES[id].density, authScope: SURFACES[id].authScope }));
+const surfaces = (Object.keys(SURFACES) as SurfaceId[]).map((id) => ({ id, name: SURFACES[id].name, path: `${SURFACE_PATHS[id]}/`, phase: SURFACES[id].phase, demoOnly: DEMO_ONLY_ENABLED.includes(id), block: SURFACES[id].block, built: BUILT.includes(id), density: SURFACES[id].density, authScope: SURFACES[id].authScope }));
 const tokens = /<style>(:root\{[^<]*\})<\/style>/.exec(readFileSync(join(ROOT, "apps/s2-service-manager/frame.html"), "utf8"))![1]!;
 const badge = badgeSvg(64).replace(/^<svg /, '<svg class="ac-badge-mark__svg" width="36" height="36" aria-hidden="true" ');
 const json = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c");

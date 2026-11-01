@@ -30,7 +30,7 @@ and `--ink` do not exist here.
 
 ## Accents — red on both layers (Rev C)
 
-- **Brand layer** (`--color-brand*`): wordmark, livery, badge, app icon, S1 marketing, a
+- **Brand layer** (`--color-brand*`): wordmark, livery, badge, app icon, S1 (the front door), a
   poster with no state legend. Declared with `stateRamp: false` in the surface registry;
   `tokenCss` resolves brand roles to Ink Black where a state ramp renders.
 - **Instrument layer** (`--color-action*`): every control and highlight on S1–S8, and any

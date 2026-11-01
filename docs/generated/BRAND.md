@@ -20,7 +20,7 @@ gate's 30° and is the instrument accent on every surface.
 | Layer | Where | Resolved by |
 |---|---|---|
 | Instrument — red `#D91F11` | every control and highlight, S1–S8 | the default |
-| Brand — red `#D91F11` | wordmark, livery, badge, S1 marketing | `stateRamp: false` in the surface registry |
+| Brand — red `#D91F11` | wordmark, livery, badge, S1 front door | `stateRamp: false` in the surface registry |
 
 The brand roles keep their surface fence: it is the mechanism a tenant accent
 that fails the gate still falls behind, and the house is held to it.

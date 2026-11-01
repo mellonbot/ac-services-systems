@@ -129,12 +129,13 @@ jobs:
   #           half of firm visibility (test/integration/s8.test.ts is the wire
   #           half), and D12's four writes from the page: enroll, file,
   #           acknowledge, dispute.
-  #   s1    — item 8: the marketing surface, whose principal is nobody. The DOM
-  #           half of the anonymous door (test/integration/s1.test.ts is the
-  #           wire half), and the only place two of its mechanisms can be
-  #           checked at all: the durable buffer surviving a reload, and the
-  #           D7a/OQ6 copy ceiling against the PAINTED page, so a promise
-  #           arriving through a stylesheet fails too.
+  #   s1    — the front door, whose principal is nobody until it signs in. The DOM
+  #           half of auth.signIn (test/integration/s1.test.ts is the wire
+  #           half), and the only place two of its claims can be checked at
+  #           all: the browser actually going where the gateway sends it with
+  #           a cookie the destination accepts, and the D7a/OQ6 copy ceiling
+  #           against the PAINTED page, so a promise arriving through a
+  #           stylesheet fails too.
   #   s3    — the dispatcher's day: New job to the gated door, the lapsed crew
   #           refused with its reason and no Assign, assign, note, release
   #           through the confirm, another region's job not on this board
