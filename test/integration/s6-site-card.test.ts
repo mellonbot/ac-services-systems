@@ -23,8 +23,8 @@ import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
+import { createPool, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
@@ -84,7 +84,7 @@ before(async () => {
   });
   await new Promise<void>((r) => tiles.listen(TILE_PORT, "127.0.0.1", r));
 
-  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
+  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../services/gateway/src/main.ts", import.meta.url))], {
     env: {
       ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test",
       AC_IMAGERY_URL: `http://127.0.0.1:${TILE_PORT}/static?c={lat},{lng}&z={zoom}&s={w}x{h}`, AC_IMAGERY_ATTRIBUTION: "© Stub Tiles",

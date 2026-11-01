@@ -1,0 +1,176 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { createUnitOfWork, isOrgScoped, SurfaceWriteDenied, TenancyMismatch, SurfaceDisabled, WriteRoleDenied, RoleDenied, type Tx } from "./unit-of-work.ts";
+import type { Principal, ScopeBinding } from "../../../../packages/contracts/src/scope.ts";
+
+const fakeTx = () => {
+  const inserted: { table: string; row: Record<string, unknown> }[] = [];
+  let binding: ScopeBinding | null = null;
+  const log: string[] = [];
+  const tx: Tx = {
+    async setLocal(b) { binding = b; log.push("setLocal"); },
+    async query() { log.push("query"); return []; },
+    async insert(table, row) { inserted.push({ table, row }); log.push(`insert:${table}`); },
+    async commit() { log.push("commit"); },
+    async rollback() { log.push("rollback"); },
+  };
+  return { tx, inserted, log, binding: () => binding };
+};
+
+const dispatcher: Principal = {
+  namespace: "internal", subjectId: "u-disp", orgId: "org-internal", regionId: "reg-south", scopeTier: "region", scopeId: "acct-south",
+  roles: ["dispatcher"], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "sess-1",
+};
+const ctx = (surfaceId: "S1" | "S2" | "S3" | "S4" | "S5" | "S6" | "S7" | "S8", p: Principal = dispatcher) => ({
+  surfaceId, principal: p, requestId: "req-1", now: () => new Date("2026-09-14T15:00:00Z"), newId: (() => { let i = 0; return () => `evt-${++i}`; })(),
+});
+
+test("the scope binding is SET LOCAL before anything else — RLS has its inputs from the first statement", async () => {
+  const f = fakeTx();
+  await createUnitOfWork(ctx("S3"), f.tx);
+  assert.equal(f.log[0], "setLocal");
+  assert.equal(f.binding()!["ac.region_id"], "reg-south");
+  assert.equal(f.binding()!["ac.namespace"], "internal");
+  assert.equal(f.binding()!["ac.surface_id"], "S3");
+});
+
+test("audit row and outbox row land in the same transaction, share one event_id, and precede COMMIT", async () => {
+  const f = fakeTx();
+  const uow = await createUnitOfWork(ctx("S3"), f.tx);
+  const id = await uow.apply(
+    { entity: "assignment", entityId: "job-1", action: "assign", topic: "job.assigned", before: null, after: { crew: "c1" }, orgId: "org-amped", regionId: "reg-south" },
+    async (tx) => { await tx.query("INSERT ..."); },
+  );
+  const { eventIds } = await uow.commit();
+  assert.deepEqual(eventIds, [id]);
+  assert.deepEqual(f.log, ["setLocal", "query", "insert:audit_log", "insert:outbox", "commit"]);
+  assert.equal(f.inserted[0]!.row.event_id, id);
+  assert.equal(f.inserted[1]!.row.event_id, id);
+  assert.equal(f.inserted[0]!.row.region_id, "reg-south");
+  assert.equal(f.inserted[1]!.row.region_id, "reg-south");
+});
+
+test("S4 cannot write anything — the empty allowlist enforces itself", async () => {
+  const hq: Principal = { ...dispatcher, scopeTier: "parent", scopeId: "org-internal", roles: ["ops_leadership"] };
+  const f = fakeTx();
+  // Enabled at item 10, so the unit of work opens — S4 reads through it — and
+  // the allowlist, which is empty, refuses the first write of any entity.
+  const uow = await createUnitOfWork(ctx("S4", hq), f.tx);
+  await assert.rejects(
+    uow.apply({ entity: "assignment", entityId: "a-1", action: "reassign", topic: "job.reassigned", before: null, after: {}, orgId: "org-amped", regionId: "reg-south" }, async () => {}),
+    (e: unknown) => e instanceof SurfaceWriteDenied,
+  );
+  assert.equal(f.inserted.length, 0, "nothing was written");
+});
+
+test("a phase-disabled surface opens no unit of work at all", async () => {
+  const f = fakeTx();
+  await assert.rejects(createUnitOfWork(ctx("S7", { ...dispatcher, namespace: "vendor", roles: [] }), f.tx), SurfaceDisabled);
+});
+
+test("a surface writing outside its allowlist is refused with the registry named", async () => {
+  const f = fakeTx();
+  const uow = await createUnitOfWork(ctx("S3"), f.tx);
+  await assert.rejects(
+    uow.apply({ entity: "contract", entityId: "c-1", action: "amend", topic: "contract.amended", before: null, after: {}, orgId: "org-amped", regionId: "reg-south" }, async () => {}),
+    (e: unknown) => e instanceof SurfaceWriteDenied && /surfaces\.ts/.test(e.message),
+  );
+});
+
+test("a region-scoped dispatcher cannot write a row into another region, whatever the payload says", async () => {
+  const f = fakeTx();
+  const uow = await createUnitOfWork(ctx("S3"), f.tx);
+  await assert.rejects(
+    uow.apply({ entity: "assignment", entityId: "j", action: "assign", topic: "job.assigned", before: null, after: {}, orgId: "org-amped", regionId: "reg-west" }, async () => {}),
+    TenancyMismatch,
+  );
+});
+
+test("an org-scoped internal principal may write across regions; a customer principal may not write across orgs", async () => {
+  const ops: Principal = { ...dispatcher, scopeTier: "parent", scopeId: "org-internal", roles: ["ops_leadership"] };
+  const f = fakeTx();
+  const uow = await createUnitOfWork({ ...ctx("S3", ops) }, f.tx);
+  await uow.apply({ entity: "assignment", entityId: "j", action: "assign", topic: "job.assigned", before: null, after: {}, orgId: "org-amped", regionId: "reg-west" }, async () => {});
+
+  const cust: Principal = { ...dispatcher, namespace: "customer", roles: ["payer", "requester"], orgId: "org-amped", scopeTier: "location", scopeId: "acct-boulder", regionId: "reg-mountain" };
+  const g = fakeTx();
+  const u2 = await createUnitOfWork(ctx("S6", cust), g.tx);
+  await assert.rejects(
+    u2.apply({ entity: "service_request", entityId: "sr", action: "open", topic: "job.created", before: null, after: {}, orgId: "org-other", regionId: "reg-mountain" }, async () => {}),
+    TenancyMismatch,
+  );
+  // ...nor, below the parent tier, across our regions: Boulder's manager writes Boulder's region.
+  await assert.rejects(
+    u2.apply({ entity: "service_request", entityId: "sr", action: "open", topic: "service_request.created", before: null, after: {}, orgId: "org-amped", regionId: "reg-west" }, async () => {}),
+    TenancyMismatch,
+  );
+});
+
+test("a parent-tier customer writes into any region its org is served from — the row's region is the site's, not the token's (item 6)", async () => {
+  const exec: Principal = { ...dispatcher, namespace: "customer", roles: ["payer", "requester"], orgId: "org-amped", scopeTier: "parent", scopeId: "org-amped", regionId: "reg-mountain" };
+  const f = fakeTx();
+  const uow = await createUnitOfWork(ctx("S6", exec), f.tx);
+  await uow.apply({ entity: "service_request", entityId: "sr", action: "open", topic: "service_request.created", before: null, after: {}, orgId: "org-amped", regionId: "reg-west" }, async () => {});
+  await assert.rejects(
+    uow.apply({ entity: "service_request", entityId: "sr2", action: "open", topic: "service_request.created", before: null, after: {}, orgId: "org-other", regionId: "reg-west" }, async () => {}),
+    TenancyMismatch,
+    "the org check is not relaxed with it",
+  );
+});
+
+test("a surface serves one namespace: a customer token cannot open the dispatch console's unit of work", async () => {
+  const cust: Principal = { ...dispatcher, namespace: "customer", orgId: "org-amped" };
+  await assert.rejects(createUnitOfWork(ctx("S3", cust), fakeTx().tx), TenancyMismatch);
+});
+
+test("an event with a topic outside the catalogue is refused at emit time", async () => {
+  const f = fakeTx();
+  const uow = await createUnitOfWork(ctx("S3"), f.tx);
+  await assert.rejects(
+    uow.apply({ entity: "assignment", entityId: "j", action: "x", topic: "job.teleported" as never, before: null, after: {}, orgId: "org-amped", regionId: "reg-south" }, async () => {}),
+    /not in the event catalogue/,
+  );
+});
+
+test("a dispatcher's token cannot open the Service Manager's unit of work — roles are registry data", async () => {
+  await assert.rejects(createUnitOfWork(ctx("S2"), fakeTx().tx), /S2 admits/);
+  const om: Principal = { ...dispatcher, roles: ["office_manager"], scopeTier: "parent", scopeId: "org-internal" };
+  await assert.doesNotReject(createUnitOfWork(ctx("S2", om), fakeTx().tx));
+});
+
+test("the interface has no skipAudit, no force, no unscoped write", async () => {
+  const f = fakeTx();
+  const uow = await createUnitOfWork(ctx("S3"), f.tx);
+  assert.deepEqual(Object.keys(uow).sort(), ["apply", "commit", "pending", "rollback", "tx"]);
+});
+
+test("org-scoped writers: parent-tier internal, customer and vendor; a region-bound dispatcher and a firm are not", () => {
+  const p = (namespace: Principal["namespace"], scopeTier: Principal["scopeTier"]) => ({ namespace, scopeTier });
+  assert.equal(isOrgScoped(p("vendor", "parent")), true, "a vendor ships to receiving points in any region");
+  assert.equal(isOrgScoped(p("customer", "parent")), true);
+  assert.equal(isOrgScoped(p("internal", "parent")), true);
+  assert.equal(isOrgScoped(p("internal", "region")), false);
+  assert.equal(isOrgScoped(p("customer", "location")), false);
+  assert.equal(isOrgScoped(p("subcontractor", "parent")), false, "a firm writes in the region it is dispatched from");
+});
+
+test("R6: who pays is not who asks — a payer-only login cannot request service, a requester-only login cannot pay, and one person holding both does everything", async () => {
+  const home = (roles: Principal["roles"]): Principal => ({ ...dispatcher, namespace: "customer", roles, orgId: "org-turner", scopeTier: "parent", scopeId: "org-turner", regionId: "reg-mountain" });
+  const write = async (who: Principal, entity: "service_request" | "payment") => {
+    const uow = await createUnitOfWork(ctx("S6", who), fakeTx().tx);
+    return uow.apply({ entity, entityId: "x", action: "a", topic: "service_request.created", before: null, after: {}, orgId: "org-turner", regionId: "reg-mountain" }, async () => {});
+  };
+  await assert.rejects(write(home(["payer"]), "service_request"), (e: Error) => e instanceof WriteRoleDenied && e instanceof RoleDenied && /written by \[requester\]/.test(e.message));
+  await assert.rejects(write(home(["requester"]), "payment"), WriteRoleDenied);
+  await write(home(["requester"]), "service_request");
+  await write(home(["payer", "requester"]), "service_request");
+  await write(home(["payer", "requester"]), "payment");
+});
+
+test("an org-wide surface (S2, S4) refuses a login scoped to one region, whatever its roles; the region's surface admits it", async () => {
+  const regional: Principal = { ...dispatcher, roles: ["office_manager", "ops_leadership"], scopeTier: "region" };
+  await assert.rejects(createUnitOfWork(ctx("S2", regional), fakeTx().tx), TenancyMismatch);
+  await assert.rejects(createUnitOfWork(ctx("S4", regional), fakeTx().tx), TenancyMismatch);
+  await createUnitOfWork(ctx("S3", regional), fakeTx().tx);
+  await createUnitOfWork(ctx("S2", { ...regional, scopeTier: "parent" }), fakeTx().tx);
+});

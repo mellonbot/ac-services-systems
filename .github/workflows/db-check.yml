@@ -33,7 +33,7 @@ jobs:
         run: |
           node --input-type=module -e '
             import pg from "pg";
-            import { forNodePg } from "./apps/gateway/src/pg-url.ts";
+            import { forNodePg } from "./services/gateway/src/db/pg-url.ts";
             const raw = process.env.DATABASE_URL, url = forNodePg(raw);
             const u = new URL(raw);
             console.log("host", u.hostname, "port", u.port || "(default)", "db", u.pathname, "sslmode", u.searchParams.get("sslmode") ?? "(none)", "sslrootcert", u.searchParams.get("sslrootcert") ?? "(none)", "stripped", raw !== url);

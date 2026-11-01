@@ -73,7 +73,7 @@ grep -oE '[`"][0-9a-f]{8}-0000-0000-0000-' test/integration/*.ts | tr -d '`"' | 
 `d4`, `d6` and `d7` are already shared by two files each; see the **integration-test** skill.
 
 **Emitted files out of date.** `full` regenerates schema and surface frames and fails on any
-diff. Never hand-edit `docs/BRAND.md`, `docs/SURFACES.md` or an emitted frame — change the
+diff. Never hand-edit `docs/generated/BRAND.md`, `docs/generated/SURFACES.md` or an emitted frame — change the
 source and run `pnpm emit` (or `node tools/ci/emit-surfaces.ts`), then commit the result.
 
 **Design-system guards.** A colour literal anywhere in a surface (`tools/ci/schema-guard.ts`),

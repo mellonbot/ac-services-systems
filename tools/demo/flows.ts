@@ -1,6 +1,6 @@
 /** Clicks through the demo's walkthroughs in headless Chromium, across frames, and prints what each surface says back. */
 import { fileURLToPath } from "node:url";
-import { Cdp, findChrome } from "../ci/cdp.ts";
+import { Cdp, findChrome } from "../drive/cdp.ts";
 
 const PAGE = fileURLToPath(new URL("./dist/index.html", import.meta.url));
 const cdp = await Cdp.launch(findChrome()!);

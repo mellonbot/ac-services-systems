@@ -8,7 +8,8 @@ infrastructure decision it gated was taken on 2026-10-13: **Cloudflare**.
 
 - `cloudflare/` — the gateway and the worker as one container behind a Worker
   on `api.acservice.systems` (`wrangler.jsonc`, `worker.mjs`,
-  `entrypoint.mjs`; the image is the `Dockerfile` at the repo root), and the
+  `entrypoint.mjs`; the image is the `Dockerfile` at the repo root — it stays there because the repo root is the
+  build context and `wrangler.jsonc` points at it), and the
   static site on Cloudflare Pages. Deployed by `.github/workflows/guard.yml`
   on `main`. Read `docs/CLOUDFLARE_PAGES.md` first.
 

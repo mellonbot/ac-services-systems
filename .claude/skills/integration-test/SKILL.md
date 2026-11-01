@@ -16,7 +16,7 @@ Local Postgres: the *Local Postgres* block in the **babysit** skill.
 2. `const U = (n) => \`<prefix>-0000-0000-0000-${String(n).padStart(12, "0")}\`` — every id
    this file creates.
 3. `before`: seed with `admin(sql)` (superuser pool), hash passwords with
-   `hashPassword`, then `spawn` `apps/gateway/src/main.ts` on a random port with
+   `hashPassword`, then `spawn` `services/gateway/src/main.ts` on a random port with
    `AC_SITE: "ac.test"` and wait for it. `after`: kill it, end the pool.
 4. Act through the **real client**: `connectShell(...)` from `packages/shell`, then
    `s2.gateway.<sdkMethod>(...)` — the same generated SDK a surface uses.

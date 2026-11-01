@@ -1,5 +1,5 @@
 /**
- * THE DEMO GATEWAY — an in-memory stand-in for apps/gateway, for the clickable
+ * THE DEMO GATEWAY — an in-memory stand-in for services/gateway, for the clickable
  * demo only (tools/demo/build.ts). It answers the same catalogue
  * (packages/contracts/src/operations.ts) with the same wire shapes, so the
  * surfaces it serves are the real bundles, unmodified.
@@ -32,7 +32,7 @@ import {
 } from "../../packages/domain/src/inheritance/admit.ts";
 import {
   buildContext,
-} from "../../apps/gateway/src/context.ts";
+} from "../../services/gateway/src/http/context.ts";
 import {
   MIN,
   HOUR,

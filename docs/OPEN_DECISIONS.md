@@ -132,7 +132,7 @@ ceiling to **zero** and made that a mechanism rather than an intention:
 - `apps/s1-marketing/src/app.test.ts` fails on a rendered page containing a
   response window, a "24/7", a "same-day", a guarantee, an uptime figure or the
   word SLA;
-- `tools/ci/drive-s1.ts` runs the same list against the **painted** page in a
+- `tools/drive/drive-s1.ts` runs the same list against the **painted** page in a
   real browser, so a claim that arrives through a stylesheet fails too.
 
 So a sentence promising a time fails in the commit that adds it, and nobody has

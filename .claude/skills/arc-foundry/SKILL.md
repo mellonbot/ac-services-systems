@@ -14,7 +14,7 @@ out of date. It applies to **every** visual artefact in or for this repo, includ
 
 1. **`packages/tokens/`** is the source of truth, measured by `css.test.ts` and
    `figures.test.ts`. If this file disagrees, the tokens win and this file is the bug.
-2. **`docs/BRAND.md`** is generated from the tokens and lists **every colour value** for both
+2. **`docs/generated/BRAND.md`** is generated from the tokens and lists **every colour value** for both
    grounds. Never hand-edit it; change a token and run `node tools/ci/emit-surfaces.ts`.
 3. This skill outranks the generic design skills. Take method from them, never a colour,
    type, radius or spacing value.
@@ -38,7 +38,7 @@ and `--ink` do not exist here.
 - **The fault is garnet** (`--color-status-breached`), 42° from the red, so red clears the
   gate everywhere.
 
-## Grounds — values in `docs/BRAND.md`
+## Grounds — values in `docs/generated/BRAND.md`
 
 **Light stock** is every surface, including S5 since Rev D. What the tables don't say:
 
@@ -82,7 +82,7 @@ colours come from the arc's blue family, each checked against the gate — never
 
 ## Type
 
-Faces are in `docs/BRAND.md`: Yellowtail (wordmark only, 28px floor, never in an interface),
+Faces are in `docs/generated/BRAND.md`: Yellowtail (wordmark only, 28px floor, never in an interface),
 Plex Sans Condensed (display), Plex Sans (label, text), Plex Mono (instrument).
 
 - **Every number** — timers, job numbers, readings, totals — is Plex Mono with tabular figures.
@@ -130,7 +130,7 @@ Never `all: unset` on a control — it kills `:focus-visible` (E-10, WCAG 2.4.7)
 
 ## Audit before handing over — parse, don't eyeball
 
-- Every hex appears in `docs/BRAND.md`; anything else is an unsanctioned ink.
+- Every hex appears in `docs/generated/BRAND.md`; anything else is an unsanctioned ink.
 - No fill role setting a word; no `--color-action` / `--color-brand` word under 24px.
 - Body ≥4.5:1, marks and rules ≥3:1 against `--color-surface-sunken`, in every ground offered.
 - Every accent ≥30° from every state hue, `isAchromatic` checked first.

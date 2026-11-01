@@ -1,6 +1,6 @@
 ---
 name: browser-drive
-description: Running, debugging or writing a scripted end-to-end browser drive in this repository (tools/ci/drive-*.ts) — a real gateway, a real built surface, Chrome over CDP and a scratch Postgres database. Use when a drive job is red in CI, when a change touches a flow a drive covers, or when a surface claim can only be proven in a browser (offline queue, form replay, degraded mode).
+description: Running, debugging or writing a scripted end-to-end browser drive in this repository (tools/drive/drive-*.ts) — a real gateway, a real built surface, Chrome over CDP and a scratch Postgres database. Use when a drive job is red in CI, when a change touches a flow a drive covers, or when a surface claim can only be proven in a browser (offline queue, form replay, degraded mode).
 ---
 
 # Browser drives
@@ -13,7 +13,7 @@ browser. `drive-s1.ts`'s header is the canonical statement — read it before wr
 
 | npm script | File | Proves |
 |---|---|---|
-| `drive:s1` | `tools/ci/drive-s1.ts` | Site up before the gateway; queued lead survives reload; replay lands one row |
+| `drive:s1` | `tools/drive/drive-s1.ts` | Site up before the gateway; queued lead survives reload; replay lands one row |
 | `drive:s2-c4` | `drive-s2-c4.ts` | S2 contract/rate flow (C4) |
 | `drive:s3` / `drive:s5` | `drive-s3.ts` / `drive-s5.ts` | Dispatch board, technician fallback |
 | `drive:s6` / `drive:s8` | `drive-s6.ts` / `drive-s8.ts` | Customer portal, subcontractor portal |
@@ -30,7 +30,7 @@ Start Postgres as in the **babysit** skill (*Local Postgres*), then:
 DATABASE_URL=postgres://postgres@localhost:55432/postgres npm run drive:s3
 ```
 
-Chromium is preinstalled in cloud sessions; `tools/ci/cdp.ts` `findChrome()` locates it.
+Chromium is preinstalled in cloud sessions; `tools/drive/cdp.ts` `findChrome()` locates it.
 Each drive picks random ports, `CREATE`s `ac_driveN_<run>`, runs `pnpm db:migrate` against
 it, drives, and `DROP ... WITH (FORCE)`s it in `finally`. Set `AC_DRIVE_DB` to keep a fixed
 name while debugging; drop it yourself afterwards.

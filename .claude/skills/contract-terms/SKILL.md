@@ -48,7 +48,7 @@ Re-read `terms.ts` before relying on this table; the file wins.
 | Unknown term / illegal tier | `admitOverride()` + DB trigger `ac_admit_term_override()` reading `term_registry` | `unknown_term`, `illegal_tier` |
 | Value shape | `checkTermValue` in `admitOverride()` | `bad_value` |
 | Two amendments in effect at once | `admitOverride()` + `EXCLUDE USING gist (scope_tier, scope_id, term_key, effective &&)` | `overlap` |
-| Ratchet loosened (child relaxes) | `admitOverride()`, called by `apps/gateway/src/handlers/terms.ts` | `ratchet_loosened` |
+| Ratchet loosened (child relaxes) | `admitOverride()`, called by `services/gateway/src/handlers/terms.ts` | `ratchet_loosened` |
 | Parent tightens over a looser child | `admitOverride()` | `would_orphan_descendants` |
 | No value and no fallback | `resolveTerm()` | `no_value` |
 
@@ -63,7 +63,7 @@ Never edit the mirror.
 
 ## Refusals reach S2 as decisions
 
-`AdmissionRefused` / `ResolutionError` → 422 with `code` (`apps/gateway/src/main.ts`).
+`AdmissionRefused` / `ResolutionError` → 422 with `code` (`services/gateway/src/main.ts`).
 `packages/contracts/src/refusals.ts` `ADMISSION_AXIS` classifies each code:
 
 - **structural** — the row can never be right (`unknown_term`, `illegal_tier`, `bad_value`,

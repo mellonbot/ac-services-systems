@@ -3,7 +3,7 @@ import type { Override, ScopePath } from "../resolve.ts";
 
 /**
  * AMPED FITNESS — the signed MSA hand-modelled, as data. This is the fixture
- * the D2 findings were found against (claude/07_D2_Hierarchy_Findings.md) and
+ * the D2 findings were found against (docs/history/07_D2_Hierarchy_Findings.md) and
  * the one the M2 gate ("a synthetic 50-location parent inherits correctly")
  * extends. Every finding is a row below, and every row below has a test.
  *

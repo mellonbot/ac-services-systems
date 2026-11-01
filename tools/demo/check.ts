@@ -1,7 +1,7 @@
 /** Drives the built demo in headless Chromium: every surface boots, renders, and reports no frame errors. */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { Cdp, findChrome } from "../ci/cdp.ts";
+import { Cdp, findChrome } from "../drive/cdp.ts";
 
 const PAGE = fileURLToPath(new URL("./dist/index.html", import.meta.url));
 const SHOTS = fileURLToPath(new URL("./dist/shots/", import.meta.url));

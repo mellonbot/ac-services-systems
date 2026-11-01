@@ -1,0 +1,9 @@
+# The layers the guards protect: a change here is a reviewed diff on a named file.
+/packages/contracts/   @mellonbot
+/packages/schema/      @mellonbot
+/packages/tokens/      @mellonbot
+/packages/ui/          @mellonbot
+/services/             @mellonbot
+/tools/ci/             @mellonbot
+/infra/                @mellonbot
+/.github/              @mellonbot

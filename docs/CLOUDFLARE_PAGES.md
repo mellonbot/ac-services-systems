@@ -2,7 +2,7 @@
 
 Production is two Cloudflare deployments from one `main` push, in this order:
 
-1. **The gateway** — `apps/gateway` and `apps/worker` as one container
+1. **The gateway** — `services/gateway` and `services/worker` as one container
    (`Dockerfile` at the repo root, PID 1 `infra/cloudflare/entrypoint.mjs`)
    behind a Worker (`infra/cloudflare/worker.mjs`) on
    `https://api.acservice.systems`. The `deploy-gateway` job in
@@ -130,7 +130,7 @@ Each is a 503 from `/readyz`, with the status and S3 error code on a
 Paste the connection string exactly as the provider shows it for psql.
 PlanetScale's ends in `sslmode=verify-full&sslrootcert=system`; the gateway
 reads libpq's `sslrootcert=system` as what node `pg` does by default and
-drops it (`apps/gateway/src/pg-url.ts`). If the gateway container starts
+drops it (`services/gateway/src/db/pg-url.ts`). If the gateway container starts
 and exits, **Actions → db-check → Run workflow** connects to the production
 database with the same library and prints what it sees, naming no secret.
 

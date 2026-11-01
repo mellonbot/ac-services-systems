@@ -33,7 +33,7 @@ import {
 } from "../../packages/domain/src/compliance/gate.ts";
 import {
   type HierarchyReader,
-} from "../../apps/gateway/src/context.ts";
+} from "../../services/gateway/src/http/context.ts";
 import {
   INTERNAL_ORG_ID,
   UNASSIGNED_REGION_ID,
@@ -639,7 +639,7 @@ export const bad = (message: string) => new Refused(400, "BadInput", message);
 // Handlers — one per operation the surfaces call. `p` is null for S1.
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
-// S4 — the rollup's figures, the same definitions as apps/worker/src/rollup.ts,
+// S4 — the rollup's figures, the same definitions as services/worker/src/rollup.ts,
 // evaluated over this gateway's rows. Past days are not stored in the demo, so
 // the trend behind a figure is a steady synthetic history ending at today's value.
 // ---------------------------------------------------------------------------
@@ -726,7 +726,7 @@ export const pastValue = (metric: HqMetricKey, regionId: string, today: number, 
 
 // ---------------------------------------------------------------------------
 // Item 11 — procurement: the office's purchasing (S2) and the vendor's side
-// (S7). Same wire shapes as apps/gateway/src/handlers/procurement.ts; the
+// (S7). Same wire shapes as services/gateway/src/handlers/procurement.ts; the
 // three-way match is the real domain function. A vendor sees its own rows,
 // and an order only once issued — 0011's rules, imitated here by hand.
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 /**
- * AC LOGINS' DATABASE ACCESS OVER THE WIRE — tools/logins-app/src/db.ts against
+ * AC LOGINS' DATABASE ACCESS OVER THE WIRE — external/logins-app/src/db.ts against
  * a spawned gateway and a live PostgreSQL.
  *
  *   DATABASE_URL=postgres://... node --test --test-concurrency=1 test/integration/logins-app.test.ts
@@ -14,15 +14,15 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
+import { createPool, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { GatewayRefusal, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
-import { openDb, attachIdleErrorHandler, failure, LoginsDbError, LOGINS_APP_ACTOR, type LoginsDb } from "../../tools/logins-app/src/db.ts";
-import { kindsOf } from "../../tools/logins-app/src/kinds.ts";
-import { LoginInputError, type Employer } from "../../tools/logins-app/src/rows.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
+import { openDb, attachIdleErrorHandler, failure, LoginsDbError, LOGINS_APP_ACTOR, type LoginsDb } from "../../external/logins-app/src/db.ts";
+import { kindsOf } from "../../external/logins-app/src/kinds.ts";
+import { LoginInputError, type Employer } from "../../external/logins-app/src/rows.ts";
+import { hashPassword } from "../../services/gateway/src/auth/auth.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — the logins app's database access was not verified over the wire";
@@ -80,7 +80,7 @@ before(async () => {
 
   db = await openDb(URL_);
 
-  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
+  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../services/gateway/src/main.ts", import.meta.url))], {
     env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test" }, stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";

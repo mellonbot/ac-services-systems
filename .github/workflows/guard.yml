@@ -50,8 +50,8 @@ jobs:
       # --ignore-scripts: the types are enough; the Electron binary is not fetched.
       - name: AC Logins typechecks
         run: |
-          npm ci --ignore-scripts --prefix tools/logins-app
-          pnpm exec tsc -p tools/logins-app/tsconfig.json
+          npm ci --ignore-scripts --prefix external/logins-app
+          pnpm exec tsc -p external/logins-app/tsconfig.json
       - run: pnpm guard:lint
       # The lint rules' own tests need eslint, so the zero-install guard skips them; they run here.
       - run: node --test tools/eslint-plugin-ac/rules.test.ts
@@ -204,7 +204,7 @@ jobs:
             echo "current=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # The gateway: apps/gateway and apps/worker as one container behind the Worker
+  # The gateway: services/gateway and services/worker as one container behind the Worker
   # on api.acservice.systems (infra/cloudflare/). Migrate the production database,
   # build and push the image, wait for /healthz on the domain. Everything it needs
   # lives on the `production` environment like the Pages deploy below, plus

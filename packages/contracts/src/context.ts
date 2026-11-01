@@ -9,7 +9,7 @@ import type { CustomerSegment } from "./operations.ts";
  * the gateway."
  *
  * Lives in contracts, not in the gateway, because both ends of the wire name
- * it: the gateway builds it (apps/gateway/src/context.ts) and the shell hands
+ * it: the gateway builds it (services/gateway/src/http/context.ts) and the shell hands
  * it to surfaces. A shell that imported the gateway's type would be a shell
  * with a dependency pointing the wrong way.
  */
