@@ -1,9 +1,9 @@
-import { SURFACES, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
-import type { WriteEntity } from "../../../packages/contracts/src/entities.ts";
-import { isTopic, type DomainEvent, type Topic } from "../../../packages/contracts/src/events.ts";
-import type { Principal, ScopeBinding } from "../../../packages/contracts/src/scope.ts";
-import type { AuditEntry } from "../../../packages/audit/src/index.ts";
-import { scopeBinding } from "./context.ts";
+import { SURFACES, type SurfaceId } from "../../../../packages/contracts/src/surfaces.ts";
+import type { WriteEntity } from "../../../../packages/contracts/src/entities.ts";
+import { isTopic, type DomainEvent, type Topic } from "../../../../packages/contracts/src/events.ts";
+import type { Principal, ScopeBinding } from "../../../../packages/contracts/src/scope.ts";
+import type { AuditEntry } from "../../../../packages/audit/src/index.ts";
+import { scopeBinding } from "../http/context.ts";
 
 /**
  * THE UNIT OF WORK — the single object that can change anything.

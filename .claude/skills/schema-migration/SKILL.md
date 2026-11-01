@@ -40,7 +40,7 @@ it). `0035_staff_messages.sql` + `tables/identity.ts` is the reference pair.
    `REVOKE ALL ... FROM ac_gateway, ac_worker, ac_readonly` and back only what the handler
    needs — column-level `UPDATE (col)` where only one column ever changes.
 6. **Refusals carry a code.** A trigger raising `AC422`/`AC403`, or a named constraint, is
-   what `services/gateway/src/refusals.ts` turns into a 422/403 with a stable `code`. Name
+   what `services/gateway/src/http/refusals.ts` turns into a 422/403 with a stable `code`. Name
    constraints deliberately — the name is the wire code. Write messages for a dispatcher.
 7. **Header comment.** Open the file with the boxed `-- 00NN — WHAT CHANGES.` block: the
    decision, who can now do what, and what was *not* widened. Close any `OPEN-*` it settles

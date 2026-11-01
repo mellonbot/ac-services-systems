@@ -1,7 +1,7 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify, randomUUID, scrypt, scryptSync, randomBytes, timingSafeEqual, type KeyObject } from "node:crypto";
-import { NAMESPACES, type Claims, type Principal, type Namespace } from "../../../packages/contracts/src/scope.ts";
-import { TIERS, type Tier } from "../../../packages/contracts/src/tiers.ts";
-import { UNASSIGNED_REGION_ID, PROSPECT_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
+import { NAMESPACES, type Claims, type Principal, type Namespace } from "../../../../packages/contracts/src/scope.ts";
+import { TIERS, type Tier } from "../../../../packages/contracts/src/tiers.ts";
+import { UNASSIGNED_REGION_ID, PROSPECT_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
 
 /**
  * AUTH — B4. Tier claims in the token, hierarchy context resolved at login.

@@ -1,5 +1,5 @@
-import type { UnitOfWork } from "../unit-of-work.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import type { UnitOfWork } from "../db/unit-of-work.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 import { admitLocationSupply } from "../../../../packages/domain/src/supply/density.ts";
 import type {
   ListRegionsOutput, ListOrganizationsInput, ListOrganizationsOutput, CreateOrganizationInput, CreateOrganizationOutput,

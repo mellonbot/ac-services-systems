@@ -1,8 +1,8 @@
-import type { UnitOfWork } from "../unit-of-work.ts";
+import type { UnitOfWork } from "../db/unit-of-work.ts";
 import { evaluate, isRefusal, type Crew, type Credential } from "../../../../packages/domain/src/compliance/gate.ts";
 import { buildAssignment } from "../../../../packages/domain/src/compliance/assignment.ts";
 import type { Refusal } from "../../../../packages/domain/src/compliance/clearance.ts";
-import { InputRefused } from "../refusals.ts";
+import { InputRefused } from "../http/refusals.ts";
 import { requireUuid } from "./jobs.ts";
 import type { CandidateCrewsInput, CandidateCrewsOutput, CandidateCrewWire, CrewKind, JobWorkClass, ReleaseAssignmentInput, ReleaseAssignmentOutput } from "../../../../packages/contracts/src/operations.ts";
 import { crewKindFor } from "../../../../packages/contracts/src/operations.ts";

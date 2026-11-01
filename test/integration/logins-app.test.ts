@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
+import { createPool, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { GatewayRefusal, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
@@ -22,7 +22,7 @@ import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance
 import { openDb, attachIdleErrorHandler, failure, LoginsDbError, LOGINS_APP_ACTOR, type LoginsDb } from "../../external/logins-app/src/db.ts";
 import { kindsOf } from "../../external/logins-app/src/kinds.ts";
 import { LoginInputError, type Employer } from "../../external/logins-app/src/rows.ts";
-import { hashPassword } from "../../services/gateway/src/auth.ts";
+import { hashPassword } from "../../services/gateway/src/auth/auth.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — the logins app's database access was not verified over the wire";

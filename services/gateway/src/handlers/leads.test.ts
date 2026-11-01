@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createUnitOfWork, SurfaceWriteDenied, TenancyMismatch, type Tx } from "../unit-of-work.ts";
+import { createUnitOfWork, SurfaceWriteDenied, TenancyMismatch, type Tx } from "../db/unit-of-work.ts";
 import { submitLead, recordCall, listCoverage, NOTE_MAX } from "./leads.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 import { ANONYMOUS_PRINCIPAL } from "../../../../packages/contracts/src/scope.ts";
 import { PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../../../packages/schema/src/tenancy.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";

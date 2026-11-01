@@ -1,9 +1,9 @@
 import pg from "pg";
-import type { ScopeBinding } from "../../../packages/contracts/src/scope.ts";
+import type { ScopeBinding } from "../../../../packages/contracts/src/scope.ts";
 import type { Tx } from "./unit-of-work.ts";
-import type { HierarchyReader } from "./context.ts";
-import type { Tier } from "../../../packages/contracts/src/tiers.ts";
-import type { CustomerSegment } from "../../../packages/contracts/src/operations.ts";
+import type { HierarchyReader } from "../http/context.ts";
+import type { Tier } from "../../../../packages/contracts/src/tiers.ts";
+import type { CustomerSegment } from "../../../../packages/contracts/src/operations.ts";
 import { forNodePg } from "./pg-url.ts";
 
 /**

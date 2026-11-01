@@ -33,7 +33,7 @@ import {
 } from "../../packages/domain/src/compliance/gate.ts";
 import {
   type HierarchyReader,
-} from "../../services/gateway/src/context.ts";
+} from "../../services/gateway/src/http/context.ts";
 import {
   INTERNAL_ORG_ID,
   UNASSIGNED_REGION_ID,

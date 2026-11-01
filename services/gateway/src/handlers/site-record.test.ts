@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
+import { createUnitOfWork, type Tx } from "../db/unit-of-work.ts";
 import { listEquipment, registerEquipment, listContacts, setContact, listInvoices } from "./site-record.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import { WORK_DONE_STATES } from "../../../../packages/contracts/src/operations.ts";
 

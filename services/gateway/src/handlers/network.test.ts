@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
+import { createUnitOfWork, type Tx } from "../db/unit-of-work.ts";
 import { createFirm, updateFirm, createCrew, recordCredential, verifyCredential, setRateCard, summarizeDocuments, NEXT_FIRM_STATES } from "./network.ts";
 import { createOrganization } from "./hierarchy.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import type { CredentialWire } from "../../../../packages/contracts/src/operations.ts";
 import { multiplierBp, multiplierOf } from "../../../../packages/contracts/src/operations.ts";

@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
+import { createUnitOfWork, type Tx } from "../db/unit-of-work.ts";
 import { assignCrew, candidateCrews, releaseAssignment } from "./assignment.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
 

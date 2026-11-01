@@ -1,4 +1,4 @@
-import { createPool, beginTx, bindSystem, type Pool } from "../../../services/gateway/src/pg-tx.ts";
+import { createPool, beginTx, bindSystem, type Pool } from "../../../services/gateway/src/db/pg-tx.ts";
 import type { ScopeBinding, Role } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import type { CustomerSegment, CrewKind } from "../../../packages/contracts/src/operations.ts";
@@ -6,11 +6,11 @@ import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/
 import type { UserRecord } from "./kinds.ts";
 import { buildUserRow, checkPassword, checkRoles, internalScope, accessChanged, LoginInputError } from "./rows.ts";
 import type { NewLogin, Access, UsersRow, Employer, Unit } from "./rows.ts";
-import { hashPassword } from "../../../services/gateway/src/auth.ts";
+import { hashPassword } from "../../../services/gateway/src/auth/auth.ts";
 import { summarizeDocuments } from "../../../services/gateway/src/handlers/network.ts";
 import type { CredentialWire, DeviceKind } from "../../../packages/contracts/src/operations.ts";
 import { registerDevice, grantDeviceShift, type DeviceWriter } from "../../../services/gateway/src/handlers/devices.ts";
-import { revokeUserSessions } from "../../../services/gateway/src/sessions.ts";
+import { revokeUserSessions } from "../../../services/gateway/src/auth/sessions.ts";
 import { randomUUID } from "node:crypto";
 import { isTopic, type Topic } from "../../../packages/contracts/src/events.ts";
 import { buildCrewRow, buildFirmRows, documentsLabel, normaliseName } from "./companies.ts";

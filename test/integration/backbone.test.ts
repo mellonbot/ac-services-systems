@@ -12,9 +12,9 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { createPool, beginTx, hierarchyReader, type Pool } from "../../services/gateway/src/pg-tx.ts";
-import { createUnitOfWork, type Tx } from "../../services/gateway/src/unit-of-work.ts";
-import { buildContext } from "../../services/gateway/src/context.ts";
+import { createPool, beginTx, hierarchyReader, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
+import { createUnitOfWork, type Tx } from "../../services/gateway/src/db/unit-of-work.ts";
+import { buildContext } from "../../services/gateway/src/http/context.ts";
 import { authorTermOverride, resolvedTermsAt } from "../../services/gateway/src/handlers/terms.ts";
 import { assignCrew } from "../../services/gateway/src/handlers/assignment.ts";
 import { ingestSync } from "../../services/gateway/src/handlers/sync.ts";

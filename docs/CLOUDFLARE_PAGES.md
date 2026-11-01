@@ -130,7 +130,7 @@ Each is a 503 from `/readyz`, with the status and S3 error code on a
 Paste the connection string exactly as the provider shows it for psql.
 PlanetScale's ends in `sslmode=verify-full&sslrootcert=system`; the gateway
 reads libpq's `sslrootcert=system` as what node `pg` does by default and
-drops it (`services/gateway/src/pg-url.ts`). If the gateway container starts
+drops it (`services/gateway/src/db/pg-url.ts`). If the gateway container starts
 and exits, **Actions → db-check → Run workflow** connects to the production
 database with the same library and prints what it sees, naming no secret.
 

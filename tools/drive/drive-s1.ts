@@ -29,7 +29,7 @@ import { createServer, type Server } from "node:http";
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
+import { createPool, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
 import { REGION_SOUTH, REGION_WEST } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 import { Cdp, findChrome } from "./cdp.ts";
 

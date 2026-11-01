@@ -15,8 +15,8 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../services/gateway/src/auth.ts";
+import { createPool, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth/auth.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 
@@ -132,7 +132,7 @@ test("ten wrong passwords and the email is shut for the window from that address
 });
 
 test("the relay parks a row it cannot publish: it is not read again, so it cannot starve the rows behind it", { skip }, async () => {
-  const { beginTx } = await import("../../services/gateway/src/pg-tx.ts");
+  const { beginTx } = await import("../../services/gateway/src/db/pg-tx.ts");
   const { relayOnce, PARKED } = await import("../../services/worker/src/relay.ts");
   const eventId = crypto.randomUUID();
   await admin(`INSERT INTO outbox (event_id, topic, entity, entity_id, payload, actor_id, surface_id, region_id, org_id, attempts)

@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
+import { createUnitOfWork, type Tx } from "../db/unit-of-work.ts";
 import { attachPhoto, getMedia } from "./photos.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 import { PHOTO_MAX_BYTES, PHOTOS_PER_REQUEST, sniffPhoto } from "../../../../packages/contracts/src/operations.ts";
 import type { ObjectStore, StorageKey } from "../../../../packages/storage/src/index.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { RelayTx } from "./relay.ts";
 import { emit, WORKER_ACTOR } from "./sweeps.ts";
 import { createJob } from "../../gateway/src/handlers/jobs.ts";
-import type { UnitOfWork } from "../../gateway/src/unit-of-work.ts";
+import type { UnitOfWork } from "../../gateway/src/db/unit-of-work.ts";
 
 /** How long a quote job's window runs from the day the technician asked for it. */
 export const QUOTE_WINDOW_DAYS = 7;

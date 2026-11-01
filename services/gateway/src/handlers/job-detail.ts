@@ -1,7 +1,7 @@
-import type { UnitOfWork } from "../unit-of-work.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import type { UnitOfWork } from "../db/unit-of-work.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 import { JOB_SELECT, toWire, requireUuid, requireText, jobInScope, type JobRow } from "./jobs.ts";
-import { iso } from "../sql.ts";
+import { iso } from "../db/sql.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import type {
   JobDetailInput, JobDetailOutput, JobConversationInput, JobConversationOutput, JobVisitWire, JobMediaWire, JobNoteWire,

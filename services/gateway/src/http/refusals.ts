@@ -1,4 +1,4 @@
-import type { MissingTerm } from "../../../packages/contracts/src/refusals.ts";
+import type { MissingTerm } from "../../../../packages/contracts/src/refusals.ts";
 
 /**
  * REFUSALS THAT DO NOT COME FROM THE DOMAIN.

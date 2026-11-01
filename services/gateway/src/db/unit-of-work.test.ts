@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createUnitOfWork, isOrgScoped, SurfaceWriteDenied, TenancyMismatch, SurfaceDisabled, WriteRoleDenied, RoleDenied, type Tx } from "./unit-of-work.ts";
-import type { Principal, ScopeBinding } from "../../../packages/contracts/src/scope.ts";
+import type { Principal, ScopeBinding } from "../../../../packages/contracts/src/scope.ts";
 
 const fakeTx = () => {
   const inserted: { table: string; row: Record<string, unknown> }[] = [];

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { IncomingMessage } from "node:http";
 import { allowedOrigins, sessionCookie, clearedCookie, cookieToken, cors, sessionConfigFromEnv } from "./session.ts";
-import { SURFACES, SURFACE_IDS } from "../../../packages/contracts/src/surfaces.ts";
+import { SURFACES, SURFACE_IDS } from "../../../../packages/contracts/src/surfaces.ts";
 
 const prod = sessionConfigFromEnv({ AC_SITE: "ac.example" });
 const dev = sessionConfigFromEnv({ AC_DEV_ORIGINS: "http://localhost:5173, http://localhost:4173" });

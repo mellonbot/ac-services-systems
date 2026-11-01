@@ -1,5 +1,5 @@
 import type { ServerResponse } from "node:http";
-import type { SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
+import type { SurfaceId } from "../../../../packages/contracts/src/surfaces.ts";
 
 /** Sentinel: the handler owns the response and the dispatcher must not write one. */
 export const STREAMING = Symbol("streaming");

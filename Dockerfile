@@ -21,7 +21,7 @@ RUN corepack enable
 
 # The whole workspace: intra-repo imports are relative .ts paths and run under
 # Node's type stripping, so there is no build step and nothing to compile.
-# `pg` is the only runtime dependency (services/gateway/src/pg-tx.ts is the only
+# `pg` is the only runtime dependency (services/gateway/src/db/pg-tx.ts is the only
 # file that imports it). .dockerignore keeps tests, docs and the demo out.
 COPY . .
 RUN pnpm install --frozen-lockfile --prod

@@ -1,4 +1,4 @@
-import type { UnitOfWork } from "../unit-of-work.ts";
+import type { UnitOfWork } from "../db/unit-of-work.ts";
 import type { ManagerOverviewOutput, ManagerWaitStep, CredentialStanding } from "../../../../packages/contracts/src/operations.ts";
 import { UNASSIGNED_REGION_ID } from "../../../../packages/schema/src/tenancy.ts";
 

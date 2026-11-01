@@ -18,7 +18,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createPool, beginTx, type Pool } from "../../services/gateway/src/pg-tx.ts";
+import { createPool, beginTx, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
 import { sweepSlaCascade, sweepCredentialExpiry, workerScope, WORKER_ACTOR } from "../../services/worker/src/sweeps.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";

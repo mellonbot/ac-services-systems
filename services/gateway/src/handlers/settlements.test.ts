@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createUnitOfWork, SurfaceWriteDenied, type Tx } from "../unit-of-work.ts";
+import { createUnitOfWork, SurfaceWriteDenied, type Tx } from "../db/unit-of-work.ts";
 import { acknowledgeSettlement, disputeSettlement, listSettlements, listSettlementLines } from "./settlements.ts";
 import { enrollCrew, retireCrew, submitCredential } from "./network.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 
 /**

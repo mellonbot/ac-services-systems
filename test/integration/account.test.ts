@@ -14,12 +14,12 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
+import { createPool, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { GatewayRefusal, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
-import { hashPassword } from "../../services/gateway/src/auth.ts";
+import { hashPassword } from "../../services/gateway/src/auth/auth.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — the account operations were not verified over the wire";

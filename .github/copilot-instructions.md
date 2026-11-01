@@ -11,7 +11,7 @@
   all surface metadata. The gateway route table and generated SDK derive from
   the operation catalogue.
 - `services/gateway` is the sole access path to data. Only
-  `services/gateway/src/pg-tx.ts` imports the database driver. Surface code must
+  `services/gateway/src/db/pg-tx.ts` imports the database driver. Surface code must
   use `packages/shell`, whose gateway client is the generated SDK; never add
   direct `fetch`, database, or wire-library access in a surface, shell, or UI
   package.

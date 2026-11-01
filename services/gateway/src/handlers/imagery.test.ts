@@ -1,9 +1,9 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
+import { createUnitOfWork, type Tx } from "../db/unit-of-work.ts";
 import { siteImagery, siteImageryRead, siteMapTileRead, coordinatesOf, renderTemplate, imageryConfigFromEnv, clearImageryCache, siteMapTile, mapTileConfigFromEnv, clearMapTileCache, type Fetcher } from "./imagery.ts";
 import { tileOf } from "../../../../packages/contracts/src/operations.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 
 /**

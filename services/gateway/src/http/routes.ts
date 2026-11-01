@@ -1,52 +1,52 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
-import { beginTx, bindSystem, hierarchyReader } from "./pg-tx.ts";
-import { AuthError } from "./auth.ts";
+import { beginTx, bindSystem, hierarchyReader } from "../db/pg-tx.ts";
+import { AuthError } from "../auth/auth.ts";
 import { buildContext, scopeBinding } from "./context.ts";
-import { createUnitOfWork } from "./unit-of-work.ts";
-import { login, deviceLogin, anonymousSession } from "./auth-routes.ts";
-import { assertSessionLive, callerOf, openSelf, openTx, surfaceOf } from "./open-tx.ts";
-import { clearedCookie } from "./session.ts";
+import { createUnitOfWork } from "../db/unit-of-work.ts";
+import { login, deviceLogin, anonymousSession } from "../auth/auth-routes.ts";
+import { assertSessionLive, callerOf, openSelf, openTx, surfaceOf } from "../db/open-tx.ts";
+import { clearedCookie } from "../auth/session.ts";
 import { HttpError } from "./http.ts";
 import { namedOrg, optionalOrg, withCallerOrg } from "./policy.ts";
 import {
   ANONYMOUS_ACTOR, BEHIND_CLOUDFLARE, GEOCODE, IMAGERY, MAP_TILES, SESSION, STORE, pool, signInAllowed, signInFailed,
-} from "./env.ts";
+} from "../env.ts";
 import { SSE_STREAMS_PER_SESSION, SSE_SESSION_RECHECK_MS, STREAMING, sseClients, type SseClient } from "./sse.ts";
-import { authorTermOverride, resolvedTermsAt } from "./handlers/terms.ts";
-import { assignCrew, candidateCrews, releaseAssignment } from "./handlers/assignment.ts";
-import { listRegions, listOrganizations, createOrganization, listAccounts, listSites, createAccount, moveAccount, updateAccount } from "./handlers/hierarchy.ts";
-import { listContracts, createContract, transitionContract, listTermOverrides, termRegister } from "./handlers/contracts.ts";
-import { listTechnicians, recordTechnician, updateTechnician } from "./handlers/technicians.ts";
-import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, listCredentials, recordCredential, verifyCredential, listRateCards, setRateCard, enrollCrew, retireCrew, submitCredential } from "./handlers/network.ts";
-import { listSettlements, listSettlementLines, issueSettlement, acknowledgeSettlement, disputeSettlement } from "./handlers/settlements.ts";
-import { ingestSync } from "./handlers/sync.ts";
-import { setBrandTheme, brandStylesheetFor } from "./handlers/brand.ts";
-import { readMyAccount, updateMyAccount, setMyAvatar, changeMyPassword } from "./handlers/account.ts";
-import { listColleagues, listPending, listRecent, sendStaffMessage, dismissStaffMessage } from "./handlers/messages.ts";
-import { createJob, listJobs, listMyJobs, listMyPunches, transitionJob, addJobNote, setReturnTrip, requireUuid } from "./handlers/jobs.ts";
-import { createProject, listProjects } from "./handlers/projects.ts";
-import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "./handlers/job-detail.ts";
-import { listDevices, registerDevice, grantDeviceShift } from "./handlers/devices.ts";
-import { createServiceRequest, listServiceRequests, openJobFromRequest } from "./handlers/service-requests.ts";
-import { attachPhoto, getMedia } from "./handlers/photos.ts";
-import { attachJobMedia, wrapUpJob } from "./handlers/wrap-up.ts";
-import { createResidential, listLeads, convertLead } from "./handlers/residential.ts";
-import { submitLead, recordCall, listCoverage } from "./handlers/leads.ts";
-import { listEquipment, registerEquipment, listContacts, setContact, listInvoices } from "./handlers/site-record.ts";
-import { listPayments, recordPayment, returnPayment, voidInvoice, paymentWebhook } from "./handlers/payments.ts";
-import { siteImageryRead, siteMapTileRead, locateSiteRead, geocode, locateSiteWrite, runPlan } from "./handlers/imagery.ts";
-import { hqMetrics, hqHistory } from "./handlers/hq.ts";
-import { managerOverview } from "./handlers/manager.ts";
+import { authorTermOverride, resolvedTermsAt } from "../handlers/terms.ts";
+import { assignCrew, candidateCrews, releaseAssignment } from "../handlers/assignment.ts";
+import { listRegions, listOrganizations, createOrganization, listAccounts, listSites, createAccount, moveAccount, updateAccount } from "../handlers/hierarchy.ts";
+import { listContracts, createContract, transitionContract, listTermOverrides, termRegister } from "../handlers/contracts.ts";
+import { listTechnicians, recordTechnician, updateTechnician } from "../handlers/technicians.ts";
+import { listFirms, createFirm, updateFirm, listCrews, createCrew, updateCrew, listCredentials, recordCredential, verifyCredential, listRateCards, setRateCard, enrollCrew, retireCrew, submitCredential } from "../handlers/network.ts";
+import { listSettlements, listSettlementLines, issueSettlement, acknowledgeSettlement, disputeSettlement } from "../handlers/settlements.ts";
+import { ingestSync } from "../handlers/sync.ts";
+import { setBrandTheme, brandStylesheetFor } from "../handlers/brand.ts";
+import { readMyAccount, updateMyAccount, setMyAvatar, changeMyPassword } from "../handlers/account.ts";
+import { listColleagues, listPending, listRecent, sendStaffMessage, dismissStaffMessage } from "../handlers/messages.ts";
+import { createJob, listJobs, listMyJobs, listMyPunches, transitionJob, addJobNote, setReturnTrip, requireUuid } from "../handlers/jobs.ts";
+import { createProject, listProjects } from "../handlers/projects.ts";
+import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "../handlers/job-detail.ts";
+import { listDevices, registerDevice, grantDeviceShift } from "../handlers/devices.ts";
+import { createServiceRequest, listServiceRequests, openJobFromRequest } from "../handlers/service-requests.ts";
+import { attachPhoto, getMedia } from "../handlers/photos.ts";
+import { attachJobMedia, wrapUpJob } from "../handlers/wrap-up.ts";
+import { createResidential, listLeads, convertLead } from "../handlers/residential.ts";
+import { submitLead, recordCall, listCoverage } from "../handlers/leads.ts";
+import { listEquipment, registerEquipment, listContacts, setContact, listInvoices } from "../handlers/site-record.ts";
+import { listPayments, recordPayment, returnPayment, voidInvoice, paymentWebhook } from "../handlers/payments.ts";
+import { siteImageryRead, siteMapTileRead, locateSiteRead, geocode, locateSiteWrite, runPlan } from "../handlers/imagery.ts";
+import { hqMetrics, hqHistory } from "../handlers/hq.ts";
+import { managerOverview } from "../handlers/manager.ts";
 import {
   listVendors, createVendor, listReceivingPoints, createReceivingPoint, listCatalog, addCatalogItem, proposePrice, withdrawPrice, decidePrice,
   listPurchaseOrders, purchaseOrder, createPurchaseOrder, issuePurchaseOrder, cancelPurchaseOrder, acknowledgePurchaseOrder,
   recordShipment, recordReceipt, submitVendorInvoice, listVendorInvoices, requestReturn, respondToReturn, listReturns,
-} from "./handlers/procurement.ts";
-import { SURFACES } from "../../../packages/contracts/src/surfaces.ts";
-import { seesManagerOverview, type OperationId, type OperationIO } from "../../../packages/contracts/src/operations.ts";
-import type { Principal } from "../../../packages/contracts/src/scope.ts";
-import { PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
+} from "../handlers/procurement.ts";
+import { SURFACES } from "../../../../packages/contracts/src/surfaces.ts";
+import { seesManagerOverview, type OperationId, type OperationIO } from "../../../../packages/contracts/src/operations.ts";
+import type { Principal } from "../../../../packages/contracts/src/scope.ts";
+import { PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../../../packages/schema/src/tenancy.ts";
 
 /**
  * THE ROUTE TABLE. One handler per catalogue id. `tools/ci/schema-guard.ts`

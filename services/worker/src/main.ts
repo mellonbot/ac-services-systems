@@ -1,4 +1,4 @@
-import { createPool, beginTx } from "../../gateway/src/pg-tx.ts";
+import { createPool, beginTx } from "../../gateway/src/db/pg-tx.ts";
 import { relayOnce, notifyPublisher } from "./relay.ts";
 import { sweepCredentialExpiry, sweepSlaCascade, workerScope } from "./sweeps.ts";
 import { sweepHqRollup } from "./rollup.ts";

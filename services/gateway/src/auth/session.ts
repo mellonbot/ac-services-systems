@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { SURFACES, SURFACE_IDS } from "../../../packages/contracts/src/surfaces.ts";
+import { SURFACES, SURFACE_IDS } from "../../../../packages/contracts/src/surfaces.ts";
 
 /**
  * THE BROWSER SESSION — a cookie the gateway sets and only the gateway reads.

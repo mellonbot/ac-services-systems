@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
+import { createUnitOfWork, type Tx } from "../db/unit-of-work.ts";
 import { managerOverview } from "./manager.ts";
 import { seesManagerOverview, type Principal } from "../../../../packages/contracts/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";

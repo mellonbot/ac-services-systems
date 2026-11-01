@@ -1,8 +1,8 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
+import { createUnitOfWork, type Tx } from "../db/unit-of-work.ts";
 import { locateSite, locateSiteRead, locateSiteWrite, clearGeocodeCache, addressQuery, geocodeConfigFromEnv, type JsonFetcher } from "./imagery.ts";
-import { InputRefused } from "../refusals.ts";
+import { InputRefused } from "../http/refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 
 /**

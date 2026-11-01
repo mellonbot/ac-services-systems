@@ -1,11 +1,11 @@
 import type { IncomingMessage } from "node:http";
-import { createPool } from "./pg-tx.ts";
-import { generateKeypair, keypairFromPem } from "./auth.ts";
-import { createThrottle } from "./throttle.ts";
-import { sessionConfigFromEnv, allowedOrigins } from "./session.ts";
+import { createPool } from "./db/pg-tx.ts";
+import { generateKeypair, keypairFromPem } from "./auth/auth.ts";
+import { createThrottle } from "./auth/throttle.ts";
+import { sessionConfigFromEnv, allowedOrigins } from "./auth/session.ts";
 import { storeFromEnv } from "../../../packages/storage/src/index.ts";
 import { imageryConfigFromEnv, mapTileConfigFromEnv, geocodeConfigFromEnv } from "./handlers/imagery.ts";
-import { HttpError } from "./http.ts";
+import { HttpError } from "./http/http.ts";
 
 /**
  * Process state for the gateway entry. Importing this opens the pool and

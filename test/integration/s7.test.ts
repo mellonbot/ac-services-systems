@@ -27,11 +27,11 @@ import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../services/gateway/src/auth.ts";
+import { createPool, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import * as proc from "../../services/gateway/src/handlers/procurement.ts";
-import type { UnitOfWork } from "../../services/gateway/src/unit-of-work.ts";
+import type { UnitOfWork } from "../../services/gateway/src/db/unit-of-work.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH, REGION_WEST } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 

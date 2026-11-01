@@ -1,20 +1,20 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { beginTx, bindSystem, hierarchyReader } from "./pg-tx.ts";
+import { beginTx, bindSystem, hierarchyReader } from "../db/pg-tx.ts";
 import { mintToken, verifyToken, principalFromClaims, verifyPasswordAsync, AuthError } from "./auth.ts";
-import { buildContext, scopeBinding } from "./context.ts";
-import { SurfaceDisabled } from "./unit-of-work.ts";
+import { buildContext, scopeBinding } from "../http/context.ts";
+import { SurfaceDisabled } from "../db/unit-of-work.ts";
 import { cookieToken, sessionCookie } from "./session.ts";
-import { assertLive, assertSessionLive } from "./open-tx.ts";
-import { HttpError } from "./http.ts";
+import { assertLive, assertSessionLive } from "../db/open-tx.ts";
+import { HttpError } from "../http/http.ts";
 import {
   ANONYMOUS_ACTOR, ANONYMOUS_TTL, SESSION, TOKEN_TTL, keypair, keys, pool, signInAllowed, signInFailed, throttled,
-} from "./env.ts";
-import { resolveDeviceLogin } from "./handlers/devices.ts";
-import { SURFACES, admits } from "../../../packages/contracts/src/surfaces.ts";
-import type { OperationIO } from "../../../packages/contracts/src/operations.ts";
-import type { Claims, Namespace, Principal } from "../../../packages/contracts/src/scope.ts";
-import type { Tier } from "../../../packages/contracts/src/tiers.ts";
-import { INTERNAL_ORG_ID, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../../packages/schema/src/tenancy.ts";
+} from "../env.ts";
+import { resolveDeviceLogin } from "../handlers/devices.ts";
+import { SURFACES, admits } from "../../../../packages/contracts/src/surfaces.ts";
+import type { OperationIO } from "../../../../packages/contracts/src/operations.ts";
+import type { Claims, Namespace, Principal } from "../../../../packages/contracts/src/scope.ts";
+import type { Tier } from "../../../../packages/contracts/src/tiers.ts";
+import { INTERNAL_ORG_ID, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../../../packages/schema/src/tenancy.ts";
 
 export const login = async (req: IncomingMessage, body: Partial<OperationIO["auth.login"]["input"]>, res: ServerResponse): Promise<OperationIO["auth.login"]["output"]> => {
   const { email, password, surface } = body;

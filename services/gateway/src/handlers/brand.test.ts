@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setBrandTheme, brandStylesheetFor, normaliseHost } from "./brand.ts";
-import { createUnitOfWork, SurfaceWriteDenied, type Tx } from "../unit-of-work.ts";
-import { InputRefused } from "../refusals.ts";
+import { createUnitOfWork, SurfaceWriteDenied, type Tx } from "../db/unit-of-work.ts";
+import { InputRefused } from "../http/refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import { TENANT_SCOPE } from "../../../../packages/tokens/src/index.ts";
 

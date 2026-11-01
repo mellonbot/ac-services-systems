@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { verifyPassword } from "../../../services/gateway/src/auth.ts";
+import { verifyPassword } from "../../../services/gateway/src/auth/auth.ts";
 import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
 import { accessChanged, buildUserRow, checkPassword, checkRoles, internalScope, LoginInputError } from "./rows.ts";
 import type { Access, NewLogin } from "./rows.ts";

@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { Tx } from "../unit-of-work.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
-import { hashPasswordAsync, verifyPasswordAsync } from "../auth.ts";
-import { revokeUserSessions } from "../sessions.ts";
+import type { Tx } from "../db/unit-of-work.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
+import { hashPasswordAsync, verifyPasswordAsync } from "../auth/auth.ts";
+import { revokeUserSessions } from "../auth/sessions.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import type { SurfaceId } from "../../../../packages/contracts/src/surfaces.ts";
 import {

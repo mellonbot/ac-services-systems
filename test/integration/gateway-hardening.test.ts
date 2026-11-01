@@ -12,8 +12,8 @@ import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { request } from "node:http";
-import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../services/gateway/src/auth.ts";
+import { createPool, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth/auth.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 

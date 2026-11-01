@@ -193,7 +193,7 @@ const rel = (p: string) => relative(ROOT, p);
   // string that is not an operation. `handlers` is typed over OperationId, so
   // typecheck says the same; this says it with nothing installed. The table
   // lives in routes.ts; main.ts only dispatches it.
-  const routes = read(join(ROOT, "services/gateway/src/routes.ts"));
+  const routes = read(join(ROOT, "services/gateway/src/http/routes.ts"));
   const handlerBlock = /const handlers[^=]*=\s*\{([\s\S]*?)\n\};/.exec(routes)?.[1] ?? "";
   // Dotted segments, not exactly two: `terms.overrides.list` is as much an
   // operation id as `terms.resolved`. A two-segment pattern here made the
@@ -201,10 +201,10 @@ const rel = (p: string) => relative(ROOT, p);
   // handled operation as unhandled while typecheck disagreed — the guard has
   // to admit every id the catalogue can hold, or it fails honest diffs.
   const handled = [...handlerBlock.matchAll(/^\s{2}"([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+)":/gm)].map((m) => m[1]!);
-  for (const id of ids) if (!handled.includes(id)) fail("catalogue ↔ gateway", `operation ${id} has no handler in services/gateway/src/routes.ts`);
+  for (const id of ids) if (!handled.includes(id)) fail("catalogue ↔ gateway", `operation ${id} has no handler in services/gateway/src/http/routes.ts`);
   for (const h of handled) if (!ids.includes(h)) fail("catalogue ↔ gateway", `gateway handles "${h}", which is not in the operation catalogue`);
   const paths = new Set(ids.map((id) => ops[id]!.path));
-  for (const relPath of ["services/gateway/src/main.ts", "services/gateway/src/routes.ts", "services/gateway/src/auth-routes.ts"]) {
+  for (const relPath of ["services/gateway/src/main.ts", "services/gateway/src/http/routes.ts", "services/gateway/src/auth/auth-routes.ts"]) {
     const src = read(join(ROOT, relPath));
     for (const m of src.matchAll(/["'`](GET|POST|PUT|PATCH|DELETE) \/[^"'`]*["'`]/g))
       fail("catalogue ↔ gateway", `${relPath} keys a route by string ${m[0]} — routes are built from OPERATIONS, not typed`);
@@ -329,8 +329,8 @@ for (const f of files) {
 
   // The driver is importable from exactly one file. Everything else — surfaces,
   // domain, worker, tools — reaches the database through the gateway's Tx.
-  if (importsDriver(src) && r !== "services/gateway/src/pg-tx.ts")
-    fail("gateway is sole access path", `${r} imports a database driver — services/gateway/src/pg-tx.ts is the only door`);
+  if (importsDriver(src) && r !== "services/gateway/src/db/pg-tx.ts")
+    fail("gateway is sole access path", `${r} imports a database driver — services/gateway/src/db/pg-tx.ts is the only door`);
   if (/apps[\\/]s\d/.test(r) && /packages[\\/]schema/.test(src))
     fail("gateway is sole access path", `${r} imports the schema package — a surface owns no data`);
 

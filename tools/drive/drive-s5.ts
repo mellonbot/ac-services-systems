@@ -23,8 +23,8 @@ import { readFileSync, existsSync, writeFileSync, mkdirSync, mkdtempSync, rmSync
 import { tmpdir } from "node:os";
 import { join, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../services/gateway/src/auth.ts";
+import { createPool, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth/auth.ts";
 import { connectShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";

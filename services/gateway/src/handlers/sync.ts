@@ -1,7 +1,7 @@
-import type { UnitOfWork } from "../unit-of-work.ts";
+import type { UnitOfWork } from "../db/unit-of-work.ts";
 import { resolveMutation, type Mutation, type ServerState, type SyncOutcome } from "../../../../packages/domain/src/sync/index.ts";
 import type { Topic } from "../../../../packages/contracts/src/events.ts";
-import { BadInput, InputRefused, dbRefusal } from "../refusals.ts";
+import { BadInput, InputRefused, dbRefusal } from "../http/refusals.ts";
 
 /**
  * S5/tablet → gateway: replay a device's offline log.

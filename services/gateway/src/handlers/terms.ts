@@ -1,10 +1,10 @@
-import type { UnitOfWork } from "../unit-of-work.ts";
-import type { HierarchyContext } from "../context.ts";
+import type { UnitOfWork } from "../db/unit-of-work.ts";
+import type { HierarchyContext } from "../http/context.ts";
 import { admitOverride, type Candidate } from "../../../../packages/domain/src/inheritance/admit.ts";
 import { resolveAll, type Override, type ScopePath } from "../../../../packages/domain/src/inheritance/resolve.ts";
 import { TERM_KEYS } from "../../../../packages/contracts/src/terms.ts";
 import type { Tier } from "../../../../packages/contracts/src/tiers.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 
 /**
  * S2 → gateway: author a term override. The one door through which a

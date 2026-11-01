@@ -87,7 +87,7 @@ export type LeadBuffer = {
 };
 
 /**
- * The unique index's name, as `dbRefusal` reports it (services/gateway/src/refusals.ts
+ * The unique index's name, as `dbRefusal` reports it (services/gateway/src/http/refusals.ts
  * puts the constraint name in `code` for a 23505). A replay that hits it is a
  * replay of something already recorded — success, arriving late.
  */

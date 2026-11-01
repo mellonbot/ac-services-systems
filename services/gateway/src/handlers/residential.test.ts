@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
+import { createUnitOfWork, type Tx } from "../db/unit-of-work.ts";
 import { createResidential, convertLead, listLeads } from "./residential.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
-import type { HierarchyContext } from "../context.ts";
+import type { HierarchyContext } from "../http/context.ts";
 
 /**
  * Residential customers at the handler: what it refuses before anything is

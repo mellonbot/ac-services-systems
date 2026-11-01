@@ -1,5 +1,5 @@
-import type { UnitOfWork } from "../unit-of-work.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import type { UnitOfWork } from "../db/unit-of-work.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 import { TERMS, REQUIRED_AT_ACTIVATION } from "../../../../packages/contracts/src/terms.ts";
 import type { Tier } from "../../../../packages/contracts/src/tiers.ts";
 import type {

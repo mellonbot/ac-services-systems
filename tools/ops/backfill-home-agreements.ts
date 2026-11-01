@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { createPool, beginTx, hierarchyReader } from "../../services/gateway/src/pg-tx.ts";
-import { createUnitOfWork } from "../../services/gateway/src/unit-of-work.ts";
-import { buildContext } from "../../services/gateway/src/context.ts";
+import { createPool, beginTx, hierarchyReader } from "../../services/gateway/src/db/pg-tx.ts";
+import { createUnitOfWork } from "../../services/gateway/src/db/unit-of-work.ts";
+import { buildContext } from "../../services/gateway/src/http/context.ts";
 import { startStandardHomeAgreement } from "../../services/gateway/src/handlers/residential.ts";
 import type { Principal, Tier } from "../../packages/contracts/src/index.ts";
 

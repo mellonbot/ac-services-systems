@@ -1,7 +1,7 @@
-import type { Principal, ScopeBinding } from "../../../packages/contracts/src/scope.ts";
-import type { Tier } from "../../../packages/contracts/src/tiers.ts";
-import type { HierarchyNode, HierarchyContext } from "../../../packages/contracts/src/context.ts";
-import type { CustomerSegment } from "../../../packages/contracts/src/operations.ts";
+import type { Principal, ScopeBinding } from "../../../../packages/contracts/src/scope.ts";
+import type { Tier } from "../../../../packages/contracts/src/tiers.ts";
+import type { HierarchyNode, HierarchyContext } from "../../../../packages/contracts/src/context.ts";
+import type { CustomerSegment } from "../../../../packages/contracts/src/operations.ts";
 
 /**
  * HIERARCHY CONTEXT — resolved at login, not per view.

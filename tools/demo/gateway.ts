@@ -32,7 +32,7 @@ import {
 } from "../../packages/domain/src/inheritance/admit.ts";
 import {
   buildContext,
-} from "../../services/gateway/src/context.ts";
+} from "../../services/gateway/src/http/context.ts";
 import {
   MIN,
   HOUR,

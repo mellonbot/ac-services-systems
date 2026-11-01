@@ -1,15 +1,15 @@
 import type { IncomingMessage } from "node:http";
 import { randomUUID } from "node:crypto";
 import { beginTx, bindSystem } from "./pg-tx.ts";
-import { verifyToken, principalFromClaims, AuthError } from "./auth.ts";
+import { verifyToken, principalFromClaims, AuthError } from "../auth/auth.ts";
 import { createUnitOfWork, SurfaceNotLive, type Tx } from "./unit-of-work.ts";
-import { cookieToken } from "./session.ts";
-import { keys, pool, ROLLOUT_ENFORCED } from "./env.ts";
-import { HttpError } from "./http.ts";
-import type { AccountActor } from "./handlers/account.ts";
-import { SURFACES, isLive, type SurfaceId } from "../../../packages/contracts/src/surfaces.ts";
-import { OPERATIONS, surfacesFor, type OperationId } from "../../../packages/contracts/src/operations.ts";
-import type { Principal } from "../../../packages/contracts/src/scope.ts";
+import { cookieToken } from "../auth/session.ts";
+import { keys, pool, ROLLOUT_ENFORCED } from "../env.ts";
+import { HttpError } from "../http/http.ts";
+import type { AccountActor } from "../handlers/account.ts";
+import { SURFACES, isLive, type SurfaceId } from "../../../../packages/contracts/src/surfaces.ts";
+import { OPERATIONS, surfacesFor, type OperationId } from "../../../../packages/contracts/src/operations.ts";
+import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 
 type Unit = Awaited<ReturnType<typeof createUnitOfWork>>;
 

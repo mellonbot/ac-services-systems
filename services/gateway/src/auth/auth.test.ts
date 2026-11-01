@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeypair, mintToken, verifyToken, principalFromClaims, validateClaims, AuthError, hashPassword, verifyPassword, verifyPasswordAsync } from "./auth.ts";
-import { buildContext, scopeBinding, ScopeResolutionError, type HierarchyReader } from "./context.ts";
-import { PROSPECT_ORG_ID, UNASSIGNED_REGION_ID, INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
-import { ANONYMOUS_PRINCIPAL, ANONYMOUS_PRINCIPAL_IDS, type Claims } from "../../../packages/contracts/src/scope.ts";
+import { buildContext, scopeBinding, ScopeResolutionError, type HierarchyReader } from "../http/context.ts";
+import { PROSPECT_ORG_ID, UNASSIGNED_REGION_ID, INTERNAL_ORG_ID } from "../../../../packages/schema/src/tenancy.ts";
+import { ANONYMOUS_PRINCIPAL, ANONYMOUS_PRINCIPAL_IDS, type Claims } from "../../../../packages/contracts/src/scope.ts";
 
 const kp = generateKeypair("k1");
 const keys = new Map([[kp.kid, kp.publicKey]]);

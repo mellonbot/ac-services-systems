@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createUnitOfWork, type Tx } from "../unit-of-work.ts";
+import { createUnitOfWork, type Tx } from "../db/unit-of-work.ts";
 import { createContract, transitionContract, listTermOverrides, termRegister } from "./contracts.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
 import { admissionAxis } from "../../../../packages/contracts/src/refusals.ts";
 import { TERM_KEYS, REQUIRED_AT_ACTIVATION } from "../../../../packages/contracts/src/terms.ts";

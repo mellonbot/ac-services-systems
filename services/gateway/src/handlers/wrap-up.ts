@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import type { UnitOfWork } from "../unit-of-work.ts";
-import { InputRefused, BadInput } from "../refusals.ts";
+import type { UnitOfWork } from "../db/unit-of-work.ts";
+import { InputRefused, BadInput } from "../http/refusals.ts";
 import { storageKey, type ObjectStore } from "../../../../packages/storage/src/index.ts";
 import {
   PHOTO_MAX_BYTES, JOB_MEDIA_MAX, WRAP_UP_MIN_PHOTOS, QUOTE_MIN_PHOTOS, sniffPhoto, measurementsFault,
