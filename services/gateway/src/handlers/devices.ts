@@ -41,7 +41,7 @@ const requireOneOf = <T extends string>(v: unknown, field: string, legal: readon
 
 const DEVICE_KINDS: readonly DeviceKind[] = ["android_pilot", "yocto_tablet", "web_fallback"];
 
-/** What the two writes below use of a unit of work. The logins app drives them through its own transaction (tools/logins-app/src/db.ts). */
+/** What the two writes below use of a unit of work. The logins app drives them through its own transaction (external/logins-app/src/db.ts). */
 export type DeviceWriter = Pick<UnitOfWork, "tx" | "apply">;
 
 const activeRegion = async (uow: DeviceWriter, regionId: string): Promise<{ id: string; code: string; name: string }> => {

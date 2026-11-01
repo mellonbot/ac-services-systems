@@ -3,5 +3,4 @@ packages:
   - "services/*"
   - "packages/*"
   - "tools/*"
-  # Electron app with its own npm install and lockfile; not part of the workspace.
-  - "!tools/logins-app"
+  # external/ (the Electron logins app, own npm install and lockfile) is deliberately not a workspace.

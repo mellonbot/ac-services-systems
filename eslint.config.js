@@ -57,7 +57,7 @@ export default tseslint.config(
   },
   {
     // Electron loads this smoke script as CommonJS; require() is how it imports.
-    files: ["tools/logins-app/**/*.cjs"],
+    files: ["external/logins-app/**/*.cjs"],
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
   {

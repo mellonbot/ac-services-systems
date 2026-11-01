@@ -1,5 +1,5 @@
 /**
- * AC LOGINS' DATABASE ACCESS OVER THE WIRE — tools/logins-app/src/db.ts against
+ * AC LOGINS' DATABASE ACCESS OVER THE WIRE — external/logins-app/src/db.ts against
  * a spawned gateway and a live PostgreSQL.
  *
  *   DATABASE_URL=postgres://... node --test --test-concurrency=1 test/integration/logins-app.test.ts
@@ -19,9 +19,9 @@ import { connectShell, type ConnectedShell } from "../../packages/shell/src/inde
 import { GatewayRefusal, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
-import { openDb, attachIdleErrorHandler, failure, LoginsDbError, LOGINS_APP_ACTOR, type LoginsDb } from "../../tools/logins-app/src/db.ts";
-import { kindsOf } from "../../tools/logins-app/src/kinds.ts";
-import { LoginInputError, type Employer } from "../../tools/logins-app/src/rows.ts";
+import { openDb, attachIdleErrorHandler, failure, LoginsDbError, LOGINS_APP_ACTOR, type LoginsDb } from "../../external/logins-app/src/db.ts";
+import { kindsOf } from "../../external/logins-app/src/kinds.ts";
+import { LoginInputError, type Employer } from "../../external/logins-app/src/rows.ts";
 import { hashPassword } from "../../services/gateway/src/auth.ts";
 
 const URL_ = process.env.DATABASE_URL;
