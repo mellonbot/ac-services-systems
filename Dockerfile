@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# THE GATEWAY IMAGE — apps/gateway and apps/worker, unmodified, as one process
+# THE GATEWAY IMAGE — services/gateway and services/worker, unmodified, as one process
 # tree. Built and pushed by `wrangler deploy -c infra/cloudflare/wrangler.jsonc`
 # (CI does this on main); runs on Cloudflare Containers behind the Worker in
 # infra/cloudflare/worker.mjs. Nothing here is special to Cloudflare: the same
@@ -21,7 +21,7 @@ RUN corepack enable
 
 # The whole workspace: intra-repo imports are relative .ts paths and run under
 # Node's type stripping, so there is no build step and nothing to compile.
-# `pg` is the only runtime dependency (apps/gateway/src/pg-tx.ts is the only
+# `pg` is the only runtime dependency (services/gateway/src/pg-tx.ts is the only
 # file that imports it). .dockerignore keeps tests, docs and the demo out.
 COPY . .
 RUN pnpm install --frozen-lockfile --prod

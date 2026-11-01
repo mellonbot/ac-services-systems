@@ -1,6 +1,6 @@
 /**
  * THE EDGE IN FRONT OF THE GATEWAY — a Cloudflare Worker whose only job is to
- * keep one container (Dockerfile at the repo root: apps/gateway + apps/worker)
+ * keep one container (Dockerfile at the repo root: services/gateway + services/worker)
  * running and to forward every request on api.<AC_SITE> to it, byte for byte,
  * SSE included. It holds no logic of its own: authentication, scope, CORS and
  * the catalogue are the gateway's, exactly as they are on a laptop.

@@ -46,7 +46,7 @@ export default tseslint.config(
     // The money path. Scoped deliberately: WCAG contrast ratios and layout
     // maths are genuinely floating point, and a rule that fires there is a rule
     // that gets a disable comment — which is the erosion, one file over.
-    files: ["packages/domain/**/*.ts", "apps/gateway/**/*.ts", "apps/worker/**/*.ts"],
+    files: ["packages/domain/**/*.ts", "services/gateway/**/*.ts", "services/worker/**/*.ts"],
     rules: { "ac/no-float-money": "error" },
   },
   {

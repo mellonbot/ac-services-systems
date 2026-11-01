@@ -13,7 +13,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
+import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 
 const URL_ = process.env.DATABASE_URL;

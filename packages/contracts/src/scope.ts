@@ -72,7 +72,7 @@ export type Claims = {
  * The ids are PROSPECT and UNASSIGNED from packages/schema (tenancy.ts), and
  * they are spelled literally here because the shell may not import the schema
  * package — dependencies point one way and that rule is enforced by the
- * guard. `apps/gateway/src/auth.test.ts` holds the two spellings together, so
+ * guard. `services/gateway/src/auth.test.ts` holds the two spellings together, so
  * changing one and not the other fails a test rather than an integration.
  *
  * Note what it carries: no roles. S1 declares no `roles` in the surface

@@ -14,9 +14,9 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createPool, beginTx, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
-import { relayOnce, notifyPublisher } from "../../apps/worker/src/relay.ts";
+import { createPool, beginTx, type Pool } from "../../services/gateway/src/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth.ts";
+import { relayOnce, notifyPublisher } from "../../services/worker/src/relay.ts";
 import { connectShell } from "../../packages/shell/src/index.ts";
 import { GatewayRefusal, type EventEnvelope } from "../../packages/contracts/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
@@ -54,7 +54,7 @@ before(async () => {
   // A clean slate for the one override this file authors, so the run is repeatable.
   await admin(`DELETE FROM contract_term_overrides WHERE scope_tier = 'location' AND scope_id = $1 AND term_key = 'sla_response' AND lower(effective) = '2027-01-01'`, [N.austin]);
 
-  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
+  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../services/gateway/src/main.ts", import.meta.url))], {
     // Production posture: cookies Secure, origins derived from the registry under this site.
     env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test" }, stdio: ["ignore", "pipe", "pipe"],
   });

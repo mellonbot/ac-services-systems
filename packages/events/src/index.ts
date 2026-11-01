@@ -1,6 +1,6 @@
 /**
  * Transactional outbox. Events are written in the SAME transaction as the
- * state change (apps/gateway unit-of-work); apps/worker relays them afterwards.
+ * state change (services/gateway unit-of-work); services/worker relays them afterwards.
  *
  * The alternative — publish inside the handler — produces the two failures
  * that are impossible to debug six months later: an event for a transaction

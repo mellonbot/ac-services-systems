@@ -21,8 +21,8 @@ import { createServer, type Server } from "node:http";
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
+import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth.ts";
 import { connectShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH, REGION_WEST } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
@@ -138,7 +138,7 @@ async function main(): Promise<void> {
       VALUES ($1,$2,$3,'internal',$4,'Drive Owner','["account_owner"]','parent',$2,$5,true),
              ($6,$2,$3,'internal',$7,'South Dispatcher','["dispatcher"]','region',$3,$5,true)`, [OWNER, INTERNAL_ORG_ID, REGION_SOUTH, OWNER_EMAIL, hash, DISP, DISP_EMAIL]);
 
-    gateway = spawn(process.execPath, [join(ROOT, "apps/gateway/src/main.ts")], {
+    gateway = spawn(process.execPath, [join(ROOT, "services/gateway/src/main.ts")], {
       env: { ...process.env, PORT: String(GATEWAY_PORT), DATABASE_URL: DB, AC_DEV_ORIGINS: SITE }, stdio: ["ignore", "pipe", "pipe"],
     });
     gateway.stdout!.on("data", (d) => { log += String(d); });

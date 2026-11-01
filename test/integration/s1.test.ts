@@ -22,8 +22,8 @@ import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
+import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth.ts";
 import { connectShell, openAnonymousShell, type AnonymousShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID, PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 import { ANONYMOUS_PRINCIPAL_IDS } from "../../packages/contracts/src/scope.ts";
@@ -60,7 +60,7 @@ const asBinding = async (binding: Record<string, string>, sql: string, params: u
     return r.rows;
   } catch (e) { await c.query("ROLLBACK").catch(() => {}); throw e; } finally { c.release(); }
 };
-/** Exactly what the gateway binds for S1 — apps/gateway/src/context.ts scopeBinding(ANONYMOUS_PRINCIPAL, "S1"). */
+/** Exactly what the gateway binds for S1 — services/gateway/src/context.ts scopeBinding(ANONYMOUS_PRINCIPAL, "S1"). */
 const anonBinding = {
   "ac.namespace": "anonymous", "ac.org_id": PROSPECT_ORG_ID, "ac.region_id": UNASSIGNED_REGION_ID,
   "ac.scope_tier": "parent", "ac.scope_id": PROSPECT_ORG_ID,
@@ -93,7 +93,7 @@ before(async () => {
   await admin(`INSERT INTO sessions (id, org_id, region_id, principal_kind, principal_id, expires_at, surface_id)
     VALUES ($1,$2,$3,'user',$4, now() + interval '1 hour','S2') ON CONFLICT (id) DO NOTHING`, [U(22), INTERNAL_ORG_ID, REGION_SOUTH, USER_OWNER]);
 
-  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
+  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../services/gateway/src/main.ts", import.meta.url))], {
     env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test" }, stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";
@@ -332,7 +332,7 @@ test("the office reads what the stranger wrote — the lead is ours, and that is
 
 test("a device login still resolves its own region — closing `regions` cost no principal its context", { skip }, async () => {
   // The one namespace besides ours that reads `regions` at login is `device`
-  // (apps/gateway/src/context.ts). 0008's policy admits its own row and no other.
+  // (services/gateway/src/context.ts). 0008's policy admits its own row and no other.
   const deviceBinding = {
     "ac.namespace": "device", "ac.org_id": INTERNAL_ORG_ID, "ac.region_id": REGION_SOUTH,
     "ac.scope_tier": "region", "ac.scope_id": REGION_SOUTH, "ac.firm_id": "", "ac.device_id": U(70),

@@ -28,8 +28,8 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
+import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_MOUNTAIN, REGION_SOUTH, OVERRIDES, ILLEGAL, N } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
@@ -101,7 +101,7 @@ async function main(): Promise<void> {
       [USER, INTERNAL_ORG_ID, REGION_WEST, EMAIL, hashPassword(PASSWORD)],
     );
 
-    gateway = spawn(process.execPath, [join(ROOT, "apps/gateway/src/main.ts")], {
+    gateway = spawn(process.execPath, [join(ROOT, "services/gateway/src/main.ts")], {
       env: { ...process.env, PORT: String(PORT), DATABASE_URL: DB, AC_SITE: "ac.test" },
       stdio: ["ignore", "pipe", "pipe"],
     });

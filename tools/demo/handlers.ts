@@ -57,7 +57,7 @@ import {
 } from "../../packages/domain/src/procurement/match.ts";
 import {
   buildContext,
-} from "../../apps/gateway/src/context.ts";
+} from "../../services/gateway/src/context.ts";
 import {
   INTERNAL_ORG_ID,
 } from "../../packages/schema/src/tenancy.ts";

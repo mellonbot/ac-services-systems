@@ -204,7 +204,7 @@ jobs:
             echo "current=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # The gateway: apps/gateway and apps/worker as one container behind the Worker
+  # The gateway: services/gateway and services/worker as one container behind the Worker
   # on api.acservice.systems (infra/cloudflare/). Migrate the production database,
   # build and push the image, wait for /healthz on the domain. Everything it needs
   # lives on the `production` environment like the Pages deploy below, plus

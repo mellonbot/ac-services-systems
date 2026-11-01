@@ -11,7 +11,7 @@ import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
  * 0020 in S2: each Technician Network tab lists that employer's technicians —
  * name, home address, phone, specialty — and the address column is what the
  * gateway decided for this principal. The redaction itself is the gateway's
- * (apps/gateway/src/handlers/technicians.test.ts); this holds that S2 shows
+ * (services/gateway/src/handlers/technicians.test.ts); this holds that S2 shows
  * "Restricted" rather than an empty cell, and offers the address fields to an
  * account owner only.
  */

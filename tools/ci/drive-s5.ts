@@ -23,8 +23,8 @@ import { readFileSync, existsSync, writeFileSync, mkdirSync, mkdtempSync, rmSync
 import { tmpdir } from "node:os";
 import { join, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
+import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth.ts";
 import { connectShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
@@ -156,7 +156,7 @@ async function main(): Promise<void> {
              ($10,$2,$3,'internal',$11,'Tech Two','["technician"]','region',$3,$5,true)`,
       [OWNER, INTERNAL_ORG_ID, REGION_SOUTH, OWNER_EMAIL, hash, DISP, DISP_EMAIL, TECH, TECH_EMAIL, TECH_B, TECH_B_EMAIL]);
 
-    gateway = spawn(process.execPath, [join(ROOT, "apps/gateway/src/main.ts")], {
+    gateway = spawn(process.execPath, [join(ROOT, "services/gateway/src/main.ts")], {
       env: { ...process.env, PORT: String(GATEWAY_PORT), DATABASE_URL: DB, AC_DEV_ORIGINS: SITE, AC_STORAGE_DIR: storage }, stdio: ["ignore", "pipe", "pipe"],
     });
     gateway.stdout!.on("data", (d) => { log += String(d); });

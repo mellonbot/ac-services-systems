@@ -1,4 +1,4 @@
-import { hashPassword } from "../../../apps/gateway/src/auth.ts";
+import { hashPassword } from "../../../services/gateway/src/auth.ts";
 import { ROLES, CUSTOMER_ROLES, type Role, type CustomerRole } from "../../../packages/contracts/src/scope.ts";
 import type { Tier } from "../../../packages/contracts/src/tiers.ts";
 import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";

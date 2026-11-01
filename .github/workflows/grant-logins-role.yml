@@ -41,7 +41,7 @@ jobs:
         run: |
           node --input-type=module -e '
             import pg from "pg";
-            import { forNodePg } from "./apps/gateway/src/pg-url.ts";
+            import { forNodePg } from "./services/gateway/src/pg-url.ts";
             const login = process.env.LOGIN.trim();
             if (!/^[a-z0-9_.]+$/.test(login)) throw new Error(`not a login name: ${login}`);
             const c = new pg.Client({ connectionString: forNodePg(process.env.DATABASE_URL), application_name: "ac-grant-logins-role" });

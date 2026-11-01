@@ -13,7 +13,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
+import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — /readyz was not verified against a database";
@@ -27,7 +27,7 @@ const gateways: ChildProcess[] = [];
 
 const start = async (databaseUrl: string): Promise<string> => {
   const port = 29080 + Math.floor(Math.random() * 1000) + gateways.length;
-  const gw = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
+  const gw = spawn(process.execPath, [fileURLToPath(new URL("../../services/gateway/src/main.ts", import.meta.url))], {
     env: { ...process.env, PORT: String(port), DATABASE_URL: databaseUrl, AC_SITE: "ac.test" }, stdio: ["ignore", "pipe", "pipe"],
   });
   gateways.push(gw);

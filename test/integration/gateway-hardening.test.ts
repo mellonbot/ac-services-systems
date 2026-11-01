@@ -12,8 +12,8 @@ import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { request } from "node:http";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
+import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 
@@ -41,7 +41,7 @@ const user = async (n: number, email: string, roles: string[], tier = "parent", 
   [U(n), INTERNAL_ORG_ID, REGION_SOUTH, email, JSON.stringify(roles), tier, scope, hashPassword(PASSWORD)]);
 
 const spawnGateway = async (port: number, extra: Record<string, string>) => {
-  const g = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
+  const g = spawn(process.execPath, [fileURLToPath(new URL("../../services/gateway/src/main.ts", import.meta.url))], {
     env: { ...process.env, PORT: String(port), DATABASE_URL: URL_, AC_SITE: "ac.test", ...extra }, stdio: ["ignore", "pipe", "pipe"],
   });
   gateways.push(g);

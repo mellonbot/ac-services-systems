@@ -16,8 +16,8 @@ catalogue.
 |---|---|---|
 | 1 | `packages/contracts/src/operations/wire/<area>.ts` | `XInput` / `XOutput` types. Plain JSON shapes. |
 | 2 | `packages/contracts/src/operations/catalogue.ts` | `"area.verb": op<Wire.XInput, Wire.XOutput>()({ id, method, path, kind, auth, surfaces, carrier, sdkMethod, summary })`. Group under a `// ---- 00NN: ... ----` comment when it ships with a migration. |
-| 3 | `apps/gateway/src/handlers/<area>.ts` | The handler. Takes the tx, never opens one. |
-| 4 | `apps/gateway/src/routes.ts` | One entry in `handlers`: `openTx(req, id, "uow" \| "read", ...)` for scoped domain work, `openSelf(req, id, write, ...)` for the caller's own rows. |
+| 3 | `services/gateway/src/handlers/<area>.ts` | The handler. Takes the tx, never opens one. |
+| 4 | `services/gateway/src/routes.ts` | One entry in `handlers`: `openTx(req, id, "uow" \| "read", ...)` for scoped domain work, `openSelf(req, id, write, ...)` for the caller's own rows. |
 | 5 | `npm run sdk:generate` | Regenerates the client. Commit it. |
 | 6 | the surface in `apps/sN-*` | Call the SDK method. Visual work → load **arc-foundry**. |
 
@@ -41,7 +41,7 @@ catalogue.
 
 A "no" is never a 500. Raise it where the rule lives:
 - a row rule → the database (trigger/constraint; see the **schema-migration** skill), mapped
-  by `apps/gateway/src/refusals.ts`;
+  by `services/gateway/src/refusals.ts`;
 - an input the handler cannot resolve (node not in scope, job not visible) → the handler's
   typed refusal, same file;
 - a contract-term admission → `packages/contracts/src/refusals.ts` axis

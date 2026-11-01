@@ -22,8 +22,8 @@ import { deflateSync } from "node:zlib";
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
+import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth.ts";
 import { connectShell } from "../../packages/shell/src/index.ts";
 import { SURFACE_PATHS } from "../../packages/contracts/src/surfaces.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
@@ -170,7 +170,7 @@ async function main(): Promise<void> {
     await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
       VALUES ($1,$2,$3,'internal',$4,'Drive Owner','["account_owner"]','parent',$2,$5,true)`, [OWNER, INTERNAL_ORG_ID, REGION_SOUTH, OWNER_EMAIL, hash]);
 
-    gateway = spawn(process.execPath, [join(ROOT, "apps/gateway/src/main.ts")], {
+    gateway = spawn(process.execPath, [join(ROOT, "services/gateway/src/main.ts")], {
       env: { ...process.env, PORT: String(GATEWAY_PORT), DATABASE_URL: DB, AC_DEV_ORIGINS: SITE,
              AC_IMAGERY_URL: `http://127.0.0.1:${TILE_PORT}/static?c={lat},{lng}&z={zoom}&s={w}x{h}`, AC_IMAGERY_ATTRIBUTION: "Imagery © Stub Tiles (drive)" },
       stdio: ["ignore", "pipe", "pipe"],

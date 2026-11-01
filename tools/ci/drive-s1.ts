@@ -29,7 +29,7 @@ import { createServer, type Server } from "node:http";
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
+import { createPool, type Pool } from "../../services/gateway/src/pg-tx.ts";
 import { REGION_SOUTH, REGION_WEST } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
 import { Cdp, findChrome } from "./cdp.ts";
 
@@ -210,7 +210,7 @@ async function main(): Promise<void> {
     check(5, "the form resets to empty fields — the value/defaultValue defect that cost C4 a silent second rate");
 
     // ── 6. the gateway comes up, and the queue goes on its own
-    gateway = spawn(process.execPath, [join(ROOT, "apps/gateway/src/main.ts")], {
+    gateway = spawn(process.execPath, [join(ROOT, "services/gateway/src/main.ts")], {
       env: { ...process.env, PORT: String(GATEWAY_PORT), DATABASE_URL: DB, AC_DEV_ORIGINS: SITE }, stdio: ["ignore", "pipe", "pipe"],
     });
     gateway.stdout!.on("data", (d) => { log += String(d); });

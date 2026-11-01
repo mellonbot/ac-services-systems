@@ -10,7 +10,7 @@ import { forNodePg } from "./pg-url.ts";
  * THE ONLY FILE IN THE REPOSITORY THAT IMPORTS A DATABASE DRIVER.
  *
  * `.npmrc` isolation makes `pg` unresolvable from a surface; the import guard
- * and lint rule refuse it anywhere outside apps/gateway and apps/worker. This
+ * and lint rule refuse it anywhere outside services/gateway and services/worker. This
  * file is the door.
  *
  * Every transaction starts with SET LOCAL of the scope binding, so RLS has

@@ -9,7 +9,7 @@ import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
 
 /**
  * D-2a in S2: the devices S5 signs in with, and the shift grant on one. What
- * the gateway admits is apps/gateway/src/handlers/devices.test.ts and the
+ * the gateway admits is services/gateway/src/handlers/devices.test.ts and the
  * wire suite; this holds what the office is offered — only active devices,
  * only technicians' own units, and no key field for a browser.
  */

@@ -20,8 +20,8 @@
  * login does: `users` admits the system writer and nothing broader is needed.
  */
 import { fileURLToPath } from "node:url";
-import { createPool, beginTx, bindSystem, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
+import { createPool, beginTx, bindSystem, type Pool } from "../../services/gateway/src/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth.ts";
 import { UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 import { TEST_LOGINS, CUSTOMER_TEST_LOGIN, testLoginRow, MIN_TEST_LOGIN_PASSWORD } from "./test-logins.ts";
 

@@ -22,10 +22,10 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createPool, beginTx, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { sweepQuoteJobs } from "../../apps/worker/src/quotes.ts";
-import { workerScope, WORKER_ACTOR } from "../../apps/worker/src/sweeps.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
+import { createPool, beginTx, type Pool } from "../../services/gateway/src/pg-tx.ts";
+import { sweepQuoteJobs } from "../../services/worker/src/quotes.ts";
+import { workerScope, WORKER_ACTOR } from "../../services/worker/src/sweeps.ts";
+import { hashPassword } from "../../services/gateway/src/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
@@ -64,7 +64,7 @@ before(async () => {
     ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, active = true, crew_id = NULL`,
     [USER_OWNER, INTERNAL_ORG_ID, REGION_SOUTH, hash, USER_DISP_SOUTH, USER_DISP_WEST, REGION_WEST, USER_TECH, USER_TECH_B]);
 
-  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
+  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../services/gateway/src/main.ts", import.meta.url))], {
     env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test", AC_STORAGE_DIR: join(tmpdir(), `ac-wrapup-${RUN}`) }, stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";
