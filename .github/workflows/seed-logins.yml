@@ -4,7 +4,7 @@ name: seed-logins
 # people: nothing can sign in. This creates one real service region (if its
 # code is new) and seeds the staff test logins — dispatcher-test,
 # service_manager-test and, only when the `superadmin` input is ticked,
-# superadmin-test (tools/ci/test-logins.ts) — with the
+# superadmin-test (tools/ops/test-logins.ts) — with the
 # password held as the AC_TEST_LOGIN_PASSWORD secret on the `production`
 # environment. Idempotent: re-running re-applies the same rows. Customer (S6),
 # vendor (S7) and subcontractor (S8) principals are not seeded here; see
@@ -83,4 +83,4 @@ jobs:
           AC_TEST_LOGIN_PASSWORD: ${{ secrets.AC_TEST_LOGIN_PASSWORD }}
           AC_TEST_LOGIN_REGION: ${{ inputs.region_code }}
           AC_TEST_LOGIN_SUPERADMIN: ${{ inputs.superadmin && '1' || '0' }}
-        run: node tools/ci/seed-test-logins.ts
+        run: node tools/ops/seed-test-logins.ts

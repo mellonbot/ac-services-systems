@@ -5,7 +5,7 @@
  * surfaces each must open: ./test-logins.ts).
  *
  *   DATABASE_URL=postgres://… AC_TEST_LOGIN_PASSWORD=… [AC_TEST_LOGIN_REGION=SOUTH] \
- *     [AC_TEST_LOGIN_CUSTOMER_ORG="Amped"] [AC_TEST_LOGIN_SUPERADMIN=0] node tools/ci/seed-test-logins.ts
+ *     [AC_TEST_LOGIN_CUSTOMER_ORG="Amped"] [AC_TEST_LOGIN_SUPERADMIN=0] node tools/ops/seed-test-logins.ts
  *
  * Idempotent: a second run re-applies roles, scope and password to the same
  * rows (matched by email) and reactivates them. The password is never a

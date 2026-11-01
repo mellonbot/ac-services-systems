@@ -2,7 +2,7 @@
  * C3 — AMPED RECORDED IN FULL, THROUGH THE REAL OPERATIONS, AGAINST A LIVE
  * GATEWAY (09 §6 item 6; 04 §0.0j / §5).
  *
- *   DATABASE_URL=postgres://... node tools/ci/drive-c3-amped.ts
+ *   DATABASE_URL=postgres://... node tools/drive/drive-c3-amped.ts
  *
  * `packages/domain/src/inheritance/fixtures/amped.ts` is the input — a pure,
  * in-memory hand-model, checked against the resolver in

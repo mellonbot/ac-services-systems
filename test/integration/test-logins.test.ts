@@ -1,7 +1,7 @@
 /**
  * THE TEST LOGINS OVER THE WIRE — superadmin-test, dispatcher-test,
  * service_manager-test and customer-test, seeded by the same tool an operator runs
- * (tools/ci/seed-test-logins.ts), against a spawned gateway and a live
+ * (tools/ops/seed-test-logins.ts), against a spawned gateway and a live
  * PostgreSQL.
  *
  *   DATABASE_URL=postgres://... npm run test:integration
@@ -21,8 +21,8 @@ import { scopeBinding } from "../../services/gateway/src/context.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { GatewayRefusal, SURFACE_IDS, SURFACES, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
-import { seedTestLogins, resolveRegion, resolveCustomerOrg, type SeededLogin } from "../../tools/ci/seed-test-logins.ts";
-import { TEST_LOGINS, CUSTOMER_TEST_LOGIN, type TestLogin } from "../../tools/ci/test-logins.ts";
+import { seedTestLogins, resolveRegion, resolveCustomerOrg, type SeededLogin } from "../../tools/ops/seed-test-logins.ts";
+import { TEST_LOGINS, CUSTOMER_TEST_LOGIN, type TestLogin } from "../../tools/ops/test-logins.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — the test logins were not verified over the wire";

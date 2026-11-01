@@ -9,15 +9,15 @@ import type { Principal, Tier } from "../../packages/contracts/src/index.ts";
  * ONE-OFF: puts every home made before 2026-10-23 on the standard home
  * agreement. Homes made since get it in createResidential's own unit of work;
  * these were made without one, so their first call is refused `no_value`
- * (tools/ci/audit-msa-terms.ts lists them as "customers with sites and no MSA").
+ * (tools/ops/audit-msa-terms.ts lists them as "customers with sites and no MSA").
  *
  * It calls startStandardHomeAgreement — the same handlers, checks and events
  * S2 uses — once per home, each in its own transaction, acting as the staff
  * login named by --as, so the audit log says who did it. Commercial customers
  * are never touched: their terms are negotiated, not standard.
  *
- *   node tools/ci/backfill-home-agreements.ts --as <staff email>            lists, writes nothing
- *   node tools/ci/backfill-home-agreements.ts --as <staff email> --apply    writes
+ *   node tools/ops/backfill-home-agreements.ts --as <staff email>            lists, writes nothing
+ *   node tools/ops/backfill-home-agreements.ts --as <staff email> --apply    writes
  */
 const url = process.env.DATABASE_URL;
 const as = process.argv[process.argv.indexOf("--as") + 1];

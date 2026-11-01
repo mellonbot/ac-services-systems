@@ -9,7 +9,7 @@
  *      on the as-of date, each term the gate requires — by any agreement;
  *   2. every customer with sites and no MSA in effect at all.
  *
- * Read-only. `node tools/ci/audit-msa-terms.ts [YYYY-MM-DD]`, as-of defaults
+ * Read-only. `node tools/ops/audit-msa-terms.ts [YYYY-MM-DD]`, as-of defaults
  * to today. Exits 1 when anything is listed, so a run reads green or red.
  *
  * With defaults on every parent-authorable non-attach term, the first list is

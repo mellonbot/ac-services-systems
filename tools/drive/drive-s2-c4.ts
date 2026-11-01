@@ -1,7 +1,7 @@
 /**
  * C4 THROUGH A REAL BROWSER — the checks a string render cannot make.
  *
- *   DATABASE_URL=postgres://... node tools/ci/drive-s2-c4.ts
+ *   DATABASE_URL=postgres://... node tools/drive/drive-s2-c4.ts
  *
  * The suite in `test/integration/s2-c4.test.ts` drives the same operations over
  * the wire through the shell, and 61 render tests assert S2's markup. Neither

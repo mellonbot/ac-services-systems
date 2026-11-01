@@ -2,7 +2,7 @@
  * S3 THROUGH A REAL BROWSER — the dispatcher's day, the DOM half of
  * test/integration/s3-s5.test.ts (which proves the same loop over the wire).
  *
- *   DATABASE_URL=postgres://... node tools/ci/drive-s3.ts
+ *   DATABASE_URL=postgres://... node tools/drive/drive-s3.ts
  *
  * A South dispatcher signs in and lands on the board; takes a phoned-in call
  * through New job and arrives at the gated door with the job open; sees the

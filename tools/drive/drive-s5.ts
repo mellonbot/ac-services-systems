@@ -2,7 +2,7 @@
  * S5 THROUGH A REAL BROWSER — a technician's shift, the DOM half of
  * test/integration/s3-s5.test.ts (which proves the same loop over the wire).
  *
- *   DATABASE_URL=postgres://... node tools/ci/drive-s5.ts
+ *   DATABASE_URL=postgres://... node tools/drive/drive-s5.ts
  *
  * The office registers a device and grants a shift; dispatch assigns two
  * crews a job each. On a phone-sized page: a technician with no grant on the

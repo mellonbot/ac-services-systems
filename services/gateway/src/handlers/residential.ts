@@ -47,7 +47,7 @@ const requireAddress = (a: AddressWire | undefined): AddressWire & { line1: stri
 /**
  * Puts a home's organization on the standard home agreement from today, where
  * the home is. Exported for the one-off backfill of homes made before this
- * existed (tools/ci/backfill-home-agreements.ts) — the same path, not a copy.
+ * existed (tools/ops/backfill-home-agreements.ts) — the same path, not a copy.
  */
 export const startStandardHomeAgreement = async (
   uow: UnitOfWork, ctx: HierarchyContext, home: { readonly orgId: string; readonly regionId: string }, now: Date, newId: () => string,

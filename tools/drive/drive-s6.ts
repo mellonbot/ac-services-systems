@@ -2,7 +2,7 @@
  * S6 THROUGH A REAL BROWSER — item 6's DOM layer, the one neither the render
  * tests nor the wire suite can see.
  *
- *   DATABASE_URL=postgres://... node tools/ci/drive-s6.ts
+ *   DATABASE_URL=postgres://... node tools/drive/drive-s6.ts
  *
  * test/integration/s6.test.ts proves tier scoping over the wire; the render
  * tests prove the markup. This walks the portal the way two customers do —

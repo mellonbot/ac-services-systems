@@ -2,7 +2,7 @@
  * S8 THROUGH A REAL BROWSER — item 7's DOM layer, the one neither the render
  * tests nor the wire suite can see.
  *
- *   DATABASE_URL=postgres://... node tools/ci/drive-s8.ts
+ *   DATABASE_URL=postgres://... node tools/drive/drive-s8.ts
  *
  * test/integration/s8.test.ts proves firm visibility over the wire; the
  * render tests prove the markup. This walks the portal the way two firms do

@@ -35,4 +35,4 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           AS_OF: ${{ inputs.as_of }}
-        run: node tools/ci/audit-msa-terms.ts $AS_OF
+        run: node tools/ops/audit-msa-terms.ts $AS_OF

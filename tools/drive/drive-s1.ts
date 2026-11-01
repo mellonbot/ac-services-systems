@@ -2,7 +2,7 @@
  * S1 THROUGH A REAL BROWSER — item 8's DOM layer, and the one claim in this
  * repository that cannot be tested any other way.
  *
- *   DATABASE_URL=postgres://... node tools/ci/drive-s1.ts
+ *   DATABASE_URL=postgres://... node tools/drive/drive-s1.ts
  *
  * SURFACES.S1.degraded says: "Statically generated; forms queue to a durable
  * buffer and replay. Site stays up when the gateway does not." Every part of
