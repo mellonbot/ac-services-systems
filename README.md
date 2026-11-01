@@ -97,7 +97,7 @@ sequenceDiagram
 - **Rev A**: Field-ops reference layout across all surfaces.
 - Next: S7 enablement pending partners’ D9 call.
 
-All flows are proven in real browsers against the real gateway. See `claude/` for per-item build notes.
+All flows are proven in real browsers against the real gateway. See `docs/history/` for per-item build notes.
 
 ## Quick start
 
@@ -133,8 +133,10 @@ npm run worker                  # outbox, SLA, expiry
 
 ```
 apps/
-  gateway/          sole access path (auth, uow, handlers, SSE)
   s1-marketing/ … s8-*/   surfaces
+services/
+  gateway/          sole access path (src/auth, src/db, src/http, src/handlers)
+  worker/           outbox, SLA, expiry
 packages/
   contracts/        operation catalogue (source of truth)
   sdk/              generated client
@@ -143,9 +145,17 @@ packages/
   domain/           pure logic (SLA, money, compliance, D14, …)
   schema/           tables + migrations
   tokens/           brand + design tokens
-tools/ci/           guards, emitters, migrate, build-surface, drives
-docs/               BRAND.md, BACKBONE_CONTRACT.md, architecture frame, diagrams
-claude/             per-item build records
+tools/
+  ci/               guards, emitters, migrate, build-surface
+  drive/            browser end-to-end drives (Chrome over CDP)
+  ops/              production scripts, test-login seeding
+external/           apps outside the workspace (Electron logins app)
+test/               integration tests (see test/README.md)
+infra/              Cloudflare deployment
+docs/               BACKBONE_CONTRACT.md, OPEN_DECISIONS.md, …
+  generated/        BRAND.md, SURFACES.md (emitted — do not edit)
+  assets/           diagrams
+  history/          per-item build records
 ```
 
 ## Governing principle
@@ -173,7 +183,7 @@ Generated from tokens. Two mechanisms worth knowing:
 - `docs/BACKBONE_CONTRACT.md` — the interface every block codes against
 - `06_Software_Architecture_Frame.md` — the frame
 - `docs/generated/BRAND.md` — generated brand guide
-- `claude/` — detailed build notes for each item
+- `docs/history/` — detailed build notes for each item
 
 ---
 
