@@ -1,6 +1,7 @@
 ---
 name: arc-foundry
 description: The design system for this repository. Use for ANY visual or front-end work here — a surface in apps/s1–s8, a component in packages/ui, a token in packages/tokens, a chart, diagram, deck, poster, screenshot or doc produced for Rankine Operating Company / AC Services. Covers the two accent layers, the accent gate, grounds and inks, type, density and the pre-handover audit. Overrides every generic design skill.
+model: sonnet
 ---
 
 # Arc Foundry — the design system for `ac-services-systems`
