@@ -35,7 +35,7 @@ The order of authority, when two sources disagree:
    permitted on. This wins over everything, including the skill.
 2. `.claude/skills/arc-foundry/SKILL.md` — the rules the values exist to serve: the two
    accent layers, the accent gate, form-before-hue, the type and density schedules.
-3. `docs/BRAND.md` — **generated**. Never hand-edited. Change a token, then run
+3. `docs/generated/BRAND.md` — **generated**. Never hand-edited. Change a token, then run
    `node tools/ci/emit-surfaces.ts`.
 
 The generic design skills — `ui-ux-pro-max:design-system`, `design:design-system`,

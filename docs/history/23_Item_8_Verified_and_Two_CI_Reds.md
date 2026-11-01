@@ -1,7 +1,7 @@
 # 23 — Item 8 re-run on a second machine; two CI jobs were red and nobody knew
 
 **Date:** 2026-09-21
-**Reads as:** the execution half of `claude/22_S1_Marketing_Built.md`, which
+**Reads as:** the execution half of `docs/history/22_S1_Marketing_Built.md`, which
 recorded item 8 as built and proven. This doc records the first time anything
 in it ran anywhere but the sandbox that wrote it.
 
@@ -9,11 +9,11 @@ in it ran anywhere but the sandbox that wrote it.
 
 ## 1. Item 8 was not in git
 
-`claude/22` closes by listing what was shipped. None of it was tracked. Read
+`docs/history/22` closes by listing what was shipped. None of it was tracked. Read
 from `.git/index` on the build machine: **293 entries**, and the only
 `apps/s1-marketing` files among them are the five generated placeholders. Not
 tracked: `0008_anonymous_intake.sql`, `tools/ci/drive-s1.ts`,
-`test/integration/s1.test.ts`, `claude/22`, the seven hand-written app sources
+`test/integration/s1.test.ts`, `docs/history/22`, the seven hand-written app sources
 and the three screens, and the modifications to `0001_bootstrap.sql`,
 `package.json`, `emit-surfaces.ts`, `contracts/src/scope.ts` and the rest.
 

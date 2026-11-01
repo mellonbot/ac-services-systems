@@ -121,7 +121,7 @@ const REGISTRY = {
              // `device_grant` are D-2a's primitive, recorded here for the
              // same reason a crew's own record is: nobody else is positioned
              // to author it, and there is no S2 screen for it in this pass —
-             // see claude/19_S3_S5_Dispatch_and_Field.md.
+             // see docs/history/19_S3_S5_Dispatch_and_Field.md.
              "job", "device", "device_grant",
              // item 9 (2026-09-21): the site record. A unit on a roof and the
              // person who lets a crew onto it are facts the office records

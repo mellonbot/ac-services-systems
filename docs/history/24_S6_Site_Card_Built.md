@@ -1,7 +1,7 @@
 # 24 — Item 9: the S6 site card, and a clock that was five hours wrong
 
 **Date:** 2026-09-21
-**Reads as:** the next in-house item after `claude/22`/`23` closed Phase 1's
+**Reads as:** the next in-house item after `docs/history/22`/`23` closed Phase 1's
 surface set. Asked for in one sentence — *"connect each site block to a site
 card: address and map, the major equipment with serials and last service, the
 invoices and jobs in date order, the on-site manager's name and number, and a

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Generates each surface app's boot file, README and FRAME from the registry,
- * plus docs/SURFACES.md.
+ * plus docs/generated/SURFACES.md.
  *
  *   node tools/ci/emit-surfaces.ts          write everything
  *   node tools/ci/emit-surfaces.ts --check  exit 1 if any emitted file differs (what the guard runs)
@@ -29,7 +29,7 @@ import {
 // about itself, and it is imported HERE so the generated doc quotes the
 // measurement rather than a literal somebody typed beside it. Two figures in
 // this file were typed, both were wrong, and figures.test.ts could not see
-// them because it only reads the OUTPUT (docs/BRAND.md) — which was corrected
+// them because it only reads the OUTPUT (docs/generated/BRAND.md) — which was corrected
 // by hand, leaving the generator and its artifact disagreeing and
 // `guard:schema` red.
 import { FIGURES } from "../../packages/tokens/src/figures.ts";
@@ -375,7 +375,7 @@ registry (\`src/screens.ts\`) checked against the operation catalogue.
 };
 
 /**
- * docs/BRAND.md — generated, because a hand-written palette table is a second
+ * docs/generated/BRAND.md — generated, because a hand-written palette table is a second
  * source of truth and the second source is always the one people read.
  */
 export const renderBrandDoc = (): string => {
@@ -459,8 +459,8 @@ export const emitted = (): readonly Emitted[] => {
     out.push({ path: join(dir, "frame.html"), content: renderFrame(s) });
     out.push({ path: join(dir, "README.md"), content: renderReadme(s) });
   }
-  out.push({ path: "docs/SURFACES.md", content: renderSurfacesDoc() });
-  out.push({ path: "docs/BRAND.md", content: renderBrandDoc() });
+  out.push({ path: "docs/generated/SURFACES.md", content: renderSurfacesDoc() });
+  out.push({ path: "docs/generated/BRAND.md", content: renderBrandDoc() });
   return out;
 };
 
@@ -486,6 +486,6 @@ if (isMain) {
       mkdirSync(join(p, ".."), { recursive: true });
       writeFileSync(p, e.content);
     }
-    console.log(`emitted ${SURFACE_IDS.length} surface apps (package.json, src/main.ts, frame.html, README.md; shared status entries except ${HAND_WRITTEN_APPS.join(", ")}) + ${relative(ROOT, join(ROOT, "docs/SURFACES.md"))}`);
+    console.log(`emitted ${SURFACE_IDS.length} surface apps (package.json, src/main.ts, frame.html, README.md; shared status entries except ${HAND_WRITTEN_APPS.join(", ")}) + ${relative(ROOT, join(ROOT, "docs/generated/SURFACES.md"))}`);
   }
 }

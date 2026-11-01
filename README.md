@@ -53,7 +53,7 @@ flowchart TB
     class DB data
 ```
 
-![Architecture diagram](docs/architecture-diagram.svg)
+![Architecture diagram](docs/assets/architecture-diagram.svg)
 
 ### Key flows
 
@@ -87,7 +87,7 @@ sequenceDiagram
 | **S7** | Vendor Portal | Vendor | Catalogue, POs, shipments, 3-way match, returns | 🟡 Phase 4 |
 | **S8** | Subcontractor Portal | Firm | Roster, documents, work, settlements (ack/dispute) | ✅ |
 
-![Surface status chart](docs/surface-status.svg)
+![Surface status chart](docs/assets/surface-status.svg)
 
 ## Current build state (as of late Sept 2026)
 
@@ -172,7 +172,7 @@ Generated from tokens. Two mechanisms worth knowing:
 
 - `docs/BACKBONE_CONTRACT.md` — the interface every block codes against
 - `06_Software_Architecture_Frame.md` — the frame
-- `docs/BRAND.md` — generated brand guide
+- `docs/generated/BRAND.md` — generated brand guide
 - `claude/` — detailed build notes for each item
 
 ---

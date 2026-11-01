@@ -406,7 +406,7 @@ export type ListDevicesOutput = { readonly devices: readonly DeviceWire[] };
 export type RegisterDeviceInput = {
   readonly hardwareId: string; readonly kind: DeviceKind;
   /**
-   * The device-held public key a future challenge-response login would verify against. Base64. Not yet checked at login — see claude/19_S3_S5_Dispatch_and_Field.md.
+   * The device-held public key a future challenge-response login would verify against. Base64. Not yet checked at login — see docs/history/19_S3_S5_Dispatch_and_Field.md.
    * Required for hardware; optional for `web_fallback`, a browser that holds no key of its own (stored empty).
    */
   readonly publicKey?: string;

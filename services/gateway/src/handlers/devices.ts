@@ -141,7 +141,7 @@ export const grantDeviceShift = async (uow: DeviceWriter, actorId: string, input
   if (!tech || tech.crew_id !== crewId) throw new InputRefused(`technician ${technicianId} is not an active member of crew ${crewId}`, "not_crew_member");
 
   // Handler-level guard, not a DB constraint (device_grants carries no EXCLUDE
-  // constraint — see claude/19_S3_S5_Dispatch_and_Field.md): a device cannot
+  // constraint — see docs/history/19_S3_S5_Dispatch_and_Field.md): a device cannot
   // hold two live grants over the same window. Closes the common case; a
   // genuine race between two concurrent grantShift calls for the same device
   // is not closed by this alone, which is why it is named rather than assumed.

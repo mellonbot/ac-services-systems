@@ -61,7 +61,7 @@ export default tseslint.config(
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
   {
-    // figures.test.ts reads docs/BRAND.md and brand.ts to prove the prose
+    // figures.test.ts reads docs/generated/BRAND.md and brand.ts to prove the prose
     // quotes the measurement. That is the same category as build tooling
     // reading the repo — it checks repository TEXT, not product data — and the
     // exemption is scoped to this one package's tests rather than to tests in

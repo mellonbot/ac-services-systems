@@ -28,7 +28,7 @@
 ## Surface generation and build
 
 - `apps/s*/{package.json,src/main.ts,frame.html,README.md}` and
-  `docs/SURFACES.md` are generated from `packages/contracts/src/surfaces.ts` by
+  `docs/generated/SURFACES.md` are generated from `packages/contracts/src/surfaces.ts` by
   `tools/ci/emit-surfaces.ts`. Edit the registry or emitter, never a generated
   file; regenerate with `node tools/ci/emit-surfaces.ts` and confirm with
   `npm run surfaces:check`.

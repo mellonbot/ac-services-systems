@@ -31,16 +31,16 @@ test("a figure is stated to the precision the prose quotes it at", () => {
   }
 });
 
-test("docs/BRAND.md quotes the corrected figures and none of the superseded ones", () => {
-  const brand = repo("docs/BRAND.md");
+test("docs/generated/BRAND.md quotes the corrected figures and none of the superseded ones", () => {
+  const brand = repo("docs/generated/BRAND.md");
   for (const name of ["borderHard", "inkLight", "redFromFault", "redFromNearestState"] as const) {
     const f = FIGURES[name];
-    if (!f.cited.some((c) => c.startsWith("docs/BRAND.md"))) continue;
-    assert.ok(brand.includes(format(f)), `docs/BRAND.md does not quote ${name} as ${format(f)}`);
+    if (!f.cited.some((c) => c.startsWith("docs/generated/BRAND.md"))) continue;
+    assert.ok(brand.includes(format(f)), `docs/generated/BRAND.md does not quote ${name} as ${format(f)}`);
   }
   // The four values this commit corrects, so a revert cannot pass quietly.
   for (const stale of ["2.65:1", "3.17:1", "2.13:1", "1.2°"])
-    assert.ok(!brand.includes(stale), `docs/BRAND.md still quotes the superseded ${stale}`);
+    assert.ok(!brand.includes(stale), `docs/generated/BRAND.md still quotes the superseded ${stale}`);
 });
 
 /**

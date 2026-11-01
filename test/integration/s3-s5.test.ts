@@ -1,6 +1,6 @@
 /**
  * ITEM 4 OVER THE WIRE — S3 dispatch and S5 field, through the shell, against
- * a spawned gateway and a live PostgreSQL. The proof claude/19 named as
+ * a spawned gateway and a live PostgreSQL. The proof docs/history/19 named as
  * outstanding: "a mechanism is unexecuted until something actually runs it."
  *
  *   DATABASE_URL=postgres://... npm run test:integration

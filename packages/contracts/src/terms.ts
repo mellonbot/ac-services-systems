@@ -4,7 +4,7 @@ import type { Tier } from "./tiers.ts";
  * THE TERM POLICY REGISTER — D2 part two.
  *
  * The master plan's sentence "terms flow downward and may be overridden at any
- * level" is five rules wearing one coat (claude/07_D2_Hierarchy_Findings.md).
+ * level" is five rules wearing one coat (docs/history/07_D2_Hierarchy_Findings.md).
  * A resolver built to that sentence returns confidently wrong answers with a
  * clean trace: a location sets its own payment terms and the consolidated
  * invoice becomes unpayable; a location relaxes an SLA we carry the whole
