@@ -52,7 +52,7 @@ export default tseslint.config(
   {
     // The storage package IS the interface, and build tooling reads the repo by
     // definition. Neither is product code reaching around the abstraction.
-    files: ["packages/storage/**/*.ts", "tools/**/*.ts", "tools/**/*.js", "tools/**/*.mjs"],
+    files: ["packages/storage/**/*.ts", "tools/**/*.ts", "tools/**/*.js", "tools/**/*.mjs", "external/**/*.ts", "external/**/*.mjs", "external/**/*.cjs"],
     rules: { "ac/no-storage-bypass": "off" },
   },
   {

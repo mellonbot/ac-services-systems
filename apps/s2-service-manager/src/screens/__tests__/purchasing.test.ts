@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderToString as render } from "../../../packages/ui/src/testing.ts";
-import { createApp } from "./app.ts";
-import { qty, toMilli, money, toMinor } from "./screens/purchasing.ts";
-import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import type { HierarchyContext, Principal, PurchaseOrderDetailOutput, CatalogItemWire } from "../../../packages/contracts/src/index.ts";
-import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
+import { renderToString as render } from "../../../../../packages/ui/src/testing.ts";
+import { createApp } from "../../app.ts";
+import { qty, toMilli, money, toMinor } from "../purchasing.ts";
+import type { FetchLike } from "../../../../../packages/sdk/src/runtime.ts";
+import type { HierarchyContext, Principal, PurchaseOrderDetailOutput, CatalogItemWire } from "../../../../../packages/contracts/src/index.ts";
+import { OPERATIONS } from "../../../../../packages/contracts/src/index.ts";
 
 /**
  * Item 11 — S2's purchasing screens against a scripted gateway, through the

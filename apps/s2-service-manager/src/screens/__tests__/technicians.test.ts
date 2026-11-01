@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderToString as render } from "../../../packages/ui/src/testing.ts";
-import { createApp } from "./app.ts";
-import { addressLine } from "./screens/network-technicians.ts";
-import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import type { Principal, HierarchyContext, TechnicianWire } from "../../../packages/contracts/src/index.ts";
-import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
+import { renderToString as render } from "../../../../../packages/ui/src/testing.ts";
+import { createApp } from "../../app.ts";
+import { addressLine } from "../network-technicians.ts";
+import type { FetchLike } from "../../../../../packages/sdk/src/runtime.ts";
+import type { Principal, HierarchyContext, TechnicianWire } from "../../../../../packages/contracts/src/index.ts";
+import { OPERATIONS } from "../../../../../packages/contracts/src/index.ts";
 
 /**
  * 0020 in S2: each Technician Network tab lists that employer's technicians —

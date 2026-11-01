@@ -1,17 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderToString as render } from "../../../packages/ui/src/testing.ts";
-import { createApp, SCREEN_VIEWS } from "./app.ts";
-import { SCREENS } from "./screens.ts";
-import { NEXT_FIRM, STATUS_TONE, documentStatus, readableKinds, EXPIRING_WITHIN_DAYS } from "./screens/network.ts";
-import { canSubmitFirm } from "./screens/network-new.ts";
-import { coversToday } from "./screens/network-documents.ts";
-import { readable, inEffect } from "./screens/network-rates.ts";
-import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import type { CredentialWire, CrewWire, FirmWire, HierarchyContext, Principal, RateCardWire } from "../../../packages/contracts/src/index.ts";
-import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
-import { NEXT_FIRM_STATES } from "../../gateway/src/handlers/network.ts";
-import { matchPath } from "../../../packages/ui/src/index.ts";
+import { renderToString as render } from "../../../../../packages/ui/src/testing.ts";
+import { createApp, SCREEN_VIEWS } from "../../app.ts";
+import { SCREENS } from "../../screens.ts";
+import { NEXT_FIRM, STATUS_TONE, documentStatus, readableKinds, EXPIRING_WITHIN_DAYS } from "../network.ts";
+import { canSubmitFirm } from "../network-new.ts";
+import { coversToday } from "../network-documents.ts";
+import { readable, inEffect } from "../network-rates.ts";
+import type { FetchLike } from "../../../../../packages/sdk/src/runtime.ts";
+import type { CredentialWire, CrewWire, FirmWire, HierarchyContext, Principal, RateCardWire } from "../../../../../packages/contracts/src/index.ts";
+import { OPERATIONS } from "../../../../../packages/contracts/src/index.ts";
+import { NEXT_FIRM_STATES } from "../../../../../services/gateway/src/handlers/network.ts";
+import { matchPath } from "../../../../../packages/ui/src/index.ts";
 
 /**
  * C4's screens against a scripted gateway, through the REAL shell and the REAL
@@ -265,7 +265,7 @@ test("a refusal on a ladder step renders as a decision, not as an error", async 
   });
   const html = await paint(app, "network", { firmId: FIRM_B });
   assert.doesNotMatch(html, /Refused —/, "nothing is refused before anything is attempted");
-  const { admissionAxis } = await import("../../../packages/contracts/src/refusals.ts");
+  const { admissionAxis } = await import("../../../../../packages/contracts/src/refusals.ts");
   assert.equal(admissionAxis("msa_unsigned"), "structural");
   assert.equal(admissionAxis("firm_required"), "structural");
   assert.equal(admissionAxis("already_verified"), "structural");

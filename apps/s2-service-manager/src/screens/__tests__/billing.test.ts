@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderToString as render } from "../../../packages/ui/src/testing.ts";
-import { createApp } from "./app.ts";
-import { owedMinor, INVOICE_STATE, maySettle, receivedAtFor } from "./screens/billing.ts";
-import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import type { HierarchyContext, Principal, InvoiceWire, PaymentWire } from "../../../packages/contracts/src/index.ts";
-import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
+import { renderToString as render } from "../../../../../packages/ui/src/testing.ts";
+import { createApp } from "../../app.ts";
+import { owedMinor, INVOICE_STATE, maySettle, receivedAtFor } from "../billing.ts";
+import type { FetchLike } from "../../../../../packages/sdk/src/runtime.ts";
+import type { HierarchyContext, Principal, InvoiceWire, PaymentWire } from "../../../../../packages/contracts/src/index.ts";
+import { OPERATIONS } from "../../../../../packages/contracts/src/index.ts";
 
 /**
  * 0030 — S2's billing screens against a scripted gateway, through the real

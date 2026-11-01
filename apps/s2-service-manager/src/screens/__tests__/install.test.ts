@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderToString as render } from "../../../packages/ui/src/testing.ts";
-import { createApp } from "./app.ts";
-import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import type { Principal, HierarchyContext, ProjectWire } from "../../../packages/contracts/src/index.ts";
-import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
+import { renderToString as render } from "../../../../../packages/ui/src/testing.ts";
+import { createApp } from "../../app.ts";
+import type { FetchLike } from "../../../../../packages/sdk/src/runtime.ts";
+import type { Principal, HierarchyContext, ProjectWire } from "../../../../../packages/contracts/src/index.ts";
+import { OPERATIONS } from "../../../../../packages/contracts/src/index.ts";
 
 /**
  * 0024 in S2: a crew is recorded as a technician's unit or an install crew,

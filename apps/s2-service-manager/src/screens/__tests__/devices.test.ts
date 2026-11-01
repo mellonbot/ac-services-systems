@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderToString as render } from "../../../packages/ui/src/testing.ts";
-import { createApp } from "./app.ts";
-import { instantOf } from "./screens/devices.ts";
-import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import type { Principal, HierarchyContext } from "../../../packages/contracts/src/index.ts";
-import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
+import { renderToString as render } from "../../../../../packages/ui/src/testing.ts";
+import { createApp } from "../../app.ts";
+import { instantOf } from "../devices.ts";
+import type { FetchLike } from "../../../../../packages/sdk/src/runtime.ts";
+import type { Principal, HierarchyContext } from "../../../../../packages/contracts/src/index.ts";
+import { OPERATIONS } from "../../../../../packages/contracts/src/index.ts";
 
 /**
  * D-2a in S2: the devices S5 signs in with, and the shift grant on one. What

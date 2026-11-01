@@ -1,15 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderToString as render } from "../../../packages/ui/src/testing.ts";
-import { createApp, SCREEN_VIEWS } from "./app.ts";
-import { SCREENS } from "./screens.ts";
-import { canSubmit } from "./screens/contracts-new.ts";
-import { authoringTiers, parseValue, valueControl } from "./screens/terms-override.ts";
-import { OUTCOME_SENTENCE } from "./screens/terms-resolved.ts";
-import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
-import type { AccountWire, ContractWire, HierarchyContext, Principal, TermPolicy } from "../../../packages/contracts/src/index.ts";
-import { OPERATIONS, TERMS } from "../../../packages/contracts/src/index.ts";
-import { matchPath } from "../../../packages/ui/src/index.ts";
+import { renderToString as render } from "../../../../../packages/ui/src/testing.ts";
+import { createApp, SCREEN_VIEWS } from "../../app.ts";
+import { SCREENS } from "../../screens.ts";
+import { canSubmit } from "../contracts-new.ts";
+import { authoringTiers, parseValue, valueControl } from "../terms-override.ts";
+import { OUTCOME_SENTENCE } from "../terms-resolved.ts";
+import type { FetchLike } from "../../../../../packages/sdk/src/runtime.ts";
+import type { AccountWire, ContractWire, HierarchyContext, Principal, TermPolicy } from "../../../../../packages/contracts/src/index.ts";
+import { OPERATIONS, TERMS } from "../../../../../packages/contracts/src/index.ts";
+import { matchPath } from "../../../../../packages/ui/src/index.ts";
 
 /**
  * C2's screens against a scripted gateway, through the REAL shell and the REAL
@@ -187,7 +187,7 @@ test("finding 1 renders structural and finding 2 commercial — the axis is the 
   assert.ok(html.length > 0);
 
   // The classification itself, which is what the card renders.
-  const { admissionAxis } = await import("../../../packages/contracts/src/refusals.ts");
+  const { admissionAxis } = await import("../../../../../packages/contracts/src/refusals.ts");
   assert.equal(admissionAxis("illegal_tier"), "structural");
   assert.equal(admissionAxis("ratchet_loosened"), "commercial");
   assert.equal(admissionAxis("term_override_no_overlap"), "structural");
