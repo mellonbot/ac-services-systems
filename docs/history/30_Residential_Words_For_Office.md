@@ -13,9 +13,10 @@ site "Home" and S3 drew `siteName`. Decision: keep the one tree (2026-10-21 scop
 - S3 — `placeName()` in `screens/common.ts`. A home's job or request is named by its customer, and a building's by
   its site. Used on intake, the board (and its timeline), jobs, detail, dispatch and the map's label. The "Site"
   column headers read "Customer / site".
-- S2 — the account tree, New / Move node forms and the customer overview use `tierWord`. On a home: Tier column
-  "Customer / Address / House", "+ house", "+ Another region" (not "+ Region node"), and a panel note saying what
-  each row is. The count line on a home is houses only.
+- S2 — the account tree, New / Move node forms and the customer overview use `tierWord`. A home's tree is drawn
+  **two levels deep**: Customer → House (`homeRows`). The address node is kept in the data but not drawn, and each
+  house is named by its street address. Home rows carry no "+" / Move actions and no "+ Region node", because a
+  home's structure comes from `customers.createResidential`.
 
 ## Verified
 schema-guard, guard:test, typecheck, guard:lint, sdk:check, surfaces:check, `npm run test:ui` 338/338. Against local
@@ -23,5 +24,7 @@ Postgres 16: migrate 0001→0038, `--assert`, full integration 300/300. This inc
 `s2-residential.test.ts` that the office reads a home's request with `customerName` = the org name.
 
 ## Left
+- The office can no longer graft a second house onto a home from the tree. That needs its own one-step operation
+  (address + house in one unit of work), not the commercial two-form path.
 - S5 (technician) and S4 still show the raw site name for a home ("Home"). Same `placeName` treatment if wanted.
 - Existing data still names house sites "Home". Display no longer depends on it, so no rename migration was written.

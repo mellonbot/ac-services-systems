@@ -104,6 +104,17 @@ export const orderTree = (nodes: readonly AccountWire[]): readonly AccountWire[]
   return out;
 };
 
+/**
+ * A home is drawn two levels deep: the customer, and each house under it. The
+ * address node between them stays in the data — the ladder and row security
+ * need it — but on screen it only said the house's address twice. Each house
+ * is lifted to hang off the customer row and named by its street address
+ * (every house's stored name is "Home", which tells the office nothing).
+ */
+export const homeRows = (nodes: readonly AccountWire[]): readonly AccountWire[] =>
+  nodes.filter((n) => n.tier !== "location").map((n) => n.tier !== "site" ? n
+    : { ...n, name: n.address?.line1 ?? n.name, parentId: n.path[0]!, path: [n.path[0]!, n.id] });
+
 const childTier = (t: AccountWire["tier"]): "location" | "site" | null => (t === "region" ? "location" : t === "location" ? "site" : null);
 
 /**
@@ -138,7 +149,7 @@ const descendantCounts = (nodes: readonly AccountWire[]): ReadonlyMap<string, { 
   }
   return out;
 };
-/** A home's count is its houses alone — its address row is one per house and says nothing a count adds. */
+/** A home's count is its houses alone. */
 const countLine = (n: AccountWire, c: { location: number; site: number } | undefined, segment: CustomerSegment | null): VNode | null => {
   if (n.tier === "site") return null;
   const parts = ([["location", c?.location ?? 0], ["site", c?.site ?? 0]] as const)
@@ -234,11 +245,11 @@ export const accountsTree: Screen = (ctx, params) => {
 
   const treeGrid = (nodes: readonly AccountWire[], regionList: readonly RegionWire[], org: OrganizationWire | undefined): VNode => {
     const regionName = (id: string) => regionList.find((r) => r.id === id)?.name ?? id;
-    const ordered = orderTree(nodes);
-    const guides = treeGuides(ordered);
-    const counts = descendantCounts(ordered);
     const segment = org?.segment ?? null;
     const home = segment === "residential";
+    const ordered = orderTree(home ? homeRows(nodes) : nodes);
+    const guides = treeGuides(ordered);
+    const counts = descendantCounts(ordered);
     return panel(DataGrid({
       density: ctx.density,
       stack: true,
@@ -249,7 +260,8 @@ export const accountsTree: Screen = (ctx, params) => {
         { key: "regionId", header: "Our region", cell: (n: AccountWire) => n.tier === "region" ? regionName(n.regionId) : html`<span class="s2-muted">${regionName(n.regionId)}</span>` },
         { key: "customerGroup", header: "Customer group", cell: (n: AccountWire) => n.customerGroup ?? "—" },
         { key: "active", header: "Status", cell: (n: AccountWire) => html`<span class="s2-state" data-tone=${n.active ? "live" : "ended"}>${n.active ? "Active" : "Inactive"}</span>` },
-        { key: "actions", header: "", align: "end", cell: (n: AccountWire) => html`<span class="s2-row-actions">
+        // A home's structure is made in one step by customers.createResidential; there is nothing for the office to graft or move here.
+        { key: "actions", header: "", align: "end", cell: (n: AccountWire) => home ? null : html`<span class="s2-row-actions">
             ${childTier(n.tier) ? linkTo(ctx, "accounts.new", { orgId: orgId!, tier: childTier(n.tier)!, parentId: n.id }, `+ ${tierWord(childTier(n.tier)!, segment).toLowerCase()}`, undefined, `Add a ${tierWord(childTier(n.tier)!, segment).toLowerCase()} under ${n.name}`) : null}
             ${n.tier !== "region" ? linkTo(ctx, "accounts.move", { orgId: orgId!, id: n.id }, "Move", undefined, `Move ${n.name}`) : null}
           </span>` },
@@ -259,9 +271,9 @@ export const accountsTree: Screen = (ctx, params) => {
       groupHead: (n: AccountWire) => n.tier === "region",
       emptyText: "No nodes. A customer parent always has at least one region node — if this is empty, the tree failed to load.",
     }), "Account tree", org ? (home
-      ? `${org.name} is a home: the customer row is ${org.name} and the region we serve them from, the address under it, and the house — where the equipment and every job are`
+      ? `${org.name} is a home: the customer, served from the region shown, and the house — where the equipment and every job are`
       : `How ${org.name} is filed: region nodes, locations and sites, and which of our regions serves each`) : undefined,
-    linkTo(ctx, "accounts.new", { orgId: orgId!, tier: "region" }, home ? "+ Another region" : "+ Region node", "ac-action s2-link--action"), "account-tree");
+    home ? undefined : linkTo(ctx, "accounts.new", { orgId: orgId!, tier: "region" }, "+ Region node", "ac-action s2-link--action"), "account-tree");
   };
 
   const selected = orgId && orgs.value.state === "ready" ? orgs.value.value.organizations.find((o) => o.id === orgId) : undefined;

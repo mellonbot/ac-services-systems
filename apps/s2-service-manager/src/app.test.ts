@@ -6,7 +6,7 @@ import { S2_CSS } from "./styles.ts";
 import { UI_CSS } from "../../../packages/ui/src/styles.ts";
 import { SCREENS } from "./screens.ts";
 import { confirmPanel } from "./screens/common.ts";
-import { orderTree, treeGuides, showSegment, showCustomerCard, openFilter } from "./screens/accounts-tree.ts";
+import { orderTree, treeGuides, homeRows, showSegment, showCustomerCard, openFilter } from "./screens/accounts-tree.ts";
 import { agreementsOnFile } from "./screens/customer-detail.ts";
 import { findCustomers, setFind, clearFind, filterCount, NO_FIND, RECENT_DAYS, type Find } from "./screens/customer-find.ts";
 import { serviceHistoryOf, panMap, recentreMap, forgetLocating } from "./screens/home-card.ts";
@@ -350,6 +350,11 @@ test("the new-node screen: a location under a region node offers no region field
   assert.doesNotMatch(out, /customerGroup/);
 });
 
+test("homeRows lifts each house onto the customer and names it by its street, dropping the address node", () => {
+  const rows = homeRows(HOME_NODES.map((n) => n.tier === "site" ? { ...n, name: "Home" } : n));
+  assert.deepEqual(rows.map((n) => [n.tier, n.name, n.parentId, n.path.length]), [["region", "Turner / South", null, 1], ["site", "4012 Ridgeview Dr", U(41), 2]]);
+});
+
 test("the move screen offers only parents of the right tier, never the current one and never a descendant", () => {
   const austin = NODES.find((n) => n.id === AUSTIN)!;
   assert.deepEqual(parentCandidates(NODES, austin).map((n) => n.id), [N_WEST], "a location moves under another region node");
@@ -674,7 +679,7 @@ test("a required choice with nothing to choose says so where the select would be
   assert.match(out, /class="ac-action__reason" role="note">There is no other address to move under\./);
 });
 
-test("ACCOUNTS: a home's tree says customer, address and house — never region node, location or site", async () => {
+test("ACCOUNTS: a home's tree is two levels — the customer, then the house at its address — with no address row and nothing to graft or move", async () => {
   const gw = fakeGateway();
   const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
   await app.login("owner@ac.test", "pw");
@@ -682,11 +687,11 @@ test("ACCOUNTS: a home's tree says customer, address and house — never region 
   for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
   const tree = render(app.view()).split('id="account-tree"')[1]!;
   const tiers = [...tree.matchAll(/class="s2-tier">([^<]+)</g)].map((m) => m[1]);
-  assert.deepEqual(tiers, ["Customer", "Address", "House"]);
+  assert.deepEqual(tiers, ["Customer", "House"]);
+  assert.doesNotMatch(tree, /Turner household|Address/, "the address node is not drawn");
+  assert.match(tree, /data-depth="1" data-tier="site"/, "the house hangs directly off the customer");
   assert.match(tree, /Turner residence is a home/);
-  assert.match(tree, /\+ Another region/);
-  assert.match(tree, /aria-label="Add a house under Turner household"/);
-  assert.doesNotMatch(tree, /Region node|region nodes|\+ location|\+ site/);
+  assert.doesNotMatch(tree, /Region node|region nodes|\+ |Move /, "no structural actions on a home");
 
   app.router.navigate("accounts.tree", { orgId: ORG });
   for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
