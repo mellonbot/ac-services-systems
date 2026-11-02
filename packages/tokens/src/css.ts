@@ -86,7 +86,7 @@ export const semanticFor = (ground: Ground): Readonly<Record<SemanticToken, stri
  * What the brand roles resolve to on a surface that renders a state ramp.
  *
  * Plate 04's verdict, applied to the house: an accent inside the state ramp's
- * hue range is admitted for the wordmark, the livery and marketing, and falls
+ * hue range is admitted for the wordmark, the livery and the brand-layer surface, and falls
  * back to Ink Black everywhere a state renders. On the plate "Ink Black" is
  * frost — the plate ground's own ink.
  */

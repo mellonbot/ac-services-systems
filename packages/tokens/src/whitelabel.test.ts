@@ -50,7 +50,7 @@ test("since Rev C the gate admits Amped's red to the board, and still admits the
   // which is exactly the sentence Plate 5 writes about it, and the one the
   // single text threshold could not say.
   assert.deepEqual(red.tiers.field, { text: false, fill: true });
-  assert.ok(red.notes.every((n) => !/logo, masthead and marketing only/.test(n)));
+  assert.ok(red.notes.every((n) => !/logo, masthead and brand-layer surfaces only/.test(n)));
 });
 
 test("the gate asks what the accent will be PAINTED as \u2014 which is why our own red is still a fill", () => {

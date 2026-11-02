@@ -24,8 +24,8 @@ export const BRAND = Object.freeze({
   descriptor: "Operating Company",
   trade: "Heating · Ventilating · Refrigerating",
   /**
-   * The motto is a constraint before it is a line. It is why the marketing
-   * surface prints no availability figure: the brand never writes a cheque the
+   * The motto is a constraint before it is a line. It is why the front door
+   * prints no availability figure: the brand never writes a cheque the
    * gateway cannot clear.
    */
   motto: "Measured, not promised.",
