@@ -116,7 +116,7 @@ test("the emitter is deterministic — the frame is byte-comparable", () => {
   assert.equal(tokenCss("comfort"), tokenCss("comfort"));
 });
 
-test("THE BRAND LAYER IS FENCED BY SURFACE — red reaches marketing and nothing that shows state", () => {
+test("THE BRAND LAYER IS FENCED BY SURFACE — red reaches the brand-layer surface and nothing that shows state", () => {
   for (const d of DENSITIES) {
     const wearing = rolesFor(d, { brandLayer: true });
     const barred = rolesFor(d, { brandLayer: false });
