@@ -336,6 +336,66 @@ export const connectShell = async (cfg: ConnectConfig): Promise<ConnectedShell> 
 };
 
 /**
+ * A HELD SHIFT — what lets S5 open with no network. When S5 resumes a front-door
+ * shift online, it keeps the context `session.me` answered in the same tab
+ * storage as SHIFT_TAB_KEY; when the gateway is unreachable at the next load,
+ * it opens from that instead. It is only ever written from a gateway answer,
+ * so no sign-in is ever accepted offline. It lives exactly as long as the
+ * shift does: the tab (sessionStorage, and only beside the mark) and the
+ * session's own end (`deviceShiftEndsAt`), whichever comes first.
+ */
+export const HELD_SHIFT_KEY = "ac.shift.held";
+export type HeldShift = HierarchyContext & { readonly deviceCrew: { readonly id: string; readonly label: string }; readonly deviceShiftEndsAt: string };
+
+const asHeldShift = (c: HierarchyContext | null | undefined): HeldShift | null =>
+  c?.principal?.namespace === "device" && typeof c.principal.subjectId === "string"
+  && typeof c.deviceCrew?.id === "string" && typeof c.deviceCrew.label === "string"
+  && typeof c.deviceShiftEndsAt === "string" && !Number.isNaN(Date.parse(c.deviceShiftEndsAt))
+    ? c as HeldShift : null;
+
+/** The shift held in this tab, if it has not ended. Storage that throws (site data blocked) holds nothing. */
+export const heldShift = (tab: TabMark | null | undefined, now: number): HeldShift | null => {
+  try {
+    if (!tab?.getItem(SHIFT_TAB_KEY)) return null;
+    const held = asHeldShift(JSON.parse(tab.getItem(HELD_SHIFT_KEY) ?? "null") as HierarchyContext | null);
+    return held && Date.parse(held.deviceShiftEndsAt) > now ? held : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Keep a shift the gateway just confirmed, in a tab S1 marked. Anything else is not held. */
+export const holdShift = (tab: TabMark | null | undefined, shell: Pick<ConnectedShell, "context">): void => {
+  const held = asHeldShift(shell.context);
+  try {
+    if (held && tab?.getItem(SHIFT_TAB_KEY)) tab.setItem(HELD_SHIFT_KEY, JSON.stringify(held));
+  } catch { /* blocked: this tab cannot open offline */ }
+};
+
+export const forgetShift = (tab: TabMark | null | undefined): void => {
+  try { tab?.removeItem(HELD_SHIFT_KEY); } catch { /* nothing held */ }
+};
+
+/**
+ * A shell for a held shift, with no `session.me`: the principal and crew are
+ * the ones the gateway answered when the shift was held. The transport is the
+ * live cookie one, so every call still goes to the gateway, which judges it
+ * against the session as it is now — a revoked or ended shift is a `token`
+ * refusal on the first call that reaches it.
+ */
+export const resumeHeldShift = (cfg: Omit<ConnectConfig, "credentials">, held: HeldShift): ConnectedShell => {
+  const raw = httpTransport({
+    baseUrl: cfg.baseUrl, surfaceId: cfg.surfaceId, fetch: cfg.fetch, token: () => null, session: "cookie",
+    ...(cfg.requestId ? { requestId: cfg.requestId } : {}),
+  });
+  const shell = createShell({ surfaceId: cfg.surfaceId, principal: held.principal, transport: raw, context: held });
+  const logout = async () => {
+    try { await shell.gateway.logout(); } finally { shell.close(); }
+  };
+  return Object.freeze({ ...shell, token: () => null, deviceCrew: { id: held.deviceCrew.id, label: held.deviceCrew.label }, logout });
+};
+
+/**
  * S0 FOR THE FRONT DOOR — a surface with no session of its own.
  *
  * `connectShell` above is login → `session.me` → createShell. S1 does none of

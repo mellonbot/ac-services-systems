@@ -28,4 +28,5 @@ export * from "./session-boot.ts";
 export * from "./fixed-units.ts";
 export * from "./layout.ts";
 export { spinFavicon } from "./favicon.ts";
+export { registerOfflineShell } from "./offline-shell.ts";
 export { UI_CSS } from "./styles.ts";

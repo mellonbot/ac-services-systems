@@ -190,6 +190,7 @@ test("a technician: without the device they are told to give it; with it, S5 —
   const s5 = await landOn("S5", out.token);
   assert.equal(s5.principal.namespace, "device");
   assert.match(s5.deviceCrew?.label ?? "", new RegExp(`Door Crew ${RUN}`), "session.me answers the crew the shift grant names");
+  assert.equal(s5.context?.deviceShiftEndsAt, out.expiresAt, "session.me answers when the shift's session ends — the instant a held shift stops opening offline");
   await s5.logout();
 });
 

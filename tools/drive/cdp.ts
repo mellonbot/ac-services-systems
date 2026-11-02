@@ -144,13 +144,15 @@ export class Cdp {
    * out on its first page. Page.navigate answers once the navigation commits,
    * or with the reason it did not.
    */
-  async openTab(url: string): Promise<void> {
+  async openTab(url: string, beforeNavigate?: () => Promise<void>): Promise<void> {
     const t0 = Date.now();
     const { targetId } = await this.send("Target.createTarget", { url: "about:blank" }, false) as { targetId: string };
     const { sessionId } = await this.send("Target.attachToTarget", { targetId, flatten: true }, false) as { sessionId: string };
     this.sessionId = sessionId;
     await this.send("Page.enable");
     await this.send("Runtime.enable");
+    // Anything the new tab must have before its first request — a cut network, say.
+    await beforeNavigate?.();
     const nav = await this.send("Page.navigate", { url }) as { errorText?: string };
     if (nav.errorText) throw new Error(`navigation to ${url} failed: ${nav.errorText}`);
     console.log(`cdp: tab open in ${Date.now() - t0}ms`);

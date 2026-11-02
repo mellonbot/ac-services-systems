@@ -49,4 +49,10 @@ export type HierarchyContext = {
    * context.ts: a revoked grant would leave a claim that lies. Absent otherwise.
    */
   readonly deviceCrew?: { readonly id: string; readonly label: string } | null;
+  /**
+   * For a device principal, when its session ends (the token's `exp`, the
+   * cookie's expiry). S5 opens a held shift from cache only before it.
+   * Absent otherwise.
+   */
+  readonly deviceShiftEndsAt?: string;
 };

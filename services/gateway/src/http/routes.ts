@@ -105,14 +105,15 @@ export const handlers: { readonly [K in OperationId]: Handler<K> } = {
   },
 
   // A device principal also learns its shift's crew, so S5 can resume a
-  // session S1 signed it into (auth.deviceLogin answers the same, once).
+  // session S1 signed it into (auth.deviceLogin answers the same, once), and
+  // when that session ends, so S5 never opens it from cache past that instant.
   "session.me": (req) => openTx(req, "session.me", "read", async (uow, p) => {
     const context = await buildContext(p, hierarchyReader(uow.tx));
     if (p.namespace !== "device" || !p.shiftId) return context;
     const crew = (await uow.tx.query<{ id: string; label: string }>(
       "SELECT c.id, c.label FROM device_grants g JOIN crews c ON c.id = g.crew_id WHERE g.id = $1", [p.shiftId],
     ))[0];
-    return { ...context, deviceCrew: crew ? { id: crew.id, label: crew.label } : null };
+    return { ...context, deviceCrew: crew ? { id: crew.id, label: crew.label } : null, deviceShiftEndsAt: new Date(callerOf(req).expiresAt * 1000).toISOString() };
   }),
 
   // 0032 — the Account button: the caller's own picture, status and password.
