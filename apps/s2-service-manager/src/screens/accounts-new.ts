@@ -1,7 +1,7 @@
 import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, CreateAccountInput, Refusal, RegionWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, refusalView, submitAction, noChoice, noActiveRegion, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, refusalView, submitAction, noChoice, noActiveRegion, formValues, linkTo, commercialRefusalNote, type Screen, type ScreenContext } from "./common.ts";
 
 /**
  * C1 — author a node. Three tiers, one form, with the shape the catalogue
@@ -102,8 +102,8 @@ export const accountsNew: Screen = (ctx, params) => {
 export const refusalRoutes = (ctx: ScreenContext, r: Refusal, orgId: string, tier: Tier, parentId: string | undefined) => {
   const routes: { label: string; onSelect: () => void; primary?: boolean }[] = [];
   if (r.kind === "admission" && r.code === "supply_below_density") {
-    // Phase 1: the commercial route opens the account owner's contact with the refusal text; `commercial_review` is a later catalogue row.
-    routes.push({ label: "Request commercial review", onSelect: () => { ctx.store.notice.value = [`Commercial review requested: ${r.message}`]; ctx.router.navigate("accounts.tree", { orgId }); }, primary: true });
+    // Phase 1: `commercial_review` is a later catalogue row, so this only leaves the refusal text as a note; it requests nothing.
+    routes.push({ label: "Go back and keep the refusal note", onSelect: () => { ctx.store.notice.value = [commercialRefusalNote(r.message)]; ctx.router.navigate("accounts.tree", { orgId }); }, primary: true });
   }
   if (r.kind === "admission" && r.code === "ac_accounts_derive_region" && tier === "site" && parentId) {
     routes.push({ label: "Add a location here instead", onSelect: () => ctx.router.navigate("accounts.new", { orgId, tier: "location", parentId }), primary: true });

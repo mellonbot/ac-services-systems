@@ -57,9 +57,9 @@ const at = async (app: Awaited<ReturnType<typeof appFor>>["app"], screen: Parame
 
 test("the Regions tab is a principal's; another office role is not offered it", async () => {
   const principal = await appFor(["principal"]);
-  assert.match(await at(principal.app, "devices"), /Where we serve from/);
+  assert.match(await at(principal.app, "devices"), /<a class="ac-seg__item"[^>]*href="\/regions">Regions<\/a>/);
   const finance = await appFor(["finance"]);
-  assert.doesNotMatch(await at(finance.app, "devices"), /Where we serve from/);
+  assert.doesNotMatch(await at(finance.app, "devices"), /href="\/regions"/);
 });
 
 test("the Regions screen lists every region; Unassigned has no page to open, and a closed region says so", async () => {

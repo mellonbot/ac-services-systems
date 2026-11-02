@@ -1,7 +1,7 @@
 import { html, pageHead, panel, signal, DataGrid, RefusalCard, type VNode } from "../../../../packages/ui/src/index.ts";
 import type { AccountWire, ContractWire, Refusal, TermOverrideWire, TermPolicy, Tier } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, submitAction, noChoice, formValues, linkTo, boundEnd, type Screen, type ScreenContext } from "./common.ts";
+import { whenReady, submitAction, noChoice, formValues, linkTo, boundEnd, commercialRefusalNote, type Screen, type ScreenContext } from "./common.ts";
 
 /**
  * C2 — author a term override, with the form DRAWN FROM THE REGISTER.
@@ -205,9 +205,9 @@ export const overrideRefusal = (ctx: ScreenContext, f: { refusal: Refusal | null
   const routes: { label: string; onSelect: () => void; primary?: boolean }[] = [];
   if (r.kind === "admission" && r.axis === "commercial") {
     routes.push({
-      label: "Request commercial review",
+      label: "Go back and keep the refusal note",
       primary: true,
-      onSelect: () => { ctx.store.notice.value = [`Commercial review requested: ${r.message}`]; ctx.router.navigate("contracts.list", { orgId }); },
+      onSelect: () => { ctx.store.notice.value = [commercialRefusalNote(r.message)]; ctx.router.navigate("contracts.list", { orgId }); },
     });
   }
   if (r.kind === "admission" && (r.code === "illegal_tier" || r.code === "ac_admit_term_override")) {
