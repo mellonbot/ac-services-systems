@@ -1,0 +1,5 @@
+customer_ref,customer_name,segment,region,region_node_name,location_name,site_name,site_ref,address_line1,address_line2,city,state,postal,country,contact_name,contact_phone,contact_email
+CUST-1001,Northpark Retail Partners,commercial,DFW,,Northpark Center,Building A — Rooftop,NPC-A,8687 N Central Expy,,Dallas,TX,75225,US,,,
+CUST-1001,Northpark Retail Partners,commercial,DFW,,Northpark Center,Building B — Mechanical room,NPC-B,8687 N Central Expy,Suite 200,Dallas,TX,75225,US,,,
+CUST-1001,Northpark Retail Partners,commercial,DFW,,Alliance Distribution,Warehouse 3,ALL-3,2100 Eagle Pkwy,,Fort Worth,TX,76177,US,,,
+CUST-2001,Rivera residence,residential,DFW,,,,,4412 Belclaire Ave,,Dallas,TX,75205,US,Ana Rivera,214-555-0199,ana.rivera@example.com

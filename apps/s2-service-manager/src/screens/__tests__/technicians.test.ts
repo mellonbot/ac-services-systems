@@ -40,7 +40,7 @@ const fakeGateway = (roles: string[]) => {
     if (path === OPERATIONS["auth.login"].path) { session = true; return reply(200, { token: "x", expiresAt: "2026-10-22T00:00:00Z", context: {} }); }
     if (!session) return reply(401, { error: "AuthError", code: "malformed", message: "no session" });
     if (path === OPERATIONS["session.me"].path) return reply(200, context);
-    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true }] });
+    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true, assignable: true }] });
     if (path === OPERATIONS["firms.list"].path) return reply(200, { firms: [{ id: FIRM, legalName: "Lone Star Mechanical LLC", status: "active", regionId: SOUTH, settlementTermsDays: 30, msaSignedAt: "2026-03-02", diagnosticDataRightsReserved: true, w9DocumentKey: null, crewCount: 1, activeCrewCount: 1 }] });
     if (path === OPERATIONS["crews.list"].path) return reply(200, { crews: [{ id: CREW, label: "Lone Star — Crew A", employmentType: "subcontracted", firmId: FIRM, homeRegionId: SOUTH, active: true, documents: { required: [], satisfied: [], unverified: [], expired: [], missing: [], earliestExpiry: null } }] });
     if (path === OPERATIONS["technicians.list"].path) return reply(200, { technicians: [tech(TECH, FIRM, "Luis Ortega"), tech(OURS, null, "Marcus Bell")] });

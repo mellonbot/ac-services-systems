@@ -40,8 +40,8 @@ export const submitAction = (ctx: ScreenContext, label: string, id?: string, blo
   }) ?? html``;
 
 /** Once the regions are read and none of ours is active, why a form that needs one cannot go. */
-export const noActiveRegion = (r: Resource<{ readonly regions: readonly { readonly active: boolean }[] }>): string | null =>
-  r.state === "ready" && !r.value.regions.some((x) => x.active) ? "No region of ours is active to choose." : null;
+export const noActiveRegion = (r: Resource<{ readonly regions: readonly { readonly assignable: boolean }[] }>): string | null =>
+  r.state === "ready" && !r.value.regions.some((x) => x.assignable) ? "No region of ours is active to choose." : null;
 
 /** Once the click's render has landed: focus or reveal what it opened. Nothing to do without a DOM (node --test). */
 export const afterRender = (fn: (doc: Document) => void): void => {

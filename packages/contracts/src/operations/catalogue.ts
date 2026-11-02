@@ -72,6 +72,22 @@ export const OPERATIONS = {
     surfaces: ["S2", "S3", "S4"], carrier: "none", sdkMethod: "listRegions",
     summary: "OUR service regions — the shard boundary. What a region node binds to; what D14's density rule is set on.",
   }),
+  // ---- 0038: our regions, kept by a principal in S2 ----
+  "regions.create": op<Wire.CreateRegionInput, Wire.CreateRegionOutput>()({
+    id: "regions.create", method: "POST", path: "/s2/regions", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createRegion",
+    summary: "Open a service region: a code (fixed — job numbers carry it), a name and a timezone. Principals only.",
+  }),
+  "regions.update": op<Wire.UpdateRegionInput, Wire.UpdateRegionOutput>()({
+    id: "regions.update", method: "POST", path: "/s2/regions/update", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "updateRegion",
+    summary: "Rename a region. Its code does not change. Unassigned (pre-account) is structural and refused. Principals only.",
+  }),
+  "regions.setActive": op<Wire.SetRegionActiveInput, Wire.SetRegionActiveOutput>()({
+    id: "regions.setActive", method: "POST", path: "/s2/regions/active", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "setRegionActive",
+    summary: "Stop serving a region, or serve it again. Deactivation is refused, naming them, while the region holds active logins, crews, customer accounts or open jobs. Principals only.",
+  }),
   "organizations.list": op<Wire.ListOrganizationsInput, Wire.ListOrganizationsOutput>()({
     id: "organizations.list", method: "GET", path: "/s2/organizations", kind: "query", auth: "bearer",
     surfaces: ["S2", "S4"], carrier: "query", sdkMethod: "listOrganizations",
@@ -486,6 +502,22 @@ export const OPERATIONS = {
     id: "devices.grantShift", method: "POST", path: "/s2/devices/grant", kind: "mutation", auth: "bearer",
     surfaces: ["S2"], carrier: "body", sdkMethod: "grantDeviceShift",
     summary: "The primitive: this device, this crew, this technician, this window. What auth.deviceLogin mints a token against. Refused if the technician is not on the named crew, the crew is inactive, or the device already holds an overlapping grant.",
+  }),
+  // ---- 0038: a shift moved later or ended now — the same roles that grant one ----
+  "devices.listGrants": op<Wire.ListGrantsInput, Wire.ListGrantsOutput>()({
+    id: "devices.listGrants", method: "GET", path: "/s2/devices/grants", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "query", sdkMethod: "listDeviceGrants",
+    summary: "Shift grants still to come, open now, or ended in the last day — with the device, the technician's unit and name, the window and whether the office revoked it.",
+  }),
+  "devices.extendShift": op<Wire.ExtendShiftInput, Wire.ExtendShiftOutput>()({
+    id: "devices.extendShift", method: "POST", path: "/s2/devices/grant/extend", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "extendDeviceShift",
+    summary: "Move a live grant's end later. Refused for a revoked or ended grant, an end that is not later, or one that would overlap the device's next grant. A device session already minted keeps its expiry; signing in again picks up the new end.",
+  }),
+  "devices.revokeShift": op<Wire.RevokeShiftInput, Wire.RevokeShiftOutput>()({
+    id: "devices.revokeShift", method: "POST", path: "/s2/devices/grant/revoke", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "revokeDeviceShift",
+    summary: "End a grant now, no grace period: its device sessions are ended and the token is refused on its next request. The device is free for another grant.",
   }),
   // ---- S5: what a technician reads before replaying a sync batch ----
   "jobs.mine": op<void, Wire.MyJobsOutput>()({

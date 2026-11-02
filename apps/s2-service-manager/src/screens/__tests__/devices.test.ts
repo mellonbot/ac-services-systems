@@ -35,12 +35,16 @@ const fakeGateway: FetchLike = (() => {
     if (path === OPERATIONS["auth.login"].path) { session = true; return reply(200, { token: "x", expiresAt: "2026-10-22T00:00:00Z", context: {} }); }
     if (!session) return reply(401, { error: "AuthError", code: "malformed", message: "no session" });
     if (path === OPERATIONS["session.me"].path) return reply(200, context);
-    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true }] });
+    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true, assignable: true }] });
     if (path === OPERATIONS["firms.list"].path) return reply(200, { firms: [{ id: FIRM, legalName: "Lone Star Mechanical LLC", status: "active", regionId: SOUTH, settlementTermsDays: 30, msaSignedAt: "2026-03-02", diagnosticDataRightsReserved: true, w9DocumentKey: null, crewCount: 1, activeCrewCount: 1 }] });
     if (path === OPERATIONS["crews.list"].path) return reply(200, { crews: [crew(UNIT, "Marcus Bell", "service", true), crew(INSTALL, "Install Crew 2", "install", true), crew(RETIRED, "Dana Cole", "service", false)] });
     if (path === OPERATIONS["devices.list"].path) return reply(200, { devices: [
       { id: WEB, hardwareId: "RK-WEB-0001", kind: "web_fallback", firmId: null, active: true, orgId: "org-internal", regionId: SOUTH },
       { id: OLD, hardwareId: "LS-TAB-0007", kind: "android_pilot", firmId: FIRM, active: false, orgId: FIRM, regionId: SOUTH },
+    ] });
+    if (path === OPERATIONS["devices.listGrants"].path) return reply(200, { grants: [
+      { id: U(30), deviceId: WEB, hardwareId: "RK-WEB-0001", crewId: UNIT, crewLabel: "Marcus Bell", technicianId: U(40), technicianName: "Marcus Bell", windowStart: "2026-10-31T12:00:00.000Z", windowEnd: "2026-10-31T20:00:00.000Z", revokedAt: null, state: "open" },
+      { id: U(31), deviceId: WEB, hardwareId: "RK-WEB-0001", crewId: UNIT, crewLabel: "Marcus Bell", technicianId: U(40), technicianName: "Marcus Bell", windowStart: "2026-10-30T12:00:00.000Z", windowEnd: "2026-10-30T20:00:00.000Z", revokedAt: "2026-10-30T15:00:00.000Z", state: "revoked" },
     ] });
     return reply(200, {});
   };
@@ -63,6 +67,14 @@ test("the device list names each device's ID, kind and owner, and offers a grant
   assert.match(list, /Lone Star Mechanical LLC/);
   assert.match(list, /href="\/devices\/grant\/e3000000-0000-0000-0000-000000000020"/);
   assert.doesNotMatch(list, /devices\/grant\/e3000000-0000-0000-0000-000000000021/, "an inactive device takes no grant");
+});
+
+test("the shifts panel offers Extend and Revoke on a live grant only, and says a revoked one in a word", async () => {
+  const shifts = (await screenAt("devices")).split('id="shifts"')[1]!;
+  assert.equal((shifts.match(/>Extend</g) ?? []).length, 1, "only the open grant can be extended");
+  assert.equal((shifts.match(/>Revoke</g) ?? []).length, 1, "only the open grant can be revoked");
+  assert.match(shifts, /data-tone="live">Open</);
+  assert.match(shifts, /data-tone="ended">Revoked</);
 });
 
 test("a web fallback is registered without a public key — the browser holds none", async () => {

@@ -73,9 +73,9 @@ export const networkFirmNew: Screen = (ctx) => {
     <details class="s2-help"><summary>Why firms are recorded together</summary><p>A firm is recorded with its own tenant root in one step — the organization we settle with and the firm we dispatch are one row's worth of truth, created together or not at all.</p></details>
     <form class="ac-form" onSubmit=${submit} id="firm-form">
       <label class="ac-field"><span>Legal name</span><input class="ac-input" name="legalName" required /></label>
-      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice("Dispatched from", "No region of ours is active.") : html`<label class="ac-field">
+      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.assignable) ? noChoice("Dispatched from", "No region of ours is active.") : html`<label class="ac-field">
         <span>Dispatched from</span>
-        <select name="regionId" required class="ac-input">${r.regions.filter((x: RegionWire) => x.active).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
+        <select name="regionId" required class="ac-input">${r.regions.filter((x: RegionWire) => x.assignable).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
       </label>`)}
       <details class="s2-help"><summary>How this region is used</summary><p>Our region. The firm's crews are dispatched from here and its rows live in this shard.</p></details>
       <label class="ac-field"><span>Settlement terms (days)</span><input class="ac-input" type="number" name="settlementTermsDays" min="0" defaultValue="30" required /><small>D13 — measured from day one.</small></label>
@@ -165,9 +165,9 @@ export const networkCrewNew: Screen = (ctx, params) => {
         <small>Read by the compliance gate and by nothing else. The field experience is identical either way.</small>
       </label>
       ${f.employmentType === "subcontracted" ? whenReady(ctx, firms.value, (x) => firmField(x.firms)) : html`<p class="s2-parent">An employed crew is ours — no firm is named, and none is offered.</p>`}
-      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.active) ? noChoice("Home region", "No region of ours is active.") : html`<label class="ac-field">
+      ${whenReady(ctx, regions.value, (r) => !r.regions.some((x) => x.assignable) ? noChoice("Home region", "No region of ours is active.") : html`<label class="ac-field">
         <span>Home region</span>
-        <select name="homeRegionId" required class="ac-input">${r.regions.filter((x: RegionWire) => x.active).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
+        <select name="homeRegionId" required class="ac-input">${r.regions.filter((x: RegionWire) => x.assignable).map((x: RegionWire) => html`<option value=${x.id}>${x.name} (${x.code})</option>`)}</select>
         <small>Where the crew is normally dispatched from. A crew that changes region is a new crew with a new document set.</small>
       </label>`)}
       <div class="s2-form__actions">

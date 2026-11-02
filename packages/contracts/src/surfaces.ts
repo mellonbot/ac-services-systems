@@ -145,10 +145,12 @@ const REGISTRY = {
              // WS-E: the office issues a settlement statement to a firm.
              "settlement",
              // 0030 (2026-10-24): a payment received against an invoice.
-             "payment"],
+             "payment",
+             // 0038 (2026-11-01): our service regions, kept in S2.
+             "region"],
     // 0030: money settled is final, so only finance and the principals record
     // a payment or void an invoice; the rest of S2 reads them.
-    writeRoles: { payment: ["principal", "ops_leadership", "finance"], invoice: ["principal", "ops_leadership", "finance"] },
+    writeRoles: { payment: ["principal", "ops_leadership", "finance"], invoice: ["principal", "ops_leadership", "finance"], region: ["principal"] },
     density: "console", realtime: false, offline: false,
     degraded: "Read-only from last server state. NO offline writes, ever — this is the only surface that authors hierarchy, contract and subcontractor-network truth, and a forked truth here is unrecoverable.",
     degradedNotice: "Offline — showing the records as last saved. Changes are paused until the connection returns; nothing is saved on this device.",

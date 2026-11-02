@@ -48,7 +48,7 @@ const gateway = () => {
     if (path === OPERATIONS["receivingPoints.list"].path) return reply(200, { receivingPoints: [detail.receivingPoint] });
     if (path === OPERATIONS["pos.list"].path) return reply(200, { orders: [detail.order] });
     if (path === OPERATIONS["pos.detail"].path) return reply(200, detail);
-    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 3, active: true }] });
+    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 3, active: true, assignable: true }] });
     if (path === OPERATIONS["prices.decide"].path) return reply(200, { id: U(21), state: "accepted", closedId: U(20), eventId: U(99) });
     if (path === OPERATIONS["receipts.record"].path) return reply(200, { ids: [U(40)], state: "received", eventId: U(98) });
     if (path === OPERATIONS["organizations.list"].path) return reply(200, { organizations: [] });
