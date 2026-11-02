@@ -400,10 +400,12 @@ Rev C moved the fault instead: red now measures ${FIGURES.redFromFault.measured.
 ${FIGURES.redFromNearestState.measured.toFixed(2)}° from its nearest state hue, the warning amber, so it clears the accent
 gate's ${ACCENT_GATE.minHueSeparation}° and is the instrument accent on every surface.
 
-| Layer | Where | Resolved by |
-|---|---|---|
-| Instrument — red \`${SEMANTIC["color.action"]}\` | every control and highlight, S1–S8 | the default |
-| Brand — red \`${SEMANTIC["color.brand"]}\` | wordmark, livery, badge, S1 front door | \`stateRamp: false\` in the surface registry |
+Both accent layers are the same red. They differ in where they may appear, not in value.
+
+| Accent layer | Roles | Where | Resolved by |
+|---|---|---|---|
+| Instrument — red \`${SEMANTIC["color.action"]}\` | \`--color-action*\` | every control and highlight, S1–S8 | the default |
+| Brand — red \`${SEMANTIC["color.brand"]}\` | \`--color-brand*\` | wordmark, livery, badge, S1 front door | \`stateRamp: false\` in the surface registry; Ink Black wherever a state ramp renders |
 
 The brand roles keep their surface fence: it is the mechanism a tenant accent
 that fails the gate still falls behind, and the house is held to it.
