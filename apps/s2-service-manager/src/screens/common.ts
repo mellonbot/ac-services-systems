@@ -29,6 +29,13 @@ export const refusalView = (ctx: ScreenContext, refusal: Refusal, routes: readon
   RefusalCard({ density: ctx.density, refusal, routes }) ?? html``;
 
 /**
+ * The note a commercial-axis refusal leaves behind. `commercial_review` is not yet a catalogue
+ * row, so nothing is requested from here and the note must not say it was.
+ */
+export const commercialRefusalNote = (message: string): string =>
+  `Not recorded. ${message} This needs a commercial decision. Raise it with the account owner; it is not requested from here.`;
+
+/**
  * The mutation button: disabled with the declared reason while degraded — S2 is read-only from last server state.
  * `blocked` is the other reason a form cannot go: a required choice with nothing to choose.
  */
@@ -75,6 +82,6 @@ export const confirmPanel = (p: {
   <p>${p.detail}</p>
   <div class="s2-confirm__actions">
     <button type="button" class=${`s2-mutation${p.danger ? " s2-mutation--danger" : ""}`} disabled=${Boolean(p.busy || p.disabled)} onClick=${p.onConfirm}>${p.busy ? "Saving…" : p.confirmLabel}</button>
-    <button type="button" class="s2-mutation s2-mutation--quiet" disabled=${p.busy ?? false} onClick=${p.onCancel}>Keep as is</button>
+    <button type="button" class="s2-mutation s2-mutation--quiet" disabled=${p.busy ?? false} onClick=${p.onCancel}>Cancel</button>
   </div>
 </div>`;
