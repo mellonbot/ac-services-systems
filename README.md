@@ -31,7 +31,7 @@ flowchart TB
         S2["S2 Service Manager<br/>Office · Hierarchy, Contracts, Network"]
         S3["S3 Dispatch<br/>Board + offline queue"]
         S4["S4 HQ Dashboard<br/>36 metrics, 15-min rollup"]
-        S5["S5 Tech Fallback<br/>Device login"]
+        S5["S5 Technician<br/>Four job states · offline replay"]
         S6["S6 Customer Portal<br/>Sites, work, site card"]
         S7["S7 Vendor Portal<br/>Procurement (phase-gated)"]
         S8["S8 Subcontractor<br/>Crews, docs, settlements"]
@@ -39,15 +39,15 @@ flowchart TB
 
     S0["S0 Shared Shell<br/>Login · Context · Events · Refusals"]
     GW["Gateway<br/>Operation catalogue → routes + client<br/>Unit of work · RLS binding"]
-    DB[("PostgreSQL 16<br/>Row-Level Security<br/>Triggers · Migrations")]
+    DB[("PostgreSQL 18<br/>Row-Level Security<br/>Triggers · Migrations")]
 
     Surfaces --> S0
     S0 --> GW
     GW --> DB
 
-    classDef surface fill:#e8f4f8,stroke:#0066cc
-    classDef core fill:#fff3e0,stroke:#e65100
-    classDef data fill:#e8f5e9,stroke:#2e7d32
+    classDef surface fill:#F3F6F9,stroke:#8695A2,color:#0E1418
+    classDef core fill:#F3F6F9,stroke:#0E1418,stroke-width:2px,color:#0E1418
+    classDef data fill:#D4DCE4,stroke:#0E1418,stroke-width:2px,color:#0E1418
     class S1,S2,S3,S4,S5,S6,S7,S8 surface
     class S0,GW core
     class DB data
@@ -81,20 +81,26 @@ sequenceDiagram
 | **S1** | Front door | Everyone | One sign-in; the gateway routes each login to its surface (or a choice); zero-copy ceiling | ✅ |
 | **S2** | Service Manager | Office | Hierarchy, agreements (OQ5), network (firms/crews/docs/rates), purchasing | ✅ |
 | **S3** | Dispatch Console | Dispatcher | Board, dispatch, offline-first mutation queue | ✅ |
-| **S4** | HQ Ops Dashboard | Leadership | 36 figures across service, revenue, network, growth (15-min rollup) | ✅ |
-| **S5** | Technician Web Fallback | Technician | Device-shaped login, offline replay | ✅ |
+| **S4** | HQ Ops Dashboard | Leadership | 36 figures across service, money, network, growth and platform (15-min rollup) | ✅ |
+| **S5** | Technician Web Fallback | Technician | Job walks assigned → en route → in progress → completed; offline replay | ✅ |
 | **S6** | Customer Portal | Customer | Sites, work, agreements, **site card** (units, contacts, imagery, ledger) | ✅ |
 | **S7** | Vendor Portal | Vendor | Catalogue, POs, shipments, 3-way match, returns | 🟡 Phase 4 |
 | **S8** | Subcontractor Portal | Firm | Roster, documents, work, settlements (ack/dispute) | ✅ |
 
 ![Surface status chart](docs/assets/surface-status.svg)
 
-## Current build state (as of late Sept 2026)
+## Current build state (as of 2 November 2026)
 
 - **Foundation** (Steps 0–2): Frame, backbone, S0 shell — complete.
 - **Surface runtime + S2** (Step 3): Hierarchy, contracts, network — complete.
 - **Items 4–11**: S3/S5, S6 (+ site card), S8, S1, S4, S7 (disabled) — complete.
-- **Rev A**: Field-ops reference layout across all surfaces.
+- **Arc Foundry Revs A–D**: reference layout across all surfaces (A), 4px/6px corners (B), red as the instrument accent with a garnet fault (C), S5 moved onto the light stock (D).
+- **Production database replaced** — PostgreSQL 18; CI tests against the same version (`docs/history/28`).
+- **Importer, regions and shift controls** — CSV load through the gateway, principal-only regions, S2 Shifts panel (`docs/history/29`).
+- **S1 front door** — one sign-in; the gateway sends each login to its surface (`docs/history/30`).
+- **S5 four job states** — assigned, en route, in progress, completed (`docs/history/31`).
+- **Residential households** can hold more than one home.
+- **Live in production** (`ROLLOUT`): S1, S2, S3, S5. S4, S6 and S8 are built and enabled but not yet rolled out.
 - Next: S7 enablement pending partners’ D9 call.
 
 All flows are proven in real browsers against the real gateway. See `docs/history/` for per-item build notes.
@@ -176,13 +182,16 @@ This is enforced by:
 Generated from tokens. Two mechanisms worth knowing:
 
 - **Accent gate** — tenant colors cannot sit within 30° of state inks.
-- **Brand layer** — house red is fenced the same way; state-bearing surfaces render neutral by default.
+- **Brand layer** — the brand roles are fenced the same way: they render only where a surface declares `stateRamp: false`. Since Rev C the fault ink is garnet, so house red clears the gate and is also the instrument accent on every surface.
+
+The design system is **Arc Foundry** (Identity Standards Bulletin No. 2). `packages/tokens/` holds the values; the rules are in `.claude/skills/arc-foundry/SKILL.md`.
 
 ## Further reading
 
 - `docs/BACKBONE_CONTRACT.md` — the interface every block codes against
-- `06_Software_Architecture_Frame.md` — the frame
 - `docs/generated/BRAND.md` — generated brand guide
+- `docs/OPEN_DECISIONS.md` — the partner decisions the code is waiting on
+- `docs/CLOUDFLARE_PAGES.md`, `infra/README.md` — production
 - `docs/history/` — detailed build notes for each item
 
 ---

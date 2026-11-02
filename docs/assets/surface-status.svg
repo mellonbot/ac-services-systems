@@ -1,81 +1,84 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Arc Foundry, light stock. Every hex is a value in docs/generated/BRAND.md. State carries a mark and a word, never hue alone. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600">
   <style>
-    .title { font: bold 28px sans-serif; fill: #212121; }
-    .subtitle { font: 14px sans-serif; fill: #666; }
-    .header { font: bold 14px sans-serif; fill: white; }
-    .cell { font: 14px sans-serif; fill: #212121; }
-    .status-ok { fill: #2e7d32; }
-    .status-phase { fill: #e65100; }
-    .row-even { fill: #f8f8f8; }
-    .row-odd { fill: #ffffff; }
-    .header-bg { fill: #0066cc; }
+    .page { fill: #E6EBF0; }
+    .panel { fill: #F3F6F9; stroke: #B3BFC9; stroke-width: 1; }
+    .eyebrow { font-family: "IBM Plex Sans", Arial, sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 0.14em; fill: #3C4A55; }
+    .title { font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", Arial, sans-serif; font-weight: 600; font-size: 28px; fill: #0E1418; }
+    .subtitle { font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 14px; fill: #3C4A55; }
+    .head-bg { fill: #D4DCE4; }
+    .head-rule { fill: #8695A2; }
+    .header { font-family: "IBM Plex Sans", Arial, sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 0.14em; fill: #3C4A55; }
+    .id { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 600; font-size: 14px; fill: #0E1418; }
+    .cell { font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 14px; fill: #0E1418; }
+    .row-rule { fill: #B3BFC9; }
+    .status-ok { font-family: "IBM Plex Sans", Arial, sans-serif; font-weight: 600; font-size: 14px; fill: #0E6A46; }
+    .status-blocked { font-family: "IBM Plex Sans", Arial, sans-serif; font-weight: 600; font-size: 14px; fill: #3C4A55; }
   </style>
-  <text x="20" y="40" class="title">Surface Build Status</text>
-  <text x="20" y="65" class="subtitle">As of late September 2026 · All flows proven in real browsers against the real gateway</text>
-  
-  <!-- Header -->
-  <rect class="header-bg" x="30" y="90" width="70" height="36"/>
-  <text x="40" y="113" class="header">ID</text>
-  <rect class="header-bg" x="100" y="90" width="280" height="36"/>
-  <text x="110" y="113" class="header">Name</text>
-  <rect class="header-bg" x="380" y="90" width="180" height="36"/>
-  <text x="390" y="113" class="header">Principal</text>
-  <rect class="header-bg" x="560" y="90" width="400" height="36"/>
-  <text x="570" y="113" class="header">Status</text>
-  
-  <!-- Rows -->
-  <rect class="row-even" x="30" y="126" width="930" height="44"/>
-  <text x="40" y="153" class="cell">S0</text>
-  <text x="110" y="153" class="cell">Shared shell</text>
-  <text x="390" y="153" class="cell">All</text>
-  <text x="570" y="153" class="status-ok">✅ Built</text>
-  
-  <rect class="row-odd" x="30" y="170" width="930" height="44"/>
-  <text x="40" y="197" class="cell">S1</text>
-  <text x="110" y="197" class="cell">Marketing / Lead-gen</text>
-  <text x="390" y="197" class="cell">Anonymous</text>
-  <text x="570" y="197" class="status-ok">✅ Built</text>
-  
-  <rect class="row-even" x="30" y="214" width="930" height="44"/>
-  <text x="40" y="241" class="cell">S2</text>
-  <text x="110" y="241" class="cell">Service Manager</text>
-  <text x="390" y="241" class="cell">Office</text>
-  <text x="570" y="241" class="status-ok">✅ Built</text>
-  
-  <rect class="row-odd" x="30" y="258" width="930" height="44"/>
-  <text x="40" y="285" class="cell">S3</text>
-  <text x="110" y="285" class="cell">Dispatch Console</text>
-  <text x="390" y="285" class="cell">Dispatcher</text>
-  <text x="570" y="285" class="status-ok">✅ Built</text>
-  
-  <rect class="row-even" x="30" y="302" width="930" height="44"/>
-  <text x="40" y="329" class="cell">S4</text>
-  <text x="110" y="329" class="cell">HQ Ops Dashboard</text>
-  <text x="390" y="329" class="cell">Leadership</text>
-  <text x="570" y="329" class="status-ok">✅ Built</text>
-  
-  <rect class="row-odd" x="30" y="346" width="930" height="44"/>
-  <text x="40" y="373" class="cell">S5</text>
-  <text x="110" y="373" class="cell">Technician Web Fallback</text>
-  <text x="390" y="373" class="cell">Technician</text>
-  <text x="570" y="373" class="status-ok">✅ Built</text>
-  
-  <rect class="row-even" x="30" y="390" width="930" height="44"/>
-  <text x="40" y="417" class="cell">S6</text>
-  <text x="110" y="417" class="cell">Customer Portal</text>
-  <text x="390" y="417" class="cell">Customer</text>
-  <text x="570" y="417" class="status-ok">✅ Built + Site Card</text>
-  
-  <rect class="row-odd" x="30" y="434" width="930" height="44"/>
-  <text x="40" y="461" class="cell">S7</text>
-  <text x="110" y="461" class="cell">Vendor Portal</text>
-  <text x="390" y="461" class="cell">Vendor</text>
-  <text x="570" y="461" class="status-phase">🟡 Built, disabled (Phase 4)</text>
-  
-  <rect class="row-even" x="30" y="478" width="930" height="44"/>
-  <text x="40" y="505" class="cell">S8</text>
-  <text x="110" y="505" class="cell">Subcontractor Portal</text>
-  <text x="390" y="505" class="cell">Firm</text>
-  <text x="570" y="505" class="status-ok">✅ Built</text>
+  <rect class="page" width="1000" height="600"/>
+  <text x="30" y="34" class="eyebrow">RANKINE OPERATING COMPANY</text>
+  <text x="30" y="64" class="title">Surface build status</text>
+  <text x="30" y="88" class="subtitle">As of 2 November 2026 · Live = in the production ROLLOUT (packages/contracts/src/surfaces.ts)</text>
+
+  <rect class="panel" x="30" y="104" width="940" height="460" rx="6"/>
+  <rect class="head-bg" x="31" y="105" width="938" height="36"/>
+  <rect class="head-rule" x="31" y="140" width="938" height="1"/>
+  <text x="46" y="128" class="header">ID</text>
+  <text x="116" y="128" class="header">SURFACE</text>
+  <text x="396" y="128" class="header">PRINCIPAL</text>
+  <text x="576" y="128" class="header">STATUS</text>
+
+  <text x="46" y="170" class="id">S0</text>
+  <text x="116" y="170" class="cell">Shared shell</text>
+  <text x="396" y="170" class="cell">All</text>
+  <text x="576" y="170" class="status-ok">● Built</text>
+  <rect class="row-rule" x="31" y="185" width="938" height="1"/>
+
+  <text x="46" y="214" class="id">S1</text>
+  <text x="116" y="214" class="cell">Front door</text>
+  <text x="396" y="214" class="cell">Everyone, before sign-in</text>
+  <text x="576" y="214" class="status-ok">● Built · live</text>
+  <rect class="row-rule" x="31" y="229" width="938" height="1"/>
+
+  <text x="46" y="258" class="id">S2</text>
+  <text x="116" y="258" class="cell">Service Manager</text>
+  <text x="396" y="258" class="cell">Office</text>
+  <text x="576" y="258" class="status-ok">● Built · live</text>
+  <rect class="row-rule" x="31" y="273" width="938" height="1"/>
+
+  <text x="46" y="302" class="id">S3</text>
+  <text x="116" y="302" class="cell">Dispatch Console</text>
+  <text x="396" y="302" class="cell">Dispatcher</text>
+  <text x="576" y="302" class="status-ok">● Built · live</text>
+  <rect class="row-rule" x="31" y="317" width="938" height="1"/>
+
+  <text x="46" y="346" class="id">S4</text>
+  <text x="116" y="346" class="cell">HQ Ops Dashboard</text>
+  <text x="396" y="346" class="cell">Leadership</text>
+  <text x="576" y="346" class="status-ok">● Built</text>
+  <rect class="row-rule" x="31" y="361" width="938" height="1"/>
+
+  <text x="46" y="390" class="id">S5</text>
+  <text x="116" y="390" class="cell">Technician Web Fallback</text>
+  <text x="396" y="390" class="cell">Technician</text>
+  <text x="576" y="390" class="status-ok">● Built · live</text>
+  <rect class="row-rule" x="31" y="405" width="938" height="1"/>
+
+  <text x="46" y="434" class="id">S6</text>
+  <text x="116" y="434" class="cell">Customer Portal</text>
+  <text x="396" y="434" class="cell">Customer</text>
+  <text x="576" y="434" class="status-ok">● Built + site card</text>
+  <rect class="row-rule" x="31" y="449" width="938" height="1"/>
+
+  <text x="46" y="478" class="id">S7</text>
+  <text x="116" y="478" class="cell">Vendor Portal</text>
+  <text x="396" y="478" class="cell">Vendor</text>
+  <text x="576" y="478" class="status-blocked">■ Built, disabled (Phase 4)</text>
+  <rect class="row-rule" x="31" y="493" width="938" height="1"/>
+
+  <text x="46" y="522" class="id">S8</text>
+  <text x="116" y="522" class="cell">Subcontractor Portal</text>
+  <text x="396" y="522" class="cell">Firm</text>
+  <text x="576" y="522" class="status-ok">● Built</text>
 </svg>
