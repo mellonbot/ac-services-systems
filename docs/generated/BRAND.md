@@ -17,10 +17,12 @@ Rev C moved the fault instead: red now measures 42.12° from the fault and
 35.32° from its nearest state hue, the warning amber, so it clears the accent
 gate's 30° and is the instrument accent on every surface.
 
-| Layer | Where | Resolved by |
-|---|---|---|
-| Instrument — red `#D91F11` | every control and highlight, S1–S8 | the default |
-| Brand — red `#D91F11` | wordmark, livery, badge, S1 front door | `stateRamp: false` in the surface registry |
+Both accent layers are the same red. They differ in where they may appear, not in value.
+
+| Accent layer | Roles | Where | Resolved by |
+|---|---|---|---|
+| Instrument — red `#D91F11` | `--color-action*` | every control and highlight, S1–S8 | the default |
+| Brand — red `#D91F11` | `--color-brand*` | wordmark, livery, badge, S1 front door | `stateRamp: false` in the surface registry; Ink Black wherever a state ramp renders |
 
 The brand roles keep their surface fence: it is the mechanism a tenant accent
 that fails the gate still falls behind, and the house is held to it.
