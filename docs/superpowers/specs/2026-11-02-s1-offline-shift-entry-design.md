@@ -1,6 +1,6 @@
 # S1 → S5 with no network: offline shift entry
 
-**Date:** 2026-11-02 · **Status:** proposed, awaiting OK · **Branch:** `s1-offline-shift-entry`
+**Date:** 2026-11-02 · **Status:** approved 2026-11-02, built · **Branch:** `s1-offline-shift-entry`
 (built on `shift-session-ends-with-tab`, which ends a front-door shift with its tab — `SHIFT_TAB_KEY`
 in the tab's sessionStorage; this design lives inside that rule)
 
