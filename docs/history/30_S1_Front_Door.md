@@ -1,4 +1,4 @@
-# 28 — S1 becomes the front door
+# 30 — S1 becomes the front door
 
 **Date:** 2026-11-01 · **PR:** #194 · **Branch:** `s1-front-door`
 
