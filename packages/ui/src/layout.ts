@@ -1,4 +1,5 @@
 import { html, MastTools, type VNode, type ComponentChildren } from "./render.ts";
+import { SURFACES, SURFACE_PATHS, ROLLOUT, surfacesAdmitting, type SurfaceId, type Namespace } from "../../contracts/src/index.ts";
 
 /**
  * Rev A PAGE STRUCTURE (Bulletin No. 2 Rev A, 2026-09-27) — the two pieces
@@ -13,8 +14,32 @@ import { html, MastTools, type VNode, type ComponentChildren } from "./render.ts
  * slot is on the lockup row, above the red rule and in line with the company
  * descriptor. One place draws them, so every surface agrees.
  */
-export const sessionTools = (account: ComponentChildren, onSignOut: () => void): VNode =>
-  html`<${MastTools}>${account}<button type="button" class="ac-nav__signout" onClick=${onSignOut}>Sign out</button></${MastTools}>`;
+export const sessionTools = (account: ComponentChildren, onSignOut: () => void, switcher?: VNode | null): VNode =>
+  html`<${MastTools}>${switcher}${account}<button type="button" class="ac-nav__signout" onClick=${onSignOut}>Sign out</button></${MastTools}>`;
+
+type Who = { readonly namespace: Namespace; readonly roles: readonly string[] };
+
+/**
+ * The other live surfaces this principal may open — the registry's answer
+ * (`surfacesAdmitting`, the same check the gateway makes at the door) narrowed
+ * to what is published (`ROLLOUT`). Empty for anyone whose role opens only
+ * this surface, so a dispatcher never sees a link to a door that refuses them.
+ */
+export const switchTargets = (current: SurfaceId, who: Who): readonly SurfaceId[] =>
+  surfacesAdmitting(who).filter((id) => id !== current && ROLLOUT.includes(id));
+
+/**
+ * Switch surface without signing in again. A plain link: the next page boots
+ * with `{ session: "cookie" }`, and the gateway's `ac_session` cookie — set
+ * once at the front door, shared by every surface on the site — resumes it.
+ * No token moves through script and nothing is re-asked.
+ */
+export const surfaceSwitch = (current: SurfaceId, who: Who): VNode | null => {
+  const targets = switchTargets(current, who);
+  if (targets.length === 0) return null;
+  return html`<nav class="ac-nav__switch-group" aria-label="Switch surface">${targets.map((id) =>
+    html`<a class="ac-nav__switch" href=${SURFACE_PATHS[id]}>${SURFACES[id].name}</a>`)}</nav>`;
+};
 
 export const pageHead = (title: ComponentChildren, lede?: ComponentChildren, side?: ComponentChildren): VNode =>
   html`<header class="ac-page-head">

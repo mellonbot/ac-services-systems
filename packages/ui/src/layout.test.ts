@@ -2,8 +2,20 @@ import { localDay } from "./screen-helpers.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToString as render } from "./testing.ts";
-import { pageHead, statStrip, panel, notice, sessionTools } from "./layout.ts";
+import { pageHead, statStrip, panel, notice, sessionTools, surfaceSwitch, switchTargets } from "./layout.ts";
 import { UI_CSS } from "./styles.ts";
+
+test("surface switch: a principal who may open both S2 and S3 gets a plain link to the other, and nobody gets a link to a door that refuses them", () => {
+  const both = { namespace: "internal" as const, roles: ["ops_leadership"] };
+  assert.deepEqual(switchTargets("S3", both), ["S2"]);
+  assert.deepEqual(switchTargets("S2", both), ["S3"]);
+  assert.match(render(surfaceSwitch("S3", both)!), /<a class="ac-nav__switch" href="\/service-manager">Service Manager<\/a>/);
+  assert.match(render(surfaceSwitch("S2", both)!), /href="\/dispatch">Dispatch Console</);
+  assert.equal(surfaceSwitch("S3", { namespace: "internal", roles: ["dispatcher"] }), null, "a dispatcher cannot open S2");
+  assert.equal(surfaceSwitch("S2", { namespace: "internal", roles: ["office_manager"] }), null, "an office manager cannot open S3");
+  assert.equal(surfaceSwitch("S3", { namespace: "customer", roles: ["payer"] }), null);
+  assert.match(render(sessionTools("account", () => {}, surfaceSwitch("S3", both))), /ac-nav__switch[\s\S]*account/);
+});
 
 test("session tools are Account and Sign out, drawn once", () => {
   const out = render(sessionTools("account", () => {}));
