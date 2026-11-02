@@ -1,10 +1,10 @@
 import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, type VNode } from "../../../packages/ui/src/index.ts";
-import { gatewayOrigin, SHIFT_TAB_KEY, type AnonymousShell, type TabMark } from "../../../packages/shell/src/index.ts";
+import { gatewayOrigin, heldShift, SHIFT_TAB_KEY, type AnonymousShell, type TabMark } from "../../../packages/shell/src/index.ts";
 export { gatewayOrigin };
 import { densityOf, SURFACES, SURFACE_PATHS, type Refusal, type SignInInput, type SurfaceId } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, open } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
-import type { DoorState, Screen, ScreenContext } from "./screens/common.ts";
+import { S5_PATH, type DoorState, type Screen, type ScreenContext } from "./screens/common.ts";
 import { home } from "./screens/home.ts";
 import { missing } from "./screens/missing.ts";
 import { S1_CSS } from "./styles.ts";
@@ -18,6 +18,12 @@ import { S1_CSS } from "./styles.ts";
  * surface resumes the cookie session it finds (`session.me`), exactly as it
  * does after a reload. When a login opens several surfaces the gateway says
  * so instead, with no session minted, and the person picks one.
+ *
+ * OFFLINE: with no network the form cannot work, so it is not offered. A tab
+ * that holds a front-door shift (packages/shell `heldShift` — put there by S5
+ * from a gateway answer, never by a sign-in here) goes straight on to S5,
+ * which opens it from the tab; any other tab is told plainly that signing in
+ * needs a connection. Online, nothing changes.
  *
  * Still no await before the first render: "the page renders with no gateway
  * call" (SURFACES.S1.degraded). Signing in needs the gateway; reading the page
@@ -39,8 +45,13 @@ export const createApp = (opts: {
   session?: "bearer" | "cookie";
   /** This tab's sessionStorage: a shift sent to S5 is marked in it (SHIFT_TAB_KEY). */
   tab?: TabMark | null;
+  /** Whether the device has a network at all — `navigator.onLine` in a browser. Online by default. */
+  online?: () => boolean;
+  now?: () => number;
 }) => {
+  const now = opts.now ?? (() => Date.now());
   const degraded = signal(false);
+  const offline = signal(false);
   const shell: AnonymousShell = open({
     baseUrl: opts.baseUrl, fetch: opts.fetch, session: opts.session ?? "cookie",
     ...(opts.window ? { page: opts.window } : {}),
@@ -102,8 +113,18 @@ export const createApp = (opts: {
 
   const tick = () => { degraded.value = shell.isDegraded(); };
 
+  /** Called at boot and on every `online`/`offline` event. */
+  const network = (): void => {
+    offline.value = opts.online ? !opts.online() : false;
+    if (!offline.value || door.value.step === "going" || !heldShift(opts.tab, now())) return;
+    held = null;
+    door.value = { step: "going", path: S5_PATH, name: SURFACES.S5.name };
+    go(S5_PATH);
+  };
+  network();
+
   const view = (): VNode => {
-    const ctx: ScreenContext = { shell, router, density: DENSITY, degraded: degraded.value, door: door.value, signIn, choose, setDevice, startOver };
+    const ctx: ScreenContext = { shell, router, density: DENSITY, degraded: degraded.value, offline: offline.value, heldShift: heldShift(opts.tab, now()) !== null, door: door.value, signIn, choose, setDevice, startOver };
     const loc = router.current.value;
     const screen = loc ? SCREEN_VIEWS[loc.screen] : null;
     return html`<div class="s1-app">
@@ -111,7 +132,7 @@ export const createApp = (opts: {
     </div>`;
   };
 
-  return { shell, router, degraded, door, view, signIn, choose, setDevice, startOver, tick };
+  return { shell, router, degraded, offline, door, view, signIn, choose, setDevice, startOver, tick, network };
 };
 
 // ---------------------------------------------------------------------------
@@ -124,7 +145,9 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
 
   let tab: TabMark | null = null;
   try { tab = window.sessionStorage; } catch { /* site data blocked: a shift then ends with every reload */ }
-  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window, tab });
+  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window, tab, online: () => navigator.onLine });
+  window.addEventListener("online", app.network);
+  window.addEventListener("offline", app.network);
   const el = document.getElementById("mount")!;
   const slot = document.querySelector("ac-degraded") as (HTMLElement | null);
   const Root = () => app.view();

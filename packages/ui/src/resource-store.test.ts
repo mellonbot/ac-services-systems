@@ -84,3 +84,29 @@ test("a fetch overtaken by an invalidate never becomes the held value, however l
   const held = store.read("jobs.mine", fetcher);
   assert.deepEqual(held.value, { state: "ready", value: "new" }, "the placeholder is the newest answer, not the last to arrive");
 });
+
+test("a held seed is on screen before the first answer and through a transport failure; onAnswer hears answers and real refusals only", async () => {
+  const heard: [string, unknown][] = [];
+  let mode: "offline" | "ok" | "forbidden" = "offline";
+  const forbidden = { kind: "forbidden", status: 403, message: "no" } as const;
+  const store = createResourceStore({ refusalOf: (e) => (e === forbidden ? forbidden : null) }, () => 9, {
+    held: { "jobs.mine": ["held job"] },
+    onAnswer: (k, v) => { heard.push([k, v]); },
+  });
+  const fetcher = async () => { if (mode === "offline") throw new Error("offline"); if (mode === "forbidden") throw forbidden; return ["fresh job"]; };
+  const first = store.read("jobs.mine", fetcher);
+  assert.deepEqual(first.value, { state: "ready", value: ["held job"] });
+  await Promise.resolve(); await Promise.resolve();
+  assert.deepEqual(first.value, { state: "ready", value: ["held job"] }, "unreachable: the held value stays");
+  assert.deepEqual(heard, [], "a transport failure is not an answer");
+
+  mode = "ok";
+  store.invalidate("jobs.mine");
+  store.read("jobs.mine", fetcher);
+  await Promise.resolve(); await Promise.resolve();
+  mode = "forbidden";
+  store.invalidate("jobs.mine");
+  store.read("jobs.mine", fetcher);
+  await Promise.resolve(); await Promise.resolve();
+  assert.deepEqual(heard, [["jobs.mine", ["fresh job"]], ["jobs.mine", undefined]]);
+});

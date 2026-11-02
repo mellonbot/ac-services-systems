@@ -10,6 +10,8 @@ export type RefusalNoticeProps = {
   readonly routes?: readonly RefusalRoute[];
   /** For a refusal that answered a form: a way to clear it without leaving the screen. */
   readonly onDismiss?: () => void;
+  /** What to do, when the surface knows better than the kind does (S5 offline with no shift to open). Replaces the plain message. */
+  readonly message?: string;
 };
 
 /**
@@ -64,7 +66,7 @@ export const RefusalNotice = component<typeof RefusalNoticeSpec, RefusalNoticePr
   const r = p.refusal;
   return html`<section class="ac-notice" role="alert" data-tone="breached" data-kind=${r.kind} data-density=${p.density}>
     <h2 class="ac-notice__heading"><span class="ac-notice__mark" aria-hidden="true">${MARK_GLYPHS.fault}</span> ${plainHeading(r)}</h2>
-    <p class="ac-notice__message">${plainMessage(r)}</p>
+    <p class="ac-notice__message">${p.message ?? plainMessage(r)}</p>
     ${p.routes && p.routes.length
       ? html`<div class="ac-notice__routes">
           ${p.routes.map((route) => html`<button type="button" class="ac-action" data-kind=${route.primary ? "primary" : "quiet"} data-density=${p.density} onClick=${route.onSelect}>${route.label}</button>`)}
