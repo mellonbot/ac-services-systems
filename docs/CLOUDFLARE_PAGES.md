@@ -116,7 +116,7 @@ next starts — the next deploy.
 
 ### Photo storage
 
-Required while any live surface takes photos (today S5: a wrap-up needs at
+Required while any live surface takes photos (today S5: completing a job needs at
 least two photos and a signature). Without it every upload is refused as
 `storage_not_configured`, no technician can complete a job, and the
 `deploy-gateway` job fails by name until it is set. The gateway speaks R2's

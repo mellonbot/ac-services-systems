@@ -129,8 +129,8 @@ test("priorityStatus: emergency reads as breached, urgent as at risk, routine an
 
 test("nextDeviceStates offers only what JOB_TRANSITIONS and DEVICE_TRANSITIONS both admit — never assignment or cancellation", () => {
   assert.deepEqual(nextDeviceStates("assigned"), ["en_route"], "reassigned and cancelled are the office's, not a device transition");
-  assert.deepEqual(nextDeviceStates("en_route"), ["on_site"]);
-  assert.deepEqual([...nextDeviceStates("in_progress")].sort(), ["aborted", "awaiting_customer", "awaiting_parts"].sort(), "complete is the wrap-up's (0034), never a bare transition");
+  assert.deepEqual(nextDeviceStates("en_route"), ["in_progress"], "four states: en route goes straight to in progress — on site is not a step");
+  assert.deepEqual([...nextDeviceStates("in_progress")].sort(), ["aborted", "awaiting_customer", "awaiting_parts"].sort(), "complete is the completion report's (0034), never a bare transition");
   assert.deepEqual([...nextDeviceStates("awaiting_customer")].sort(), ["aborted", "in_progress"], "a hold for the customer resumes or stops; it is not the field's to quote");
   assert.deepEqual(nextDeviceStates("quote_requested"), [], "a quote before dispatch is the office's");
   assert.deepEqual(nextDeviceStates("invoiced"), []);
@@ -206,9 +206,10 @@ test("a Today card carries what a crew needs at the curb: the site, its address,
   assert.match(out, new RegExp(`id="card-${JOB}-en_route"[^>]*>Head out<`));
 });
 
-test("a card's move is one step forward and never a wrap-up: completing and aborting live on the job detail", () => {
+test("a card's move is one step forward and never a completion: completing and aborting live on the job detail", () => {
   assert.equal(forwardState("assigned"), "en_route");
-  assert.equal(forwardState("on_site"), "in_progress");
+  assert.equal(forwardState("en_route"), "in_progress");
+  assert.equal(forwardState("on_site"), "in_progress", "a job already on site from before still moves forward");
   assert.equal(forwardState("awaiting_parts"), "in_progress");
   assert.equal(forwardState("in_progress"), null);
   assert.equal(forwardState("complete"), null);
@@ -224,7 +225,7 @@ test("a card's move queues the transition against the job's version, and the car
   assert.deepEqual([m.entityTable, m.op, m.payload.state, m.clientObservedVersion], ["jobs", "transition", "en_route", job.version]);
   const out = render(app.view());
   assert.match(out, /en route \(queued\)/);
-  assert.match(out, new RegExp(`id="card-${JOB}-on_site"`));
+  assert.match(out, new RegExp(`id="card-${JOB}-in_progress"`));
 });
 
 test("a job whose site the device cannot read stays on the list, named as such, with no directions to nowhere", async () => {
@@ -393,14 +394,14 @@ test("losing the network after the job loaded keeps the job on screen with its q
   assert.equal(answered, false, "an unreachable gateway answered nothing");
   for (let i = 0; i < 3; i++) { app.tick(); render(app.view()); await settle(); }
   const out = render(app.view());
-  assert.match(out, /id="to-on_site"/, "the job's actions are still on screen, moved on by the queued transition");
+  assert.match(out, /id="to-in_progress"/, "the job's actions are still on screen, moved on by the queued transition");
   assert.match(out, /<span class="ac-num">1<\/span> change waiting to sync/);
   assert.doesNotMatch(out, /Failed to fetch|Gateway unreachable<\/h2>/);
 
   // A refetch the gateway does answer still replaces the held value.
   p.store.invalidate("jobs.mine");
   render(app.view()); await settle();
-  assert.match(render(app.view()), /id="to-on_site"/, "while the refetch is in flight the held job stays, not a loading line");
+  assert.match(render(app.view()), /id="to-in_progress"/, "while the refetch is in flight the held job stays, not a loading line");
 });
 
 test("a rejected mutation is surfaced as attention, not silently retried, and can be dismissed", async () => {
@@ -436,15 +437,14 @@ test("offline, each tapped transition moves the screen on: the next is queued ag
   let out = render(app.view());
   assert.match(out, /State: <strong>en route<\/strong> \(queued — last synced: assigned\)/);
   assert.doesNotMatch(out, /id="to-en_route"/, "a second tap cannot queue the same transition again");
-  click(app.view(), "to-on_site"); await offline();
   click(app.view(), "to-in_progress"); await offline();
   out = render(app.view());
   assert.match(out, /State: <strong>in progress<\/strong>/);
-  assert.match(out, new RegExp(`href="/jobs/${JOB}/wrap-up"`), "in progress, the job is finished by its wrap-up");
+  assert.match(out, new RegExp(`href="/jobs/${JOB}/complete"`), "in progress, the job is finished by its completion report");
   assert.doesNotMatch(out, /id="to-complete"/);
 
   const queued = p.queue.pending.value.map((e) => [e.mutation.payload.state, e.mutation.clientObservedVersion]);
-  assert.deepEqual(queued, [["en_route", 3], ["on_site", 4], ["in_progress", 5]], "each observes the version the server will hold once the one before it lands");
+  assert.deepEqual(queued, [["en_route", 3], ["in_progress", 4]], "each observes the version the server will hold once the one before it lands");
 });
 
 test("a running time clock is saved with the queue: a new sign-in on the same device and technician still has it running", async () => {
@@ -573,10 +573,10 @@ test("a job already under way with the clock stopped is not a dead end: Clock in
   render(app.view()); await settle(); await settle(); render(app.view()); await settle();
   let out = render(app.view());
   assert.match(out, /id="clock-in"/);
-  assert.match(out, new RegExp(`id="card-${JOB}-on_site" aria-disabled="true"`));
+  assert.match(out, new RegExp(`id="card-${JOB}-in_progress" aria-disabled="true"`));
   click(app.view(), "clock-in"); await settle();
   out = render(app.view());
-  assert.match(out, new RegExp(`id="card-${JOB}-on_site" aria-disabled="false"`));
+  assert.match(out, new RegExp(`id="card-${JOB}-in_progress" aria-disabled="false"`));
 });
 
 test("clocked in with every job finished or on hold — off the list, completed on this device, or waiting on parts — Today offers Clock out", async () => {
@@ -617,17 +617,17 @@ test("the timesheet lists the week's punches by day with each day's total and th
   assert.equal((out.match(/class="s5-day"/g) ?? []).length, 7);
 });
 
-// ---- the wrap-up (0034): the job is finished by its wrap-up, sent media first ----
-test("in progress, the card and the job offer Wrap up — gated on the shift clock like every move", async () => {
+// ---- completing a job (0034): the job is finished by its completion report, sent media first ----
+test("in progress, the card and the job offer Complete job — gated on the shift clock like every move", async () => {
   const running = await ready({ now: NOW, jobs: [{ ...job, state: "in_progress" }] });
   render(running.app.view()); await settle(); await settle(); render(running.app.view()); await settle();
-  assert.match(render(running.app.view()), new RegExp(`href="/jobs/${JOB}/wrap-up"`));
+  assert.match(render(running.app.view()), new RegExp(`href="/jobs/${JOB}/complete"`));
 
   const stopped = await ready({ now: NOW, jobs: [{ ...job, state: "in_progress" }], punches: [] });
   render(stopped.app.view()); await settle(); await settle(); render(stopped.app.view()); await settle();
   const out = render(stopped.app.view());
   assert.match(out, new RegExp(`id="card-${JOB}-wrap-up" aria-disabled="true"`));
-  assert.doesNotMatch(out, new RegExp(`href="/jobs/${JOB}/wrap-up"`));
+  assert.doesNotMatch(out, new RegExp(`href="/jobs/${JOB}/complete"`));
 });
 
 test("Submit says what is still needed until the wrap-up is whole; submitted, the job reads complete at once and the crew may clock out", async () => {
@@ -655,7 +655,7 @@ test("Submit says what is still needed until the wrap-up is whole; submitted, th
   render(app.view()); await settle(); render(app.view()); await settle();
   out = render(app.view());
   assert.match(out, /complete \(waiting to send\)/);
-  assert.match(out, /id="clock-out"/, "a wrapped-up job is finished for the clock before the office has it");
+  assert.match(out, /id="clock-out"/, "a completed job is finished for the clock before the office has it");
 
   app.tick(); for (let i = 0; i < 8; i++) await settle();
   assert.deepEqual(gateway.sentMedia.map((m) => m.kind), ["photo", "photo", "signature"]);
@@ -667,7 +667,7 @@ test("Submit says what is still needed until the wrap-up is whole; submitted, th
 test("a wrap-up the office refuses comes back to the job with its words, and opens again as a draft", async () => {
   const { app } = await ready({
     now: NOW, jobs: [{ ...job, state: "in_progress" }],
-    wrapUpReply: () => ({ status: 422, body: { error: "InputRefused", code: "not_in_progress", message: "this job is cancelled — a wrap-up completes a job in progress" } }),
+    wrapUpReply: () => ({ status: 422, body: { error: "InputRefused", code: "not_in_progress", message: "this job is cancelled — only a job in progress can be completed" } }),
   });
   const p = app.phase.value;
   if (p.kind !== "ready") return assert.fail("not ready");

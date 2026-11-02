@@ -49,7 +49,7 @@ export const managerOverview = async (uow: UnitOfWork, orgId: string, now: Date)
     `WITH f AS (
        SELECT j.opened_at AS requested,
               min(e.occurred_at) FILTER (WHERE e.to_state = 'assigned') AS scheduled,
-              min(e.occurred_at) FILTER (WHERE e.to_state = 'on_site') AS on_site,
+              min(e.occurred_at) FILTER (WHERE e.to_state IN ('on_site', 'in_progress')) AS on_site,
               min(e.occurred_at) FILTER (WHERE e.to_state = 'complete') AS finished,
               min(e.occurred_at) FILTER (WHERE e.to_state = 'invoiced') AS invoiced
          FROM jobs j LEFT JOIN job_state_events e ON e.job_id = j.id

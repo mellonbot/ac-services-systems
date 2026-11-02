@@ -139,7 +139,7 @@ export const wrapUpJob = async (uow: UnitOfWork, actorId: string, grantId: strin
   if (await replayed()) return { jobId, wrapUpId, state: "complete", duplicate: true };
   const job = await crewJob(uow, grantId, jobId);
   if (await replayed()) return { jobId, wrapUpId, state: "complete", duplicate: true };
-  if (job.state !== "in_progress") throw new InputRefused(`this job is ${job.state.replace(/_/g, " ")} — a wrap-up completes a job in progress`, "not_in_progress");
+  if (job.state !== "in_progress") throw new InputRefused(`this job is ${job.state.replace(/_/g, " ")} — only a job in progress can be completed`, "not_in_progress");
 
   const min = quote ? QUOTE_MIN_PHOTOS : WRAP_UP_MIN_PHOTOS;
   if (photoIds.length < min) throw new InputRefused(`${quote ? "a quote" : "a completion"} needs at least ${min} photos; ${photoIds.length} sent`, "too_few_photos");

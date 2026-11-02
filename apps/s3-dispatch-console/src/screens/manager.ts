@@ -24,8 +24,8 @@ const HOURS_PER_TECH_WEEK = 40;
 
 const WAIT_STEPS: Readonly<Record<ManagerWaitStep, { step: string; sub: string; goal?: number }>> = {
   request_to_scheduled: { step: "Request to scheduled", sub: "Dispatch picks it up · goal 2 days", goal: 2 },
-  scheduled_to_on_site: { step: "Scheduled to on site", sub: "Waiting for the visit" },
-  on_site_to_finished: { step: "On site to finished", sub: "Work on the job" },
+  scheduled_to_on_site: { step: "Scheduled to in progress", sub: "Waiting for the visit" },
+  on_site_to_finished: { step: "In progress to finished", sub: "Work on the job" },
   finished_to_invoiced: { step: "Finished to invoiced", sub: "Pricing, review, send · goal 3 days", goal: 3 },
 };
 

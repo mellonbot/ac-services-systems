@@ -465,7 +465,7 @@ export const OPERATIONS = {
   "jobs.detail": op<Wire.JobDetailInput, Wire.JobDetailOutput>()({
     id: "jobs.detail", method: "GET", path: "/s3/jobs/detail", kind: "query", auth: "bearer",
     surfaces: ["S3", "S4"], carrier: "query", sdkMethod: "jobDetail",
-    summary: "One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — the customer thread, and how the field wrapped it up (0034). RLS decides; nothing here filters.",
+    summary: "One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — the customer thread, and how the field completed it (0034). RLS decides; nothing here filters.",
   }),
   "jobs.conversation": op<Wire.JobConversationInput, Wire.JobConversationOutput>()({
     id: "jobs.conversation", method: "GET", path: "/jobs/conversation", kind: "query", auth: "bearer",

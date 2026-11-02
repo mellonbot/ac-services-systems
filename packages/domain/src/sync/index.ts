@@ -63,7 +63,8 @@ export const JOB_TRANSITIONS: Readonly<Record<string, readonly string[]>> = Obje
   created: ["assigned", "cancelled", "quote_requested"],
   assigned: ["en_route", "reassigned", "cancelled"],
   reassigned: ["assigned", "cancelled"],
-  en_route: ["on_site", "cancelled"],
+  en_route: ["in_progress", "cancelled"],
+  // Legacy: a device no longer moves a job on site. A job already there still goes forward.
   on_site: ["in_progress", "aborted", "awaiting_customer"],
   in_progress: ["awaiting_parts", "complete", "aborted", "awaiting_customer"],
   awaiting_parts: ["in_progress", "aborted"],
@@ -85,7 +86,7 @@ export const JOB_TRANSITIONS: Readonly<Record<string, readonly string[]>> = Obje
 });
 
 /** Transitions a DEVICE may drive. Assignment and cancellation are the office's. */
-export const DEVICE_TRANSITIONS: readonly string[] = ["en_route", "on_site", "in_progress", "awaiting_parts", "awaiting_customer", "complete", "aborted"];
+export const DEVICE_TRANSITIONS: readonly string[] = ["en_route", "in_progress", "awaiting_parts", "awaiting_customer", "complete", "aborted"];
 
 export type Mutation = {
   readonly mutationId: string;     // client-generated; replay is idempotent by construction
@@ -141,10 +142,10 @@ export const resolveMutation = (m: Mutation, server: ServerState | null, already
         return { outcome: "rejected", mutationId: m.mutationId, note: `a device may not move a job to "${to}". That transition belongs to dispatch.` };
       }
       if ((JOB_TRANSITIONS[from] ?? []).includes(to)) {
-        // 0034: a device completes a job by its wrap-up (jobs.wrapUp), which carries the photos and the signature a bare
+        // 0034: a device completes a job by its completion report (jobs.wrapUp), which carries the photos and the signature a bare
         // transition cannot. Refused only where it would have applied: a completion that collides with the office's
         // cancellation still goes to a person below — somebody drove to a site for nothing.
-        if (to === "complete") return { outcome: "rejected", mutationId: m.mutationId, note: "a job is completed by its wrap-up — photos, notes and the customer's signature — not by a state change" };
+        if (to === "complete") return { outcome: "rejected", mutationId: m.mutationId, note: "a job is completed with its completion report — photos, notes and the customer's signature — not by a state change" };
         return { outcome: "applied", mutationId: m.mutationId, newVersion: next };
       }
       if (from === to) return { outcome: "duplicate", mutationId: m.mutationId };

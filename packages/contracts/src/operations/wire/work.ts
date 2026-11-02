@@ -37,11 +37,11 @@ export const WORK_DONE_STATES: readonly JobStateWire[] = Object.freeze(["complet
  * moves to `complete` from any field state (OFFICE_CLOSE_OUT_FROM). Except
  * in_progress → complete, these are the office's edges alone and deliberately
  * NOT in the domain's JOB_TRANSITIONS, which is what a device may take: a
- * technician still walks en route → on site → in progress → complete.
+ * technician walks assigned → en route → in progress → complete.
  *
  * Cancelling after dispatch: before the crew is on site (`assigned`,
  * `en_route`) the office may cancel the job outright; the gateway releases the
- * crew in the same unit of work. Once the crew is on site, stopping is an
+ * crew in the same unit of work. Once work is in progress, stopping is an
  * abort — the field's, with what it bills — not a cancellation.
  */
 export const OFFICE_JOB_TRANSITIONS: Readonly<Partial<Record<JobStateWire, readonly JobStateWire[]>>> = Object.freeze({

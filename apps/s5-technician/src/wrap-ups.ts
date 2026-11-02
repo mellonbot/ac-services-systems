@@ -222,7 +222,7 @@ export const createWrapUps = (opts: { deviceId: string; subjectId: string; newId
             for (const shot of [...entry.photos.map((p) => ({ p, kind: "photo" as const })), ...(entry.signature ? [{ p: entry.signature, kind: "signature" as const }] : [])]) {
               if (shot.p.sent) continue;
               const bytes = await opts.media.get(shot.p.id);
-              if (bytes === null) throw new LostShot("a photo was lost from this device before it was sent — reopen the wrap-up and take it again");
+              if (bytes === null) throw new LostShot("a photo was lost from this device before it was sent — reopen the job's completion and take it again");
               await gateway.attachJobMedia({ jobId: entry.jobId, mutationId: shot.p.id, kind: shot.kind, dataBase64: bytes, capturedAt: shot.p.at });
               reached = true;
               const mark = (s: Sent): Sent => (s.id === shot.p.id ? { ...s, sent: true } : s);
