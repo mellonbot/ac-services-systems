@@ -231,13 +231,11 @@ export const board: Screen = (ctx) => {
     ${withRoster((list, roster) => {
       const m = boardModel(list, now, day.value, roster);
       return panel(html`<div class="dispatch-dashboard__board">
-        ${m.nowAt === null ? null : html`<div class="dispatch-board__now-track" aria-hidden="true">
-          <div class="dispatch-board__now" style=${`left:${m.nowAt}%;`}><span class="dispatch-board__now-tag">${new Date(now).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span></div>
-        </div>`}
         <div class="dispatch-board__header">
           <div class="dispatch-board__label">Technician</div>
           <div class="dispatch-board__hours">
             <span>7 AM</span><span>8 AM</span><span>9 AM</span><span>10 AM</span><span>11 AM</span><span>12 PM</span><span>1 PM</span><span>2 PM</span><span>3 PM</span><span>4 PM</span>
+            ${m.nowAt === null ? null : html`<b class="dispatch-board__now-tag" style=${`left:${m.nowAt}%;`}>${new Date(now).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</b>`}
           </div>
         </div>
 
@@ -253,6 +251,7 @@ export const board: Screen = (ctx) => {
             </div>
           </div>
           <div class="dispatch-board__calendar" role="group" aria-label=${row.jobs.length ? `${row.name}: ${row.jobs.map(describe).join("; ")}` : `${row.name}: ${row.service}`}>
+            ${m.nowAt === null ? null : html`<span class="dispatch-board__now" style=${`left:${m.nowAt}%;`} aria-hidden="true"></span>`}
             ${row.jobs.map((job) => {
               const at = m.place(job);
               if (at.width <= 0) return null;
