@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Node ≥22.18 (use `nvm use 24`), `pg` via `apps/gateway/src/pg-tx.ts`, Electron 38, esbuild 0.28.2 (already a repo devDependency), `node:test`.
 
-**Spec:** `docs/superpowers/specs/2026-10-20-logins-app-design.md`
+**Spec:** `docs/specs/2026-10-20-logins-app-design.md`
 
 ## Global Constraints
 
