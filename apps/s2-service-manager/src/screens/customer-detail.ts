@@ -93,7 +93,8 @@ export const customerDetail = (ctx: ScreenContext, org: OrganizationWire, card: 
   const nodes = store.read(keyOf("accounts.list", { orgId: org.id }), () => shell.gateway.listAccounts({ orgId: org.id })).value;
   const contracts = store.read(keyOf("contracts.list", { orgId: org.id }), () => shell.gateway.listContracts({ orgId: org.id })).value;
   return whenReady(ctx, nodes, (n) => {
-    const sites = n.nodes.filter((x) => x.tier === "site");
+    // A removed home (inactive) leaves a residential customer's map and history; a commercial customer keeps every site it ever had.
+    const sites = n.nodes.filter((x) => x.tier === "site" && (org.segment !== "residential" || x.active));
     return html`<div class="s2-detail" id="customer-detail">
       ${overview(ctx, org, card, sites)}
       ${whenReady(ctx, contracts, (c) => agreements(ctx, org, c.contracts, n.nodes), () => store.invalidate(keyOf("contracts.list", { orgId: org.id })))}
