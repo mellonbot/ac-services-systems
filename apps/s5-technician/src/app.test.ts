@@ -9,6 +9,7 @@ import { nextDeviceStates, JOB_TRANSITIONS, DEVICE_TRANSITIONS, queueKey, type Q
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { HierarchyContext, FieldJobWire, ShiftPunchWire, SyncMutationWire, SyncOutcomeWire } from "../../../packages/contracts/src/index.ts";
 import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
+import { SHIFT_TAB_KEY } from "../../../packages/shell/src/index.ts";
 
 /**
  * S5 against a scripted gateway, through the REAL shell and the REAL
@@ -53,6 +54,7 @@ const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJob
     calls.push({ path, init });
     if (path === OPERATIONS["auth.deviceLogin"].path) { session = true; return reply(200, { token: "dev-token", expiresAt: "2026-09-18T18:00:00Z", crewId: CREW, crewLabel: "Crew A1", context: {} }); }
     if (!session) return reply(401, { error: "AuthError", code: "malformed", message: "no session" });
+    if (path === OPERATIONS["auth.logout"].path) { session = false; return reply(200, {}); }
     if (path === OPERATIONS["session.me"].path) {
       if (opts.cookie === "staff") return reply(403, { error: "HttpError", message: "session.me is not served to S5 for a internal principal" });
       return reply(200, opts.cookie === "device" ? { ...deviceContext, deviceCrew: { id: CREW, label: "Crew A1" } } : deviceContext);
@@ -158,9 +160,15 @@ test("creating the app fetches nothing; with no session to resume, resume() land
   assert.match(render(app.view()), /name="hardwareId"/);
 });
 
+/** A tab's sessionStorage over a Map. */
+const tabMark = (marked: boolean) => {
+  const m = new Map<string, string>(marked ? [[SHIFT_TAB_KEY, "1"]] : []);
+  return { map: m, tab: { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, removeItem: (k: string) => { m.delete(k); } } };
+};
+
 test("a shift S1's front door signed in resumes by cookie: the crew comes from session.me, and the job list opens", async () => {
   const g = fakeGateway({ cookie: "device" });
-  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000 });
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000, tab: tabMark(true).tab });
   await app.resume();
   const p = app.phase.value;
   assert.equal(p.kind, "ready");
@@ -168,6 +176,26 @@ test("a shift S1's front door signed in resumes by cookie: the crew comes from s
   assert.equal(p.crew.label, "Crew A1");
   assert.equal(g.calls.some((c) => c.path === OPERATIONS["auth.deviceLogin"].path), false, "no second sign-in");
   assert.equal(app.router.current.value?.screen, "jobs");
+});
+
+test("a shift cookie in a tab S1 did not mark — the tab it was signed in from was closed — is ended on the gateway, not resumed", async () => {
+  const g = fakeGateway({ cookie: "device" });
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000, tab: tabMark(false).tab });
+  await app.resume();
+  const p = app.phase.value;
+  assert.ok(p.kind === "login" && p.refusal === null && !p.busy, "the next person sees the login, not the last shift");
+  assert.ok(g.calls.some((c) => c.path === OPERATIONS["auth.logout"].path), "the left-behind session is revoked, not just ignored");
+  assert.equal(g.calls.some((c) => c.path === OPERATIONS["jobs.mine"].path), false);
+});
+
+test("signing out of a front-door shift clears the tab's mark", async () => {
+  const g = fakeGateway({ cookie: "device" });
+  const { map, tab } = tabMark(true);
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000, tab });
+  await app.resume();
+  assert.equal(app.phase.value.kind, "ready");
+  await app.logout();
+  assert.equal(map.has(SHIFT_TAB_KEY), false);
 });
 
 test("a staff member's cookie is not a shift — S5 shows its own login rather than resuming it", async () => {

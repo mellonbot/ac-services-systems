@@ -1,5 +1,5 @@
 import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, type VNode } from "../../../packages/ui/src/index.ts";
-import { gatewayOrigin, type AnonymousShell } from "../../../packages/shell/src/index.ts";
+import { gatewayOrigin, SHIFT_TAB_KEY, type AnonymousShell, type TabMark } from "../../../packages/shell/src/index.ts";
 export { gatewayOrigin };
 import { densityOf, SURFACES, SURFACE_PATHS, type Refusal, type SignInInput, type SurfaceId } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, open } from "./main.ts";
@@ -37,6 +37,8 @@ export const createApp = (opts: {
   /** Where a signed-in person is sent. The browser's location by default; a test passes a spy. */
   go?: (path: string) => void;
   session?: "bearer" | "cookie";
+  /** This tab's sessionStorage: a shift sent to S5 is marked in it (SHIFT_TAB_KEY). */
+  tab?: TabMark | null;
 }) => {
   const degraded = signal(false);
   const shell: AnonymousShell = open({
@@ -62,6 +64,7 @@ export const createApp = (opts: {
       }
       held = null;
       door.value = { step: "going", path: out.path, name: SURFACES[out.surface].name };
+      if (out.surface === "S5") opts.tab?.setItem(SHIFT_TAB_KEY, "1");
       go(out.path);
     } catch (e) {
       door.value = onRefusal(refusalOf(e));
@@ -119,7 +122,9 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   style.textContent = S1_CSS;
   document.head.appendChild(style);
 
-  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window });
+  let tab: TabMark | null = null;
+  try { tab = window.sessionStorage; } catch { /* site data blocked: a shift then ends with every reload */ }
+  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window, tab });
   const el = document.getElementById("mount")!;
   const slot = document.querySelector("ac-degraded") as (HTMLElement | null);
   const Root = () => app.view();

@@ -6,6 +6,7 @@ import { SCREENS } from "./screens.ts";
 import { S1_CSS } from "./styles.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import { OPERATIONS, SURFACES, type SignInInput, type SignInOutput } from "../../../packages/contracts/src/index.ts";
+import { SHIFT_TAB_KEY } from "../../../packages/shell/src/index.ts";
 
 /**
  * S1, THE FRONT DOOR, against a scripted gateway, through the REAL shell and
@@ -142,6 +143,17 @@ test("a field device: the box shows the device ID field, and the ID goes with th
   await settle();
   assert.deepEqual(g.signIns()[0]!.input, { ...DANA, hardwareId: "TAB-0042" });
   assert.deepEqual(went, ["/technician/"]);
+});
+
+test("a shift sent to S5 marks this tab, so S5 resumes it here and nowhere else; another surface leaves no mark", async () => {
+  for (const [surface, marked] of [["S5", true], ["S2", false]] as const) {
+    const m = new Map<string, string>();
+    const tab = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, removeItem: (k: string) => { m.delete(k); } };
+    const app = createApp({ baseUrl: "https://api.ac.test", fetch: fakeGateway({ signIn: () => signedIn(surface) }).fetch, session: "bearer", go: () => {}, tab });
+    app.signIn(surface === "S5" ? { ...DANA, hardwareId: "TAB-0042" } : DANA);
+    await settle();
+    assert.equal(m.has(SHIFT_TAB_KEY), marked, surface);
+  }
 });
 
 test("ticking the device box while a sign-in is in flight survives the refusal that comes back", async () => {

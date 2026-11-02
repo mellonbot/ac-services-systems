@@ -1,5 +1,5 @@
 import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
-import { gatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
+import { gatewayOrigin, SHIFT_TAB_KEY, type ConnectedShell, type TabMark } from "../../../packages/shell/src/index.ts";
 export { gatewayOrigin };
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -20,7 +20,8 @@ import { S5_CSS } from "./styles.ts";
  * ConnectConfig doc). A sign-in made at the FRONT DOOR (S1, `auth.signIn`
  * with a device ID) arrives as the session cookie instead, so boot first
  * tries to resume that — `resume()` — and keeps it only when it is a device
- * session with a crew. Anything else falls through to this page's own login,
+ * session with a crew, in a tab S1 marked (SHIFT_TAB_KEY): the shift lasts
+ * across a reload and ends with the tab. Anything else falls through to this page's own login,
  * as before. A reload losing a bearer session is the accepted cost of the web
  * fallback being the fallback; re-authenticating with the hardware in hand is quick.
  *
@@ -43,7 +44,7 @@ type Phase =
   | { kind: "login"; refusal: Refusal | null; busy: boolean }
   | { kind: "ready"; shell: ConnectedShell; store: Store; queue: OfflineQueue; wrapUps: WrapUps; crew: { id: string; label: string }; clock: Signal<Readonly<Record<string, string>>>; account: AccountMenuState; messages: MessengerState };
 
-export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window; newId?: () => string; store?: QueueStore | null; media?: MediaStore }) => {
+export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window; newId?: () => string; store?: QueueStore | null; media?: MediaStore; tab?: TabMark | null }) => {
   const now = opts.now ?? (() => Date.now());
   const newId = opts.newId ?? (() => (globalThis.crypto?.randomUUID?.() ?? `${now()}-${Math.random()}`));
   const phase = signal<Phase>({ kind: "login", refusal: null, busy: false });
@@ -89,10 +90,14 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     try {
       const shell = await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { session: "cookie" } });
       if (shell.principal.namespace === "device" && shell.deviceCrew) {
-        enter(shell as typeof shell & { deviceCrew: { id: string; label: string } }, shell.principal.deviceId ?? "");
-        return;
-      }
-      shell.close();
+        if (opts.tab?.getItem(SHIFT_TAB_KEY)) {
+          enter(shell as typeof shell & { deviceCrew: { id: string; label: string } }, shell.principal.deviceId ?? "");
+          return;
+        }
+        // A shift left behind by a closed tab: end it on the gateway, so the
+        // next person at this browser does not walk into it.
+        await shell.logout().catch(() => {});
+      } else shell.close();
     } catch { /* nothing to resume */ }
     if (phase.value.kind === "login") phase.value = { kind: "login", refusal: null, busy: false };
   };
@@ -101,6 +106,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const p = phase.value;
     if (p.kind !== "ready") return;
     p.messages.stop();
+    opts.tab?.removeItem(SHIFT_TAB_KEY);
     try { await p.shell.logout(); } finally { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("login", {}); }
   };
 
@@ -202,7 +208,9 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
 
   let store: QueueStore | null = null;
   try { store = window.localStorage; } catch { /* site data blocked: the queue lives in memory */ }
-  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window, store, ...(typeof indexedDB !== "undefined" ? { media: indexedDbMedia("ac-s5-media") } : {}) });
+  let tab: TabMark | null = null;
+  try { tab = window.sessionStorage; } catch { /* site data blocked: a front-door shift then always signs in again */ }
+  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window, store, tab, ...(typeof indexedDB !== "undefined" ? { media: indexedDbMedia("ac-s5-media") } : {}) });
   const el = document.getElementById("mount")!;
   const slot = document.querySelector("ac-degraded") as (HTMLElement | null);
   const Root = () => app.view();

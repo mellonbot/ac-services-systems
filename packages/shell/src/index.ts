@@ -270,6 +270,15 @@ export type ConnectedShell = Shell & {
  * function does not read `hostname` unless it is set — a test document for
  * those surfaces has no hostname.
  */
+/**
+ * The per-tab mark of a shift the front door signed in. S1 writes it to the
+ * tab's sessionStorage as it sends a technician to S5; S5 resumes a shift
+ * cookie only in a tab that holds it. A reload keeps the mark, closing the tab
+ * drops it, so a shared browser does not hand the next person the last shift.
+ */
+export const SHIFT_TAB_KEY = "ac.shift-tab";
+export type TabMark = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
 export type GatewayDocument = {
   querySelector(sel: string): { getAttribute(n: string): string | null } | null;
   location: { protocol: string; host: string; hostname?: string };
