@@ -1,4 +1,4 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, type VNode, bindCookieSession } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, surfaceSwitch, type VNode, bindCookieSession } from "../../../packages/ui/src/index.ts";
 import { gatewayOrigin as sharedGatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
 import { admits, densityOf, seesManagerOverview, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -392,7 +392,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
         <div class="dispatch-header__tools">
           ${p.kind === "preview"
             ? html`<span class="s3-flag" id="preview-flag">Preview</span>`
-            : html`${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}`}
+            : html`${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout, surfaceSwitch("S3", p.shell.principal))}`}
         </div>
       </header>
       ${p.kind === "preview" ? html`<p class="s3-preview" role="note" id="preview-banner"><strong>Preview — sample data.</strong> No gateway answered at ${opts.baseUrl}, so these jobs, crews and requests are made up and nothing here is saved. Start the gateway and reload to sign in.</p>` : null}

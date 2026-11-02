@@ -285,7 +285,9 @@ ac-degraded[hidden]{display:none}
    Every size is the density's, every colour a role. */
 .ac-nav{display:flex;margin:0 0 var(--space-2)}
 .ac-nav__who{margin-inline-start:auto;padding:0 var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm)}
-.ac-nav__signout{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);cursor:pointer;color:var(--color-action-text);font:inherit;min-height:var(--control-height)}
+.ac-nav__signout,.ac-nav__switch{appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-control);cursor:pointer;color:var(--color-action-text);font:inherit;min-height:var(--control-height)}
+.ac-nav__switch-group{display:flex;align-items:center;gap:var(--space-1)}
+.ac-nav__switch{display:inline-flex;align-items:center;text-decoration:none;white-space:nowrap}
 /* On a phone the track reads top to bottom: whose account, the screens sharing
    the width two to a row, then the surface's one action across the full width —
    not a ragged run with the name left over as a caption. */

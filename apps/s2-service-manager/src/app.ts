@@ -1,4 +1,4 @@
-import { html, pageHead, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, type VNode, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, bindCookieSession } from "../../../packages/ui/src/index.ts";
+import { html, pageHead, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalCard, type VNode, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, surfaceSwitch, bindCookieSession } from "../../../packages/ui/src/index.ts";
 import { gatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
 export { gatewayOrigin };
 import { densityOf, SURFACE_PATHS, type AccountWire, type CrewWire, type FirmWire, type OrganizationWire, type PurchaseOrderDetailOutput, type Refusal, type TechnicianWire, type VendorWire } from "../../../packages/contracts/src/index.ts";
@@ -284,7 +284,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           })}
         </div>
         <div class="s2-global__tools">
-          ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
+          ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout, surfaceSwitch("S2", p.shell.principal))}
         </div>
       </nav>
       ${customer && target ? html`<section class="s2-custbar" aria-label="Customer">
