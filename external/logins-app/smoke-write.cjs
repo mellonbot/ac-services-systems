@@ -11,7 +11,7 @@ const sql = (q) => execFileSync("docker", ["exec", "ac-pg", "psql", "-U", "postg
 const ts = Date.now();
 const email = `smoke-${ts}@ac.test`;
 const techEmail = `smoke-tech-${ts}@ac.test`;
-const company = `Smoke Co ${ts}`;
+const crew = `Smoke Co ${ts}`;
 const contractor = `Smoke Contractor ${ts}`;
 
 const run = async (win) => {
@@ -74,13 +74,13 @@ const run = async (win) => {
   await js(`document.getElementById("add").click()`);
   await waitFor(`document.getElementById("dialog").open && !!document.querySelector("#form [name=type]")`, "add install crew form");
   await check("type", "ours");
-  await set("name", company);
+  await set("name", crew);
   await set("regionId", await js(`document.querySelector("#form [name=regionId] option:not([value=''])").value`));
   await js(`document.getElementById("form").requestSubmit()`);
-  await waitFor(`!document.getElementById("dialog").open && !!${rowOf(company)}`, "the new install crew row");
-  const crewId = sql(`SELECT id FROM crews WHERE label = '${company}'`);
+  await waitFor(`!document.getElementById("dialog").open && !!${rowOf(crew)}`, "the new install crew row");
+  const crewId = sql(`SELECT id FROM crews WHERE label = '${crew}'`);
   console.log("crew added:      ", sql(`SELECT kind, employment_type, firm_id IS NULL AS no_firm, region_id = home_region_id AS same_region, active FROM crews WHERE id = '${crewId}'`));
-  console.log("crew row:        ", JSON.stringify(await js(`[...${rowOf(company)}.querySelectorAll("td")].slice(0, 6).map((td) => td.textContent)`)));
+  console.log("crew row:        ", JSON.stringify(await js(`[...${rowOf(crew)}.querySelectorAll("td")].slice(0, 6).map((td) => td.textContent)`)));
 
   await open("Technician");
   await js(`document.getElementById("add").click()`);
@@ -110,9 +110,9 @@ const run = async (win) => {
   console.log("technician removed:", sql(`SELECT active FROM users WHERE email = '${techEmail}'`), "| unit active:", sql(`SELECT active FROM crews WHERE id = '${unitId}'`));
 
   await open("Crews & units");
-  await waitFor(`!!${rowOf(company)}`, "the install crew row");
-  await click(rowOf(company), "Remove");
-  await waitFor(`!${rowOf(company)}`, "the install crew to leave the active list");
+  await waitFor(`!!${rowOf(crew)}`, "the install crew row");
+  await click(rowOf(crew), "Remove");
+  await waitFor(`!${rowOf(crew)}`, "the install crew to leave the active list");
   console.log("crew removed:    ", sql(`SELECT active FROM crews WHERE id = '${crewId}'`), "| banner:", JSON.stringify(await js(bannerText)));
 
   await js(`document.getElementById("add").click()`);
@@ -120,7 +120,7 @@ const run = async (win) => {
   await check("type", "contractor");
   await check("firmMode", "new");
   await set("legalName", contractor);
-  console.log("name follows legal name:", await js(`document.querySelector("#form [name=companyName]").value`) === contractor,
+  console.log("name follows legal name:", await js(`document.querySelector("#form [name=crewName]").value`) === contractor,
     "| terms prefilled:", await js(`document.querySelector("#form [name=paymentTermsDays]").value`),
     "| rights checked:", await js(`[...document.querySelectorAll("#form [name=dataRights]")].filter((r) => r.checked).length`));
   await set("firmRegionId", await js(`document.querySelector("#form [name=firmRegionId] option:not([value=''])").value`));

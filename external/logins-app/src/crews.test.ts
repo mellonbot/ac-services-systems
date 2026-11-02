@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
-import { buildCrewRow, buildFirmRows, documentsLabel, sameName } from "./companies.ts";
+import { buildCrewRow, buildFirmRows, documentsLabel, sameName } from "./crews.ts";
 
 const R = "00000000-0000-0000-0000-0000000000a1";
 const firm = { legalName: "  Acme  HVAC ", regionId: R, paymentTermsDays: 30, dataRightsReserved: false, msaSignedAt: null };
