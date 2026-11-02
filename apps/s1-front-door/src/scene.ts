@@ -21,7 +21,7 @@ const TRUCK_SCALE = 2.8;
 const BAY_X = 26, BAY_Z = 18;
 /** Equipment in the yard waiting to go out — [model, x, z, heading], on a pallet or skid, at the truck's scale. */
 const STOCK: readonly (readonly [string, number, number, number])[] = [
-  // The condensers stand above the truck's rear bumper in the shot; the forklift brings the third, in front of the first (DROP_X, LANE_Z).
+  // The condensers stand above the truck's rear bumper in the shot; the forklift fills a row in front of them (DROPS, LANE_Z).
   ["/condenser.glb", 14, -26, 0.1], ["/condenser.glb", 9.5, -26, -0.05],
   ["/rtu.glb", 24, -27.5, 0], ["/rtu.glb", 22, -21, 0.08],
 ];
@@ -297,10 +297,11 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
 
   // Tyre ruts along the forklift's lane across the back of the yard, in front of the condenser pallets, and the forklift itself.
   const rut = new MeshStandardMaterial({ color: role("text"), transparent: true, opacity: 0.22, roughness: 1 });
-  // It comes in from the left, forks first, carrying a condenser, and sets it down with the others at DROP_X.
+  // It comes in from the left, forks first, carrying a condenser, and sets it down in the next slot of a row
+  // in front of the stock, farthest first so it never drives through one it has filled.
   // REACH is the forks' centre ahead of the forklift's origin, in world metres.
-  const LANE_Z = -21.5, DROP_X = 14, REACH = 1.74 * TRUCK_SCALE, LANE_NEAR = -30, LANE_FAR = DROP_X - REACH;
-  for (const dz of [-1.4, 1.4]) paint(DROP_X - LANE_NEAR, 0.9, (LANE_NEAR + DROP_X) / 2, LANE_Z + dz, rut);
+  const LANE_Z = -21.5, DROPS = [14, 9.5, 5] as const, REACH = 1.74 * TRUCK_SCALE, LANE_NEAR = -30;
+  for (const dz of [-1.4, 1.4]) paint(DROPS[0] - LANE_NEAR, 0.9, (LANE_NEAR + DROPS[0]) / 2, LANE_Z + dz, rut);
   const lift = prop(LANE_NEAR, LANE_Z, -Math.PI / 2);
   box(1.1, 0.5, 2.0, 0, 0.5, 0, red, lift);
   box(1.12, 0.75, 0.5, 0, 0.85, 0.85, red, lift);
@@ -339,22 +340,27 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
     }, () => { /* a missing unit leaves its pallet empty */ });
     return base;
   };
-  const cargo = onPallet("/condenser.glb", LANE_NEAR + REACH, LANE_Z, 0);
+  const cargo = DROPS.map(() => onPallet("/condenser.glb", LANE_NEAR + REACH, LANE_Z, 0));
 
-  // One delivery every 26 s, carriage heights in the forklift's own metres: CARRY holds the pallet just
+  // One delivery every 26 s; once the row is full it empties and the next round starts, carriage heights in the forklift's own metres: CARRY holds the pallet just
   // off the dirt, DOWN rests it on the ground, EMPTY is the bare forks' travel height.
   // Drive in loaded, lower, back out of the pallet, raise the bare forks, reverse to the left, wait.
   const SHUTTLE_MS = 26_000, CARRY = 0.1, DOWN = 0, EMPTY = 0.3, SET_DOWN = 0.5;
   const ease = (t: number): number => t * t * (3 - 2 * t);
   const span = (t: number, a: number, b: number): number => ease(Math.min(Math.max((t - a) / (b - a), 0), 1));
   const shuttle = (ms: number): void => {
-    const t = (ms % SHUTTLE_MS) / SHUTTLE_MS;
+    const t = (ms % SHUTTLE_MS) / SHUTTLE_MS, n = Math.floor(ms / SHUTTLE_MS) % DROPS.length;
     const out = span(t, 0.04, 0.4), back = span(t, 0.53, 0.9);
-    lift.position.x = LANE_NEAR + (LANE_FAR - LANE_NEAR) * (out - back);
+    lift.position.x = LANE_NEAR + (DROPS[n]! - REACH - LANE_NEAR) * (out - back);
     carriage.position.y = CARRY + (DOWN - CARRY) * span(t, 0.42, SET_DOWN) + (EMPTY - DOWN) * span(t, 0.64, 0.7);
-    // Carried, the pallet rides the forks, which sit in its pockets; set down, it stays where it landed.
-    cargo.position.x = t < SET_DOWN ? lift.position.x + REACH : DROP_X;
-    cargo.position.y = t < SET_DOWN ? (carriage.position.y - DOWN) * TRUCK_SCALE : 0;
+    // Earlier rounds' units stand in their slots, later ones are not here yet; this round's rides the
+    // forks, which sit in its pockets, until it is set down.
+    cargo.forEach((unit, i) => {
+      const carried = i === n && t < SET_DOWN;
+      unit.visible = i <= n;
+      unit.position.x = carried ? lift.position.x + REACH : DROPS[i]!;
+      unit.position.y = carried ? (carriage.position.y - DOWN) * TRUCK_SCALE : 0;
+    });
   };
   // Start (and, under reduced motion, rest) loaded at the left end.
   const SHUTTLE_FROM = 0;
