@@ -65,8 +65,9 @@ For when the owner login is lost or a clean start is wanted. Nothing is copied.
    login must create them. Same region as before.
 2. Save the default role's connection string in the password manager, then
    `gh secret set DATABASE_URL --env production`.
-3. Run **Actions → db-check**: `current_user` is the new login, and it must be
-   superuser or have CREATEROLE. If not, stop.
+3. Run **Actions → db-check**: `current_user` is the new login, and `superuser` or
+   `createrole` must be `true`. If neither is, stop. (`bypassrls` is printed too —
+   worth recording.)
 4. Photo storage: new R2 token if needed (see 'Photo storage'), the four
    `AC_STORAGE_*` Worker secrets, and empty `ac-media` if its objects belong to the
    old database.
