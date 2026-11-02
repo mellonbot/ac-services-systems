@@ -441,7 +441,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
         if (edit.roles) checkRoles(cur.namespace, edit.roles);
         if (edit.ownUnit && cur.crew_id === null) throw new LoginInputError("Only a technician has a service unit.");
         if (edit.scope) {
-          if (cur.namespace === "subcontractor" || cur.crew_id !== null) throw new LoginInputError("This login's scope follows its crew — it cannot be set by hand.");
+          if (cur.namespace === "subcontractor" || cur.crew_id !== null) throw new LoginInputError("This login's scope follows its crew or firm — it cannot be set by hand.");
           if (cur.namespace === "internal") {
             const want = edit.scope.tier === "parent" || edit.scope.tier === "region" ? internalScope(edit.scope.tier === "parent" ? "org" : "region", edit.scope.regionId) : null;
             if (!want || want.scope_tier !== edit.scope.tier || want.scope_id !== edit.scope.scopeId) throw new LoginInputError("A staff login sees the whole company or one region.");
