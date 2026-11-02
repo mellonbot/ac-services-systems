@@ -41,7 +41,7 @@ const fakeGateway = (): FetchLike => {
     if (path === OPERATIONS["auth.login"].path) { session = true; return reply(200, { token: "x", expiresAt: "2026-10-24T00:00:00Z", context: {} }); }
     if (!session) return reply(401, { error: "AuthError", code: "malformed", message: "no session" });
     if (path === OPERATIONS["session.me"].path) return reply(200, context);
-    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true }] });
+    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true, assignable: true }] });
     if (path === OPERATIONS["firms.list"].path) return reply(200, { firms: [] });
     if (path === OPERATIONS["crews.list"].path) return reply(200, { crews: [
       { id: UNIT, label: "Marcus's unit", employmentType: "employed", kind: "service", firmId: null, homeRegionId: SOUTH, active: true, documents: docs },

@@ -330,7 +330,7 @@ const credentials = async (env: Env, f: Fields): Promise<Done> => {
   const validTo = f.date("valid_to", true);
   const documentKey = f.opt("document_key");
   const crew = ix.crew(crewLabel, region, firm);
-  if (!crew) throw new RowRefused(`no crew "${crewLabel}" in ${region.code} for ${firm?.legalName ?? "us"} — list it in crews.csv, or give a technician's name for their own unit`);
+  if (!crew) throw new RowRefused(`no crew "${crewLabel}" in ${region.code} for ${firm?.legalName ?? "us"} — list it in crews.csv`);
   const what = `${kind} ${identifier} for ${crew.label}`;
 
   const held = await ix.credentials(crew.id);

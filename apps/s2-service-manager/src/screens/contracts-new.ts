@@ -73,7 +73,7 @@ export const contractsNew: Screen = (ctx, params) => {
   };
 
   const scopeNodes = (nodes: readonly AccountWire[]) => nodes.filter((n) => n.tier === f.scopeTier);
-  const activeRegions = (rs: readonly RegionWire[]) => rs.filter((r) => r.active);
+  const activeRegions = (rs: readonly RegionWire[]) => rs.filter((r) => r.assignable);
   const amendable = (cs: readonly ContractWire[]) => cs.filter((c) => c.state === "draft" || c.state === "active");
   // Only once the list is read: while it loads there is nothing yet to say is missing.
   const blocked =

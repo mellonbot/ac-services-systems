@@ -20,8 +20,8 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
+import { createPool, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
+import { hashPassword } from "../../services/gateway/src/auth/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID, UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 
@@ -57,10 +57,10 @@ before(async () => {
   await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
     VALUES ($1,$2,$3,'internal',$5,'Data Principal','["principal"]','parent',$2,$4,true),
            ($6,$2,$3,'internal','office.data@ac.test','Data Office','["office_manager"]','parent',$2,$4,true)
-    ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, active = true, roles = EXCLUDED.roles, must_change_password = false`,
+    ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, active = true, roles = EXCLUDED.roles`,
     [USER_PRINCIPAL, INTERNAL_ORG_ID, DFW, hash, PRINCIPAL_EMAIL, USER_OFFICE]);
 
-  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
+  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../services/gateway/src/main.ts", import.meta.url))], {
     env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test" }, stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";
@@ -148,13 +148,15 @@ test("a principal opens a region, its code fixed and unique, and renames it", { 
 
 test("a region that still holds a crew or a login is not closed, and the refusal names them; an empty one is, and is then offered nowhere", { skip }, async () => {
   const crew = await principal.gateway.createCrew({ label: `Crew ${RUN}`, employmentType: "employed", kind: "install", homeRegionId: regionId });
-  const login = await principal.gateway.createStaffLogin({ email: `region.${RUN.toLowerCase()}@ac.test`, displayName: `Rae ${RUN}`, roles: ["dispatcher"], scope: "region", regionId });
+  const loginId = crypto.randomUUID();
+  await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
+    VALUES ($1,$2,$3,'internal',$4,$5,'["dispatcher"]','region',$3,$6,true)`, [loginId, INTERNAL_ORG_ID, regionId, `region.${RUN.toLowerCase()}@ac.test`, `Rae ${RUN}`, hashPassword(PASSWORD)]);
   const r = await refusedWith(principal.gateway.setRegionActive({ regionId, active: false }), code("region_in_use"), "a region in use is not closed");
   assert.match(String(r.message), new RegExp(`1 active login \\(Rae ${RUN}\\)`));
   assert.match(String(r.message), new RegExp(`1 active crew \\(Crew ${RUN}\\)`));
 
   await principal.gateway.updateCrew({ crewId: crew.id, active: false });
-  await principal.gateway.setPersonActive({ userId: login.userId, active: false });
+  await admin(`UPDATE users SET active = false WHERE id = $1`, [loginId]);
   await principal.gateway.setRegionActive({ regionId, active: false });
   const closed = (await principal.gateway.listRegions()).regions.find((x) => x.id === regionId)!;
   assert.deepEqual([closed.active, closed.assignable], [false, false]);
@@ -171,7 +173,6 @@ test("Unassigned is refused by every door that takes a region, and is never rena
   await refusedWith(principal.gateway.createCrew({ label: `Nowhere ${RUN}`, employmentType: "employed", homeRegionId: UNASSIGNED_REGION_ID }), unassigned, "no crew is dispatched from it");
   await refusedWith(principal.gateway.createFirm({ legalName: `Nowhere ${RUN}`, regionId: UNASSIGNED_REGION_ID, settlementTermsDays: 30, diagnosticDataRightsReserved: true }), unassigned, "no firm");
   await refusedWith(principal.gateway.registerDevice({ hardwareId: `NOWHERE-${RUN}`, kind: "web_fallback", regionId: UNASSIGNED_REGION_ID }), unassigned, "no device");
-  await refusedWith(principal.gateway.createStaffLogin({ email: `nowhere.${RUN.toLowerCase()}@ac.test`, displayName: "Nowhere", roles: ["dispatcher"], scope: "region", regionId: UNASSIGNED_REGION_ID }), code("unknown_region"), "no login");
 });
 
 // ---- the importer ----
@@ -214,9 +215,9 @@ test("the sample CSVs land as rows S2 could have typed — audited, by the princ
   const terms = Object.fromEntries((await admin(`SELECT term_key, term_value FROM contract_term_overrides WHERE contract_id = $1`, [msa[0]!.id])).map((t) => [t.term_key, t.term_value]));
   assert.deepEqual(terms, { sla_response: "4_hour", sla_credit_pct: 10, pm_visits_per_year: 2, payment_terms_days: 30, labor_rate_minor: "12500", diagnostic_data_rights_reserved: true });
   assert.equal((await admin(`SELECT status FROM subcontractor_firms WHERE legal_name = 'Trinity Air Contractors LLC'`))[0]!.status, "active");
-  const logins = await admin(`SELECT email, must_change_password, crew_id FROM users WHERE email IN ('maria.lopez@example.com', 'dev.patel@example.com') ORDER BY email`);
-  assert.equal(logins.length, 2);
-  assert.ok(logins.every((l) => l.crew_id), "each technician login comes with its own unit");
+  const roster = await admin(`SELECT name FROM technicians WHERE name IN ('Maria Lopez', 'Dev Patel') ORDER BY name`);
+  assert.deepEqual(roster.map((t) => t.name), ["Dev Patel", "Maria Lopez"], "each technician is on the roster");
+  assert.equal((await admin(`SELECT count(*)::int AS n FROM users WHERE email IN ('maria.lopez@example.com', 'dev.patel@example.com')`))[0]!.n, 0, "the importer makes no logins");
   const creds = await admin(`SELECT c.kind, c.verified_at IS NOT NULL AS verified FROM crew_credentials c JOIN crews w ON w.id = c.crew_id WHERE w.label = 'Maria Lopez' AND w.home_region_id = $1`, [DFW]);
   assert.deepEqual(creds.map((c) => c.kind).sort(), ["background_check", "license"]);
   assert.ok(creds.every((c) => c.verified), "--verify-credentials verified them");
@@ -237,8 +238,10 @@ test("the sample CSVs land as rows S2 could have typed — audited, by the princ
 });
 
 test("what was loaded is enough to work: a job opens on the agreed response time and an imported technician clears the gate", { skip }, async () => {
-  const dispatcher = await principal.gateway.createStaffLogin({ email: `dispatch.${RUN.toLowerCase()}@ac.test`, displayName: `Dispatch ${RUN}`, roles: ["dispatcher"], scope: "region", regionId: DFW });
-  const s3 = await signIn("S3", `dispatch.${RUN.toLowerCase()}@ac.test`, dispatcher.temporaryPassword, `${PASSWORD} ${RUN}`);
+  const dispatchEmail = `dispatch.${RUN.toLowerCase()}@ac.test`;
+  await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
+    VALUES ($1,$2,$3,'internal',$4,$5,'["dispatcher"]','region',$3,$6,true)`, [crypto.randomUUID(), INTERNAL_ORG_ID, DFW, dispatchEmail, `Dispatch ${RUN}`, hashPassword(PASSWORD)]);
+  const s3 = await signIn("S3", dispatchEmail);
   const site = (await s3.gateway.listSites()).sites.find((s) => s.name === "Building A — Rooftop")!;
   assert.ok(site, "the imported site is on the DFW dispatcher's list");
   const day = new Date(Date.now() + 2 * 86400_000);
@@ -246,7 +249,7 @@ test("what was loaded is enough to work: a job opens on the agreed response time
   const end = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 19)).toISOString();
   const job = await s3.gateway.createJob({ siteId: site.id, serviceCode: "HVAC-REPAIR", priority: "urgent", serviceWindowStart: start, serviceWindowEnd: end });
   assert.equal(job.responseTerm, "4_hour");
-  const unit = (await admin(`SELECT crew_id FROM users WHERE email = 'maria.lopez@example.com'`))[0]!.crew_id as string;
+  const unit = (await admin(`SELECT id FROM crews WHERE label = 'Maria Lopez' AND home_region_id = $1`, [DFW]))[0]!.id as string;
   const out = await s3.gateway.assignCrew({ jobId: job.id, crewId: unit, orgId: site.orgId, regionId: DFW });
   assert.equal(out.ok, true, `the imported, verified documents clear the whole window — got ${JSON.stringify(out)}`);
   await s3.logout();

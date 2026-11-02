@@ -125,7 +125,7 @@ name,region,firm,role,crew,phone,specialties
 |---|---|---|
 | name | req | |
 | role | | `technician` (default), `lead_installer`, `installer`, `helper` |
-| crew | | an install crew's label (from `crews.csv`) for an installer or helper |
+| crew | | a crew's label (from `crews.csv`): an install crew for an installer or helper, a service unit for a technician |
 | phone | | |
 | specialties | | `;`-separated: residential_hvac, light_commercial, commercial_rtu, refrigeration, chillers_boilers, controls_bas |
 

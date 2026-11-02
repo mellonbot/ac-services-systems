@@ -55,7 +55,7 @@ const fakeGateway = (overrides: Partial<Record<string, Reply>> = {}) => {
     if (path === OPERATIONS["session.me"].path) return reply(200, context);
     if (path === OPERATIONS["organizations.list"].path) return reply(200, { organizations: [{ id: ORG, name: "Amped Fitness Inc.", kind: "customer", externalRef: null, active: true, regionNodeCount: 1 }] });
     if (path === OPERATIONS["accounts.list"].path) return reply(200, { nodes: NODES });
-    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true }] });
+    if (path === OPERATIONS["regions.list"].path) return reply(200, { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 0, active: true, assignable: true }] });
     if (path === OPERATIONS["contracts.list"].path) return reply(200, { contracts: CONTRACTS });
     if (path === OPERATIONS["terms.register"].path) return reply(200, { terms: Object.values(TERMS) });
     if (path === OPERATIONS["terms.overrides.list"].path) return reply(200, { overrides: [] });
