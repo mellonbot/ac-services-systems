@@ -107,7 +107,9 @@ test("route order: /contracts/:orgId/new is not swallowed by /contracts/:orgId?"
 test("the agreement list shows OQ5 per record and offers only the ladder steps the handler admits", async () => {
   const { app } = await ready();
   const html = await paint(app, "contracts.list", { orgId: ORG });
-  assert.match(html, /Amped Fitness Inc\. — agreements/);
+  assert.match(html, />2 agreements</, "the panel says how many, and does not repeat the customer the header already names");
+  assert.doesNotMatch(html, /s2-col--orgs/, "an open customer has no picker beside its agreements; the header's All customers link changes it");
+  assert.match(html, /Amped Fitness Inc\./, "the customer is still named where an agreement binds to it");
   assert.match(html, /Reserved/);
   assert.match(html, /Not reserved/, "an agreement signed without a position is visible as one, not hidden");
   // MSA is active → expire | terminate. The location agreement is draft → activate only.
