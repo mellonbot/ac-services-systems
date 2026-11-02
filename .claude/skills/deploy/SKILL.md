@@ -22,7 +22,7 @@ main push ─ guard (zero-install-guard, full, migrate, drive)
 |---|---|---|
 | Gateway + worker | One container (`Dockerfile`, PID 1 `infra/cloudflare/entrypoint.mjs`) behind `infra/cloudflare/worker.mjs` | `infra/cloudflare/wrangler.jsonc` — `AC_SITE`, `AC_ROLLOUT=1`, one `basic` instance |
 | Site | Cloudflare Pages, one project, every published surface under its path | GitHub `production` env: `CLOUDFLARE_PAGES_PROJECT`, optional `AC_GATEWAY` |
-| Database | PlanetScale Postgres (via Cloudflare) or any PG16 over TLS, `?sslmode=require` | `DATABASE_URL` in **two** places: Worker secret and GitHub `production` env |
+| Database | PlanetScale Postgres (via Cloudflare) or any PG16 over TLS; string pasted exactly as the provider shows it, owner string kept in a password manager | `DATABASE_URL` in **two** places: Worker secret and GitHub `production` env |
 
 Order matters: the site build stamps the gateway origin into every frame, so the gateway
 deploys first. Migrations run against production **before** the new image ships — a
@@ -37,6 +37,7 @@ migration must be safe under the old gateway for the minutes between.
 | `AC_SIGNING_KEY_PEM` | Worker | Job fails by name before building. Rotation = new secret + `AC_SIGNING_KID` |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | GitHub `production` env | `deploy` errors by name |
 | `AC_MAPTILER_KEY` (optional) | Worker | S2 home map says no provider configured |
+| `AC_STORAGE_ENDPOINT`, `AC_STORAGE_BUCKET`, `AC_STORAGE_KEY_ID`, `AC_STORAGE_SECRET` | Worker | Missing while a photo-taking surface (S5) is in ROLLOUT: job fails by name. Wrong: `/readyz` 503 "cannot reach its photo storage" (triage below). All four or none — a partial set throws at start |
 
 A Worker secret reaches the container on its next start — i.e. the next deploy.
 Never paste a secret value into a commit, PR, log line or chat.

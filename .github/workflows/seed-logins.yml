@@ -62,21 +62,14 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile --prod
+      # As ac_gateway under the system binding: since 0021 regions_write admits
+      # only the system namespace, so a bare INSERT from the owner login is refused.
       - name: the region exists
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          CODE: ${{ inputs.region_code }}
-          NAME: ${{ inputs.region_name }}
-        run: |
-          case "$CODE" in
-            [A-Z][A-Z0-9_]*) ;;
-            *) echo "::error::region_code must be upper-case letters/digits/underscore, got '$CODE'"; exit 1 ;;
-          esac
-          # psql expands :'var' only in a script read from stdin, never inside -c.
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --no-psqlrc -v code="$CODE" -v name="$NAME" <<'SQL'
-            INSERT INTO regions (code, name) VALUES (:'code', :'name') ON CONFLICT (code) DO NOTHING;
-            SELECT code, name, active FROM regions WHERE code = :'code';
-          SQL
+          REGION_CODE: ${{ inputs.region_code }}
+          REGION_NAME: ${{ inputs.region_name }}
+        run: node tools/ops/ensure-region.ts
       - name: seed the staff test logins
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

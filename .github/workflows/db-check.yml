@@ -40,7 +40,7 @@ jobs:
             const c = new pg.Client({ connectionString: url, application_name: "ac-db-check" });
             try {
               await c.connect();
-              const who = await c.query("select current_user, version(), (select rolsuper from pg_roles where rolname = current_user) as superuser");
+              const who = await c.query("select current_user, version(), (select rolsuper from pg_roles where rolname = current_user) as superuser, (select rolcreaterole from pg_roles where rolname = current_user) as createrole, (select rolbypassrls from pg_roles where rolname = current_user) as bypassrls");
               console.log(who.rows[0]);
               const roles = await c.query("select rolname, pg_has_role(current_user, rolname, $1) as member from pg_roles where rolname like $2 order by 1", ["MEMBER", "ac_%"]);
               console.table(roles.rows);
