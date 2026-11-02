@@ -88,7 +88,7 @@ test("a fetch overtaken by an invalidate never becomes the held value, however l
 test("a held seed is on screen before the first answer and through a transport failure; onAnswer hears answers and real refusals only", async () => {
   const heard: [string, unknown][] = [];
   let mode: "offline" | "ok" | "forbidden" = "offline";
-  const forbidden = { kind: "forbidden", status: 403, message: "no" } as const;
+  const forbidden = { kind: "scope", error: "Forbidden", message: "no" } as const;
   const store = createResourceStore({ refusalOf: (e) => (e === forbidden ? forbidden : null) }, () => 9, {
     held: { "jobs.mine": ["held job"] },
     onAnswer: (k, v) => { heard.push([k, v]); },
