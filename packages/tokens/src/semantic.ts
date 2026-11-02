@@ -10,7 +10,7 @@ import { PRIMITIVES as P } from "./primitives.ts";
  *
  * TWO ACCENT LAYERS, both red since Rev C:
  *
- *   color.brand*   The wordmark, the livery, the badge, S1 marketing. Still
+ *   color.brand*   The wordmark, the livery, the badge, S1 (the front door). Still
  *                  fenced by surface — the same fence a tenant accent that fails
  *                  the gate falls behind.
  *   color.action*  Every control and highlight on every surface. Red clears the

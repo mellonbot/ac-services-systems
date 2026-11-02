@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createShell, connectShell, densityTokens } from "./index.ts";
+import { createShell, connectShell, densityTokens, heldShift, holdShift, forgetShift, resumeHeldShift, SHIFT_TAB_KEY, HELD_SHIFT_KEY, type TabMark } from "./index.ts";
 import { DEGRADED, type DegradedState } from "./internal.ts";
 import { SURFACES, SURFACE_IDS, OPERATIONS, type Principal, type SurfaceId, type HierarchyContext } from "../../contracts/src/index.ts";
 import type { FetchLike } from "../../sdk/src/runtime.ts";
@@ -156,4 +156,65 @@ test("connectShell with email/password carries no deviceCrew", async () => {
   };
   const shell = await connectShell({ surfaceId: "S3", baseUrl: "https://api.ac.test", fetch, credentials: { email: "dispatcher@ac.test", password: "pw" } });
   assert.equal(shell.deviceCrew, null);
+});
+
+/**
+ * The held shift (offline entry). It holds only what the gateway answered for
+ * a device session, only in a tab S1 marked, and never past the session's end.
+ */
+const tabStore = (entries: Record<string, string> = {}): TabMark & { map: Map<string, string> } => {
+  const map = new Map(Object.entries(entries));
+  return { map, getItem: (k) => map.get(k) ?? null, setItem: (k, v) => { map.set(k, v); }, removeItem: (k) => { map.delete(k); } };
+};
+const ENDS = "2026-11-02T18:00:00.000Z";
+const before = Date.parse(ENDS) - 1;
+const heldContext = { ...deviceContext, deviceCrew: { id: "crew-1", label: "Crew A1" }, deviceShiftEndsAt: ENDS };
+
+test("a shift is held only in a marked tab, and read back only before it ends", () => {
+  const unmarked = tabStore();
+  holdShift(unmarked, { context: heldContext });
+  assert.equal(unmarked.map.has(HELD_SHIFT_KEY), false, "no mark, nothing held — a fresh tab never opens a shift offline");
+
+  const tab = tabStore({ [SHIFT_TAB_KEY]: "1" });
+  holdShift(tab, { context: heldContext });
+  assert.equal(heldShift(tab, before)?.deviceCrew.label, "Crew A1");
+  assert.equal(heldShift(tab, Date.parse(ENDS)), null, "at the session's end it is gone");
+
+  tab.removeItem(SHIFT_TAB_KEY);
+  assert.equal(heldShift(tab, before), null, "a record without the mark is not a shift");
+  tab.setItem(SHIFT_TAB_KEY, "1");
+  forgetShift(tab);
+  assert.equal(heldShift(tab, before), null);
+});
+
+test("only a device session with a crew and an end is held; anything malformed reads as nothing", () => {
+  const tab = tabStore({ [SHIFT_TAB_KEY]: "1" });
+  holdShift(tab, { context: { ...heldContext, deviceShiftEndsAt: undefined } as unknown as HierarchyContext });
+  holdShift(tab, { context: { ...heldContext, deviceCrew: null } });
+  holdShift(tab, { context: { ...heldContext, principal: { ...heldContext.principal, namespace: "internal" } } });
+  holdShift(tab, { context: null });
+  assert.equal(tab.map.has(HELD_SHIFT_KEY), false);
+  tab.setItem(HELD_SHIFT_KEY, "{not json");
+  assert.equal(heldShift(tab, before), null);
+  const throwing: TabMark = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); }, removeItem: () => { throw new Error("blocked"); } };
+  assert.equal(heldShift(throwing, before), null);
+  holdShift(throwing, { context: heldContext });
+  forgetShift(throwing);
+});
+
+test("resumeHeldShift opens the held device session with no session.me, and the gateway still judges every call", async () => {
+  const paths: string[] = [];
+  const fetch: FetchLike = async (url, init) => {
+    paths.push(new URL(url).pathname);
+    assert.equal((init as { credentials?: string } | undefined)?.credentials, "include", "the live cookie goes with every call");
+    throw new TypeError("Failed to fetch");
+  };
+  const shell = resumeHeldShift({ surfaceId: "S5", baseUrl: "https://api.ac.test", fetch }, heldContext);
+  assert.deepEqual(paths, [], "opening it asks the gateway nothing");
+  assert.equal(shell.principal.subjectId, "tech-1");
+  assert.deepEqual(shell.deviceCrew, { id: "crew-1", label: "Crew A1" });
+  assert.equal(shell.token(), null);
+  await assert.rejects(shell.gateway.myJobs());
+  assert.equal(shell.isDegraded(), true, "an unreachable gateway is the degraded state, as everywhere");
+  assert.deepEqual(paths, [OPERATIONS["jobs.mine"].path]);
 });

@@ -10,7 +10,7 @@ import { contrastRatio, hueSeparation } from "./whitelabel.ts";
  * `contrastFailures` already proves the schedule PASSES. It cannot prove the
  * schedule is DESCRIBED correctly, and those are different failures. The
  * thresholds are enforced; the figures quoted in a doc comment, an errata row
- * or docs/BRAND.md were hand-carried, and four of them had drifted before this
+ * or docs/generated/BRAND.md were hand-carried, and four of them had drifted before this
  * file existed:
  *
  *   the heavy rule        published 2.65:1   measured 2.22:1
@@ -79,7 +79,7 @@ export const FIGURES = Object.freeze({
    * role, and `styles.test.ts` holds that line.
    */
   borderHard: ratio(
-    ["packages/tokens/src/brand.ts BULLETIN_ERRATA E-08", "packages/ui/src/styles.ts", "docs/BRAND.md"],
+    ["packages/tokens/src/brand.ts BULLETIN_ERRATA E-08", "packages/ui/src/styles.ts", "docs/generated/BRAND.md"],
     "the heavy rule, against the header ground — decorative, and below the 3:1 a shape needs",
     2.22,
     P.stock.ruleHard,
@@ -88,7 +88,7 @@ export const FIGURES = Object.freeze({
 
   /** CORRECTED from 3.17:1. Still below AA, still off text duty — E-07 unchanged. */
   inkLight: ratio(
-    ["packages/tokens/src/brand.ts BULLETIN_ERRATA E-07", "packages/tokens/src/semantic.ts", "docs/BRAND.md"],
+    ["packages/tokens/src/brand.ts BULLETIN_ERRATA E-07", "packages/tokens/src/semantic.ts", "docs/generated/BRAND.md"],
     "the published caption ink, against the header ground — below AA, which is why text-muted is ink.mid",
     3.27,
     P.ink.light,
@@ -185,7 +185,7 @@ export const FIGURES = Object.freeze({
 
   /** The frost word on the one solid chip in the system. */
   frostOnGarnet: ratio(
-    ["docs/BRAND.md"],
+    ["docs/generated/BRAND.md"],
     "frost on the garnet fill — the word on the field tier's only solid chip",
     7.58,
     P.plate.frost,
@@ -198,7 +198,7 @@ export const FIGURES = Object.freeze({
    * now clears the gate with room to spare.
    */
   redFromFault: degrees(
-    ["packages/tokens/src/primitives.ts", "packages/tokens/src/semantic.ts", "packages/tokens/src/whitelabel.ts", "docs/BRAND.md"],
+    ["packages/tokens/src/primitives.ts", "packages/tokens/src/semantic.ts", "packages/tokens/src/whitelabel.ts", "docs/generated/BRAND.md"],
     "brand red from the garnet fault ink",
     42.12,
     P.brand.fill,
@@ -207,7 +207,7 @@ export const FIGURES = Object.freeze({
 
   /** The red's NEAREST state hue — the warning amber — and the figure that admits it to the board. */
   redFromNearestState: degrees(
-    ["packages/tokens/src/primitives.ts", "packages/ui/src/styles.ts", "docs/BRAND.md"],
+    ["packages/tokens/src/primitives.ts", "packages/ui/src/styles.ts", "docs/generated/BRAND.md"],
     "the red from the nearest state hue on the light stock, the warning amber",
     35.32,
     P.brand.fill,

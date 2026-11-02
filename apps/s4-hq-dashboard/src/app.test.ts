@@ -236,7 +236,7 @@ const job = {
   slaDueAt: "2026-09-27T16:00:00.000Z", slaEscalationStage: 1, slaSatisfiedAt: null, returnTrip: false, latestNote: null,
 };
 const RECORDS: Record<string, unknown> = {
-  [OPERATIONS["regions.list"].path]: { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 3, active: true }] },
+  [OPERATIONS["regions.list"].path]: { regions: [{ id: SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 3, active: true, assignable: true }] },
   [OPERATIONS["organizations.list"].path]: { organizations: [{ id: ORG, name: "Amped Fitness", kind: "customer", segment: "commercial", externalRef: null, active: true, regionNodeCount: 1 }] },
   [OPERATIONS["accounts.list"].path]: { nodes: [{ id: SITE, tier: "site", name: "Amped HQ", parentId: null, regionId: SOUTH, customerGroup: null, externalRef: null, timezone: null, active: true, path: [SOUTH, SITE], address: null }] },
   [OPERATIONS["contracts.list"].path]: { contracts: [] },

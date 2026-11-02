@@ -92,7 +92,7 @@ test("a refusal is kept with the office's words; reopening puts the wrap-up back
   await w.addShot(JOB, "photo", "BBBB");
   w.edit(JOB, { absent: true, absentReason: "No one home" });
   w.submit(JOB);
-  const g = gateway({ wrap: () => { throw new Refused({ kind: "admission", code: "not_in_progress", axis: "structural", message: "this job is cancelled — a wrap-up completes a job in progress" }); } });
+  const g = gateway({ wrap: () => { throw new Refused({ kind: "admission", code: "not_in_progress", axis: "structural", message: "this job is cancelled — only a job in progress can be completed" }); } });
   await w.flush(g, refusalOf);
   assert.match(w.pendingFor(JOB)!.refused!, /cancelled/);
   assert.equal(await w.flush(g, refusalOf), false, "a refused wrap-up is not sent again by itself");

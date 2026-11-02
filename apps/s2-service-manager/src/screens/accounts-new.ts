@@ -17,6 +17,9 @@ import { whenReady, refusalView, submitAction, noChoice, noActiveRegion, formVal
  */
 const outcome = signal<{ readonly key: string; readonly refusal: Refusal | null; readonly busy: boolean }>({ key: "", refusal: null, busy: false });
 
+/** A site's street address, as `accounts.address` carries it — what a second home needs to be found by. */
+const ADDRESS_FIELDS = [["line1", "Street address"], ["city", "City"], ["state", "State"], ["postal", "ZIP"]] as const;
+
 const TIERS = ["region", "location", "site"] as const;
 type Tier = (typeof TIERS)[number];
 const isTier = (s: string | undefined): s is Tier => (TIERS as readonly string[]).includes(s ?? "");
@@ -36,8 +39,10 @@ export const accountsNew: Screen = (ctx, params) => {
     e.preventDefault();
     if (ctx.degraded || outcome.value.busy) return;
     const v = formValues(e.currentTarget as HTMLFormElement);
+    const address = Object.fromEntries(ADDRESS_FIELDS.filter(([k]) => v[k]).map(([k]) => [k, v[k]]));
     const input: CreateAccountInput = {
       orgId, tier, name: v.name ?? "",
+      ...(tier === "site" && Object.keys(address).length ? { address } : {}),
       ...(tier === "region" ? { regionId: v.regionId ?? "" } : { parentId: parentId! }),
       ...(v.customerGroup ? { customerGroup: v.customerGroup } : {}),
       ...(v.externalRef ? { externalRef: v.externalRef } : {}),
@@ -55,10 +60,10 @@ export const accountsNew: Screen = (ctx, params) => {
     }
   };
 
-  const regionField = (regions: readonly RegionWire[]): VNode => !regions.some((r) => r.active) ? noChoice("Our service region", "No region of ours is active.") : html`<label class="ac-field">
+  const regionField = (regions: readonly RegionWire[]): VNode => !regions.some((r) => r.assignable) ? noChoice("Our service region", "No region of ours is active.") : html`<label class="ac-field">
     <span>Our service region</span>
     <select name="regionId" required class="ac-input">
-      ${regions.filter((r) => r.active).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}
+      ${regions.filter((r) => r.assignable).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}
     </select>
     <small>The region node is where this customer's tree meets one of our regions. Everything under it is dispatched from here.</small>
   </label>`;
@@ -83,6 +88,7 @@ export const accountsNew: Screen = (ctx, params) => {
         <label class="ac-field"><span>Customer's own grouping</span><input class="ac-input" name="customerGroup" placeholder="e.g. Mountain — an attribute, never structure" /></label>
         <label class="ac-field"><span>Customer's site / store code</span><input class="ac-input" name="externalRef" /></label>
         <label class="ac-field"><span>Timezone (IANA)</span><input class="ac-input" name="timezone" placeholder="America/Chicago" /></label>` : null}
+      ${tier === "site" ? ADDRESS_FIELDS.map(([k, label]) => html`<label class="ac-field"><span>${label}</span><input class="ac-input" name=${k} autocomplete="off" /></label>`) : null}
       <div class="s2-form__actions">
         ${submitAction(ctx, outcome.value.busy ? "Creating…" : `Create ${tier}`, "create", tier === "region" ? noActiveRegion(regions.value) : null)}
         ${linkTo(ctx, "accounts.tree", { orgId }, "Cancel")}

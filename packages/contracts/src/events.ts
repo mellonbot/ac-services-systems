@@ -51,6 +51,10 @@ export const TOPICS = [
   // item 4 — D-2a's primitive, recorded. No subscriber yet; added when a
   // screen needs to react rather than in anticipation of one.
   "device.registered", "device.shift_granted",
+  // 0038: a shift moved later, or ended now. S2's devices screen refetches.
+  "device.shift_extended", "device.shift_revoked",
+  // 0038: a region opened, renamed or closed. Every surface reads regions.list fresh.
+  "region.created", "region.updated",
   // 0033: a technician clocked in or out. No subscriber yet — S2's payroll
   // view will be the first; added there rather than in anticipation.
   "shift.punched",

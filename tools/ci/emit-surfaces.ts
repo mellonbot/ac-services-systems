@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Generates each surface app's boot file, README and FRAME from the registry,
- * plus docs/SURFACES.md.
+ * plus docs/generated/SURFACES.md.
  *
  *   node tools/ci/emit-surfaces.ts          write everything
  *   node tools/ci/emit-surfaces.ts --check  exit 1 if any emitted file differs (what the guard runs)
@@ -29,7 +29,7 @@ import {
 // about itself, and it is imported HERE so the generated doc quotes the
 // measurement rather than a literal somebody typed beside it. Two figures in
 // this file were typed, both were wrong, and figures.test.ts could not see
-// them because it only reads the OUTPUT (docs/BRAND.md) — which was corrected
+// them because it only reads the OUTPUT (docs/generated/BRAND.md) — which was corrected
 // by hand, leaving the generator and its artifact disagreeing and
 // `guard:schema` red.
 import { FIGURES } from "../../packages/tokens/src/figures.ts";
@@ -46,7 +46,7 @@ const escapeHtml = (s: string): string =>
  * with three.js.
  */
 const OWN_PACKAGES: Readonly<Record<string, { dependencies: Record<string, string>; devDependencies: Record<string, string> }>> = {
-  "s1-marketing": { dependencies: { three: "0.184.0" }, devDependencies: { "@types/three": "0.184.0" } },
+  "s1-front-door": { dependencies: { three: "0.184.0" }, devDependencies: { "@types/three": "0.184.0" } },
 };
 
 export const renderPackageJson = (s: Surface): string => JSON.stringify({
@@ -106,7 +106,7 @@ export const SURFACE = SURFACES.${s.id};
 export const boot = (principal: Principal) => createShell({ surfaceId: "${s.id}", principal });
 
 ${s.namespace === "anonymous"
-  ? `/** Live shell — no login. The principal is the shared constant; the session is minted on the first write. */
+  ? `/** Live shell — no session of its own. The principal is the shared constant; signing in mints the destination surface's session. */
 export const open = (cfg: Omit<AnonymousConfig, "surfaceId">) => openAnonymousShell({ ...cfg, surfaceId: "${s.id}" });`
   : `/** Live shell — login, hierarchy context, generated client, event stream, degraded flag. */
 export const connect = (cfg: Omit<ConnectConfig, "surfaceId">) => connectShell({ ...cfg, surfaceId: "${s.id}" });`}
@@ -180,13 +180,14 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
  * S3 (dispatch board + the one gated door) and S5 (offline-first field
  * screens), item 6's S6 (the customer's sites, work, agreements and
  * request intake, scoped by RLS), item 7's S8 (a firm's row, roster,
- * documents, work and statements — D12's four writes), item 8's S1 (the
- * coverage map, the lead form and the durable buffer behind it) and item
- * 10's S4 (the HQ view over the rollup — every region, no writes).
+ * documents, work and statements — D12's four writes), S1 (the front door:
+ * one sign-in, routed by the gateway — item 8's marketing page until
+ * 2026-11-01) and item 10's S4 (the HQ view over the rollup — every region,
+ * no writes).
  *
  * S1 is the one whose shared first cut was actively WRONG rather than merely
- * thin: `renderStatusApp` resumes a browser session and offers to sign in,
- * and S1 has no session and no sign-in. Every other surface still gets the
+ * thin: `renderStatusApp` resumes a browser session of its own, and S1 has no
+ * session of its own — it mints the destination's. Every other surface still gets the
  * first cut until its own product-specific workflow is built.
  */
 const HAND_WRITTEN_APPS: readonly SurfaceId[] = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"];
@@ -375,7 +376,7 @@ registry (\`src/screens.ts\`) checked against the operation catalogue.
 };
 
 /**
- * docs/BRAND.md — generated, because a hand-written palette table is a second
+ * docs/generated/BRAND.md — generated, because a hand-written palette table is a second
  * source of truth and the second source is always the one people read.
  */
 export const renderBrandDoc = (): string => {
@@ -399,10 +400,12 @@ Rev C moved the fault instead: red now measures ${FIGURES.redFromFault.measured.
 ${FIGURES.redFromNearestState.measured.toFixed(2)}° from its nearest state hue, the warning amber, so it clears the accent
 gate's ${ACCENT_GATE.minHueSeparation}° and is the instrument accent on every surface.
 
-| Layer | Where | Resolved by |
-|---|---|---|
-| Instrument — red \`${SEMANTIC["color.action"]}\` | every control and highlight, S1–S8 | the default |
-| Brand — red \`${SEMANTIC["color.brand"]}\` | wordmark, livery, badge, S1 marketing | \`stateRamp: false\` in the surface registry |
+Both accent layers are the same red. They differ in where they may appear, not in value.
+
+| Accent layer | Roles | Where | Resolved by |
+|---|---|---|---|
+| Instrument — red \`${SEMANTIC["color.action"]}\` | \`--color-action*\` | every control and highlight, S1–S8 | the default |
+| Brand — red \`${SEMANTIC["color.brand"]}\` | \`--color-brand*\` | wordmark, livery, badge, S1 front door | \`stateRamp: false\` in the surface registry; Ink Black wherever a state ramp renders |
 
 The brand roles keep their surface fence: it is the mechanism a tenant accent
 that fails the gate still falls behind, and the house is held to it.
@@ -459,8 +462,8 @@ export const emitted = (): readonly Emitted[] => {
     out.push({ path: join(dir, "frame.html"), content: renderFrame(s) });
     out.push({ path: join(dir, "README.md"), content: renderReadme(s) });
   }
-  out.push({ path: "docs/SURFACES.md", content: renderSurfacesDoc() });
-  out.push({ path: "docs/BRAND.md", content: renderBrandDoc() });
+  out.push({ path: "docs/generated/SURFACES.md", content: renderSurfacesDoc() });
+  out.push({ path: "docs/generated/BRAND.md", content: renderBrandDoc() });
   return out;
 };
 
@@ -486,6 +489,6 @@ if (isMain) {
       mkdirSync(join(p, ".."), { recursive: true });
       writeFileSync(p, e.content);
     }
-    console.log(`emitted ${SURFACE_IDS.length} surface apps (package.json, src/main.ts, frame.html, README.md; shared status entries except ${HAND_WRITTEN_APPS.join(", ")}) + ${relative(ROOT, join(ROOT, "docs/SURFACES.md"))}`);
+    console.log(`emitted ${SURFACE_IDS.length} surface apps (package.json, src/main.ts, frame.html, README.md; shared status entries except ${HAND_WRITTEN_APPS.join(", ")}) + ${relative(ROOT, join(ROOT, "docs/generated/SURFACES.md"))}`);
   }
 }

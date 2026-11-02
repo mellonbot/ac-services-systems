@@ -24,12 +24,12 @@ export const priorityStatus = (priority: JobPriority): Status => {
 };
 
 /**
- * The one move a card offers: the job's next step forward. Completing or
- * aborting is not a tap from a list — the job detail is where the work is
- * wrapped up — so a job in progress offers no button here, only its title.
+ * The one move a card offers: the job's next step forward. A technician's
+ * job walks four states — assigned, en route, in progress, complete — and
+ * completing it is its own form, linked from a job in progress.
  */
 const FORWARD: Readonly<Record<string, string>> = {
-  assigned: "en_route", en_route: "on_site", on_site: "in_progress",
+  assigned: "en_route", en_route: "in_progress", on_site: "in_progress",
   awaiting_parts: "in_progress", awaiting_customer: "in_progress", reopened: "in_progress",
 };
 export const forwardState = (state: string): string | null => {
@@ -61,8 +61,8 @@ const card = (ctx: ScreenContext, j: FieldJobWire, current: boolean): VNode => {
       ${contact?.phone ? html`<a class="ac-action s5-link--action" data-kind="quiet" data-density=${ctx.density} href=${telHref(contact.phone)} aria-label=${`Call ${contact.name}`}>Call</a>` : null}
       ${to ? PrimaryAction({ density: ctx.density, label: ACTION_LABEL[to] ?? stateText(to), id: `card-${j.id}-${to}`, onClick: move, ...(gated ? { disabledReason: CLOCK_IN_FIRST } : {}) }) : null}
       ${state === "in_progress" ? (gated
-        ? PrimaryAction({ density: ctx.density, label: "Wrap up", id: `card-${j.id}-wrap-up`, disabledReason: CLOCK_IN_FIRST })
-        : linkTo(ctx, "wrapup", { jobId: j.id }, "Wrap up", "ac-action s5-link--action")) : null}
+        ? PrimaryAction({ density: ctx.density, label: "Complete job", id: `card-${j.id}-wrap-up`, disabledReason: CLOCK_IN_FIRST })
+        : linkTo(ctx, "wrapup", { jobId: j.id }, "Complete job", "ac-action s5-link--action")) : null}
     </div>
   </li>`;
 };

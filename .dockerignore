@@ -3,7 +3,7 @@
 node_modules
 **/node_modules
 **/dist
-claude
+external
 docs
 test
 tools/demo
@@ -21,4 +21,3 @@ Claude outputs
 **/*.tfstate*
 **/.terraform
 .claude
-.impeccable

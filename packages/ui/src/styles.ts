@@ -143,7 +143,11 @@ main#mount{padding:var(--space-2) var(--gutter) var(--space-12);max-width:var(--
    not borrow the primary's ink to say "pressed". 6.18:1 on the light stock,
    16.34:1 on the plate. */
 .ac-action[data-kind="danger"]:active{background:var(--color-status-breached);border-color:var(--color-status-breached);color:var(--color-page)}
-.ac-action[aria-disabled="true"]{opacity:0.55;cursor:not-allowed}
+/* Finding F-3: disabled was faded to 55% opacity, which dragged the label under 4.5:1 on
+   every ground. Disabled is drawn in roles that are already measured instead —
+   muted ink (a word role) in the sunken well, ruled by the control border —
+   and holds that look through hover and press. */
+.ac-action[aria-disabled="true"],.ac-action[aria-disabled="true"]:active{background:var(--color-surface-sunken);border-color:var(--color-border-control);color:var(--color-text-muted);filter:none;cursor:not-allowed}
 .ac-action__reason{color:var(--color-text-muted);font-size:var(--text-sm)}
 
 /* ---- DataGrid: a railway working timetable ----

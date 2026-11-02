@@ -1,4 +1,4 @@
-/** The demo gateway keeps the real one's tenancy: per-principal event streams, and S1's writes need an anonymous session. */
+/** The demo gateway keeps the real one's tenancy: per-principal event streams, and S1's front door routes a login as the real one does. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { EventEnvelope } from "../../packages/contracts/src/events.ts";
@@ -14,7 +14,9 @@ test("events: a region login hears its own region; an org-wide login hears every
   assert.ok(eventFor("S3", env(AMPED, REGION_SOUTH)));
   assert.equal(eventFor("S3", env(AMPED, REGION_WEST)), null, "the South dispatcher does not hear West");
   signInAs("S2", "office@rankine.demo");
-  assert.deepEqual(eventFor("S2", env(AMPED, REGION_WEST)), env(AMPED, REGION_WEST), "internal hears the whole envelope");
+  // One envelope, compared with itself: two calls to env() stamp two clock readings.
+  const west = env(AMPED, REGION_WEST);
+  assert.deepEqual(eventFor("S2", west), west, "internal hears the whole envelope");
 });
 
 test("events: a customer hears only its own org, and blind — no entity, no org", () => {
@@ -30,16 +32,16 @@ test("events: S1 has no stream", () => {
   assert.equal(eventFor("S1", env(AMPED, REGION_SOUTH)), null);
 });
 
-test("S1: a lead without an anonymous session is refused; with one it is taken", async () => {
-  const lead = { method: "POST", url: `${BASE}/s1/leads`, body: JSON.stringify({}) };
-  const bare = await handle({ surface: "S1", ...lead, headers: { authorization: "Bearer made-up" } });
-  assert.notEqual(bare, "offline");
-  assert.equal((bare as { status: number }).status, 401);
-  const s = await handle({ surface: "S1", method: "POST", url: `${BASE}/auth/anonymous`, headers: {} });
-  assert.equal((s as { status: number }).status, 200, JSON.stringify(s));
-  const token = ((s as { body: { token: string } }).body).token;
-  const ok = await handle({ surface: "S1", ...lead, headers: { authorization: `Bearer ${token}` } });
-  assert.notEqual((ok as { status: number }).status, 401, JSON.stringify(ok));
+test("S1: the front door sends a login where it belongs — one surface, or S5 with the device", async () => {
+  const signIn = (body: Record<string, unknown>) => handle({ surface: "S1", method: "POST", url: `${BASE}/auth/sign-in`, headers: {}, body: JSON.stringify(body) });
+  const wrong = await signIn({ email: "dispatch.south@rankine.demo", password: "nope" });
+  assert.equal((wrong as { status: number }).status, 401);
+  const dispatch = await signIn({ email: "dispatch.south@rankine.demo", password: "demo" });
+  assert.deepEqual({ ...(dispatch as { body: object }).body, token: undefined, expiresAt: undefined }, { kind: "signed_in", surface: "S3", path: "/dispatch/", token: undefined, expiresAt: undefined });
+  const tech = await signIn({ email: "tech.south1@rankine.demo", password: "demo" });
+  assert.equal((tech as { status: number }).status, 403, "a technician without a device ID is told to give one");
+  const shift = await signIn({ email: "tech.south1@rankine.demo", password: "demo", hardwareId: "RK-TAB-0042" });
+  assert.equal(((shift as { body: { surface: string } }).body).surface, "S5");
 });
 
 const POOL = "j0000000-0000-0000-0000-000000000005";
@@ -58,14 +60,15 @@ test("sync.replay decides with the domain rules and writes a job only when the o
   const mut = (mutationId: string, deviceSeq: number, entityId: string, entityTable: string, payload: Record<string, unknown>) =>
     ({ mutationId, deviceId: "dev", deviceSeq, entityTable, entityId, op: "transition" as const, payload, clientObservedVersion: 0, deviceAt: "2026-01-01T00:00:00.000Z" });
   const sent = [
-    mut("m-progress", 2, POOL, "jobs", { state: "in_progress" }),
-    mut("m-site", 1, POOL, "jobs", { to: "on_site" }),
-    mut("m-site", 4, POOL, "jobs", { state: "on_site" }),
-    mut("m-done", 3, POOL, "jobs", { state: "complete" }),
-    mut("m-missing", 5, "j-missing", "jobs", { state: "on_site" }),
-    mut("m-unknown", 6, POOL, "not_a_table", { state: "on_site" }),
-    mut("m-human", 7, INVOICED, "jobs", { state: "en_route" }),
-    mut("m-wrap", 8, COMPRESSOR, "jobs", { state: "complete" }),
+    mut("m-progress", 3, POOL, "jobs", { state: "in_progress" }),
+    mut("m-site", 1, POOL, "jobs", { to: "in_progress" }),
+    mut("m-parts", 2, POOL, "jobs", { state: "awaiting_parts" }),
+    mut("m-site", 5, POOL, "jobs", { state: "in_progress" }),
+    mut("m-done", 4, POOL, "jobs", { state: "complete" }),
+    mut("m-missing", 6, "j-missing", "jobs", { state: "in_progress" }),
+    mut("m-unknown", 7, POOL, "not_a_table", { state: "in_progress" }),
+    mut("m-human", 8, INVOICED, "jobs", { state: "en_route" }),
+    mut("m-wrap", 9, COMPRESSOR, "jobs", { state: "complete" }),
   ];
   const replayed = await handle({
     surface: "S5", method: "POST", url: `${BASE}/s5/sync`, headers: { authorization: `Bearer ${token}` },
@@ -74,19 +77,20 @@ test("sync.replay decides with the domain rules and writes a job only when the o
   stop();
   assert.equal((replayed as { status: number }).status, 200, JSON.stringify(replayed));
   const outcomes = (replayed as { body: { outcomes: { mutationId: string; outcome: string; newVersion?: number; note?: string }[] } }).body.outcomes;
-  assert.deepEqual(outcomes.map((o) => o.mutationId), ["m-site", "m-progress", "m-done", "m-site", "m-missing", "m-unknown", "m-human", "m-wrap"]);
-  assert.deepEqual(outcomes.map((o) => o.outcome), ["applied", "applied", "rejected", "duplicate", "rejected", "rejected", "queued_for_human", "rejected"]);
+  assert.deepEqual(outcomes.map((o) => o.mutationId), ["m-site", "m-parts", "m-progress", "m-done", "m-site", "m-missing", "m-unknown", "m-human", "m-wrap"]);
+  assert.deepEqual(outcomes.map((o) => o.outcome), ["applied", "applied", "applied", "rejected", "duplicate", "rejected", "rejected", "queued_for_human", "rejected"]);
   assert.equal(outcomes[0]!.newVersion, 4);
   assert.equal(outcomes[1]!.newVersion, 5);
-  assert.match(outcomes[2]!.note ?? "", /wrap-up/);
-  assert.match(outcomes[4]!.note ?? "", /not one this crew/);
-  assert.match(outcomes[5]!.note ?? "", /no conflict policy/);
-  assert.match(outcomes[6]!.note ?? "", /A person resolves this/);
-  assert.deepEqual(heard, ["job.transitioned", "job.transitioned"]);
+  assert.equal(outcomes[2]!.newVersion, 6);
+  assert.match(outcomes[3]!.note ?? "", /completion report/);
+  assert.match(outcomes[5]!.note ?? "", /not one this crew/);
+  assert.match(outcomes[6]!.note ?? "", /no conflict policy/);
+  assert.match(outcomes[7]!.note ?? "", /A person resolves this/);
+  assert.deepEqual(heard, ["job.transitioned", "job.transitioned", "job.transitioned"]);
 
   const again = await handle({
     surface: "S5", method: "POST", url: `${BASE}/s5/sync`, headers: { authorization: `Bearer ${token}` },
-    body: JSON.stringify({ orgId: "o", regionId: "r", mutations: [mut("m-site", 1, POOL, "jobs", { state: "on_site" })] }),
+    body: JSON.stringify({ orgId: "o", regionId: "r", mutations: [mut("m-site", 1, POOL, "jobs", { state: "in_progress" })] }),
   });
   const second = (again as { body: { outcomes: { outcome: string }[] } }).body.outcomes;
   assert.deepEqual(second.map((o) => o.outcome), ["duplicate"]);
@@ -94,14 +98,14 @@ test("sync.replay decides with the domain rules and writes a job only when the o
   const mine = await handle({ surface: "S5", method: "GET", url: `${BASE}/s5/jobs/mine`, headers: { authorization: `Bearer ${token}` } });
   const pool = (mine as { body: { jobs: { id: string; state: string; version: number }[] } }).body.jobs.find((j) => j.id === POOL);
   assert.equal(pool?.state, "in_progress");
-  assert.equal(pool?.version, 5);
+  assert.equal(pool?.version, 6);
 
   signInAs("S2", "office@rankine.demo");
   const list = await handle({ surface: "S2", method: "GET", url: `${BASE}/jobs`, headers: {} });
   assert.equal((list as { status: number }).status, 200, JSON.stringify(list));
   const rows = (list as { body: { jobs: { id: string; state: string; version: number }[] } }).body.jobs;
   assert.equal(rows.find((j) => j.id === POOL)?.state, "in_progress");
-  assert.equal(rows.find((j) => j.id === POOL)?.version, 5);
+  assert.equal(rows.find((j) => j.id === POOL)?.version, 6);
   assert.equal(rows.find((j) => j.id === COMPRESSOR)?.state, "in_progress");
   assert.equal(rows.find((j) => j.id === COMPRESSOR)?.version, 3);
   assert.equal(rows.find((j) => j.id === INVOICED)?.state, "invoiced");

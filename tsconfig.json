@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.base.json",
-  "include": ["apps/**/*.ts", "packages/**/*.ts", "tools/**/*.ts"],
-  "exclude": ["tools/logins-app/src/main.ts", "tools/logins-app/src/preload.ts", "tools/logins-app/src/renderer/**"]
+  "include": ["apps/**/*.ts", "services/**/*.ts", "packages/**/*.ts", "tools/**/*.ts", "external/**/*.ts"],
+  "exclude": ["external/logins-app/src/main.ts", "external/logins-app/src/preload.ts", "external/logins-app/src/renderer/**"]
 }

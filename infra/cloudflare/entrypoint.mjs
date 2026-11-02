@@ -46,5 +46,5 @@ const run = (name, entry, extraEnv = {}) => {
 process.on("SIGTERM", () => stop(0));
 process.on("SIGINT", () => stop(0));
 
-run("gateway", "apps/gateway/src/main.ts");
-run("worker", "apps/worker/src/main.ts");
+run("gateway", "services/gateway/src/main.ts");
+run("worker", "services/worker/src/main.ts");

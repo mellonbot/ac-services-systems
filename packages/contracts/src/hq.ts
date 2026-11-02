@@ -4,7 +4,7 @@
  * What Rankine's leadership reads, as data. The worker computes one value per
  * (metric, region, day) into `hq_metrics` (migration 0010); the gateway reads
  * that table and nothing else; S4 draws the screens FROM this list, so a new
- * figure is a row here plus its SQL in apps/worker/src/rollup.ts — and a unit
+ * figure is a row here plus its SQL in services/worker/src/rollup.ts — and a unit
  * test fails until both exist.
  *
  * Every value is ADDITIVE across regions — a count or an integer sum of minor

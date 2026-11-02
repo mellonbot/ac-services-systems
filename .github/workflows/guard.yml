@@ -50,8 +50,8 @@ jobs:
       # --ignore-scripts: the types are enough; the Electron binary is not fetched.
       - name: AC Logins typechecks
         run: |
-          npm ci --ignore-scripts --prefix tools/logins-app
-          pnpm exec tsc -p tools/logins-app/tsconfig.json
+          npm ci --ignore-scripts --prefix external/logins-app
+          pnpm exec tsc -p external/logins-app/tsconfig.json
       - run: pnpm guard:lint
       # The lint rules' own tests need eslint, so the zero-install guard skips them; they run here.
       - run: node --test tools/eslint-plugin-ac/rules.test.ts
@@ -81,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: ac_ci
@@ -129,12 +129,13 @@ jobs:
   #           half of firm visibility (test/integration/s8.test.ts is the wire
   #           half), and D12's four writes from the page: enroll, file,
   #           acknowledge, dispute.
-  #   s1    — item 8: the marketing surface, whose principal is nobody. The DOM
-  #           half of the anonymous door (test/integration/s1.test.ts is the
-  #           wire half), and the only place two of its mechanisms can be
-  #           checked at all: the durable buffer surviving a reload, and the
-  #           D7a/OQ6 copy ceiling against the PAINTED page, so a promise
-  #           arriving through a stylesheet fails too.
+  #   s1    — the front door, whose principal is nobody until it signs in. The DOM
+  #           half of auth.signIn (test/integration/s1.test.ts is the wire
+  #           half), and the only place two of its claims can be checked at
+  #           all: the browser actually going where the gateway sends it with
+  #           a cookie the destination accepts, and the D7a/OQ6 copy ceiling
+  #           against the PAINTED page, so a promise arriving through a
+  #           stylesheet fails too.
   #   s3    — the dispatcher's day: New job to the gated door, the lapsed crew
   #           refused with its reason and no Assign, assign, note, release
   #           through the confirm, another region's job not on this board
@@ -158,7 +159,7 @@ jobs:
     name: drive (${{ matrix.surface }})
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: ac_ci
@@ -204,7 +205,7 @@ jobs:
             echo "current=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # The gateway: apps/gateway and apps/worker as one container behind the Worker
+  # The gateway: services/gateway and services/worker as one container behind the Worker
   # on api.acservice.systems (infra/cloudflare/). Migrate the production database,
   # build and push the image, wait for /healthz on the domain. Everything it needs
   # lives on the `production` environment like the Pages deploy below, plus
@@ -333,16 +334,19 @@ jobs:
           exit 1
       # /healthz is liveness and never touches the database, so a gateway with a
       # wrong or missing DATABASE_URL passed it while every real request failed.
-      # /readyz connects and takes the ac_gateway role: the deploy is not green
-      # until the gateway can do the one thing it is for.
-      - name: The gateway reaches its database
+      # /readyz connects and takes the ac_gateway role, and makes a signed read
+      # of the photo bucket: the deploy is not green until the gateway can do
+      # the one thing it is for, and S5 can close a job.
+      - name: The gateway reaches its database and photo storage
         if: steps.configured.outputs.ready == 'true'
         run: |
           for i in $(seq 1 12); do
-            if curl -fsS --max-time 15 https://api.acservice.systems/readyz; then echo; exit 0; fi
+            body=$(curl -sS --max-time 15 -w '\n%{http_code}' https://api.acservice.systems/readyz || true)
+            if [ "${body##*$'\n'}" = 200 ]; then echo "${body%$'\n'*}"; exit 0; fi
             sleep 10
           done
-          echo "::error::api.acservice.systems/readyz did not answer 200 within two minutes: the gateway is up but cannot reach Postgres as ac_gateway. Check the Worker's DATABASE_URL is the migrating login (docs/CLOUDFLARE_PAGES.md, 'The gateway'); \`npx wrangler@4.148.0 tail -c infra/cloudflare/wrangler.jsonc\` shows the driver's refusal on a 'readyz:' line, and Actions → db-check names it."
+          echo "${body%$'\n'*}"
+          echo "::error::api.acservice.systems/readyz did not answer 200 within two minutes. The body above names which: Postgres as ac_gateway (check the Worker's DATABASE_URL is the migrating login, docs/CLOUDFLARE_PAGES.md 'The gateway'; Actions → db-check names it) or photo storage (check the four AC_STORAGE_* secrets against the bucket and token, 'Photo storage'). \`npx wrangler@4.148.0 tail -c infra/cloudflare/wrangler.jsonc\` shows the refusal on a 'readyz:' line."
           exit 1
 
   deploy:

@@ -45,6 +45,9 @@
       "max_instances": 1
     }
   ],
+  // OPEN-S1-ABUSE: the front door's sign-in, 30 a minute per client address, counted at
+  // the edge before the container sees the request (worker.mjs). Period is 10 or 60 only.
+  "ratelimits": [{ "name": "SIGN_IN_LIMIT", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } }],
   "durable_objects": { "bindings": [{ "name": "GATEWAY", "class_name": "Gateway" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Gateway"] }]
 }

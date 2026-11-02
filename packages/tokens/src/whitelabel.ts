@@ -134,7 +134,7 @@ export type AccentAdmission = {
  * the tenant, only the slot.
  *
  * An accent that fails hue separation is admitted for logo, masthead and
- * marketing surfaces and barred from every surface that renders a state ramp.
+ * brand-layer surfaces and barred from every surface that renders a state ramp.
  * An accent that passes hue but fails the dark ground is admitted for the
  * comfort and console tiers and barred from the field tablet.
  *
@@ -167,7 +167,7 @@ export const admitAccent = (accent: string): AccentAdmission => {
   if (achromatic)
     notes.push(`chroma ${chromaOf(accent).toFixed(3)} — no hue to confuse with the state ramp, so the hue gate does not apply.`);
   if (!stateSurfaces)
-    notes.push(`${minSeparation.toFixed(1)}° from ${nearestState}, needs ${ACCENT_GATE.minHueSeparation}° — admitted for logo, masthead and marketing only; falls back to Ink Black wherever a state ramp renders.`);
+    notes.push(`${minSeparation.toFixed(1)}° from ${nearestState}, needs ${ACCENT_GATE.minHueSeparation}° — admitted for logo, masthead and brand-layer surfaces only; falls back to Ink Black wherever a state ramp renders.`);
   if (!light.text && light.fill)
     notes.push(`${onLight.toFixed(2)}:1 on the light ground — a fill, a rule or a mark in the console and comfort tiers, never a word.`);
   if (!light.fill)

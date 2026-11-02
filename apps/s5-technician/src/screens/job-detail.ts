@@ -96,12 +96,12 @@ export const jobDetail: Screen = (ctx, params) => {
     // Partner rule, 2026-10-27: no job moves until the shift clock is in.
     const clockedOut = shiftRunning(ctx) === false;
     const forward = forwardState(projected.state);
-    // 0034: a job is completed by its wrap-up, never by a bare transition.
+    // 0034: a job is completed with its completion report, never by a bare transition.
     const wrapped = ctx.wrapUps.pendingFor(job.id);
     const wrapUpLink = projected.state === "in_progress" && !wrapped
       ? (clockedOut
-        ? PrimaryAction({ density: ctx.density, label: "Wrap up", id: "wrap-up", disabledReason: CLOCK_IN_FIRST })
-        : linkTo(ctx, "wrapup", { jobId: job.id }, "Wrap up", "ac-action s5-link--action"))
+        ? PrimaryAction({ density: ctx.density, label: "Complete job", id: "wrap-up", disabledReason: CLOCK_IN_FIRST })
+        : linkTo(ctx, "wrapup", { jobId: job.id }, "Complete job", "ac-action s5-link--action"))
       : null;
 
     return html`<section class="s5-job">
@@ -121,11 +121,11 @@ export const jobDetail: Screen = (ctx, params) => {
       </div>`)}
 
       ${wrapped?.refused ? html`<div class="s5-attention" role="alert" id="wrap-up-refused">
-        ${StatusPill({ density: ctx.density, status: "blocked", label: "wrap-up refused" })}
+        ${StatusPill({ density: ctx.density, status: "blocked", label: "completion refused" })}
         <p>${wrapped.refused}</p>
         <button type="button" class="ac-link" id="wrap-up-reopen" onClick=${() => { ctx.wrapUps.reopen(job.id); ctx.router.navigate("wrapup", { jobId: job.id }); }}>Edit and send again</button>
       </div>` : null}
-      ${wrapped ? (wrapped.refused ? null : html`<p class="ac-notice" data-tone="at_risk" role="status" id="wrap-up-waiting">Wrapped up — waiting to be sent${ctx.degraded ? " (offline)" : ""}.</p>`)
+      ${wrapped ? (wrapped.refused ? null : html`<p class="ac-notice" data-tone="at_risk" role="status" id="wrap-up-waiting">Completed — waiting to be sent${ctx.degraded ? " (offline)" : ""}.</p>`)
         : panel(html`<div class="s5-actions">
         ${wrapUpLink}
         ${nextDeviceStates(projected.state).map((to) => PrimaryAction({ density: ctx.density, label: ACTION_LABEL[to] ?? stateText(to), id: `to-${to}`, onClick: () => transition(to), kind: to === forward ? "primary" : "quiet", ...(clockedOut ? { disabledReason: CLOCK_IN_FIRST } : {}) }))}

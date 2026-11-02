@@ -2,7 +2,7 @@
 
 Production is two Cloudflare deployments from one `main` push, in this order:
 
-1. **The gateway** — `apps/gateway` and `apps/worker` as one container
+1. **The gateway** — `services/gateway` and `services/worker` as one container
    (`Dockerfile` at the repo root, PID 1 `infra/cloudflare/entrypoint.mjs`)
    behind a Worker (`infra/cloudflare/worker.mjs`) on
    `https://api.acservice.systems`. The `deploy-gateway` job in
@@ -43,10 +43,39 @@ whether or not a browser is open.
 
 Cloudflare hosts no Postgres of its own. The production database is
 **PlanetScale Postgres created from the Cloudflare dashboard** (billed on the
-Cloudflare invoice at PlanetScale's rates) or any Postgres 16 reachable over
-TLS. Whichever it is, its connection string is the `DATABASE_URL` secret in
+Cloudflare invoice at PlanetScale's rates) or any Postgres 16+ reachable over
+TLS (production runs 18, and CI tests on 18). Whichever it is, its connection string is the `DATABASE_URL` secret in
 two places: the Worker (for the container) and the GitHub `production`
-environment (for migrations). Append `?sslmode=require`.
+environment (for migrations). Paste it exactly as the provider shows it (see
+'The gateway' below — PlanetScale's already ends in `sslmode=verify-full&sslrootcert=system`).
+
+**Save the owner's connection string in a password manager before you set it
+anywhere.** GitHub and Worker secrets are write-only, and once `grant-logins-role`
+has run, PlanetScale cannot reset that login's password (2BP01: it has granted a
+role to another login). The password-manager entry is the only copy; losing it
+means replacing the database (below).
+
+### Replacing the production database
+
+For when the owner login is lost or a clean start is wanted. Nothing is copied.
+
+1. Create a **new PlanetScale database** (not a new database in the old one): the
+   `ac_*` roles are cluster-wide, and 0002 silently skips roles that already exist,
+   so 0012's `GRANT ac_gateway, ac_worker TO current_user` then fails. The migrating
+   login must create them. Same region as before.
+2. Save the default role's connection string in the password manager, then
+   `gh secret set DATABASE_URL --env production`.
+3. Run **Actions → db-check**: `current_user` is the new login, and `superuser` or
+   `createrole` must be `true`. If neither is, stop. (`bypassrls` is printed too —
+   worth recording.)
+4. Photo storage: new R2 token if needed (see 'Photo storage'), the four
+   `AC_STORAGE_*` Worker secrets, and empty `ac-media` if its objects belong to the
+   old database.
+5. Re-run guard on `main`: `deploy-gateway` migrates 0001 onwards, asserts, deploys
+   and waits for `/readyz`.
+6. Run **seed-logins** (region + staff test logins), then create the AC Logins
+   app's login and run **grant-logins-role** for it.
+7. Delete the old database only once all of the above is green.
 
 Restore tests are non-negotiable #11 and are not a Cloudflare feature: the
 provider's point-in-time restore is exercised on a calendar, by a named
@@ -87,7 +116,7 @@ next starts — the next deploy.
 
 ### Photo storage
 
-Required while any live surface takes photos (today S5: a wrap-up needs at
+Required while any live surface takes photos (today S5: completing a job needs at
 least two photos and a signature). Without it every upload is refused as
 `storage_not_configured`, no technician can complete a job, and the
 `deploy-gateway` job fails by name until it is set. The gateway speaks R2's
@@ -119,12 +148,18 @@ All four or none: a half-configured bucket stops the gateway at start rather
 than failing uploads one at a time. A secret reaches the container when it
 next starts, so finish with **Actions → guard → Run workflow** on `main`. The
 `deploy-gateway` job's "the Worker holds its secrets" step going green is the
-confirmation that all four are held.
+confirmation that all four are held; "The gateway reaches its database and
+photo storage" going green is the confirmation that they work. `/readyz`
+makes a signed read of a key that is never written: only `404 NoSuchKey` is
+proof. A wrong key id or secret, or a token scoped to another bucket, answers
+`403`; a misspelt bucket `404 NoSuchBucket`; a wrong endpoint does not answer.
+Each is a 503 from `/readyz`, with the status and S3 error code on a
+`readyz: storage:` line in `wrangler tail`.
 
 Paste the connection string exactly as the provider shows it for psql.
 PlanetScale's ends in `sslmode=verify-full&sslrootcert=system`; the gateway
 reads libpq's `sslrootcert=system` as what node `pg` does by default and
-drops it (`apps/gateway/src/pg-url.ts`). If the gateway container starts
+drops it (`services/gateway/src/db/pg-url.ts`). If the gateway container starts
 and exits, **Actions → db-check → Run workflow** connects to the production
 database with the same library and prints what it sees, naming no secret.
 
@@ -136,7 +171,8 @@ login: migration 0012 grants that login `SET ROLE` on `ac_gateway` and
 `ac_worker`, which a Postgres 16+ role creator does not get by default. A
 gateway connecting as any other login answers 500 on every request while
 `/healthz` stays green — `/healthz` is liveness and never touches the
-database. `/readyz` connects and takes `ac_gateway`, answering 503 when it
+database. `/readyz` connects and takes `ac_gateway`, and probes photo
+storage when it is configured (see 'Photo storage'), answering 503 when it
 cannot, and the deploy waits for it after `/healthz`; `db-check` shows the
 refusal by name.
 
@@ -145,10 +181,11 @@ session dies with the container; the Worker refuses to start it. The custom
 domain `api.acservice.systems` is created by the first deploy from the
 `routes` entry — do not create a DNS record for it by hand.
 
-Then, for OPEN-S1-ABUSE, one WAF rate-limiting rule on the zone before the
-site goes public: `POST` to `api.acservice.systems` on `/auth/anonymous`
-and `/s1/leads`, per IP, a handful a minute. The gateway has no rate limiter
-and is not meant to grow one.
+For OPEN-S1-ABUSE the Worker itself limits `POST /auth/sign-in` — the front
+door's one request — per IP before it reaches the container (see "Rate limiting
+the front door" below); it ships with every deploy, nothing to create on the zone.
+The gateway's own per-address count (`LOGIN_BY_ADDRESS`, 120 a minute) stays
+as the floor behind it.
 
 ### The site
 
@@ -176,12 +213,12 @@ workflow** on `main` to deploy manually.
 ## Published routes
 
 Production publishes only the surfaces in `ROLLOUT`
-(`packages/contracts/src/surfaces.ts`). The first rollout is the front page
+(`packages/contracts/src/surfaces.ts`). The first rollout is the front door
 and the three staff surfaces:
 
 | Surface | Path | Sign-in audience | Live |
 | --- | --- | --- | --- |
-| S1 Marketing / lead-gen | `/` | Public | **yes** — the first page; every other portal shows taped off, "Section not open yet" |
+| S1 Front door | `/` | Everyone | **yes** — the page everyone starts at: one sign-in, and the gateway sends each login to its own live surface |
 | S2 Service Manager | `/service-manager/` | Staff | **yes** |
 | S3 Dispatch Console | `/dispatch/` | Staff | **yes** |
 | S4 HQ Ops Dashboard | `/hq/` | Staff | no |
@@ -193,9 +230,11 @@ A surface outside `ROLLOUT` is enabled — built, tested, driven in CI and in th
 demo — but is not published, and the production gateway (`AC_ROLLOUT=1` in
 `infra/cloudflare/wrangler.jsonc`) mints no session and takes no request for
 it: `SurfaceNotLive`, 404. Publishing one is adding its id to `ROLLOUT`, which
-also takes the tape off its plate on S1. S1 being live means its lead form is
-live: the WAF rules below must exist first. Each portal retains its own
-authentication flow and gateway-enforced scope. `_redirects` serves deep links through the correct
+also lets S1's front door send that surface's logins to it; until then a login
+that belongs only there is told its portal is not open yet. S1 being live means
+its sign-in is a door anyone can knock on: the edge limit below guards it.
+Each portal keeps its own sign-in page for a deep link or a bookmark, and its
+gateway-enforced scope. `_redirects` serves deep links through the correct
 surface entry point, and each app's router confines navigation to its mount
 path.
 
@@ -207,21 +246,25 @@ where Pages serves every portal, plus one subdomain per enabled surface — and
 `SameSite=Strict`.
 
 
-## Rate limiting the public intake (OPEN-S1-ABUSE)
+## Rate limiting the front door (OPEN-S1-ABUSE)
 
-`leads.submit` and `auth.anonymousSession` are the first mutations a stranger
-can reach. The chosen protection is a Cloudflare WAF rate-limiting rule on the
-zone (not a counter inside the gateway).
+`auth.signIn` (`POST /auth/sign-in`) is the first request a stranger can make:
+S1 became the front door on 2026-11-01 and no longer has a lead form, so the
+old `/auth/anonymous` and `/s1/leads` routes are gone (they answer 404) and
+their two WAF rules can be deleted from the zone. The protection is a Workers
+Rate Limiting binding in the edge Worker, in front of the gateway's own
+per-address count — a file, so a diff shows it and every deploy carries it:
 
-Create one rule for each path:
+| Path | Method | Limit | Period | Over the limit | Where |
+|------|--------|-------|--------|----------------|-------|
+| `/auth/sign-in` | POST | 30 | 60 s | `429`, `retry-after: 60` | `SIGN_IN_LIMIT` in `infra/cloudflare/wrangler.jsonc`, applied in `worker.mjs` |
 
-| Path | Method | Limit | Period | Action |
-|------|--------|-------|--------|--------|
-| `/auth/anonymous` | POST | 10 | 1 minute | Block for 10 minutes |
-| `/s1/leads` | POST | 20 | 1 minute | Block for 10 minutes |
-
-Key by IP. These numbers are conservative for a marketing form and an
-anonymous session mint; raise them if real traffic hits them. The rule is a
-dashboard or API object on the zone — not a file in this repository. S1 should
-not be public until the rules exist.
+Keyed by `CF-Connecting-IP`. Thirty a minute allows a whole office signing in at
+shift start from one address (a person whose login opens several surfaces sends
+two requests: the sign-in and the pick); raise it in `wrangler.jsonc` if real
+traffic hits it. The binding counts per Cloudflare location and settles within
+seconds, so it is a ceiling against volume, not an exact count; the period can
+only be 10 or 60 seconds, so there is no ten-minute block — a client over the
+limit is refused until its window rolls over. If a hard ban is ever wanted, a
+zone WAF rule can be added in front; nothing here depends on one.
 

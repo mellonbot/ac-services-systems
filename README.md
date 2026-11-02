@@ -11,7 +11,7 @@ Eight web surfaces. One gateway. One hierarchy. One backbone.
 | What | Status | Principal |
 |------|--------|-----------|
 | Shared shell (S0) | ✅ Built | All |
-| Marketing / Lead-gen (S1) | ✅ Built | Anonymous |
+| Front door (S1) | ✅ Built | Everyone, before sign-in |
 | Service Manager (S2) | ✅ Built | Office |
 | Dispatch Console (S3) | ✅ Built | Dispatcher |
 | HQ Ops Dashboard (S4) | ✅ Built | Leadership (read-only) |
@@ -27,7 +27,7 @@ Eight web surfaces. One gateway. One hierarchy. One backbone.
 ```mermaid
 flowchart TB
     subgraph Surfaces["Surfaces (S1–S8)"]
-        S1["S1 Marketing<br/>Anonymous · Lead-gen"]
+        S1["S1 Front door<br/>Everyone · One sign-in, routed"]
         S2["S2 Service Manager<br/>Office · Hierarchy, Contracts, Network"]
         S3["S3 Dispatch<br/>Board + offline queue"]
         S4["S4 HQ Dashboard<br/>36 metrics, 15-min rollup"]
@@ -53,7 +53,7 @@ flowchart TB
     class DB data
 ```
 
-![Architecture diagram](docs/architecture-diagram.svg)
+![Architecture diagram](docs/assets/architecture-diagram.svg)
 
 ### Key flows
 
@@ -78,7 +78,7 @@ sequenceDiagram
 | ID | Name | Who | Key capability | Status |
 |----|------|-----|----------------|--------|
 | **S0** | Shared shell | All | Login, hierarchy context, event subscription, typed refusals | ✅ |
-| **S1** | Marketing / Lead-gen | Anonymous | Durable lead buffer, coverage map, zero-copy ceiling | ✅ |
+| **S1** | Front door | Everyone | One sign-in; the gateway routes each login to its surface (or a choice); zero-copy ceiling | ✅ |
 | **S2** | Service Manager | Office | Hierarchy, agreements (OQ5), network (firms/crews/docs/rates), purchasing | ✅ |
 | **S3** | Dispatch Console | Dispatcher | Board, dispatch, offline-first mutation queue | ✅ |
 | **S4** | HQ Ops Dashboard | Leadership | 36 figures across service, revenue, network, growth (15-min rollup) | ✅ |
@@ -87,7 +87,7 @@ sequenceDiagram
 | **S7** | Vendor Portal | Vendor | Catalogue, POs, shipments, 3-way match, returns | 🟡 Phase 4 |
 | **S8** | Subcontractor Portal | Firm | Roster, documents, work, settlements (ack/dispute) | ✅ |
 
-![Surface status chart](docs/surface-status.svg)
+![Surface status chart](docs/assets/surface-status.svg)
 
 ## Current build state (as of late Sept 2026)
 
@@ -97,7 +97,7 @@ sequenceDiagram
 - **Rev A**: Field-ops reference layout across all surfaces.
 - Next: S7 enablement pending partners’ D9 call.
 
-All flows are proven in real browsers against the real gateway. See `claude/` for per-item build notes.
+All flows are proven in real browsers against the real gateway. See `docs/history/` for per-item build notes.
 
 ## Quick start
 
@@ -133,8 +133,10 @@ npm run worker                  # outbox, SLA, expiry
 
 ```
 apps/
-  gateway/          sole access path (auth, uow, handlers, SSE)
-  s1-marketing/ … s8-*/   surfaces
+  s1-front-door/ … s8-*/   surfaces
+services/
+  gateway/          sole access path (src/auth, src/db, src/http, src/handlers)
+  worker/           outbox, SLA, expiry
 packages/
   contracts/        operation catalogue (source of truth)
   sdk/              generated client
@@ -143,9 +145,17 @@ packages/
   domain/           pure logic (SLA, money, compliance, D14, …)
   schema/           tables + migrations
   tokens/           brand + design tokens
-tools/ci/           guards, emitters, migrate, build-surface, drives
-docs/               BRAND.md, BACKBONE_CONTRACT.md, architecture frame, diagrams
-claude/             per-item build records
+tools/
+  ci/               guards, emitters, migrate, build-surface
+  drive/            browser end-to-end drives (Chrome over CDP)
+  ops/              production scripts, test-login seeding
+external/           apps outside the workspace (Electron logins app)
+test/               integration tests (see test/README.md)
+infra/              Cloudflare deployment
+docs/               BACKBONE_CONTRACT.md, OPEN_DECISIONS.md, …
+  generated/        BRAND.md, SURFACES.md (emitted — do not edit)
+  assets/           diagrams
+  history/          per-item build records
 ```
 
 ## Governing principle
@@ -172,8 +182,8 @@ Generated from tokens. Two mechanisms worth knowing:
 
 - `docs/BACKBONE_CONTRACT.md` — the interface every block codes against
 - `06_Software_Architecture_Frame.md` — the frame
-- `docs/BRAND.md` — generated brand guide
-- `claude/` — detailed build notes for each item
+- `docs/generated/BRAND.md` — generated brand guide
+- `docs/history/` — detailed build notes for each item
 
 ---
 

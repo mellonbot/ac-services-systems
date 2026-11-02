@@ -86,7 +86,7 @@ export const semanticFor = (ground: Ground): Readonly<Record<SemanticToken, stri
  * What the brand roles resolve to on a surface that renders a state ramp.
  *
  * Plate 04's verdict, applied to the house: an accent inside the state ramp's
- * hue range is admitted for the wordmark, the livery and marketing, and falls
+ * hue range is admitted for the wordmark, the livery and the brand-layer surface, and falls
  * back to Ink Black everywhere a state renders. On the plate "Ink Black" is
  * frost — the plate ground's own ink.
  */
@@ -104,7 +104,7 @@ export const neutralBrand = (ground: Ground): Readonly<Record<string, string>> =
 
 export type FrameOptions = {
   /**
-   * True only for a surface that renders NO state ramp — S1 marketing, the
+   * True only for a surface that renders NO state ramp — S1, the front door, the
    * livery, the badge. Defaults to FALSE, so a screen cannot paint red by
    * forgetting the rule: the unsafe direction requires an explicit opt-in.
    */

@@ -44,6 +44,7 @@
 - `project`
 - `settlement`
 - `payment`
+- `region`
 
 ## Degraded mode
 

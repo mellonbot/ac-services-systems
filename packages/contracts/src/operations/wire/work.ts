@@ -37,11 +37,11 @@ export const WORK_DONE_STATES: readonly JobStateWire[] = Object.freeze(["complet
  * moves to `complete` from any field state (OFFICE_CLOSE_OUT_FROM). Except
  * in_progress → complete, these are the office's edges alone and deliberately
  * NOT in the domain's JOB_TRANSITIONS, which is what a device may take: a
- * technician still walks en route → on site → in progress → complete.
+ * technician walks assigned → en route → in progress → complete.
  *
  * Cancelling after dispatch: before the crew is on site (`assigned`,
  * `en_route`) the office may cancel the job outright; the gateway releases the
- * crew in the same unit of work. Once the crew is on site, stopping is an
+ * crew in the same unit of work. Once work is in progress, stopping is an
  * abort — the field's, with what it bills — not a cancellation.
  */
 export const OFFICE_JOB_TRANSITIONS: Readonly<Partial<Record<JobStateWire, readonly JobStateWire[]>>> = Object.freeze({
@@ -406,7 +406,7 @@ export type ListDevicesOutput = { readonly devices: readonly DeviceWire[] };
 export type RegisterDeviceInput = {
   readonly hardwareId: string; readonly kind: DeviceKind;
   /**
-   * The device-held public key a future challenge-response login would verify against. Base64. Not yet checked at login — see claude/19_S3_S5_Dispatch_and_Field.md (not in repo).
+   * The device-held public key a future challenge-response login would verify against. Base64. Not yet checked at login — the item 19 note is not in the repo.
    * Required for hardware; optional for `web_fallback`, a browser that holds no key of its own (stored empty).
    */
   readonly publicKey?: string;
@@ -431,6 +431,25 @@ export type GrantShiftInput = {
   readonly windowEnd: string;
 };
 export type GrantShiftOutput = { readonly id: string; readonly orgId: string; readonly regionId: string; readonly eventId: string };
+/** 0038: where a grant stands now. Ended is past its window; revoked was ended early by the office. */
+export type GrantState = "upcoming" | "open" | "ended" | "revoked";
+export type GrantWire = {
+  readonly id: string; readonly deviceId: string; readonly hardwareId: string;
+  readonly crewId: string; readonly crewLabel: string;
+  readonly technicianId: string; readonly technicianName: string;
+  readonly windowStart: string; readonly windowEnd: string;
+  readonly revokedAt: string | null;
+  readonly state: GrantState;
+};
+/** Grants still to come, open now, or ended in the last day. */
+export type ListGrantsInput = { readonly deviceId?: string };
+export type ListGrantsOutput = { readonly grants: readonly GrantWire[] };
+/** Move the end later. The device's session in hand keeps its own expiry; signing in again picks up the new end. */
+export type ExtendShiftInput = { readonly grantId: string; readonly windowEnd: string };
+export type ExtendShiftOutput = { readonly id: string; readonly windowEnd: string; readonly eventId: string };
+/** End it now. The device's token is refused on its next request; no grace period. */
+export type RevokeShiftInput = { readonly grantId: string };
+export type RevokeShiftOutput = { readonly id: string; readonly revokedAt: string; readonly endedSessions: number; readonly eventId: string };
 
 export type AssignInput = { readonly jobId: string; readonly crewId: string; readonly orgId: string; readonly regionId: string };
 export type ComplianceRefusalWire = {
@@ -584,8 +603,11 @@ export type ListReturnsInput = { readonly poId?: string };
 export type ListReturnsOutput = { readonly returns: readonly RmaWire[] };
 
 export type HealthOutput = { readonly ok: true; readonly surfaces: readonly SurfaceId[] };
-/** `/readyz`: the gateway's login reached Postgres and became ac_gateway. A refusal is a 503. */
-export type ReadyOutput = { readonly ok: true; readonly database: "reachable" };
+/**
+ * `/readyz`: the gateway's login reached Postgres and became ac_gateway, and
+ * its photo storage, when configured, answered a signed read. A refusal is a 503.
+ */
+export type ReadyOutput = { readonly ok: true; readonly database: "reachable"; readonly storage: "reachable" | "not_configured" };
 
 /**
  * A TENANT'S THEME, on the wire.
@@ -640,62 +662,17 @@ export type BrandStylesheetOutput = {
 };
 
 /**
- * ITEM 8 — S1's wire shapes.
- *
- * `CoverageMetro` is two fields on purpose. Every other read in this file
- * widens as the surface needs it; this one is the public claim, and the
- * narrowest thing that answers "are you in my city" is a name.
- */
-export type CoverageMetro = { readonly code: string; readonly name: string };
-export type CoverageOutput = { readonly metros: readonly CoverageMetro[] };
-
-export type AnonymousSessionOutput = {
-  /** Also set as the httpOnly `ac_session` cookie. Short-lived; a visitor is not a session to resume. */
-  readonly token: string;
-  readonly expiresAt: string;
-};
-
-/**
- * WHERE THE LEAD CAME FROM, as data. A source typed into a handler is a
- * funnel nobody can count; adding one is a diff here and a diff on 0008's
- * check constraint, which is exactly as hard as it should be.
+ * WHERE A LEAD CAME FROM, as data. Leads were S1's intake until S1 became the
+ * front door (2026-11-01); the table, its sources and the office's Follow-ups
+ * screen stay, because a lead already captured is still the office's to work.
  */
 export const LEAD_SOURCES = ["web_form", "call_button", "referral"] as const;
 export type LeadSource = (typeof LEAD_SOURCES)[number];
 
-/**
- * What a stranger hands us. No account, no site, no equipment — those are
- * things a customer has, and this is the surface for people who are not one
- * yet. `requestedMetro` is free text and stays free text: it is what they
- * typed, not a resolved region, and resolving it is S2's job when the lead is
- * worked (`converted_account_id`).
- */
+/** Who the lead is. No account, no site, no equipment — those are things a customer has. */
 export type LeadContact = {
   readonly name: string;
   readonly email?: string;
   readonly phone?: string;
   readonly note?: string;
 };
-export type SubmitLeadInput = {
-  /**
-   * Minted by the browser ONCE, when the visitor presses the button, and
-   * replayed unchanged until the gateway answers. The unique index behind it
-   * (migration 0008) is what makes S1's durable buffer safe to retry: a
-   * replay that already landed loses to the constraint and comes back as
-   * `leads_submission_id_key`, which the buffer reads as "done" rather than
-   * as a failure. Without it, "queue and replay" means phoning the same
-   * person once per reconnection.
-   */
-  readonly submissionId: string;
-  readonly source: LeadSource;
-  readonly contact: LeadContact;
-  readonly requestedMetro?: string;
-};
-export type SubmitLeadOutput = { readonly id: string; readonly eventId: string };
-
-export type RecordCallInput = {
-  readonly leadId?: string;
-  readonly direction: "inbound" | "outbound";
-  readonly occurredAt: string;
-};
-export type RecordCallOutput = { readonly id: string; readonly eventId: string };

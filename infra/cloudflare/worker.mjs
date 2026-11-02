@@ -1,6 +1,6 @@
 /**
  * THE EDGE IN FRONT OF THE GATEWAY — a Cloudflare Worker whose only job is to
- * keep one container (Dockerfile at the repo root: apps/gateway + apps/worker)
+ * keep one container (Dockerfile at the repo root: services/gateway + services/worker)
  * running and to forward every request on api.<AC_SITE> to it, byte for byte,
  * SSE included. It holds no logic of its own: authentication, scope, CORS and
  * the catalogue are the gateway's, exactly as they are on a laptop.
@@ -104,8 +104,19 @@ export class Gateway extends DurableObject {
 
 const instance = (env) => env.GATEWAY.getByName(INSTANCE);
 
+/** OPEN-S1-ABUSE: the one request a stranger can make, limited per address before it reaches the container. */
+const SIGN_IN = "/auth/sign-in";
+
 export default {
   async fetch(request, env) {
+    if (request.method === "POST" && new URL(request.url).pathname === SIGN_IN) {
+      const { success } = await env.SIGN_IN_LIMIT.limit({ key: request.headers.get("cf-connecting-ip") ?? "unknown" });
+      if (!success) {
+        return new Response(JSON.stringify({ error: "TooManyRequests", message: "too many sign-in attempts — wait a minute and try again" }), {
+          status: 429, headers: { "content-type": "application/json", "retry-after": "60", "cache-control": "no-store" },
+        });
+      }
+    }
     try {
       return await instance(env).fetch(request);
     } catch (e) {
