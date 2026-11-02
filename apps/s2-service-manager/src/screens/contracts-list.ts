@@ -109,7 +109,7 @@ export const contractsList: Screen = (ctx, params) => {
         emptyText: "No agreements recorded for this customer yet.",
       })}
       ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, [{ label: "Dismiss", onSelect: () => { outcome.value = { refusal: null, busy: "", pending: null }; } }]) : null}`,
-    `${org?.name ?? "Customer"} — agreements`, undefined,
+    `${contracts.length} agreement${contracts.length === 1 ? "" : "s"}`, undefined,
     html`<span class="s2-row-actions">
       ${linkTo(ctx, "contracts.new", { orgId: orgId! }, "+ Agreement", "ac-action s2-link--action")}
       ${linkTo(ctx, "terms.override", { orgId: orgId! }, "Term overrides")}
@@ -129,10 +129,8 @@ export const contractsList: Screen = (ctx, params) => {
   const contracts = store.read(keyOf("contracts.list", { orgId }), () => shell.gateway.listContracts({ orgId }));
   const tree = store.read(keyOf("accounts.list", { orgId }), () => shell.gateway.listAccounts({ orgId }));
 
-  return html`${head}<div class="s2-two-col">
-    <aside class="s2-col--orgs">${orgPanel}</aside>
-    ${whenReady(ctx, contracts.value, (c) =>
-      whenReady(ctx, tree.value, (t) =>
-        whenReady(ctx, orgs.value, (o) => grid(c.contracts, t.nodes, o.organizations.find((x) => x.id === orgId)))))}
-  </div>`;
+  // A customer is open, so the header names it and "All customers" is the way to change it: no picker beside the work.
+  return html`${head}${whenReady(ctx, contracts.value, (c) =>
+    whenReady(ctx, tree.value, (t) =>
+      whenReady(ctx, orgs.value, (o) => grid(c.contracts, t.nodes, o.organizations.find((x) => x.id === orgId)))))}`;
 };
