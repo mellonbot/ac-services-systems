@@ -1,6 +1,8 @@
 # S1 → S5 with no network: offline shift entry
 
 **Date:** 2026-11-02 · **Status:** proposed, awaiting OK · **Branch:** `s1-offline-shift-entry`
+(built on `shift-session-ends-with-tab`, which ends a front-door shift with its tab — `SHIFT_TAB_KEY`
+in the tab's sessionStorage; this design lives inside that rule)
 
 ## Problem
 
@@ -30,7 +32,9 @@ Today they cannot, for three separate reasons:
 
 ### A. The held shift — `packages/shell/src/held-shift.ts`
 
-One localStorage record, `ac.shift.held`, written by S5 only:
+One record, `ac.shift.held`, in **the tab's sessionStorage** (the same `TabMark` store that holds
+`SHIFT_TAB_KEY`), written by S5 only, and only in a tab that holds the mark. A reload keeps it; closing
+the tab drops it, exactly like the mark. Nothing about the shift is written to localStorage.
 
 ```ts
 type HeldShift = {
@@ -38,7 +42,7 @@ type HeldShift = {
   context: HierarchyContext;       // from session.me (includes deviceCrew)
   endsAt: string;                  // the session's own expiry — same instant the cookie expires
 };
-heldShift(store, now): HeldShift | null   // null if absent, malformed, not a device principal, or endsAt <= now
+heldShift(tab, now): HeldShift | null     // null if no SHIFT_TAB_KEY, absent, malformed, not a device principal, or endsAt <= now
 holdShift(store, connected): void         // S5, after an ONLINE session.me with a device principal + crew
 forgetShift(store): void                  // S5: logout, a token refusal, or an expired record
 resumeHeldShift(cfg, held): ConnectedShell // S5: a shell built from the held context with the live cookie
@@ -54,7 +58,8 @@ SDK regenerated if its emitted types change.
 
 `resume()` becomes:
 
-1. Try `connect({ session: "cookie" })` as today. On a device session with a crew → `holdShift`, enter.
+1. Try `connect({ session: "cookie" })` as today. On a device session with a crew **in a marked tab** →
+   `holdShift`, enter. (Unmarked: the peer branch's logout of the left-behind session, unchanged.)
 2. Got an answer that is **not** a transport failure (no cookie, staff cookie, expired, revoked) →
    `forgetShift`, show S5's login as today.
 3. **Transport failure** (gateway unreachable) → `heldShift(store, now)`. If present → enter with
@@ -67,13 +72,16 @@ SDK regenerated if its emitted types change.
 
 **Cached reads.** `createResourceStore` gains an optional `held` seed (key → last value) and an
 `onAnswer(key, value)` hook; S5 persists the answers for `jobs.mine` and `punches.mine` under
-`ac.s5.reads.<deviceId>.<subjectId>` and seeds the store from it. The store already keeps the held
+`ac.s5.reads.<deviceId>.<subjectId>` in the same tab sessionStorage (so customer addresses do not
+outlive the tab either) and seeds the store from it. The offline mutation queue stays in localStorage
+as today: work is never lost with a tab, it waits for its technician. The store already keeps the held
 value on screen when a refetch hits a transport failure, so job list, job detail, wrap-up and the
 clock gate all work from it. S1/S2/S3/S6 pass nothing and behave exactly as now.
 
 ### C. S1 (`apps/s1-front-door/src/app.ts`)
 
-S1 reads `heldShift(localStorage, now)` and `navigator.onLine` at boot and on `online`/`offline` events:
+S1 reads `heldShift(tab, now)` and `navigator.onLine` at boot and on `online`/`offline` events. So a
+reload or a trip back to `/` inside the shift's tab forwards; a freshly opened tab never does:
 
 | Network | Held shift | S1 does |
 |---------|-----------|---------|
@@ -102,17 +110,15 @@ The `tools/drive` site server and `build-surface` dev builds get the same file s
 
 ## Interaction with the open shift-session persistence decision
 
-`ac.shift.held` lives exactly as long as the cookie it mirrors — same `endsAt`, cleared on the same
-sign-out and on the same token refusal — so it does not extend the shift session in time. Two things
-it does change, for the PR to state plainly:
+Decided (2026-11-02): a front-door shift **ends when its tab closes** and survives a reload.
+`ac.shift.held` sits in the tab's sessionStorage beside the mark, is written only in a marked tab, and
+expires at the cookie's own `endsAt` — so it is never longer-lived than the online shift, in time or
+across tabs. A freshly opened tab offline has no record and gets the offline refusal. One thing it
+does change, for the PR to state plainly:
 
-1. **Revocation is not seen offline.** If the office revokes the grant while the tablet is offline,
-   the tablet still opens the shift from cache until `endsAt`. Nothing it does lands: replay meets a
-   `token` refusal, S5 returns to sign-in, the queue stays on the device for that technician.
-2. **On a shared browser, offline, S1 forwards whoever holds the tablet into the held shift.** Online,
-   the same person could already open `/technician/` and resume by cookie, so exposure is the same
-   session over a new path, not a longer one. If the decision lands on "a shift ends when the tab
-   closes", `forgetShift` on `pagehide` is the one-line change that follows it here too.
+- **Revocation is not seen offline.** If the office revokes the grant while the tablet is offline,
+  the open tab still shows the shift from cache until `endsAt` or the tab closes. Nothing it does lands:
+  replay meets a `token` refusal, S5 returns to sign-in, the queue stays on the device for that technician.
 
 ## Tests
 
@@ -129,8 +135,10 @@ it does change, for the PR to state plainly:
 - **Drive** (`tools/drive/drive-s1.ts`, new steps): build S1 + S5 + `sw.js` into one site; tech signs in
   at S1 with a hardware ID → S5 job list; then cut the network (CDP offline emulation **and** stop
   both the site server and the gateway); reload `/` → lands on `/technician/` with the job on screen
-  and the degraded notice; queue a move offline. Fresh browser profile, network cut → `/` shows the
+  and the degraded notice; queue a move offline. A new tab (no mark), network cut → `/` shows the
   offline refusal, no spinner, no form submit.
+
+History record: `docs/history/33_...md` (31 and 32 are the tab-session PRs).
 
 ## Out of scope
 
