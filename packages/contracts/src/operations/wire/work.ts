@@ -431,6 +431,25 @@ export type GrantShiftInput = {
   readonly windowEnd: string;
 };
 export type GrantShiftOutput = { readonly id: string; readonly orgId: string; readonly regionId: string; readonly eventId: string };
+/** 0038: where a grant stands now. Ended is past its window; revoked was ended early by the office. */
+export type GrantState = "upcoming" | "open" | "ended" | "revoked";
+export type GrantWire = {
+  readonly id: string; readonly deviceId: string; readonly hardwareId: string;
+  readonly crewId: string; readonly crewLabel: string;
+  readonly technicianId: string; readonly technicianName: string;
+  readonly windowStart: string; readonly windowEnd: string;
+  readonly revokedAt: string | null;
+  readonly state: GrantState;
+};
+/** Grants still to come, open now, or ended in the last day. */
+export type ListGrantsInput = { readonly deviceId?: string };
+export type ListGrantsOutput = { readonly grants: readonly GrantWire[] };
+/** Move the end later. The device's session in hand keeps its own expiry; signing in again picks up the new end. */
+export type ExtendShiftInput = { readonly grantId: string; readonly windowEnd: string };
+export type ExtendShiftOutput = { readonly id: string; readonly windowEnd: string; readonly eventId: string };
+/** End it now. The device's token is refused on its next request; no grace period. */
+export type RevokeShiftInput = { readonly grantId: string };
+export type RevokeShiftOutput = { readonly id: string; readonly revokedAt: string; readonly endedSessions: number; readonly eventId: string };
 
 export type AssignInput = { readonly jobId: string; readonly crewId: string; readonly orgId: string; readonly regionId: string };
 export type ComplianceRefusalWire = {

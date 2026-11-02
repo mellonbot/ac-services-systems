@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 126 today. There is no
+ * One method per operation in the catalogue — 132 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -227,6 +227,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["customers.createResidential"], input) as Promise<OperationIO["customers.createResidential"]["output"]>;
   },
 
+  /** `POST /s2/devices/grant/extend` · mutation · bearer · surfaces: S2
+   *
+   * Move a live grant's end later. Refused for a revoked or ended grant, an end that is not later, or one that would overlap the device's next grant. A device session already minted keeps its expiry; signing in again picks up the new end. */
+  extendDeviceShift(input: OperationIO["devices.extendShift"]["input"]): Promise<OperationIO["devices.extendShift"]["output"]> {
+    return transport.request(OPERATIONS["devices.extendShift"], input) as Promise<OperationIO["devices.extendShift"]["output"]>;
+  },
+
   /** `POST /s2/devices/grant` · mutation · bearer · surfaces: S2
    *
    * The primitive: this device, this crew, this technician, this window. What auth.deviceLogin mints a token against. Refused if the technician is not on the named crew, the crew is inactive, or the device already holds an overlapping grant. */
@@ -241,11 +248,25 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["devices.list"], input) as Promise<OperationIO["devices.list"]["output"]>;
   },
 
+  /** `GET /s2/devices/grants` · query · bearer · surfaces: S2
+   *
+   * Shift grants still to come, open now, or ended in the last day — with the device, the technician's unit and name, the window and whether the office revoked it. */
+  listDeviceGrants(input: OperationIO["devices.listGrants"]["input"]): Promise<OperationIO["devices.listGrants"]["output"]> {
+    return transport.request(OPERATIONS["devices.listGrants"], input) as Promise<OperationIO["devices.listGrants"]["output"]>;
+  },
+
   /** `POST /s2/devices` · mutation · bearer · surfaces: S2
    *
    * Record a physical device. firmId ties it to hardware the firm already owns; absent, it is ours (INTERNAL_ORG). */
   registerDevice(input: OperationIO["devices.register"]["input"]): Promise<OperationIO["devices.register"]["output"]> {
     return transport.request(OPERATIONS["devices.register"], input) as Promise<OperationIO["devices.register"]["output"]>;
+  },
+
+  /** `POST /s2/devices/grant/revoke` · mutation · bearer · surfaces: S2
+   *
+   * End a grant now, no grace period: its device sessions are ended and the token is refused on its next request. The device is free for another grant. */
+  revokeDeviceShift(input: OperationIO["devices.revokeShift"]["input"]): Promise<OperationIO["devices.revokeShift"]["output"]> {
+    return transport.request(OPERATIONS["devices.revokeShift"], input) as Promise<OperationIO["devices.revokeShift"]["output"]>;
   },
 
   /** `POST /s3/assign` · mutation · bearer · surfaces: S3
@@ -654,11 +675,32 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["receivingPoints.list"], undefined) as Promise<OperationIO["receivingPoints.list"]["output"]>;
   },
 
+  /** `POST /s2/regions` · mutation · bearer · surfaces: S2
+   *
+   * Open a service region: a code (fixed — job numbers carry it), a name and a timezone. Principals only. */
+  createRegion(input: OperationIO["regions.create"]["input"]): Promise<OperationIO["regions.create"]["output"]> {
+    return transport.request(OPERATIONS["regions.create"], input) as Promise<OperationIO["regions.create"]["output"]>;
+  },
+
   /** `GET /regions` · query · bearer · surfaces: S2, S3, S4
    *
    * OUR service regions — the shard boundary. What a region node binds to; what D14's density rule is set on. */
   listRegions(): Promise<OperationIO["regions.list"]["output"]> {
     return transport.request(OPERATIONS["regions.list"], undefined) as Promise<OperationIO["regions.list"]["output"]>;
+  },
+
+  /** `POST /s2/regions/active` · mutation · bearer · surfaces: S2
+   *
+   * Stop serving a region, or serve it again. Deactivation is refused, naming them, while the region holds active logins, crews, customer accounts or open jobs. Principals only. */
+  setRegionActive(input: OperationIO["regions.setActive"]["input"]): Promise<OperationIO["regions.setActive"]["output"]> {
+    return transport.request(OPERATIONS["regions.setActive"], input) as Promise<OperationIO["regions.setActive"]["output"]>;
+  },
+
+  /** `POST /s2/regions/update` · mutation · bearer · surfaces: S2
+   *
+   * Rename a region. Its code does not change. Unassigned (pre-account) is structural and refused. Principals only. */
+  updateRegion(input: OperationIO["regions.update"]["input"]): Promise<OperationIO["regions.update"]["output"]> {
+    return transport.request(OPERATIONS["regions.update"], input) as Promise<OperationIO["regions.update"]["output"]>;
   },
 
   /** `GET /procurement/rmas` · query · bearer · surfaces: S2, S4, S7
@@ -896,4 +938,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["changePassword", "myAccount", "setAccountAvatar", "updateMyAccount", "createAccount", "listAccounts", "moveAccount", "updateAccount", "deviceLogin", "login", "logout", "signIn", "setBrandTheme", "brandTheme", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "attachJobMedia", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "wrapUpJob", "convertLead", "listLeads", "managerOverview", "getMedia", "listColleagues", "dismissMessage", "pendingMessages", "recentMessages", "sendMessage", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "paymentWebhook", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "myPunches", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "issueSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "ready", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);
+export const GENERATED_METHODS = Object.freeze(["changePassword", "myAccount", "setAccountAvatar", "updateMyAccount", "createAccount", "listAccounts", "moveAccount", "updateAccount", "deviceLogin", "login", "logout", "signIn", "setBrandTheme", "brandTheme", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "extendDeviceShift", "grantDeviceShift", "listDevices", "listDeviceGrants", "registerDevice", "revokeDeviceShift", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "attachJobMedia", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "wrapUpJob", "convertLead", "listLeads", "managerOverview", "getMedia", "listColleagues", "dismissMessage", "pendingMessages", "recentMessages", "sendMessage", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "paymentWebhook", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "myPunches", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "createRegion", "listRegions", "setRegionActive", "updateRegion", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "issueSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "ready", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);

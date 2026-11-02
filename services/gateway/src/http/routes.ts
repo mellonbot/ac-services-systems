@@ -27,7 +27,8 @@ import { listColleagues, listPending, listRecent, sendStaffMessage, dismissStaff
 import { createJob, listJobs, listMyJobs, listMyPunches, transitionJob, addJobNote, setReturnTrip, requireUuid } from "../handlers/jobs.ts";
 import { createProject, listProjects } from "../handlers/projects.ts";
 import { jobDetail, jobConversation, saveJobUpdate, publishJobUpdate, postJobMessage } from "../handlers/job-detail.ts";
-import { listDevices, registerDevice, grantDeviceShift } from "../handlers/devices.ts";
+import { listDevices, registerDevice, grantDeviceShift, listGrants, extendShift, revokeShift } from "../handlers/devices.ts";
+import { createRegion, updateRegion, setRegionActive } from "../handlers/regions.ts";
 import { createServiceRequest, listServiceRequests, openJobFromRequest } from "../handlers/service-requests.ts";
 import { attachPhoto, getMedia } from "../handlers/photos.ts";
 import { attachJobMedia, wrapUpJob } from "../handlers/wrap-up.ts";
@@ -292,6 +293,13 @@ export const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "devices.list": (req, input) => openTx(req, "devices.list", "read", (uow) => listDevices(uow, input)),
   "devices.register": (req, input) => openTx(req, "devices.register", "uow", (uow) => registerDevice(uow, input, randomUUID)),
   "devices.grantShift": (req, input) => openTx(req, "devices.grantShift", "uow", (uow, p) => grantDeviceShift(uow, p.subjectId, input, randomUUID)),
+  "devices.listGrants": (req, input) => openTx(req, "devices.listGrants", "read", (uow) => listGrants(uow, input)),
+  "devices.extendShift": (req, input) => openTx(req, "devices.extendShift", "uow", (uow) => extendShift(uow, input)),
+  "devices.revokeShift": (req, input) => openTx(req, "devices.revokeShift", "uow", (uow) => revokeShift(uow, input)),
+  // 0038 — our regions: a principal's.
+  "regions.create": (req, input) => openTx(req, "regions.create", "uow", (uow, p, s) => createRegion(uow, p, s, input, randomUUID)),
+  "regions.update": (req, input) => openTx(req, "regions.update", "uow", (uow, p, s) => updateRegion(uow, p, s, input)),
+  "regions.setActive": (req, input) => openTx(req, "regions.setActive", "uow", (uow, p, s) => setRegionActive(uow, p, s, input)),
 
   // S5 — what a technician reads before replaying a sync batch, and the replay itself.
   "jobs.mine": onShift("jobs.mine", "read", (uow, p) => listMyJobs(uow, p.shiftId)),
