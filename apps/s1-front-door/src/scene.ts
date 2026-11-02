@@ -21,8 +21,8 @@ const TRUCK_SCALE = 2.8;
 const BAY_X = 26, BAY_Z = 18;
 /** Equipment in the yard waiting to go out — [model, x, z, heading], on a pallet or skid, at the truck's scale. */
 const STOCK: readonly (readonly [string, number, number, number])[] = [
-  // The condensers stand above the truck's rear bumper in the shot, where the forklift drives to them.
-  ["/condenser.glb", 14, -26, 0.1], ["/condenser.glb", 9.5, -26, -0.05], ["/condenser.glb", 14, -21.5, 0.05], ["/condenser.glb", 9.5, -21.5, 0.3],
+  // The condensers stand above the truck's rear bumper in the shot; the forklift brings the third, in front of the first (DROP_X, LANE_Z).
+  ["/condenser.glb", 14, -26, 0.1], ["/condenser.glb", 9.5, -26, -0.05],
   ["/rtu.glb", 24, -27.5, 0], ["/rtu.glb", 22, -21, 0.08],
 ];
 /** Below this stage width the plates stack under the stage; the camera frames the truck alone. */
@@ -297,9 +297,10 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
 
   // Tyre ruts along the forklift's lane across the back of the yard, in front of the condenser pallets, and the forklift itself.
   const rut = new MeshStandardMaterial({ color: role("text"), transparent: true, opacity: 0.22, roughness: 1 });
-  // It starts on the left and drives right, forks first, to the condenser pallets.
-  const LANE_Z = -21.5, LANE_NEAR = -12, LANE_FAR = 3;
-  for (const dz of [-1.4, 1.4]) paint(LANE_NEAR - LANE_FAR + 8, 0.9, (LANE_NEAR + LANE_FAR) / 2, LANE_Z + dz, rut);
+  // It comes in from the left, forks first, carrying a condenser, and sets it down with the others at DROP_X.
+  // REACH is the forks' centre ahead of the forklift's origin, in world metres.
+  const LANE_Z = -21.5, DROP_X = 14, REACH = 1.74 * TRUCK_SCALE, LANE_NEAR = -30, LANE_FAR = DROP_X - REACH;
+  for (const dz of [-1.4, 1.4]) paint(DROP_X - LANE_NEAR, 0.9, (LANE_NEAR + DROP_X) / 2, LANE_Z + dz, rut);
   const lift = prop(LANE_NEAR, LANE_Z, -Math.PI / 2);
   box(1.1, 0.5, 2.0, 0, 0.5, 0, red, lift);
   box(1.12, 0.75, 0.5, 0, 0.85, 0.85, red, lift);
@@ -318,20 +319,44 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   lift.add(carriage);
   box(0.9, 0.5, 0.05, 0, 0.25, 0, black, carriage);
   for (const x of [-0.26, 0.26]) box(0.1, 0.05, 1.1, x, 0.02, -0.58, black, carriage);
-  const liftPallet = box(1.1, 0.14, 1.0, 0, 0.12, -0.6, pallet, carriage);
 
-  // One shuttle every 26 s: drive to the condenser pallets, raise, lower, reverse to the left, wait.
-  const SHUTTLE_MS = 26_000;
+  // A unit on its pallet, as it stands in the stock; the model joins it when it loads.
+  const onPallet = (url: string, x: number, z: number, heading: number): Group => {
+    const base = new Group();
+    base.position.set(x, 0, z);
+    base.rotation.y = heading;
+    scene.add(base);
+    void load(url).then((model) => {
+      if (stopped) return;
+      const unit = model.clone();
+      unit.scale.setScalar(TRUCK_SCALE);
+      const b = new Box3().setFromObject(unit);
+      const size = b.getSize(new Vector3()), mid = b.getCenter(new Vector3());
+      box(size.x + 0.4, 0.3, size.z + 0.4, 0, 0.15, 0, pallet, base);
+      unit.position.set(-mid.x, 0.3 - b.min.y, -mid.z);
+      add(unit, base);
+      if (still && loaded) draw();
+    }, () => { /* a missing unit leaves its pallet empty */ });
+    return base;
+  };
+  const cargo = onPallet("/condenser.glb", LANE_NEAR + REACH, LANE_Z, 0);
+
+  // One delivery every 26 s, carriage heights in the forklift's own metres: CARRY holds the pallet just
+  // off the dirt, DOWN rests it on the ground, EMPTY is the bare forks' travel height.
+  // Drive in loaded, lower, back out of the pallet, raise the bare forks, reverse to the left, wait.
+  const SHUTTLE_MS = 26_000, CARRY = 0.1, DOWN = 0, EMPTY = 0.3, SET_DOWN = 0.5;
   const ease = (t: number): number => t * t * (3 - 2 * t);
   const span = (t: number, a: number, b: number): number => ease(Math.min(Math.max((t - a) / (b - a), 0), 1));
   const shuttle = (ms: number): void => {
     const t = (ms % SHUTTLE_MS) / SHUTTLE_MS;
-    const out = span(t, 0.04, 0.34), back = span(t, 0.58, 0.9);
+    const out = span(t, 0.04, 0.4), back = span(t, 0.53, 0.9);
     lift.position.x = LANE_NEAR + (LANE_FAR - LANE_NEAR) * (out - back);
-    carriage.position.y = 0.3 + 1.1 * (span(t, 0.36, 0.45) - span(t, 0.48, 0.56));
-    liftPallet.visible = t > 0.47 && t < 0.97;
+    carriage.position.y = CARRY + (DOWN - CARRY) * span(t, 0.42, SET_DOWN) + (EMPTY - DOWN) * span(t, 0.64, 0.7);
+    // Carried, the pallet rides the forks, which sit in its pockets; set down, it stays where it landed.
+    cargo.position.x = t < SET_DOWN ? lift.position.x + REACH : DROP_X;
+    cargo.position.y = t < SET_DOWN ? (carriage.position.y - DOWN) * TRUCK_SCALE : 0;
   };
-  // Start (and, under reduced motion, rest) at the left end, in view — at the pallets it is behind the truck's cab.
+  // Start (and, under reduced motion, rest) loaded at the left end.
   const SHUTTLE_FROM = 0;
   shuttle(SHUTTLE_FROM);
 
@@ -381,23 +406,7 @@ export const mountScene = (canvas: HTMLCanvasElement): (() => void) => {
   plant("/grass.webp", scatter(170, roadside), () => 0.5 + rand() * 0.5);
   plant("/weeds.webp", [...scatter(70, back), ...scatter(20, fence(-1)), ...scatter(20, fence(1))], () => 2.6 + rand() * 2.2);
 
-  for (const [url, x, z, heading] of STOCK) {
-    void load(url).then((model) => {
-      if (stopped) return;
-      const unit = model.clone();
-      unit.scale.setScalar(TRUCK_SCALE);
-      const b = new Box3().setFromObject(unit);
-      const size = b.getSize(new Vector3()), mid = b.getCenter(new Vector3());
-      const base = new Group();
-      base.position.set(x, 0, z);
-      base.rotation.y = heading;
-      scene.add(base);
-      box(size.x + 0.4, 0.3, size.z + 0.4, 0, 0.15, 0, pallet, base);
-      unit.position.set(-mid.x, 0.3 - b.min.y, -mid.z);
-      add(unit, base);
-      if (still && loaded) draw();
-    }, () => { /* a missing unit leaves its pallet empty */ });
-  }
+  for (const [url, x, z, heading] of STOCK) onPallet(url, x, z, heading);
 
   load("/truck.glb").then((model) => {
     const truck = model.clone();
