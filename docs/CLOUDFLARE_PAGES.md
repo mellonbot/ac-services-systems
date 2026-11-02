@@ -46,7 +46,35 @@ Cloudflare hosts no Postgres of its own. The production database is
 Cloudflare invoice at PlanetScale's rates) or any Postgres 16 reachable over
 TLS. Whichever it is, its connection string is the `DATABASE_URL` secret in
 two places: the Worker (for the container) and the GitHub `production`
-environment (for migrations). Append `?sslmode=require`.
+environment (for migrations). Paste it exactly as the provider shows it (see
+'The gateway' below — PlanetScale's already ends in `sslmode=verify-full&sslrootcert=system`).
+
+**Save the owner's connection string in a password manager before you set it
+anywhere.** GitHub and Worker secrets are write-only, and once `grant-logins-role`
+has run, PlanetScale cannot reset that login's password (2BP01: it has granted a
+role to another login). The password-manager entry is the only copy; losing it
+means replacing the database (below).
+
+### Replacing the production database
+
+For when the owner login is lost or a clean start is wanted. Nothing is copied.
+
+1. Create a **new PlanetScale database** (not a new database in the old one): the
+   `ac_*` roles are cluster-wide, and 0002 silently skips roles that already exist,
+   so 0012's `GRANT ac_gateway, ac_worker TO current_user` then fails. The migrating
+   login must create them. Same region as before.
+2. Save the default role's connection string in the password manager, then
+   `gh secret set DATABASE_URL --env production`.
+3. Run **Actions → db-check**: `current_user` is the new login, and it must be
+   superuser or have CREATEROLE. If not, stop.
+4. Photo storage: new R2 token if needed (see 'Photo storage'), the four
+   `AC_STORAGE_*` Worker secrets, and empty `ac-media` if its objects belong to the
+   old database.
+5. Re-run guard on `main`: `deploy-gateway` migrates 0001 onwards, asserts, deploys
+   and waits for `/readyz`.
+6. Run **seed-logins** (region + staff test logins), then create the AC Logins
+   app's login and run **grant-logins-role** for it.
+7. Delete the old database only once all of the above is green.
 
 Restore tests are non-negotiable #11 and are not a Cloudflare feature: the
 provider's point-in-time restore is exercised on a calendar, by a named
