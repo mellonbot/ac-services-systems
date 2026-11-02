@@ -1,5 +1,5 @@
 import { html, localDay, pageHead, panel, statStrip, type VNode } from "../../../../packages/ui/src/index.ts";
-import { COOL_CLUB, type ContractWire, type EquipmentWire, type JobWire } from "../../../../packages/contracts/src/index.ts";
+import { COOL_CLUB, type AccountWire, type ContractWire, type EquipmentWire, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, readNodes, treeOf, linkTo, type Screen, type ScreenContext } from "./common.ts";
 import { requestForm, outcomeView } from "./request.ts";
@@ -91,6 +91,9 @@ const membershipCard = (ctx: ScreenContext, siteId: string | null, contracts: re
   </div>`, COOL_CLUB.name, undefined, undefined, "membership-card");
 };
 
+/** A household's homes in use: a home the office removed is inactive and drops out. Some customers have two residences. */
+export const activeHomes = (nodes: readonly AccountWire[]): readonly AccountWire[] => treeOf(nodes).ofTier("site").filter((n) => n.active);
+
 export const home: Screen = (ctx) => {
   const nodes = readNodes(ctx);
   const jobs = ctx.store.read(keyOf("jobs.list", {}), () => ctx.shell.gateway.listJobs({}));
@@ -101,11 +104,13 @@ export const home: Screen = (ctx) => {
 
   const jobRows = jobs.value.state === "ready" ? jobs.value.value.jobs : [];
   const invoiceRows = invoices.value.state === "ready" ? invoices.value.value.invoices : [];
-  const site = nodes.value.state === "ready" ? treeOf(nodes.value.value.nodes).ofTier("site")[0] ?? null : null;
+  const homes = activeHomes(nodes.value.state === "ready" ? nodes.value.value.nodes : []);
+  const site = homes[0] ?? null;
   const asks = canRequest(ctx);
 
   return html`<section class="s6-work s6-work--home">
     ${pageHead("Your home", asks ? "Request service and follow every visit to its invoice." : "Every visit at your home, from request to invoice.")}
+    ${homes.length > 1 ? html`<p class="s6-muted" id="home-others">You have <span class="ac-num">${homes.length}</span> homes; this is ${site!.name}. ${linkTo(ctx, "sites", {}, "See all your homes")}</p>` : null}
 
     ${jobs.value.state === "refused" ? null : whenReady(ctx, requests.value, (out) => {
       const orders = ordersOf(out.requests, jobRows);

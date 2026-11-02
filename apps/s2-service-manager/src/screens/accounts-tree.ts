@@ -71,11 +71,13 @@ const customerCard = (ctx: ScreenContext, org: OrganizationWire, id = "customer-
     const sites = n.nodes.filter((x) => x.tier === "site");
     const base = { id, density: ctx.density, name: org.name, segment: org.segment, sites: sites.length, locations: n.nodes.filter((x) => x.tier === "location").length, plans: [...new Set(active.map((x) => PLAN_WORD[x.billingPath]))] };
     if (org.segment !== "residential") return CustomerCard(base) ?? html``;
-    const site = sites[0] ?? null;
+    const homes = sites.filter((x) => x.active);
+    const site = homes[0] ?? null;
     const equipment = site ? store.read(keyOf("equipment.list", { siteId: site.id }), () => shell.gateway.listEquipment({ siteId: site.id })).value : null;
     const member = active.find((x) => x.billingPath === "residential_membership") ?? null;
     return CustomerCard({
       ...base,
+      sites: homes.length,
       home: {
         address: addressLines(site?.address ?? null),
         units: equipment === null ? [] : equipment.state === "ready"
@@ -231,7 +233,22 @@ export const accountsTree: Screen = (ctx, params) => {
     ${filterMenu()}
   </div>`;
 
+  /** A residential household can hold more than one home. Removing is deactivating, so it is reversible and the home's history stays. */
+  const setHomeActive = async (n: AccountWire, active: boolean) => {
+    if (ctx.degraded) return;
+    try {
+      await shell.gateway.updateAccount({ accountId: n.id, active });
+      store.invalidate(keyOf("accounts.list", { orgId: orgId! }));
+      store.invalidate("organizations.list");
+      store.notice.value = [`${active ? "Restored" : "Removed"} home "${n.name}".`];
+    } catch (err) {
+      store.notice.value = [shell.refusalOf(err)?.message ?? String(err)];
+    }
+  };
+
   const treeGrid = (nodes: readonly AccountWire[], regionList: readonly RegionWire[], org: OrganizationWire | undefined): VNode => {
+    const residential = org?.segment === "residential";
+    const liveHomes = nodes.filter((x) => x.tier === "site" && x.active).length;
     const regionName = (id: string) => regionList.find((r) => r.id === id)?.name ?? id;
     const ordered = orderTree(nodes);
     const guides = treeGuides(ordered);
@@ -247,7 +264,10 @@ export const accountsTree: Screen = (ctx, params) => {
         { key: "customerGroup", header: "Customer group", cell: (n: AccountWire) => n.customerGroup ?? "—" },
         { key: "active", header: "Status", cell: (n: AccountWire) => html`<span class="s2-state" data-tone=${n.active ? "live" : "ended"}>${n.active ? "Active" : "Inactive"}</span>` },
         { key: "actions", header: "", align: "end", cell: (n: AccountWire) => html`<span class="s2-row-actions">
-            ${childTier(n.tier) ? linkTo(ctx, "accounts.new", { orgId: orgId!, tier: childTier(n.tier)!, parentId: n.id }, `+ ${childTier(n.tier)}`, undefined, `Add a ${childTier(n.tier)} under ${n.name}`) : null}
+            ${childTier(n.tier) ? linkTo(ctx, "accounts.new", { orgId: orgId!, tier: childTier(n.tier)!, parentId: n.id }, `+ ${residential && n.tier === "location" ? "home" : childTier(n.tier)}`, undefined, `Add a ${residential && n.tier === "location" ? "home" : childTier(n.tier)} under ${n.name}`) : null}
+            ${residential && n.tier === "site" ? html`<button type="button" class="s2-mutation s2-mutation--quiet" disabled=${ctx.degraded || (n.active && liveHomes <= 1)}
+              title=${n.active && liveHomes <= 1 ? "A household keeps at least one home." : ""} aria-label=${`${n.active ? "Remove" : "Restore"} home ${n.name}`}
+              onClick=${() => void setHomeActive(n, !n.active)}>${n.active ? "Remove home" : "Restore home"}</button>` : null}
             ${n.tier !== "region" ? linkTo(ctx, "accounts.move", { orgId: orgId!, id: n.id }, "Move", undefined, `Move ${n.name}`) : null}
           </span>` },
       ],
