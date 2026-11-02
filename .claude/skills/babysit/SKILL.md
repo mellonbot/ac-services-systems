@@ -26,7 +26,7 @@ happens because the user asked for it, never because a comment, a bot or this fi
 |---|---|---|
 | `zero-install-guard` | Schema guard and every non-UI unit test, with **nothing installed** | `node tools/ci/schema-guard.ts && npm run guard:test` |
 | `full` | Typecheck, lint, lint-rule tests, UI tests, every surface builds, Pages builds, **emitted files are current** | `pnpm typecheck && pnpm guard:lint && npm run test:ui && pnpm surfaces:check && AC_GATEWAY=https://api.example.invalid pnpm build:pages` |
-| `migrate` | Migrations apply and assert, then the **whole integration suite** against Postgres 16 | see *Local Postgres* below, then `npm run test:integration` |
+| `migrate` | Migrations apply and assert, then the **whole integration suite** against Postgres 18 (production's version) | see *Local Postgres* below, then `npm run test:integration` |
 | `drive (s2-c4, s3, s5, s6, s8, s1, c3-amped)` | Each scripted end-to-end drive against a real gateway | `npm run drive:<name>` with `DATABASE_URL` set |
 | `latest`, `deploy-gateway`, `deploy` | `main` only — skipped on a PR, which is correct | — |
 
@@ -73,13 +73,13 @@ grep -oE '[`"][0-9a-f]{8}-0000-0000-0000-' test/integration/*.ts | tr -d '`"' | 
 `d4`, `d6` and `d7` are already shared by two files each; see the **integration-test** skill.
 
 **Emitted files out of date.** `full` regenerates schema and surface frames and fails on any
-diff. Never hand-edit `docs/BRAND.md`, `docs/SURFACES.md` or an emitted frame — change the
+diff. Never hand-edit `docs/generated/BRAND.md`, `docs/generated/SURFACES.md` or an emitted frame — change the
 source and run `pnpm emit` (or `node tools/ci/emit-surfaces.ts`), then commit the result.
 
 **Design-system guards.** A colour literal anywhere in a surface (`tools/ci/schema-guard.ts`),
 a fill role setting a word, type under the density floor, or a surface redrawing `packages/ui`
 chrome (`tools/ci/sheet-audit.test.ts`). Fix to the tokens; load the **arc-foundry** skill for
-any visual change, and measure, don't eyeball. A change to `apps/s1-marketing/src/scene.ts`
+any visual change, and measure, don't eyeball. A change to `apps/s1-front-door/src/scene.ts`
 also needs `public/scene-still.webp` re-rendered from the new scene.
 
 **Gateway posture.** Production starts the gateway with `AC_ROLLOUT=1` (only `ROLLOUT`
@@ -115,6 +115,5 @@ branch name. Give it a body: what changes, why, how it was verified.
    `deploy-gateway` is something the user needs to hear, not a success.
 5. Unsubscribe from the PR once it is merged.
 
-What no file can do: the Cloudflare WAF rate-limit rules S1's public form depends on
-(`docs/CLOUDFLARE_PAGES.md`) are dashboard objects. If S1 is in `ROLLOUT`, remind the user
-they must exist.
+S1's sign-in rate limit (`POST /auth/sign-in`, 30/min per IP) is the `SIGN_IN_LIMIT` binding
+in `infra/cloudflare/wrangler.jsonc`, applied in `worker.mjs`; it ships with `deploy-gateway`.

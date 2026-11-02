@@ -22,6 +22,25 @@ export type LoginOutput = {
 export type LogoutOutput = { readonly ok: true; readonly sessionId: string };
 
 /**
+ * S1, THE FRONT DOOR. One form for everyone; the gateway decides where the
+ * person belongs. `hardwareId` makes it a field-device sign-in (S5, the same
+ * check as `auth.deviceLogin`). `surface` answers a `choose`: the same
+ * credentials again, naming one of the surfaces offered.
+ */
+export type SignInInput = {
+  readonly email: string;
+  readonly password: string;
+  readonly hardwareId?: string;
+  readonly surface?: SurfaceId;
+};
+export type SignInDestination = { readonly surface: SurfaceId; readonly name: string; readonly path: string };
+export type SignInOutput =
+  /** A session was minted for `surface` and set as the httpOnly cookie. The browser goes to `path`. */
+  | { readonly kind: "signed_in"; readonly surface: SurfaceId; readonly path: string; readonly token: string; readonly expiresAt: string }
+  /** This login opens more than one live surface. No session yet: sign in again with one of these as `surface`. */
+  | { readonly kind: "choose"; readonly choices: readonly SignInDestination[] };
+
+/**
  * 0033 — THE ACCOUNT BUTTON. What a person sets about themselves. Presence is
  * what they say, never a state the system derived, so a surface draws it as a
  * word and never in a state ink.

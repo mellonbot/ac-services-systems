@@ -33,7 +33,7 @@ import {
 } from "../../packages/domain/src/compliance/gate.ts";
 import {
   type HierarchyReader,
-} from "../../apps/gateway/src/context.ts";
+} from "../../services/gateway/src/http/context.ts";
 import {
   INTERNAL_ORG_ID,
   UNASSIGNED_REGION_ID,
@@ -95,9 +95,9 @@ export type Settlement = Mutable<Omit<W.SettlementWire, "lineCount">>;
 export type User = { id: string; email: string; password: string; name: string; principal: Omit<Principal, "sessionId">; surfaces: SurfaceId[]; crewId?: string };
 
 export const REGIONS: Region[] = [
-  { id: REGION_WEST, code: "WEST", name: "West", timezone: "America/Los_Angeles", minCrewDensity: 2, active: true },
-  { id: REGION_MOUNTAIN, code: "MOUNTAIN", name: "Mountain", timezone: "America/Denver", minCrewDensity: 1, active: true },
-  { id: REGION_SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 3, active: true },
+  { id: REGION_WEST, code: "WEST", name: "West", timezone: "America/Los_Angeles", minCrewDensity: 2, active: true, assignable: true },
+  { id: REGION_MOUNTAIN, code: "MOUNTAIN", name: "Mountain", timezone: "America/Denver", minCrewDensity: 1, active: true, assignable: true },
+  { id: REGION_SOUTH, code: "SOUTH", name: "South", timezone: "America/Chicago", minCrewDensity: 3, active: true, assignable: true },
 ];
 
 export const CEDAR = "b0000000-0000-0000-0000-000000000001";
@@ -455,12 +455,7 @@ export type Session = { id: string; user: User; token: string };
 export const cookieSessions = new Map<SurfaceId, Session>();
 export const bearerSessions = new Map<string, Session>();
 /** S5's signed-in device, whose stream the launcher feeds; the last device login wins, as on one tablet. */
-export const liveSession = { device: null as Session | null, anonCookieExpires: 0 };
-/**
- * S1's anonymous sessions and when each expires: S1's bearer operations need one, as at the real gateway —
- * by bearer token, or (the browser's way, which S1 uses) by the session cookie, kept here per surface.
- */
-export const anonTokens = new Map<string, number>();
+export const liveSession = { device: null as Session | null };
 export type Profile = { presence: W.Presence; statusNote: string | null; avatar: W.MyAccountWire["avatar"]; passwordChangedAt: string | null };
 export const profiles = new Map<string, Profile>();
 export const profileOf = (u: User): Profile => {
@@ -639,7 +634,7 @@ export const bad = (message: string) => new Refused(400, "BadInput", message);
 // Handlers — one per operation the surfaces call. `p` is null for S1.
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
-// S4 — the rollup's figures, the same definitions as apps/worker/src/rollup.ts,
+// S4 — the rollup's figures, the same definitions as services/worker/src/rollup.ts,
 // evaluated over this gateway's rows. Past days are not stored in the demo, so
 // the trend behind a figure is a steady synthetic history ending at today's value.
 // ---------------------------------------------------------------------------
@@ -726,7 +721,7 @@ export const pastValue = (metric: HqMetricKey, regionId: string, today: number, 
 
 // ---------------------------------------------------------------------------
 // Item 11 — procurement: the office's purchasing (S2) and the vendor's side
-// (S7). Same wire shapes as apps/gateway/src/handlers/procurement.ts; the
+// (S7). Same wire shapes as services/gateway/src/handlers/procurement.ts; the
 // three-way match is the real domain function. A vendor sees its own rows,
 // and an order only once issued — 0011's rules, imitated here by hand.
 // ---------------------------------------------------------------------------

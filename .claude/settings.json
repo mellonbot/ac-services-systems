@@ -4,5 +4,18 @@
     "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/statusline.sh",
     "padding": 0,
     "refreshInterval": 1
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/context-reminder.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }

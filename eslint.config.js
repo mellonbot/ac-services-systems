@@ -46,22 +46,22 @@ export default tseslint.config(
     // The money path. Scoped deliberately: WCAG contrast ratios and layout
     // maths are genuinely floating point, and a rule that fires there is a rule
     // that gets a disable comment — which is the erosion, one file over.
-    files: ["packages/domain/**/*.ts", "apps/gateway/**/*.ts", "apps/worker/**/*.ts"],
+    files: ["packages/domain/**/*.ts", "services/gateway/**/*.ts", "services/worker/**/*.ts"],
     rules: { "ac/no-float-money": "error" },
   },
   {
     // The storage package IS the interface, and build tooling reads the repo by
     // definition. Neither is product code reaching around the abstraction.
-    files: ["packages/storage/**/*.ts", "tools/**/*.ts", "tools/**/*.js", "tools/**/*.mjs"],
+    files: ["packages/storage/**/*.ts", "tools/**/*.ts", "tools/**/*.js", "tools/**/*.mjs", "external/**/*.ts", "external/**/*.mjs", "external/**/*.cjs"],
     rules: { "ac/no-storage-bypass": "off" },
   },
   {
     // Electron loads this smoke script as CommonJS; require() is how it imports.
-    files: ["tools/logins-app/**/*.cjs"],
+    files: ["external/logins-app/**/*.cjs"],
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
   {
-    // figures.test.ts reads docs/BRAND.md and brand.ts to prove the prose
+    // figures.test.ts reads docs/generated/BRAND.md and brand.ts to prove the prose
     // quotes the measurement. That is the same category as build tooling
     // reading the repo — it checks repository TEXT, not product data — and the
     // exemption is scoped to this one package's tests rather than to tests in

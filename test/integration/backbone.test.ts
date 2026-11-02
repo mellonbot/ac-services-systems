@@ -12,14 +12,14 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { createPool, beginTx, hierarchyReader, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { createUnitOfWork, type Tx } from "../../apps/gateway/src/unit-of-work.ts";
-import { buildContext } from "../../apps/gateway/src/context.ts";
-import { authorTermOverride, resolvedTermsAt } from "../../apps/gateway/src/handlers/terms.ts";
-import { assignCrew } from "../../apps/gateway/src/handlers/assignment.ts";
-import { ingestSync } from "../../apps/gateway/src/handlers/sync.ts";
-import { relayOnce, notifyPublisher } from "../../apps/worker/src/relay.ts";
-import { sweepCredentialExpiry } from "../../apps/worker/src/sweeps.ts";
+import { createPool, beginTx, hierarchyReader, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
+import { createUnitOfWork, type Tx } from "../../services/gateway/src/db/unit-of-work.ts";
+import { buildContext } from "../../services/gateway/src/http/context.ts";
+import { authorTermOverride, resolvedTermsAt } from "../../services/gateway/src/handlers/terms.ts";
+import { assignCrew } from "../../services/gateway/src/handlers/assignment.ts";
+import { ingestSync } from "../../services/gateway/src/handlers/sync.ts";
+import { relayOnce, notifyPublisher } from "../../services/worker/src/relay.ts";
+import { sweepCredentialExpiry } from "../../services/worker/src/sweeps.ts";
 import { AdmissionRefused } from "../../packages/domain/src/inheritance/admit.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import type { Principal } from "../../packages/contracts/src/scope.ts";
@@ -426,13 +426,13 @@ test("sync: a device log replays in device order; a duplicate replay is a no-op;
     const tx = uow.tx;
     const log = [
       { mutationId: "m1", deviceId: DEVICE, deviceSeq: 1, entityTable: "jobs", entityId: job, op: "transition" as const, payload: { state: "en_route" }, clientObservedVersion: 1, deviceAt: "2026-09-16T08:30:00Z" },
-      { mutationId: "m2", deviceId: DEVICE, deviceSeq: 2, entityTable: "jobs", entityId: job, op: "transition" as const, payload: { state: "on_site" }, clientObservedVersion: 2, deviceAt: "2026-09-16T09:05:00Z" },
+      { mutationId: "m2", deviceId: DEVICE, deviceSeq: 2, entityTable: "jobs", entityId: job, op: "transition" as const, payload: { state: "in_progress" }, clientObservedVersion: 2, deviceAt: "2026-09-16T09:05:00Z" },
       { mutationId: "m3", deviceId: DEVICE, deviceSeq: 3, entityTable: "job_media", entityId: job, op: "insert" as const, payload: { storage_key: `${REGION_SOUTH}/${ORG}/photo/p1`, kind: "photo" }, clientObservedVersion: null, deviceAt: "2026-09-16T09:10:00Z" },
       { mutationId: "m4", deviceId: DEVICE, deviceSeq: 4, entityTable: "assignments", entityId: job, op: "insert" as const, payload: { crew_id: CREW_B }, clientObservedVersion: null, deviceAt: "2026-09-16T09:11:00Z" },
     ];
     const out = await ingestSync(uow, USER_TECH, { deviceId: DEVICE, grantId: GRANT, mutations: log, orgId: INTERNAL_ORG_ID, regionId: REGION_SOUTH }, NOW);
     assert.deepEqual(out.map((o) => o.outcome), ["applied", "applied", "applied", "rejected"]);
-    assert.equal((await tx.query<{ state: string }>(`SELECT state FROM jobs WHERE id = $1`, [job]))[0]!.state, "on_site");
+    assert.equal((await tx.query<{ state: string }>(`SELECT state FROM jobs WHERE id = $1`, [job]))[0]!.state, "in_progress");
     assert.equal((await tx.query(`SELECT 1 FROM job_state_events WHERE job_id = $1 AND surface_id = 'S5'`, [job])).length, 2);
     assert.equal((await tx.query(`SELECT 1 FROM sync_mutations WHERE device_id = $1 AND outcome = 'rejected'`, [DEVICE])).length, 1);
     // Twelve hours later the device replays the same log.

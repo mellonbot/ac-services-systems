@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveMutation, replay, mayDeviceWrite, CONFLICT_POLICIES, type Mutation, type ServerState } from "./index.ts";
+import { resolveMutation, replay, mayDeviceWrite, CONFLICT_POLICIES, DEVICE_TRANSITIONS, type Mutation, type ServerState } from "./index.ts";
 
 const m = (over: Partial<Mutation>): Mutation => ({
   mutationId: "m-1", deviceId: "d-1", deviceSeq: 1, entityTable: "jobs", entityId: "j-1", op: "transition",
@@ -26,25 +26,32 @@ test("replay is idempotent: the same mutation id twice is a duplicate, not a sec
 test("state machine: legal device transitions apply in device order, each seeing the previous", () => {
   const log = [
     m({ mutationId: "a", deviceSeq: 1, payload: { state: "en_route" } }),
-    m({ mutationId: "b", deviceSeq: 2, payload: { state: "on_site" } }),
-    m({ mutationId: "c", deviceSeq: 3, payload: { state: "in_progress" } }),
-    m({ mutationId: "d", deviceSeq: 4, payload: { state: "complete" } }),
+    m({ mutationId: "c", deviceSeq: 2, payload: { state: "in_progress" } }),
+    m({ mutationId: "d", deviceSeq: 3, payload: { state: "complete" } }),
   ];
   // The caller threads state: server state after each applied transition.
   let state: ServerState = { version: 1, state: "assigned", fields: {} };
   const outcomes = replay(log, (mut, prior) => {
     const applied = prior.filter((o) => o.outcome === "applied").length;
-    const states = ["assigned", "en_route", "on_site", "in_progress", "complete"];
+    const states = ["assigned", "en_route", "in_progress", "complete"];
     state = { version: 1 + applied, state: states[applied]!, fields: {} };
     return state;
   }, none);
-  assert.deepEqual(outcomes.map((o) => o.outcome), ["applied", "applied", "applied", "rejected"]);
-  assert.match((outcomes[3] as { note: string }).note, /completed by its wrap-up/, "0034: completing is the wrap-up's, never a bare transition");
+  assert.deepEqual(outcomes.map((o) => o.outcome), ["applied", "applied", "rejected"]);
+  assert.match((outcomes[2] as { note: string }).note, /completed with its completion report/, "0034: completing is the completion report's, never a bare transition");
+});
+
+test("state machine: a technician's four states — on site is no longer a step a device takes", () => {
+  assert.ok(!DEVICE_TRANSITIONS.includes("on_site"), "on_site is not a device move");
+  const r = resolveMutation(m({ payload: { state: "on_site" } }), { version: 3, state: "en_route", fields: {} }, none);
+  assert.notEqual(r.outcome, "applied", "en_route → on_site is no longer legal");
+  const legacy = resolveMutation(m({ payload: { state: "in_progress" } }), { version: 3, state: "on_site", fields: {} }, none);
+  assert.equal(legacy.outcome, "applied", "a job already on site still moves to in progress");
 });
 
 test("state machine: arriving out of order is data — sorted by device_seq, not arrival", () => {
   const log = [
-    m({ mutationId: "b", deviceSeq: 2, payload: { state: "on_site" } }),
+    m({ mutationId: "b", deviceSeq: 2, payload: { state: "in_progress" } }),
     m({ mutationId: "a", deviceSeq: 1, payload: { state: "en_route" } }),
   ];
   const outcomes = replay(log, (_, prior) => ({ version: 1, state: prior.length === 0 ? "assigned" : "en_route", fields: {} }), none);

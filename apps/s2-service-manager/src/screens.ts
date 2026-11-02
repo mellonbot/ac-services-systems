@@ -42,8 +42,12 @@ export const SCREENS = {
   "billing.invoice":   { path: "/invoicing/invoices/:invoiceId",          uses: ["invoices.list", "payments.list", "organizations.list"], nav: "billing" },
   // D-2a: the hardware S5 signs in with, and the shift grant that admits a technician to it. The forms before `devices`.
   "devices.new":       { path: "/devices/new",                           uses: ["devices.register", "regions.list", "firms.list"], nav: "devices" },
-  "devices.grant":     { path: "/devices/grant/:deviceId?",              uses: ["devices.grantShift", "devices.list", "crews.list"], nav: "devices" },
-  "devices":           { path: "/devices",                               uses: ["devices.list", "firms.list"], title: "Field devices" },
+  "devices.grant":     { path: "/devices/grant/:deviceId?",              uses: ["devices.grantShift", "devices.list", "crews.list", "devices.listGrants"], nav: "devices" },
+  "devices":           { path: "/devices",                               uses: ["devices.list", "firms.list", "devices.listGrants", "devices.extendShift", "devices.revokeShift"], title: "Field devices" },
+  // 0038: Regions — a principal's. The forms before `regions.region`, whose :regionId would otherwise claim "/regions/new".
+  "regions.new":       { path: "/regions/new",                           uses: ["regions.create"], nav: "regions" },
+  "regions.region":    { path: "/regions/:regionId",                     uses: ["regions.list", "regions.update", "regions.setActive"], nav: "regions" },
+  "regions":           { path: "/regions",                               uses: ["regions.list"], title: "Regions" },
   "billing":           { path: "/invoicing",                             uses: ["invoices.list", "organizations.list"], title: "Invoicing" },
   "purchasing":        { path: "/purchasing",                            uses: ["pos.list", "vendors.list", "vendors.create", "receivingPoints.list", "receivingPoints.create", "regions.list"], title: "Purchasing" },
 } as const satisfies Record<string, ScreenSpec>;

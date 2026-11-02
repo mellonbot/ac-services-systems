@@ -5,10 +5,10 @@ import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contra
 import { SURFACE, connect, brand } from "./main.ts";
 import { SCREENS, type ScreenId } from "./screens.ts";
 import { createStore, type Store } from "./state.ts";
-import type { Screen, ScreenContext } from "./screens/common.ts";
+import { readNodes, type Screen, type ScreenContext } from "./screens/common.ts";
 import { sites } from "./screens/sites.ts";
 import { work } from "./screens/work.ts";
-import { home, canRequest } from "./screens/home.ts";
+import { home, canRequest, activeHomes } from "./screens/home.ts";
 import { agreements } from "./screens/agreements.ts";
 import { terms } from "./screens/terms.ts";
 import { request } from "./screens/request.ts";
@@ -103,11 +103,13 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const loc = router.current.value;
     const screen = loc && loc.screen !== "login" ? SCREEN_VIEWS[loc.screen] : null;
     const residential = isResidential(ctx);
+    const nodesNow = residential ? readNodes(ctx).value : null;
+    const homeCount = nodesNow?.state === "ready" ? activeHomes(nodesNow.value.nodes).length : 0;
     const who = residential ? p.shell.context?.parent.name ?? "" : p.shell.context?.path.map((n) => n.name).join(" › ") ?? p.shell.context?.parent.name ?? "";
     return html`<div class="s6-app">
       <nav class="ac-nav" aria-label="Screens">
         ${nav("work", residential ? "Your home" : "Work orders")}
-        ${residential ? null : nav("sites", "Sites")}
+        ${residential ? (homeCount > 1 ? nav("sites", "Homes") : null) : nav("sites", "Sites")}
         ${nav("agreements", "Agreements")}
         <span class="ac-nav__who" id="who">${who}</span>
         ${canRequest(ctx) ? PrimaryAction({ density: DENSITY, label: "Request service", id: "nav-request", onClick: () => router.navigate("request", {}) }) : null}

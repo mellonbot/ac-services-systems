@@ -9,7 +9,7 @@ import type { CustomerSegment } from "./operations.ts";
  * the gateway."
  *
  * Lives in contracts, not in the gateway, because both ends of the wire name
- * it: the gateway builds it (apps/gateway/src/context.ts) and the shell hands
+ * it: the gateway builds it (services/gateway/src/http/context.ts) and the shell hands
  * it to surfaces. A shell that imported the gateway's type would be a shell
  * with a dependency pointing the wrong way.
  */
@@ -42,4 +42,17 @@ export type HierarchyContext = {
    * there before the split.
    */
   readonly segment?: CustomerSegment | null;
+  /**
+   * For a device principal, the crew its shift grant names — what
+   * `auth.deviceLogin` answers with, read again so S5 can resume a session S1
+   * signed it into. Not a token claim, for the reason in the gateway's
+   * context.ts: a revoked grant would leave a claim that lies. Absent otherwise.
+   */
+  readonly deviceCrew?: { readonly id: string; readonly label: string } | null;
+  /**
+   * For a device principal, when its session ends (the token's `exp`, the
+   * cookie's expiry). S5 opens a held shift from cache only before it.
+   * Absent otherwise.
+   */
+  readonly deviceShiftEndsAt?: string;
 };

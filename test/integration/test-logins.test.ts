@@ -1,7 +1,7 @@
 /**
  * THE TEST LOGINS OVER THE WIRE — superadmin-test, dispatcher-test,
  * service_manager-test and customer-test, seeded by the same tool an operator runs
- * (tools/ci/seed-test-logins.ts), against a spawned gateway and a live
+ * (tools/ops/seed-test-logins.ts), against a spawned gateway and a live
  * PostgreSQL.
  *
  *   DATABASE_URL=postgres://... npm run test:integration
@@ -16,13 +16,13 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createPool, beginTx, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { scopeBinding } from "../../apps/gateway/src/context.ts";
+import { createPool, beginTx, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
+import { scopeBinding } from "../../services/gateway/src/http/context.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { GatewayRefusal, SURFACE_IDS, SURFACES, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
-import { seedTestLogins, resolveRegion, resolveCustomerOrg, type SeededLogin } from "../../tools/ci/seed-test-logins.ts";
-import { TEST_LOGINS, CUSTOMER_TEST_LOGIN, type TestLogin } from "../../tools/ci/test-logins.ts";
+import { seedTestLogins, resolveRegion, resolveCustomerOrg, type SeededLogin } from "../../tools/ops/seed-test-logins.ts";
+import { TEST_LOGINS, CUSTOMER_TEST_LOGIN, type TestLogin } from "../../tools/ops/test-logins.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — the test logins were not verified over the wire";
@@ -57,7 +57,7 @@ before(async () => {
   const again = await seedTestLogins(pool, { password: PASSWORD, regionId: region.id, customerOrgId: customerOrg });
   assert.deepEqual(again.map((s) => s.id), seeded.map((s) => s.id), "a re-seed updates the same rows");
 
-  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
+  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../services/gateway/src/main.ts", import.meta.url))], {
     env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test" }, stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";

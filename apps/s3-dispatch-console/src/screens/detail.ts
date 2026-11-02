@@ -145,7 +145,7 @@ const wrapUpPanel = (ctx: ScreenContext, w: JobWrapUpWire): VNode => {
     ${w.signatureMediaId
       ? (signature ? html`<img class="s3-wrapup__signature" id="wrapup-signature" src=${signature} alt="The customer's signature" />` : html`<p class="s3-muted">Loading the signature…</p>`)
       : html`<p id="wrapup-absent">No signature — ${w.customerAbsentReason}</p>`}
-  </div>`, "Wrap-up", "How the field closed the visit.", undefined, "job-wrapup");
+  </div>`, "Completion", "How the field closed the visit.", undefined, "job-wrapup");
 };
 
 const crewChip = (label: string): VNode => html`<span class="s3-tech"><span class="dispatch-board__avatar" aria-hidden="true">${initials(label)}</span>${label}</span>`;

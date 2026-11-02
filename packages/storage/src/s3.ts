@@ -61,10 +61,13 @@ export const signV4 = (req: {
 const amzDateOf = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
 const STORE_TIMEOUT_MS = 15_000;
+const PROBE_TIMEOUT_MS = 5_000;
+/** Never written. A GET for it answers 404 NoSuchKey only past auth and bucket lookup. */
+const PROBE_KEY = "readyz-probe";
 
 export const s3Store = (cfg: S3Config, fetchImpl: S3Fetch, now: () => Date = () => new Date()): ObjectStore => {
   const base = new URL(cfg.endpoint);
-  const call = async (method: "PUT" | "GET", key: StorageKey, body?: Uint8Array, contentType?: string) => {
+  const send = async (method: "PUT" | "GET", key: string, timeoutMs: number, body?: Uint8Array, contentType?: string) => {
     const path = `/${cfg.bucket}/${key}`;
     const payloadHash = sha256Hex(body ?? "");
     const amzDate = amzDateOf(now());
@@ -74,19 +77,35 @@ export const s3Store = (cfg: S3Config, fetchImpl: S3Fetch, now: () => Date = () 
       accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey, amzDate,
     });
     const url = `${base.origin}${path.split("/").map(uriEncode).join("/")}`;
-    const res = await fetchImpl(url, {
+    return fetchImpl(url, {
       method,
       headers: { ...headers, "x-amz-date": amzDate, "x-amz-content-sha256": payloadHash, authorization },
       ...(body ? { body } : {}),
       // The caller holds a database transaction while this runs; a store that
       // never answers must not hold it forever.
-      signal: AbortSignal.timeout(STORE_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
+  };
+  const call = async (method: "PUT" | "GET", key: StorageKey, body?: Uint8Array, contentType?: string) => {
+    const res = await send(method, key, STORE_TIMEOUT_MS, body, contentType);
     if (!res.ok) throw new Error(`[storage] ${method} ${key} → ${res.status} ${(await res.text()).slice(0, 200)}`);
     return res;
   };
   return {
     async put(key, body, contentType) { await call("PUT", key, body, contentType); },
     async get(key) { return new Uint8Array(await (await call("GET", key)).arrayBuffer()); },
+    /**
+     * A GET for a key that is never written: signed like a real read, so a
+     * wrong key id or secret is 403, a token scoped to another bucket is 403,
+     * a misspelt bucket is 404 NoSuchBucket, a wrong endpoint does not answer.
+     * Only 404 NoSuchKey (or 200, should the key ever exist) is proof.
+     */
+    async probe() {
+      const res = await send("GET", PROBE_KEY, PROBE_TIMEOUT_MS);
+      if (res.ok) return;
+      const body = (await res.text()).slice(0, 200);
+      if (res.status === 404 && body.includes("NoSuchKey")) return;
+      throw new Error(`[storage] probe ${cfg.bucket} → ${res.status} ${body}`);
+    },
   };
 };

@@ -1,5 +1,5 @@
 /**
- * AC LOGINS' DATABASE ACCESS OVER THE WIRE — tools/logins-app/src/db.ts against
+ * AC LOGINS' DATABASE ACCESS OVER THE WIRE — external/logins-app/src/db.ts against
  * a spawned gateway and a live PostgreSQL.
  *
  *   DATABASE_URL=postgres://... node --test --test-concurrency=1 test/integration/logins-app.test.ts
@@ -14,15 +14,15 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createPool, type Pool } from "../../apps/gateway/src/pg-tx.ts";
+import { createPool, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { GatewayRefusal, type SurfaceId } from "../../packages/contracts/src/index.ts";
 import { UNASSIGNED_REGION_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
-import { openDb, attachIdleErrorHandler, failure, LoginsDbError, LOGINS_APP_ACTOR, type LoginsDb } from "../../tools/logins-app/src/db.ts";
-import { kindsOf } from "../../tools/logins-app/src/kinds.ts";
-import { LoginInputError, type Employer } from "../../tools/logins-app/src/rows.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
+import { openDb, attachIdleErrorHandler, failure, LoginsDbError, LOGINS_APP_ACTOR, type LoginsDb } from "../../external/logins-app/src/db.ts";
+import { kindsOf } from "../../external/logins-app/src/kinds.ts";
+import { LoginInputError, type Employer } from "../../external/logins-app/src/rows.ts";
+import { hashPassword } from "../../services/gateway/src/auth/auth.ts";
 
 const URL_ = process.env.DATABASE_URL;
 const skip = URL_ ? false : "DATABASE_URL not set — the logins app's database access was not verified over the wire";
@@ -80,7 +80,7 @@ before(async () => {
 
   db = await openDb(URL_);
 
-  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
+  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../services/gateway/src/main.ts", import.meta.url))], {
     env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test" }, stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";
@@ -105,7 +105,7 @@ test("openDb surfaces a bad connection as LoginsDbError", { skip }, async () => 
 });
 
 test("the pickers see what the unbound role cannot", { skip }, async () => {
-  assert.ok((await db.listCompanies({ includeInactive: false })).some((c) => c.id === crewId && c.label === `Crew ${RUN}` && c.homeRegionId === REGION_SOUTH));
+  assert.ok((await db.listCrews({ includeInactive: false })).some((c) => c.id === crewId && c.label === `Crew ${RUN}` && c.homeRegionId === REGION_SOUTH));
   assert.ok((await db.listFirms()).some((f) => f.id === firmId && f.legalName === `Firm ${RUN} LLC`));
   const tree = await db.listAccountTree(orgId);
   assert.ok(tree.some((n) => n.id === regionNodeId && n.tier === "region" && n.parentId === null));
@@ -179,7 +179,7 @@ test("editLogin makes addLogin's checks: roles of the login's own kind, a scope 
   await assert.rejects(db.editLogin(dispatcherId, { displayName: "New", scope: { tier: "region", scopeId: REGION_WEST, regionId: REGION_SOUTH } }), input(/whole company or one region/));
   await assert.rejects(db.editLogin(dispatcherId, { displayName: "New", scope: { tier: "parent", scopeId: orgId, regionId: REGION_SOUTH } }), input(/whole company or one region/));
   await assert.rejects(db.editLogin(dispatcherId, { displayName: "New", scope: { tier: "region", scopeId: UNASSIGNED_REGION_ID, regionId: UNASSIGNED_REGION_ID } }), input(/not available/));
-  await assert.rejects(db.editLogin(subId, { displayName: "S", scope: { tier: "parent", scopeId: REGION_SOUTH, regionId: REGION_SOUTH } }), input(/follows its company/));
+  await assert.rejects(db.editLogin(subId, { displayName: "S", scope: { tier: "parent", scopeId: REGION_SOUTH, regionId: REGION_SOUTH } }), input(/follows its crew or firm/));
   await assert.rejects(db.editLogin(dispatcherId, { displayName: "New", ownUnit: true }), input(/Only a technician has a service unit/));
   assert.deepEqual({ d: await roles(dispatcherId), c: await roles(customerId), s: await roles(subId) }, before);
 });
@@ -253,8 +253,8 @@ const legacy = async (who: string, crew: string): Promise<{ id: string }> => (aw
 const refusedWith = (re: RegExp) => (e: unknown) => e instanceof LoginInputError && re.test(e.message);
 const newFirm = (name: string) => ({ legalName: name, regionId: REGION_SOUTH, paymentTermsDays: 30, dataRightsReserved: false, msaSignedAt: null });
 
-test("addCompany makes an install crew; a technician login makes their own service unit (0024)", { skip }, async () => {
-  const made = await db.addCompany({ type: "ours", name: `Ours ${RUN}`, regionId: REGION_SOUTH });
+test("addCrew makes an install crew; a technician login makes their own service unit (0024)", { skip }, async () => {
+  const made = await db.addCrew({ type: "ours", name: `Ours ${RUN}`, regionId: REGION_SOUTH });
   assert.equal(made.firmId, null);
   assert.deepEqual((await crewRows(made.id))[0], { org_id: INTERNAL, region_id: REGION_SOUTH, home_region_id: REGION_SOUTH, label: `Ours ${RUN}`, employment_type: "employed", firm_id: null, active: true, kind: "install" });
   const t = await tech("ours-tech");
@@ -263,7 +263,7 @@ test("addCompany makes an install crew; a technician login makes their own servi
   const listed = (await db.listUsers({ includeInactive: false })).find((u) => u.id === t.id)!;
   assert.deepEqual([listed.crewKind, listed.crewEmployment, listed.ownUnit], ["service", "employed", true]);
   assert.deepEqual(kindsOf(listed), ["S5"]);
-  assert.equal((await db.listCompanies({ includeInactive: false })).find((c) => c.id === unit)?.technicians, 1);
+  assert.equal((await db.listCrews({ includeInactive: false })).find((c) => c.id === unit)?.technicians, 1);
   // Two people can share a name; each still gets a unit of their own.
   const twin = await db.addLogin({ kind: "technician", email: email("ours-tech-twin"), displayName: `ours-tech ${RUN}`, password: PASSWORD, employer: { type: "ours", regionId: REGION_SOUTH } });
   assert.notEqual(await unitOf(twin.id), unit);
@@ -289,22 +289,22 @@ test("a contractor's technician gets a unit under the firm; a bad employer, regi
   }
 });
 
-test("addCompany refuses a region that is not available", { skip }, async () => {
-  await assert.rejects(db.addCompany({ type: "ours", name: `Nowhere ${RUN}`, regionId: UNASSIGNED_REGION_ID }), refusedWith(/That region is not available/));
-  await assert.rejects(db.addCompany({ type: "contractor", name: `Nowhere ${RUN}`, firm: { ...newFirm(`Nowhere Firm ${RUN}`), regionId: UNASSIGNED_REGION_ID } }), refusedWith(/That region is not available/));
+test("addCrew refuses a region that is not available", { skip }, async () => {
+  await assert.rejects(db.addCrew({ type: "ours", name: `Nowhere ${RUN}`, regionId: UNASSIGNED_REGION_ID }), refusedWith(/That region is not available/));
+  await assert.rejects(db.addCrew({ type: "contractor", name: `Nowhere ${RUN}`, firm: { ...newFirm(`Nowhere Firm ${RUN}`), regionId: UNASSIGNED_REGION_ID } }), refusedWith(/That region is not available/));
   assert.equal((await admin(`SELECT count(*)::int AS n FROM organizations WHERE name = $1`, [`Nowhere Firm ${RUN}`]))[0].n, 0);
 });
 
 let contractorId = "", contractorFirmId = "";
-test("addCompany contractor with a new firm", { skip }, async () => {
-  const made = await db.addCompany({ type: "contractor", name: `Contractor ${RUN}`, firm: { ...newFirm(`Contractor Firm ${RUN} LLC`), msaSignedAt: "2026-03-01" } });
+test("addCrew contractor with a new firm", { skip }, async () => {
+  const made = await db.addCrew({ type: "contractor", name: `Contractor ${RUN}`, firm: { ...newFirm(`Contractor Firm ${RUN} LLC`), msaSignedAt: "2026-03-01" } });
   contractorId = made.id; contractorFirmId = made.firmId!;
   assert.ok(contractorFirmId);
   assert.deepEqual((await admin(`SELECT name, kind FROM organizations WHERE id = $1`, [contractorFirmId]))[0], { name: `Contractor Firm ${RUN} LLC`, kind: "subcontractor" });
   const f = (await admin(`SELECT org_id, region_id, legal_name, status, settlement_terms_days, to_char(msa_signed_at,'YYYY-MM-DD') AS msa, diagnostic_data_rights_reserved FROM subcontractor_firms WHERE id = $1`, [contractorFirmId]))[0];
   assert.deepEqual(f, { org_id: contractorFirmId, region_id: REGION_SOUTH, legal_name: `Contractor Firm ${RUN} LLC`, status: "onboarding", settlement_terms_days: 30, msa: "2026-03-01", diagnostic_data_rights_reserved: false });
   assert.deepEqual((await crewRows(contractorId))[0], { org_id: contractorFirmId, region_id: REGION_SOUTH, home_region_id: REGION_SOUTH, label: `Contractor ${RUN}`, employment_type: "subcontracted", firm_id: contractorFirmId, active: true, kind: "install" });
-  const row = (await db.listCompanies({ includeInactive: false })).find((c) => c.id === contractorId)!;
+  const row = (await db.listCrews({ includeInactive: false })).find((c) => c.id === contractorId)!;
   assert.equal(row.firmName, `Contractor Firm ${RUN} LLC`);
   assert.equal(row.firmStatus, "onboarding");
   assert.equal(row.technicians, 0);
@@ -313,50 +313,50 @@ test("addCompany contractor with a new firm", { skip }, async () => {
   assert.ok((await db.listFirms()).some((x) => x.id === contractorFirmId && x.status === "onboarding"));
 });
 
-test("addCompany under an existing firm; refused once the firm is terminated", { skip }, async () => {
-  const second = await db.addCompany({ type: "contractor", name: `Contractor Two ${RUN}`, firm: { existing: contractorFirmId } });
+test("addCrew under an existing firm; refused once the firm is terminated", { skip }, async () => {
+  const second = await db.addCrew({ type: "contractor", name: `Contractor Two ${RUN}`, firm: { existing: contractorFirmId } });
   assert.equal(second.firmId, contractorFirmId);
   assert.equal((await crewRows(second.id))[0].org_id, contractorFirmId);
   await admin(`UPDATE subcontractor_firms SET status = 'terminated' WHERE id = $1`, [contractorFirmId]);
   try {
-    await assert.rejects(db.addCompany({ type: "contractor", name: `Contractor Three ${RUN}`, firm: { existing: contractorFirmId } }), refusedWith(/terminated/));
+    await assert.rejects(db.addCrew({ type: "contractor", name: `Contractor Three ${RUN}`, firm: { existing: contractorFirmId } }), refusedWith(/terminated/));
     assert.ok(!(await db.listFirms()).some((x) => x.id === contractorFirmId), "a terminated firm is not offered");
-    await db.removeCompany(second.id);
-    await assert.rejects(db.reactivateCompany(second.id), refusedWith(/terminated/));
+    await db.removeCrew(second.id);
+    await assert.rejects(db.reactivateCrew(second.id), refusedWith(/terminated/));
   } finally {
     await admin(`UPDATE subcontractor_firms SET status = 'active' WHERE id = $1`, [contractorFirmId]);
   }
-  await db.reactivateCompany(second.id);
+  await db.reactivateCrew(second.id);
   assert.equal((await crewRows(second.id))[0].active, true);
 });
 
-test("addCompany refuses a duplicate name, and writes nothing", { skip }, async () => {
-  await db.addCompany({ type: "ours", name: `AC Services DFW ${RUN}`, regionId: REGION_SOUTH });
-  await assert.rejects(db.addCompany({ type: "ours", name: ` ac  services dfw ${RUN} `, regionId: REGION_SOUTH }), refusedWith(/An install crew named .* already exists/));
-  await assert.rejects(db.addCompany({ type: "contractor", name: `Dup Firm Co ${RUN}`, firm: newFirm(`  contractor FIRM ${RUN}  llc `) }), refusedWith(/A firm named .* already exists/));
+test("addCrew refuses a duplicate name, and writes nothing", { skip }, async () => {
+  await db.addCrew({ type: "ours", name: `AC Services DFW ${RUN}`, regionId: REGION_SOUTH });
+  await assert.rejects(db.addCrew({ type: "ours", name: ` ac  services dfw ${RUN} `, regionId: REGION_SOUTH }), refusedWith(/An install crew named .* already exists/));
+  await assert.rejects(db.addCrew({ type: "contractor", name: `Dup Firm Co ${RUN}`, firm: newFirm(`  contractor FIRM ${RUN}  llc `) }), refusedWith(/A firm named .* already exists/));
   assert.equal((await admin(`SELECT count(*)::int AS n FROM crews WHERE lower(label) LIKE $1`, [`%ac%services%dfw ${RUN}%`]))[0].n, 1);
   assert.equal((await admin(`SELECT count(*)::int AS n FROM crews WHERE label = $1`, [`Dup Firm Co ${RUN}`]))[0].n, 0);
   assert.equal((await admin(`SELECT count(*)::int AS n FROM subcontractor_firms WHERE lower(legal_name) LIKE $1`, [`%contractor firm ${RUN}%`]))[0].n, 1);
 });
 
-test("removeCompany: a unit goes with its technician's login; a shared crew waits for its technicians to move", { skip }, async () => {
+test("removeCrew: a unit goes with its technician's login; a shared crew waits for its technicians to move", { skip }, async () => {
   const t = await tech("unit-owner");
   const unit = await unitOf(t.id);
-  await assert.rejects(db.removeCompany(unit), refusedWith(/own service unit — remove their login and the unit goes with it/));
+  await assert.rejects(db.removeCrew(unit), refusedWith(/own service unit — remove their login and the unit goes with it/));
   await db.deactivate(t.id);
-  assert.equal((await db.listCompanies({ includeInactive: true })).find((x) => x.id === unit)?.active, false);
-  const c = await db.addCompany({ type: "ours", name: `Removable ${RUN}`, regionId: REGION_SOUTH });
+  assert.equal((await db.listCrews({ includeInactive: true })).find((x) => x.id === unit)?.active, false);
+  const c = await db.addCrew({ type: "ours", name: `Removable ${RUN}`, regionId: REGION_SOUTH });
   const old = await legacy("removable-tech", c.id);
-  await assert.rejects(db.removeCompany(c.id), refusedWith(/Give its 1 technician their own service units first/));
+  await assert.rejects(db.removeCrew(c.id), refusedWith(/Give its 1 technician their own service units first/));
   await db.deactivate(old.id);
   assert.equal((await crewRows(c.id))[0].active, true, "an install crew does not leave with one of its people");
-  await db.removeCompany(c.id);
-  assert.ok(!(await db.listCompanies({ includeInactive: false })).some((x) => x.id === c.id));
-  await assert.rejects(db.removeCompany(randomUUID()), refusedWith(/That company no longer exists/));
+  await db.removeCrew(c.id);
+  assert.ok(!(await db.listCrews({ includeInactive: false })).some((x) => x.id === c.id));
+  await assert.rejects(db.removeCrew(randomUUID()), refusedWith(/That crew no longer exists/));
 });
 
-test("removeCompany refuses live assignments", { skip }, async () => {
-  const c = await db.addCompany({ type: "ours", name: `Busy ${RUN}`, regionId: REGION_SOUTH });
+test("removeCrew refuses live assignments", { skip }, async () => {
+  const c = await db.addCrew({ type: "ours", name: `Busy ${RUN}`, regionId: REGION_SOUTH });
   const client = await pool.connect();
   try {
     await client.query(`SET session_replication_role = replica`); // the assignment gate trigger wants a real clearance; this test is about the count. Triggers off, so the job's number (0030) is written by hand
@@ -373,9 +373,9 @@ test("removeCompany refuses live assignments", { skip }, async () => {
     await db.deactivate(t.id);
     assert.equal((await crewRows(unit))[0].active, true);
   } finally { await client.query(`SET session_replication_role = DEFAULT`); client.release(); }
-  await assert.rejects(db.removeCompany(c.id), refusedWith(/It has 1 job assigned — release them in Dispatch first/));
+  await assert.rejects(db.removeCrew(c.id), refusedWith(/It has 1 job assigned — release them in Dispatch first/));
   await admin(`UPDATE assignments SET released_at = now() WHERE crew_id = $1`, [c.id]);
-  await db.removeCompany(c.id);
+  await db.removeCrew(c.id);
 });
 
 test("reactivating a technician brings their unit back — not under a terminated firm, nor onto a removed crew", { skip }, async () => {
@@ -397,35 +397,35 @@ test("reactivating a technician brings their unit back — not under a terminate
     await admin(`UPDATE subcontractor_firms SET status = 'active' WHERE id = $1`, [firmId]);
   }
 
-  const gone = await db.addCompany({ type: "ours", name: `Gone ${RUN}`, regionId: REGION_SOUTH });
+  const gone = await db.addCrew({ type: "ours", name: `Gone ${RUN}`, regionId: REGION_SOUTH });
   const old = await legacy("old-sleeper", gone.id);
   const resident = await legacy("resident", gone.id);
   await db.deactivate(old.id);
   await db.deactivate(resident.id);
-  await db.removeCompany(gone.id);
+  await db.removeCrew(gone.id);
   await assert.rejects(db.reactivate(old.id), refusedWith(new RegExp(`Gone ${RUN} has been removed`)));
   // A cosmetic edit on a technician still pointing at the removed crew is not a placement.
   await admin(`UPDATE users SET active = true WHERE id = $1`, [resident.id]);
   assert.deepEqual(await db.editLogin(resident.id, { displayName: "Renamed" }), { revokedSessions: 0 });
 });
 
-test("reactivateCompany works", { skip }, async () => {
-  const c = await db.addCompany({ type: "ours", name: `Back ${RUN}`, regionId: REGION_SOUTH });
-  await db.removeCompany(c.id);
-  await db.reactivateCompany(c.id);
-  assert.ok((await db.listCompanies({ includeInactive: false })).some((x) => x.id === c.id));
-  await assert.rejects(db.reactivateCompany(randomUUID()), refusedWith(/That company no longer exists/));
+test("reactivateCrew works", { skip }, async () => {
+  const c = await db.addCrew({ type: "ours", name: `Back ${RUN}`, regionId: REGION_SOUTH });
+  await db.removeCrew(c.id);
+  await db.reactivateCrew(c.id);
+  assert.ok((await db.listCrews({ includeInactive: false })).some((x) => x.id === c.id));
+  await assert.rejects(db.reactivateCrew(randomUUID()), refusedWith(/That crew no longer exists/));
   const t = await tech("unit-back");
   const unit = await unitOf(t.id);
   await db.deactivate(t.id);
-  await assert.rejects(db.reactivateCompany(unit), refusedWith(/comes back with its technician — reactivate their login/));
+  await assert.rejects(db.reactivateCrew(unit), refusedWith(/comes back with its technician — reactivate their login/));
 });
 
-test("reactivateCompany refuses a label an active company now holds", { skip }, async () => {
-  const a = await db.addCompany({ type: "ours", name: `Twin ${RUN}`, regionId: REGION_SOUTH });
-  await db.removeCompany(a.id);
-  await db.addCompany({ type: "ours", name: ` twin  ${RUN}`, regionId: REGION_SOUTH });
-  await assert.rejects(db.reactivateCompany(a.id), refusedWith(/An install crew named .* already exists/));
+test("reactivateCrew refuses a label an active crew now holds", { skip }, async () => {
+  const a = await db.addCrew({ type: "ours", name: `Twin ${RUN}`, regionId: REGION_SOUTH });
+  await db.removeCrew(a.id);
+  await db.addCrew({ type: "ours", name: ` twin  ${RUN}`, regionId: REGION_SOUTH });
+  await assert.rejects(db.reactivateCrew(a.id), refusedWith(/An install crew named .* already exists/));
   assert.equal((await crewRows(a.id))[0].active, false);
 });
 
@@ -436,10 +436,10 @@ test("every write emits its event in the same transaction, so open pages refetch
       WHERE o.entity_id = $1 ORDER BY o.occurred_at, o.created_at`, [entityId]));
   const ACTOR = LOGINS_APP_ACTOR;
 
-  const c = await db.addCompany({ type: "contractor", name: `Evented ${RUN}`, firm: newFirm(`Evented Firm ${RUN} LLC`) });
+  const c = await db.addCrew({ type: "contractor", name: `Evented ${RUN}`, firm: newFirm(`Evented Firm ${RUN} LLC`) });
   assert.deepEqual(await events(c.firmId!), [{ topic: "firm.created", entity: "firm", org_id: c.firmId, region_id: REGION_SOUTH, actor_id: ACTOR, surface_id: "logins-app", action: "firm.create" }]);
-  await db.removeCompany(c.id);
-  await db.reactivateCompany(c.id);
+  await db.removeCrew(c.id);
+  await db.reactivateCrew(c.id);
   assert.deepEqual((await events(c.id)).map((e) => [e.topic, e.action, e.org_id]),
     [["crew.created", "crew.create", c.firmId], ["crew.updated", "crew.retire", c.firmId], ["crew.updated", "crew.reactivate", c.firmId]]);
 
@@ -453,16 +453,16 @@ test("every write emits its event in the same transaction, so open pages refetch
 
   // A refused write rolls its event back with it.
   const before = (await admin(`SELECT count(*)::int AS n FROM outbox WHERE actor_id = $1`, [ACTOR]))[0].n;
-  await assert.rejects(db.addCompany({ type: "ours", name: `Evented ${RUN}`, regionId: REGION_SOUTH }), refusedWith(/already exists/));
+  await assert.rejects(db.addCrew({ type: "ours", name: `Evented ${RUN}`, regionId: REGION_SOUTH }), refusedWith(/already exists/));
   assert.equal((await admin(`SELECT count(*)::int AS n FROM outbox WHERE actor_id = $1`, [ACTOR]))[0].n, before);
 });
 
-test("addCompany rejects (not throws) on an empty name", { skip }, async () => {
-  await assert.rejects(db.addCompany({ type: "ours", name: "", regionId: REGION_SOUTH }), refusedWith(/name/));
+test("addCrew rejects (not throws) on an empty name", { skip }, async () => {
+  await assert.rejects(db.addCrew({ type: "ours", name: "", regionId: REGION_SOUTH }), refusedWith(/name/));
 });
 
 test("Move to their own service unit: off a shared or install crew, same employer, sessions ended", { skip }, async () => {
-  const from = await db.addCompany({ type: "ours", name: `Move From ${RUN}`, regionId: REGION_SOUTH });
+  const from = await db.addCrew({ type: "ours", name: `Move From ${RUN}`, regionId: REGION_SOUTH });
   const t = await legacy("move-tech", from.id);
   assert.equal((await db.listUsers({ includeInactive: false })).find((u) => u.id === t.id)?.ownUnit, false);
   const device = (await admin(
@@ -485,7 +485,7 @@ test("Move to their own service unit: off a shared or install crew, same employe
   await assert.rejects(db.editLogin(t.id, { displayName: "Mo Mover", ownUnit: true }), refusedWith(/already has their own service unit/));
 
   // A contractor's crew: the new unit stays under the same firm.
-  const shared = await db.addCompany({ type: "contractor", name: `Shared Firm Crew ${RUN}`, firm: { existing: firmId } });
+  const shared = await db.addCrew({ type: "contractor", name: `Shared Firm Crew ${RUN}`, firm: { existing: firmId } });
   const a = await legacy("shared-a", shared.id);
   await legacy("shared-b", shared.id);
   await db.editLogin(a.id, { displayName: "shared-a", ownUnit: true });

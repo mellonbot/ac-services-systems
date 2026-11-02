@@ -33,6 +33,11 @@ export const parseStorageKey = (k: StorageKey) => {
 export type ObjectStore = {
   put(key: StorageKey, body: Uint8Array, contentType: string): Promise<void>;
   get(key: StorageKey): Promise<Uint8Array>;
+  /**
+   * Prove the store answers with these credentials, writing nothing. Rejects
+   * with the reason; /readyz turns that into a 503.
+   */
+  probe(): Promise<void>;
 };
 
 export { s3Store, signV4, type S3Config, type S3Fetch } from "./s3.ts";

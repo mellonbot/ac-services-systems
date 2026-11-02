@@ -1,6 +1,6 @@
 /**
  * ITEM 4 OVER THE WIRE — S3 dispatch and S5 field, through the shell, against
- * a spawned gateway and a live PostgreSQL. The proof claude/19 named as
+ * a spawned gateway and a live PostgreSQL. The missing item 19 note named as
  * outstanding: "a mechanism is unexecuted until something actually runs it."
  *
  *   DATABASE_URL=postgres://... npm run test:integration
@@ -22,10 +22,10 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createPool, beginTx, type Pool } from "../../apps/gateway/src/pg-tx.ts";
-import { sweepQuoteJobs } from "../../apps/worker/src/quotes.ts";
-import { workerScope, WORKER_ACTOR } from "../../apps/worker/src/sweeps.ts";
-import { hashPassword } from "../../apps/gateway/src/auth.ts";
+import { createPool, beginTx, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
+import { sweepQuoteJobs } from "../../services/worker/src/quotes.ts";
+import { workerScope, WORKER_ACTOR } from "../../services/worker/src/sweeps.ts";
+import { hashPassword } from "../../services/gateway/src/auth/auth.ts";
 import { connectShell, type ConnectedShell } from "../../packages/shell/src/index.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { REGION_WEST, REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amped.ts";
@@ -64,7 +64,7 @@ before(async () => {
     ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, active = true, crew_id = NULL`,
     [USER_OWNER, INTERNAL_ORG_ID, REGION_SOUTH, hash, USER_DISP_SOUTH, USER_DISP_WEST, REGION_WEST, USER_TECH, USER_TECH_B]);
 
-  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../apps/gateway/src/main.ts", import.meta.url))], {
+  gateway = spawn(process.execPath, [fileURLToPath(new URL("../../services/gateway/src/main.ts", import.meta.url))], {
     env: { ...process.env, PORT: String(PORT), DATABASE_URL: URL_, AC_SITE: "ac.test", AC_STORAGE_DIR: join(tmpdir(), `ac-wrapup-${RUN}`) }, stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";
@@ -409,7 +409,7 @@ test("sync.replay: the device log replays in device order, a duplicate replay is
   });
   const version = (await admin(`SELECT version FROM jobs WHERE id = $1`, [jobId]))[0]!.version as number;
   const batch = [
-    mut(3, "jobs", jobId, "transition", { state: "on_site" }, version + 1),
+    mut(3, "jobs", jobId, "transition", { state: "in_progress" }, version + 1),
     mut(1, "jobs", jobId, "transition", { state: "en_route" }, version),
     mut(2, "checklist_items", jobId, "insert", { item_key: "filters_checked", response: { ok: true } }, null),
     mut(4, "time_entries", jobId, "insert", { crew_id: crewCleared, start: at(0), end: at(600), kind: "labor" }, null),
@@ -420,16 +420,16 @@ test("sync.replay: the device log replays in device order, a duplicate replay is
   const byId = new Map(first.outcomes.map((o) => [o.mutationId, o]));
   assert.equal(byId.get(`${RUN}-m1`)!.outcome, "applied", "en_route first, in device order, not arrival order");
   assert.equal(byId.get(`${RUN}-m2`)!.outcome, "applied");
-  assert.equal(byId.get(`${RUN}-m3`)!.outcome, "applied", "on_site after en_route");
+  assert.equal(byId.get(`${RUN}-m3`)!.outcome, "applied", "in_progress after en_route — on site is not a step");
   assert.equal(byId.get(`${RUN}-m4`)!.outcome, "applied");
   assert.equal(byId.get(`${RUN}-m5`)!.outcome, "rejected", "assignment is the office's; a device cannot route around the gate");
   const job = (await admin(`SELECT state, version FROM jobs WHERE id = $1`, [jobId]))[0]!;
-  assert.equal(job.state, "on_site");
+  assert.equal(job.state, "in_progress");
   assert.equal((await admin(`SELECT count(*)::int AS n FROM checklist_items WHERE job_id = $1 AND item_key = 'filters_checked'`, [jobId]))[0]!.n, 1);
   assert.equal((await admin(`SELECT count(*)::int AS n FROM time_entries WHERE job_id = $1 AND crew_id = $2`, [jobId, crewCleared]))[0]!.n, 1);
   assert.equal((await admin(`SELECT count(*)::int AS n FROM sync_mutations WHERE device_id = $1 AND mutation_id LIKE $2`, [deviceId, `${RUN}-m%`]))[0]!.n, 5, "every intent is recorded, whatever happened to it");
   const events = await admin(`SELECT to_state, surface_id FROM job_state_events WHERE job_id = $1 AND surface_id = 'S5' ORDER BY occurred_at`, [jobId]);
-  assert.deepEqual(events.map((e) => e.to_state), ["en_route", "on_site"]);
+  assert.deepEqual(events.map((e) => e.to_state), ["en_route", "in_progress"]);
 
   // The dropped-response case: the same batch again. Nothing moves, nothing is written twice.
   const second = await s5.gateway.replaySync({ orgId, regionId: REGION_SOUTH, mutations: batch });
@@ -443,9 +443,9 @@ test("sync.replay: the device log replays in device order, a duplicate replay is
     (e: unknown) => code(s3, e) === "job_in_progress",
   );
   const onBoard = (await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!;
-  assert.equal(onBoard.state, "on_site", "the dispatcher's board reads the field's state");
-  const onSite = (await admin(`SELECT max(occurred_at) AS at FROM job_state_events WHERE job_id = $1 AND to_state = 'on_site'`, [jobId]))[0]!;
-  assert.equal(onBoard.stateChangedAt, (onSite.at as Date).toISOString(), "a field transition restarts the time-in-state clock");
+  assert.equal(onBoard.state, "in_progress", "the dispatcher's board reads the field's state");
+  const started = (await admin(`SELECT max(occurred_at) AS at FROM job_state_events WHERE job_id = $1 AND to_state = 'in_progress'`, [jobId]))[0]!;
+  assert.equal(onBoard.stateChangedAt, (started.at as Date).toISOString(), "a field transition restarts the time-in-state clock");
   await s5.logout();
 });
 
@@ -593,9 +593,9 @@ test("0034 wrap-up: media first, then the wrap-up, each idempotent; every rule i
   await s5.logout();
 });
 
-test("waiting on the customer, mid-job: the office holds an on-site job for the customer and resumes it into the work", { skip }, async () => {
+test("waiting on the customer, mid-job: the office holds a job in progress for the customer and resumes it into the work", { skip }, async () => {
   const move = (to: string) => s3.gateway.transitionJob({ jobId, orgId, regionId: REGION_SOUTH, to: to as never });
-  assert.equal((await admin(`SELECT state FROM jobs WHERE id = $1`, [jobId]))[0]!.state, "on_site");
+  assert.equal((await admin(`SELECT state FROM jobs WHERE id = $1`, [jobId]))[0]!.state, "in_progress");
   assert.equal((await move("awaiting_customer")).state, "awaiting_customer");
   assert.equal((await s3.gateway.listJobs({})).jobs.find((j) => j.id === jobId)!.state, "awaiting_customer");
   await assert.rejects(move("created"), (e: unknown) => code(s3, e) === "illegal_transition", "a held job resumes; it does not go back to dispatch from here");
@@ -709,14 +709,14 @@ test("after dispatch: a cancelled job releases its crew and leaves the crew's li
     await admin(`UPDATE jobs SET state = $2 WHERE id = $1`, [id, state]);
     return id;
   };
-  const cancelled = await dispatched("en_route"), closed = await dispatched("on_site");
+  const cancelled = await dispatched("en_route"), closed = await dispatched("in_progress");
   const s5 = await technician();
   const mine = async () => (await s5.gateway.myJobs()).jobs.map((j) => j.id);
   assert.ok((await mine()).includes(cancelled) && (await mine()).includes(closed));
 
   await assert.rejects(
     s3.gateway.transitionJob({ jobId: closed, orgId, regionId: REGION_SOUTH, to: "cancelled" }),
-    (e: unknown) => code(s3, e) === "illegal_transition", "the crew is on site: stopping now is an abort, not a cancellation",
+    (e: unknown) => code(s3, e) === "illegal_transition", "work is in progress: stopping now is an abort, not a cancellation",
   );
   const out = await s3.gateway.transitionJob({ jobId: cancelled, orgId, regionId: REGION_SOUTH, to: "cancelled" });
   assert.equal(out.state, "cancelled");

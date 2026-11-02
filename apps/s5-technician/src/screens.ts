@@ -10,7 +10,7 @@ import type { ScreenSpec } from "../../../packages/ui/src/index.ts";
 export const SCREENS = {
   "login": { path: "/login",           uses: ["auth.deviceLogin"] },
   "job":   { path: "/jobs/:jobId",     uses: ["jobs.mine", "sync.replay"] },
-  "wrapup": { path: "/jobs/:jobId/wrap-up", uses: ["jobs.mine", "jobs.attachMedia", "jobs.wrapUp"], title: "Wrap up" },
+  "wrapup": { path: "/jobs/:jobId/complete", uses: ["jobs.mine", "jobs.attachMedia", "jobs.wrapUp"], title: "Complete job" },
   "jobs":  { path: "/jobs",            uses: ["jobs.mine", "punches.mine", "sync.replay"], title: "Today" },
   "timesheet": { path: "/timesheet",   uses: ["punches.mine"], title: "Timesheet" },
 } as const satisfies Record<string, ScreenSpec>;

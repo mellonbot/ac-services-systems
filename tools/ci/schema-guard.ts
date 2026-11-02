@@ -143,7 +143,7 @@ const rel = (p: string) => relative(ROOT, p);
   const { TOPICS } = await import(join(ROOT, "packages/contracts/src/events.ts"));
   for (const f of files) {
     const r = rel(f);
-    if (!/^apps[\\/](gateway|worker)[\\/]src/.test(r) || r.endsWith(".test.ts")) continue;
+    if (!/^services[\\/](gateway|worker)[\\/]src/.test(r) || r.endsWith(".test.ts")) continue;
     for (const m of read(f).matchAll(/topic:\s*"([a-z_]+\.[a-z_]+)"/g)) {
       if (!(TOPICS as string[]).includes(m[1]!)) fail("event catalogue", `${r} emits "${m[1]}", which is not in packages/contracts/src/events.ts`);
     }
@@ -193,7 +193,7 @@ const rel = (p: string) => relative(ROOT, p);
   // string that is not an operation. `handlers` is typed over OperationId, so
   // typecheck says the same; this says it with nothing installed. The table
   // lives in routes.ts; main.ts only dispatches it.
-  const routes = read(join(ROOT, "apps/gateway/src/routes.ts"));
+  const routes = read(join(ROOT, "services/gateway/src/http/routes.ts"));
   const handlerBlock = /const handlers[^=]*=\s*\{([\s\S]*?)\n\};/.exec(routes)?.[1] ?? "";
   // Dotted segments, not exactly two: `terms.overrides.list` is as much an
   // operation id as `terms.resolved`. A two-segment pattern here made the
@@ -201,10 +201,10 @@ const rel = (p: string) => relative(ROOT, p);
   // handled operation as unhandled while typecheck disagreed — the guard has
   // to admit every id the catalogue can hold, or it fails honest diffs.
   const handled = [...handlerBlock.matchAll(/^\s{2}"([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+)":/gm)].map((m) => m[1]!);
-  for (const id of ids) if (!handled.includes(id)) fail("catalogue ↔ gateway", `operation ${id} has no handler in apps/gateway/src/routes.ts`);
+  for (const id of ids) if (!handled.includes(id)) fail("catalogue ↔ gateway", `operation ${id} has no handler in services/gateway/src/http/routes.ts`);
   for (const h of handled) if (!ids.includes(h)) fail("catalogue ↔ gateway", `gateway handles "${h}", which is not in the operation catalogue`);
   const paths = new Set(ids.map((id) => ops[id]!.path));
-  for (const relPath of ["apps/gateway/src/main.ts", "apps/gateway/src/routes.ts", "apps/gateway/src/auth-routes.ts"]) {
+  for (const relPath of ["services/gateway/src/main.ts", "services/gateway/src/http/routes.ts", "services/gateway/src/auth/auth-routes.ts"]) {
     const src = read(join(ROOT, relPath));
     for (const m of src.matchAll(/["'`](GET|POST|PUT|PATCH|DELETE) \/[^"'`]*["'`]/g))
       fail("catalogue ↔ gateway", `${relPath} keys a route by string ${m[0]} — routes are built from OPERATIONS, not typed`);
@@ -325,12 +325,12 @@ for (const f of files) {
   const src = read(f), r = rel(f);
   if (r.endsWith(".test.ts")) continue;
   // Build tooling is not product code; it reads the repo by definition.
-  if (!/^(apps|packages)[\\/]/.test(r)) continue;
+  if (!/^(apps|services|packages)[\\/]/.test(r)) continue;
 
   // The driver is importable from exactly one file. Everything else — surfaces,
   // domain, worker, tools — reaches the database through the gateway's Tx.
-  if (importsDriver(src) && r !== "apps/gateway/src/pg-tx.ts")
-    fail("gateway is sole access path", `${r} imports a database driver — apps/gateway/src/pg-tx.ts is the only door`);
+  if (importsDriver(src) && r !== "services/gateway/src/db/pg-tx.ts")
+    fail("gateway is sole access path", `${r} imports a database driver — services/gateway/src/db/pg-tx.ts is the only door`);
   if (/apps[\\/]s\d/.test(r) && /packages[\\/]schema/.test(src))
     fail("gateway is sole access path", `${r} imports the schema package — a surface owns no data`);
 
@@ -347,9 +347,9 @@ for (const f of files) {
   // an origin — and nothing below the gateway.
   if (/^apps[\\/]s\d/.test(r) && /from\s+["'][^"']*packages[\\/](sdk|domain|events|audit|storage|testing)[\\/]/.test(src))
     fail("dependencies point one way", `${r} imports below the shell — surfaces → shell → sdk → contracts, and a surface stops at the shell`);
-  if (/^apps[\\/]s\d/.test(r) && /from\s+["'][^"']*apps[\\/](gateway|worker)[\\/]/.test(src))
+  if (/^apps[\\/]s\d/.test(r) && /from\s+["'][^"']*services[\\/](gateway|worker)[\\/]/.test(src))
     fail("dependencies point one way", `${r} imports the gateway or worker — a surface reaches them over the wire, through the shell`);
-  if (/^packages[\\/](sdk|shell)[\\/]/.test(r) && /from\s+["'][^"']*(apps[\\/]|packages[\\/](domain|schema|events|audit|storage)[\\/])/.test(src))
+  if (/^packages[\\/](sdk|shell)[\\/]/.test(r) && /from\s+["'][^"']*(apps[\\/]|services[\\/]|packages[\\/](domain|schema|events|audit|storage)[\\/])/.test(src))
     fail("dependencies point one way", `${r} imports below contracts — the sdk and the shell see the gateway only through the catalogue`);
 
   const path = /domain[\\/]src[\\/]billing[\\/]paths[\\/]([a-z_]+)/.exec(r);
@@ -372,7 +372,7 @@ for (const f of files) {
     fail("domain has no I/O", `${r} reads an ambient clock or RNG`);
   if (/packages[\\/]domain[\\/]/.test(r) && /from\s+["']node:/.test(src))
     fail("domain has no I/O", `${r} imports a node: module — the domain takes its inputs as parameters`);
-  if (/packages[\\/]domain[\\/]/.test(r) && /from\s+["'][^"']*(apps|gateway|worker|schema)[\\/]/.test(src))
+  if (/packages[\\/]domain[\\/]/.test(r) && /from\s+["'][^"']*(apps|services|gateway|worker|schema)[\\/]/.test(src))
     fail("dependencies point one way", `${r} imports upward — domain depends on contracts and nothing else`);
 
   if (!/compliance[\\/]/.test(r) && /as\s+ComplianceClearance|mintClearance/.test(src))

@@ -25,6 +25,11 @@ export const OPERATIONS = {
     surfaces: ["S5"], carrier: "body", sdkMethod: "deviceLogin",
     summary: "A technician's own credential PLUS the hardware they are holding. Mints a device-namespace token bound to the one active shift grant for (device, technician) — the token expires with the shift, never later.",
   }),
+  "auth.signIn": op<Wire.SignInInput, Wire.SignInOutput>()({
+    id: "auth.signIn", method: "POST", path: "/auth/sign-in", kind: "login", auth: "none",
+    surfaces: ["S1"], carrier: "body", sdkMethod: "signIn",
+    summary: "S1's front door. Checks the credential once and sends the person where they belong: the one live surface their login opens, a choice when it opens several, or S5 when a device ID is given. The same checks as auth.login and auth.deviceLogin, which it shares.",
+  }),
   "session.me": op<void, HierarchyContext>()({
     id: "session.me", method: "GET", path: "/me", kind: "query", auth: "bearer",
     surfaces: AUTHENTICATED, carrier: "none", sdkMethod: "me",
@@ -66,6 +71,22 @@ export const OPERATIONS = {
     id: "regions.list", method: "GET", path: "/regions", kind: "query", auth: "bearer",
     surfaces: ["S2", "S3", "S4"], carrier: "none", sdkMethod: "listRegions",
     summary: "OUR service regions — the shard boundary. What a region node binds to; what D14's density rule is set on.",
+  }),
+  // ---- 0038: our regions, kept by a principal in S2 ----
+  "regions.create": op<Wire.CreateRegionInput, Wire.CreateRegionOutput>()({
+    id: "regions.create", method: "POST", path: "/s2/regions", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "createRegion",
+    summary: "Open a service region: a code (fixed — job numbers carry it), a name and a timezone. Principals only.",
+  }),
+  "regions.update": op<Wire.UpdateRegionInput, Wire.UpdateRegionOutput>()({
+    id: "regions.update", method: "POST", path: "/s2/regions/update", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "updateRegion",
+    summary: "Rename a region. Its code does not change. Unassigned (pre-account) is structural and refused. Principals only.",
+  }),
+  "regions.setActive": op<Wire.SetRegionActiveInput, Wire.SetRegionActiveOutput>()({
+    id: "regions.setActive", method: "POST", path: "/s2/regions/active", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "setRegionActive",
+    summary: "Stop serving a region, or serve it again. Deactivation is refused, naming them, while the region holds active logins, crews, customer accounts or open jobs. Principals only.",
   }),
   "organizations.list": op<Wire.ListOrganizationsInput, Wire.ListOrganizationsOutput>()({
     id: "organizations.list", method: "GET", path: "/s2/organizations", kind: "query", auth: "bearer",
@@ -444,7 +465,7 @@ export const OPERATIONS = {
   "jobs.detail": op<Wire.JobDetailInput, Wire.JobDetailOutput>()({
     id: "jobs.detail", method: "GET", path: "/s3/jobs/detail", kind: "query", auth: "bearer",
     surfaces: ["S3", "S4"], carrier: "query", sdkMethod: "jobDetail",
-    summary: "One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — the customer thread, and how the field wrapped it up (0034). RLS decides; nothing here filters.",
+    summary: "One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — the customer thread, and how the field completed it (0034). RLS decides; nothing here filters.",
   }),
   "jobs.conversation": op<Wire.JobConversationInput, Wire.JobConversationOutput>()({
     id: "jobs.conversation", method: "GET", path: "/jobs/conversation", kind: "query", auth: "bearer",
@@ -481,6 +502,22 @@ export const OPERATIONS = {
     id: "devices.grantShift", method: "POST", path: "/s2/devices/grant", kind: "mutation", auth: "bearer",
     surfaces: ["S2"], carrier: "body", sdkMethod: "grantDeviceShift",
     summary: "The primitive: this device, this crew, this technician, this window. What auth.deviceLogin mints a token against. Refused if the technician is not on the named crew, the crew is inactive, or the device already holds an overlapping grant.",
+  }),
+  // ---- 0038: a shift moved later or ended now — the same roles that grant one ----
+  "devices.listGrants": op<Wire.ListGrantsInput, Wire.ListGrantsOutput>()({
+    id: "devices.listGrants", method: "GET", path: "/s2/devices/grants", kind: "query", auth: "bearer",
+    surfaces: ["S2"], carrier: "query", sdkMethod: "listDeviceGrants",
+    summary: "Shift grants still to come, open now, or ended in the last day — with the device, the technician's unit and name, the window and whether the office revoked it.",
+  }),
+  "devices.extendShift": op<Wire.ExtendShiftInput, Wire.ExtendShiftOutput>()({
+    id: "devices.extendShift", method: "POST", path: "/s2/devices/grant/extend", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "extendDeviceShift",
+    summary: "Move a live grant's end later. Refused for a revoked or ended grant, an end that is not later, or one that would overlap the device's next grant. A device session already minted keeps its expiry; signing in again picks up the new end.",
+  }),
+  "devices.revokeShift": op<Wire.RevokeShiftInput, Wire.RevokeShiftOutput>()({
+    id: "devices.revokeShift", method: "POST", path: "/s2/devices/grant/revoke", kind: "mutation", auth: "bearer",
+    surfaces: ["S2"], carrier: "body", sdkMethod: "revokeDeviceShift",
+    summary: "End a grant now, no grace period: its device sessions are ended and the token is refused on its next request. The device is free for another grant.",
   }),
   // ---- S5: what a technician reads before replaying a sync batch ----
   "jobs.mine": op<void, Wire.MyJobsOutput>()({
@@ -522,62 +559,6 @@ export const OPERATIONS = {
     id: "brand.theme", method: "GET", path: "/brand/theme", kind: "system", auth: "none",
     surfaces: WHITE_LABEL_SURFACES, carrier: "query", sdkMethod: "brandTheme",
     summary: "The stored theme for a host, as the stylesheet the shell installs. Unauthenticated because a portal is branded on its sign-in screen, before a principal exists; an unknown host gets Rankine's own plate rather than a 404, so the route cannot be used to ask which tenants exist.",
-  }),
-  // ---- item 8: S1's anonymous door (00 §2.8 build order item 8) ----
-  /**
-   * THE COVERAGE CLAIM, AND ITS CEILING.
-   *
-   * 05 §S1: "coverage read from hierarchy, not hard-coded". This answers with
-   * the metros our `regions` rows name and NOTHING else — no crew density, no
-   * availability, no response window. That restraint is the product decision,
-   * not an oversight: D7a (the response obligation behind a named owner) and
-   * OQ6 (the single-site constraint) set the ceiling on what this surface may
-   * promise, neither is written down yet, and action plan F9 is where it gets
-   * written. Until it is, a page that says "we are in Dallas" is a statement
-   * of presence; a page that says how fast we answer is a commitment nobody at
-   * the gateway can enforce. `ac_public_coverage()` is the mechanism — a
-   * SECURITY DEFINER function that returns two columns, so widening the claim
-   * is a reviewed diff on a migration rather than a SELECT someone extends.
-   *
-   * `system` because it runs without a session, the way `brand.theme` does.
-   * It is still BOUND — as the anonymous principal — before it reads: 0007's
-   * lesson was a week of unbound sweeps reading zero rows and reporting green.
-   */
-  "coverage.list": op<void, Wire.CoverageOutput>()({
-    id: "coverage.list", method: "GET", path: "/coverage", kind: "system", auth: "none",
-    surfaces: ["S1"], carrier: "none", sdkMethod: "coverage",
-    summary: "The metros we serve, read from the regions table — code and name, nothing else. No density, no availability, no response window: the ceiling on what S1 may promise is D7a/OQ6 and it is not written yet (F9).",
-  }),
-  /**
-   * A visitor becomes a principal for as long as it takes to say who they are.
-   *
-   * Shaped like `auth.deviceLogin` rather than invented: it mints a token and
-   * a `sessions` row (`principal_kind = 'anonymous'`, which 0001 has admitted
-   * since the bootstrap), so an anonymous write arrives at the unit of work
-   * the same way every other write does — a verified token, a live session, a
-   * scope binding, an audit row with a real actor and a real session id. The
-   * alternative, an unauthenticated POST straight onto `leads`, would have
-   * been the one mutation in the system with no principal behind it.
-   *
-   * Minted LAZILY, on the first submit — not at page load. A session row per
-   * visitor is a write per page view, and the site has to stand up with the
-   * gateway unreachable (the registry's degraded line), which a boot-time
-   * round trip would quietly undo.
-   */
-  "auth.anonymousSession": op<void, Wire.AnonymousSessionOutput>()({
-    id: "auth.anonymousSession", method: "POST", path: "/auth/anonymous", kind: "login", auth: "none",
-    surfaces: ["S1"], carrier: "none", sdkMethod: "anonymousSession",
-    summary: "Mint a short-lived anonymous token bound to PROSPECT/UNASSIGNED for S1's intake. Carries no roles and no scope below the prospect root; the only thing it can do is the two writes below.",
-  }),
-  "leads.submit": op<Wire.SubmitLeadInput, Wire.SubmitLeadOutput>()({
-    id: "leads.submit", method: "POST", path: "/s1/leads", kind: "mutation", auth: "bearer",
-    surfaces: ["S1"], carrier: "body", sdkMethod: "submitLead",
-    summary: "A stranger asks us to call them. Lands in PROSPECT/UNASSIGNED — tenancy is total, so a lead is owned before an account exists (arc 1). The submitter can never read it back.",
-  }),
-  "callRecords.record": op<Wire.RecordCallInput, Wire.RecordCallOutput>()({
-    id: "callRecords.record", method: "POST", path: "/s1/call-records", kind: "mutation", auth: "bearer",
-    surfaces: ["S1"], carrier: "body", sdkMethod: "recordCall",
-    summary: "A visitor used the call button. Recorded against the lead when there is one, and against nothing when there is not — an inbound call is a fact whether or not a form was filled.",
   }),
   // ---- item 10: S4, the HQ view. Two reads of the rollup and nothing else:
   // `SURFACES.S4.writes` is [] and 0010 grants the gateway no write on
@@ -739,6 +720,6 @@ export const OPERATIONS = {
   "system.ready": op<void, Wire.ReadyOutput>()({
     id: "system.ready", method: "GET", path: "/readyz", kind: "system", auth: "none",
     surfaces: ["S1", ...AUTHENTICATED], carrier: "none", sdkMethod: "ready",
-    summary: "Readiness: the gateway's login connects to Postgres and takes the ac_gateway role. 503 when it cannot. What a deploy waits for; /healthz never touches the database.",
+    summary: "Readiness: the gateway's login connects to Postgres and takes the ac_gateway role, and its photo storage, when configured, answers a signed read. 503 when either cannot. What a deploy waits for; /healthz never touches the database.",
   }),
 } as const satisfies Record<string, OperationSpec>;

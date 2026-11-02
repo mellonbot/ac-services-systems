@@ -23,5 +23,5 @@ Claude outputs/
 .dev.vars.*
 
 # AC Logins desktop app — build output and its own Electron install
-tools/logins-app/dist/
-tools/logins-app/node_modules/
+external/logins-app/dist/
+external/logins-app/node_modules/

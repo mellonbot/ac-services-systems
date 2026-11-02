@@ -24,6 +24,7 @@ import { networkTechnicianNew, networkTechnicianEdit } from "./screens/network-t
 import { purchasing, purchasingVendor, purchasingPo, refreshProcurement } from "./screens/purchasing.ts";
 import { billing, billingInvoice, refreshBilling } from "./screens/billing.ts";
 import { devices, devicesNew, devicesGrant } from "./screens/devices.ts";
+import { regionsList, regionNew, regionPage } from "./screens/regions.ts";
 import { S2_CSS } from "./styles.ts";
 
 /**
@@ -61,6 +62,9 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "billing": billing,
   "billing.invoice": billingInvoice,
   "devices": devices,
+  "regions": regionsList,
+  "regions.new": regionNew,
+  "regions.region": regionPage,
   "devices.new": devicesNew,
   "devices.grant": devicesGrant,
 };
@@ -74,6 +78,8 @@ const NAV_GROUPS = [
   { label: "Customer records", inside: "Projects, accounts, agreements, invoicing, follow-ups", home: "accounts.tree", screens: ["projects", "accounts.tree", "contracts.list", "billing", "leads"] as const },
   { label: "Technician Network", inside: "Crews, subcontractor firms, field devices", screens: ["network", "devices"] as const },
   { label: "Purchasing", inside: "Vendors, purchase orders, receiving", screens: ["purchasing"] as const },
+  // 0038: shown to principals only — the gateway refuses regions.* to everyone else.
+  { label: "Regions", inside: "Where we serve from", screens: ["regions"] as const },
 ] as const;
 /** A domain with more than one screen gets a second tier of tabs. */
 const hasSubTabs = (g: (typeof NAV_GROUPS)[number]) => g.screens.length > 1;
@@ -191,6 +197,9 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     shell.subscribe(() => refreshProcurement(store), { topics: ["vendor_price.proposed", "vendor_price.withdrawn", "po.acknowledged", "po.shipped", "vendor_invoice.submitted", "rma.responded"] });
     // 0030: a payment recorded or returned, an invoice paid or voided — here or by another office user.
     shell.subscribe(() => refreshBilling(store), { topics: ["payment.recorded", "payment.returned", "invoice.paid", "invoice.voided", "invoice.issued"] });
+    // 0038: a region opened, renamed or closed — every form that picks one reads it fresh. A shift extended or revoked refetches the grants.
+    shell.subscribe(() => store.invalidate("regions.list"), { topics: ["region.created", "region.updated"] });
+    shell.subscribe(() => store.invalidate("devices.listGrants"), { topics: ["device.shift_extended", "device.shift_revoked"] });
   };
 
   const session = bindCookieSession({
@@ -261,7 +270,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
         </div>
         <ul class="ac-nav__domains" aria-label="Departments">
-          ${NAV_GROUPS.map((navGroup) => {
+          ${NAV_GROUPS.filter((navGroup) => navGroup.label !== "Regions" || p.shell.principal.roles.includes("principal")).map((navGroup) => {
             const current = group?.label === navGroup.label;
             const home = "home" in navGroup ? navGroup.home : navGroup.screens[0];
             // A one-screen domain's tile IS the tab, so it carries the page; otherwise the tab below does.

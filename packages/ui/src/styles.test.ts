@@ -27,6 +27,16 @@ test("every component class family has a rule", () => {
     assert.match(UI_CSS, new RegExp(`\\.${cls}\\b`));
 });
 
+test("F-3: a disabled control is drawn in measured roles, never faded with opacity", () => {
+  assert.doesNotMatch(UI_CSS, /opacity\s*:\s*0?\.\d/, "opacity drags a word under 4.5:1");
+  const rule = /\.ac-action\[aria-disabled="true"\][^{]*\{([^}]*)\}/.exec(UI_CSS);
+  assert.ok(rule, "a disabled rule");
+  assert.match(rule![1]!, /color:var\(--color-text-muted\)/);
+  assert.match(rule![1]!, /background:var\(--color-surface-sunken\)/);
+  assert.match(rule![1]!, /border-color:var\(--color-border-control\)/);
+  assert.match(UI_CSS, /\.ac-action\[aria-disabled="true"\]:active/, "pressing a disabled control does not paint the pressed fill");
+});
+
 test("NO ACCENT INK ENTERS A STATE-BEARING COLUMN — neither the house red nor the arc", () => {
   // The bulletin solves hue proximity structurally rather than with a better
   // colour: every state carries a word, and the accent never decorates a chip.

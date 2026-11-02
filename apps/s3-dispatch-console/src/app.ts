@@ -112,7 +112,7 @@ const PREVIEW_NOTES: Readonly<Record<string, { body: string; daysAgo: number; re
 const PREVIEW_JOBS = [
   previewJob("33390928", "Shipman Co", "rooftop_install", "urgent", "assigned", "Blake Keating", 2, { due: -2, stage: 2 }, 1, [9.2, 11.6]),
   previewJob("33390251", "FirstKey", "repairs", "urgent", "en_route", "Brian Martinez", 1, { due: 1, stage: 1 }, 1, [7.7, 9.9]),
-  previewJob("33390971", "Turner Res.", "pm_route", "pm", "on_site", "Colton Dawson", 0, { due: 4, stage: 0 }, 0, [8.3, 9.9]),
+  previewJob("33390971", "Turner Res.", "pm_route", "pm", "in_progress", "Colton Dawson", 0, { due: 4, stage: 0 }, 0, [8.3, 9.9]),
   previewJob("33390937", "Meridian Plaza", "new_install", "urgent", "in_progress", "Dylan Lemons", 3, null, 3, [8.2, 10.1]),
   previewJob("33390948", "Shipman Co", "rtu_changeout", "urgent", "assigned", "Herberto Vega", 1, { due: -1, stage: 2 }, 1, [9.6, 11.4]),
   previewJob("33187801", "Shipman Co", "repairs", "urgent", "reopened", "Garrett Howard", 58, { due: -30, stage: 3 }, 41),

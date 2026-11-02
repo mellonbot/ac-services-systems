@@ -2,7 +2,7 @@ import { operationalTable, globalReferenceTable } from "../tenancy.ts";
 
 /**
  * NON-NEGOTIABLE #4. Written INSIDE the same transaction as the change it
- * describes, by the only object that can write at all (apps/gateway
+ * describes, by the only object that can write at all (services/gateway
  * unit-of-work). No update or delete method exists on the interface; the
  * runtime roles hold INSERT+SELECT only; a trigger raises regardless of role.
  * Three layers, because the interface is the one an ORM can be talked past.
@@ -27,7 +27,7 @@ export const audit_log = operationalTable("audit_log", {
 
 /**
  * TRANSACTIONAL OUTBOX. Events are written here in the same transaction as
- * the state change; apps/worker relays them. The alternative — publish inside
+ * the state change; services/worker relays them. The alternative — publish inside
  * the handler — produces the two failures that cannot be debugged six months
  * later: an event for a transaction that rolled back, and a committed change
  * with no event because the broker blinked.
@@ -68,7 +68,7 @@ export const subscriptions = operationalTable("subscriptions", {
  * than a config file: the theme that satisfies a brand team and the theme that
  * breaks the portal are separated by one check, and the check has to run
  * somewhere a designer cannot skip. packages/tokens validateBrandTheme runs in
- * apps/gateway/src/handlers/brand.ts; a theme that fails is a 422 with the
+ * services/gateway/src/handlers/brand.ts; a theme that fails is a 422 with the
  * ratio and never reaches this table.
  *
  * `host` is the lookup key and the unique, because the browser that asks for a
