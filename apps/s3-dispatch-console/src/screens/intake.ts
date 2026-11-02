@@ -1,7 +1,7 @@
 import { html, DataGrid, StatusPill, PrimaryAction, pageHead, statStrip, panel, shortRef, type Column, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import { TERMS, SERVICE_CATALOG, JOB_WORK_CLASS_LABEL, type ServiceRequestWire, type ServiceRequestPriority, type JobPriority, type Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, homeMark, linkTo, refusalView, perStore, focusId, boundEnd, type Screen, type ScreenContext } from "./common.ts";
+import { placeName, whenReady, homeMark, linkTo, refusalView, perStore, focusId, boundEnd, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL } from "./jobs.ts";
 
 /**
@@ -82,7 +82,7 @@ const openJob = async (ctx: ScreenContext, r: ServiceRequestWire, form: HTMLForm
       serviceWindowEnd: new Date(String(f.get("end"))).toISOString(),
     });
     opening.value = null;
-    ctx.store.notice.value = [`Request ${shortRef(r.id)} at ${r.siteName} is answered — job ${out.id} is open, response due ${new Date(out.dueAt).toLocaleString()}. Assign a crew below.`];
+    ctx.store.notice.value = [`Request ${shortRef(r.id)} at ${placeName(r)} is answered — job ${out.id} is open, response due ${new Date(out.dueAt).toLocaleString()}. Assign a crew below.`];
     ctx.store.invalidate("serviceRequests.list");
     ctx.store.invalidate("jobs.list");
     ctx.router.navigate("dispatch", { jobId: out.id });
@@ -124,7 +124,7 @@ const openPanel = (ctx: ScreenContext, requests: readonly ServiceRequestWire[], 
       </span>
       ${o.refusal ? refusalView(ctx, o.refusal) : null}
     </form>`,
-    `Open a job — ${shortRef(r.id)}`, r.siteName, undefined, "intake-open");
+    `Open a job — ${shortRef(r.id)}`, placeName(r), undefined, "intake-open");
 };
 
 const priorityCell = (ctx: ScreenContext, p: ServiceRequestPriority): VNode =>
@@ -163,9 +163,9 @@ const viewer = (ctx: ScreenContext, requests: readonly ServiceRequestWire[], vie
   const step = (d: number) => { viewing.value = { requestId: r.id, photoId: r.photos[(i + d + r.photos.length) % r.photos.length]!.id }; };
   return panel(html`<figure class="s3-intake__view" id="intake-viewer">
       ${m.state === "ready"
-        ? html`<img src=${m.value.image} alt=${`Photo ${i + 1} of ${r.photos.length} sent with request ${shortRef(r.id)} at ${r.siteName}`} />`
+        ? html`<img src=${m.value.image} alt=${`Photo ${i + 1} of ${r.photos.length} sent with request ${shortRef(r.id)} at ${placeName(r)}`} />`
         : html`<p class="s3-muted" role=${m.state === "refused" ? "note" : "status"}>${m.state === "refused" ? `This photo could not be shown — ${m.refusal.message}` : "Loading…"}</p>`}
-      <figcaption><span class="s3-num">${shortRef(r.id)}</span> · ${r.siteName} · photo <span class="s3-num">${i + 1}</span> of <span class="s3-num">${r.photos.length}</span></figcaption>
+      <figcaption><span class="s3-num">${shortRef(r.id)}</span> · ${placeName(r)} · photo <span class="s3-num">${i + 1}</span> of <span class="s3-num">${r.photos.length}</span></figcaption>
     </figure>`,
     "Photo", r.description.split("\n")[0],
     html`<span class="s3-row-actions">
@@ -184,7 +184,7 @@ export const intake: Screen = (ctx) => {
   const columns: readonly Column<ServiceRequestWire>[] = [
     { key: "received", header: "Received", numeric: true, cell: (r) => html`<span class="s3-cust" title=${new Date(r.createdAt).toLocaleString()}><strong class="s3-num">${age(r.createdAt, now)} ago</strong><small>${new Date(r.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</small></span>` },
     { key: "ref", header: "Ref", cell: (r) => html`<span class="s3-num">${shortRef(r.id)}</span>` },
-    { key: "site", header: "Site", cell: (r) => html`<span class="s3-cust"><strong>${r.siteName}</strong>${homeMark(r.customerSegment)}</span>` },
+    { key: "site", header: "Customer / site", cell: (r) => html`<span class="s3-cust"><strong>${placeName(r)}</strong>${homeMark(r.customerSegment)}</span>` },
     { key: "priority", header: "Priority", cell: (r) => priorityCell(ctx, r.priority) },
     { key: "asked", header: "What they asked", cell: (r) => html`<span class="s3-intake__asked" title=${r.description}>${r.description}</span>` },
     { key: "photos", header: "Photos", cell: (r) => thumbs(ctx, r, viewing, opening) },
@@ -193,7 +193,7 @@ export const intake: Screen = (ctx) => {
       : r.waitingOnTerm
       ? html`<span class="s3-moves">${StatusPill({ density: ctx.density, status: "blocked", label: "Waiting on Contracts" })}<span class="s3-muted">No ${termWord(r.waitingOnTerm)} on the agreement</span></span>`
       : html`<span class="s3-moves"><span class="s3-muted">Waiting — no job yet</span>
-          <button type="button" class="s3-act" id=${`open-${r.id}`} aria-label=${`Open a job for request ${shortRef(r.id)} at ${r.siteName}`} disabled=${ctx.degraded}
+          <button type="button" class="s3-act" id=${`open-${r.id}`} aria-label=${`Open a job for request ${shortRef(r.id)} at ${placeName(r)}`} disabled=${ctx.degraded}
             title=${ctx.degraded ? ctx.shell.degradedNotice : undefined}
             onClick=${() => { viewing.value = null; opening.value = { requestId: r.id, busy: false, refusal: null }; focusId("intake-service"); }}>Open job</button></span>` },
   ];

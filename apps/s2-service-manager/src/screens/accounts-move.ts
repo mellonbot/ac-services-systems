@@ -1,5 +1,5 @@
 import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { AccountWire, Refusal } from "../../../../packages/contracts/src/index.ts";
+import { tierWord, type AccountWire, type Refusal } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, submitAction, noChoice, formValues, linkTo, type Screen } from "./common.ts";
 
@@ -24,6 +24,8 @@ export const accountsMove: Screen = (ctx, params) => {
   const key = `${orgId}/${id}`;
   if (outcome.value.key !== key) outcome.value = { key, refusal: null, busy: false };
 
+  const orgList = store.read(keyOf("organizations.list", { kind: "customer" }), () => shell.gateway.listOrganizations({ kind: "customer" })).value;
+  const segment = orgList.state === "ready" ? orgList.value.organizations.find((o) => o.id === orgId)?.segment ?? null : null;
   const tree = store.read(keyOf("accounts.list", { orgId }), () => shell.gateway.listAccounts({ orgId }));
   const regions = store.read(keyOf("regions.list"), () => shell.gateway.listRegions());
 
@@ -46,12 +48,12 @@ export const accountsMove: Screen = (ctx, params) => {
   const form = (nodes: readonly AccountWire[], regionName: (id: string) => string): VNode => {
     const node = nodes.find((n) => n.id === id);
     if (!node) return html`<p class="s2-empty">Node ${id} is not in this tree. ${linkTo(ctx, "accounts.tree", { orgId }, "Back")}</p>`;
-    if (node.tier === "region") return html`<p class="s2-empty">"${node.name}" is a region node — the meeting point with one of our regions. It is not moved; redrawing a region is an infrastructure event. ${linkTo(ctx, "accounts.tree", { orgId }, "Back")}</p>`;
+    if (node.tier === "region") return html`<p class="s2-empty">"${node.name}" is ${segment === "residential" ? "the customer row of a home — where it meets the region we serve it from" : "a region node — the meeting point with one of our regions"}. It is not moved; redrawing a region is an infrastructure event. ${linkTo(ctx, "accounts.tree", { orgId }, "Back")}</p>`;
     const candidates = parentCandidates(nodes, node);
-    const parentWord = node.tier === "location" ? "region node" : "location";
+    const parentWord = tierWord(node.tier === "location" ? "region" : "location", segment).toLowerCase();
     const descendants = nodes.filter((n) => n.path.includes(node.id) && n.id !== node.id).length;
     return html`<section class="s2-form-screen">
-      ${pageHead(`Move ${node.tier} "${node.name}"`, "Move this node under another parent of the right tier; its region and everything beneath it follow.")}
+      ${pageHead(`Move ${tierWord(node.tier, segment).toLowerCase()} "${node.name}"`, "Move this node under another parent of the right tier; its region and everything beneath it follow.")}
       <p class="s2-parent">Currently dispatched from <strong>${regionName(node.regionId)}</strong>${descendants ? html` with <strong>${descendants}</strong> node${descendants === 1 ? "" : "s"} beneath it, which will follow` : ""}.</p>
       <form class="ac-form" onSubmit=${submit(node)} id="move-form">
         ${candidates.length === 0

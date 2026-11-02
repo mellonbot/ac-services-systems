@@ -1,7 +1,7 @@
 import { html, signal, StatusPill, pageHead, panel, type Signal, type VNode } from "../../../../packages/ui/src/index.ts";
 import { serviceLabel, WORK_DONE_STATES, type JobWrapUpWire, type WrapUpMeasurementsWire, type JobDetailOutput, type JobMediaWire, type JobNoteWire, type JobUpdateWire, type JobVisitWire, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
-import { whenReady, homeMark, linkTo, submitAction, perStore, focusId, type Screen, type ScreenContext } from "./common.ts";
+import { placeName, whenReady, homeMark, linkTo, submitAction, perStore, focusId, type Screen, type ScreenContext } from "./common.ts";
 import { STATE_LABEL, initials, placeLine, daysInState } from "./jobs.ts";
 import { isDispatchable, isReleasable } from "./board.ts";
 import { siteMap } from "./site-map.ts";
@@ -218,7 +218,7 @@ const header = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiState>): VN
   const street = j.siteAddress?.line1;
   return panel(html`<div class="s3-detail-head">
     <p class="s3-eyebrow">Job # <span class="s3-num">${j.id}</span></p>
-    <h2 class="s3-detail-head__site">${j.siteName ?? "Site name unavailable"}</h2>${homeMark(j.customerSegment)}
+    <h2 class="s3-detail-head__site">${placeName(j)}</h2>${homeMark(j.customerSegment)}
     <p class="s3-detail-head__where">${[street, place].filter(Boolean).join(", ") || "Address not recorded"}${d.contact ? html` · ${d.contact.name}${d.contact.phone ? html`, <span class="s3-num">${d.contact.phone}</span>` : null}` : null}</p>
     ${dispatchActions(ctx, j)}
     <p class="s3-flags"><span class="s3-flag">${STATE_LABEL[j.state]}</span><span class="s3-flag">${j.priority[0]!.toUpperCase()}${j.priority.slice(1)} priority</span>${j.returnTrip ? html`<span class="s3-flag">Return trip</span>` : null}</p>
@@ -352,7 +352,7 @@ const communication = (ctx: ScreenContext, d: JobDetailOutput, ui: Signal<UiStat
       </article>`) : html`<p class="s3-muted">No internal notes yet. A customer update is written from one.</p>`}
     </section>
   </div>`, "Customer communication", "Internal notes, photos and comments stay private. Nothing reaches the customer until dispatch writes an update and publishes it.",
-  d.contact ? html`<span class="s3-flag">Customer: ${d.contact.name}, ${j.siteName ?? "site"}</span>` : null, "job-comms");
+  d.contact ? html`<span class="s3-flag">Customer: ${d.contact.name}, ${placeName(j)}</span>` : null, "job-comms");
 };
 
 export const detail: Screen = (ctx, params) => {
@@ -387,7 +387,7 @@ export const pick: Screen = (ctx) => {
     ${pageHead("Job Detail", "Pick a job — the ones that changed most recently are first. A job number anywhere on the dashboard opens its detail too.")}
     ${whenReady(ctx, res.value, (out) => panel(html`<ul class="s3-pick">${[...out.jobs].sort((a, b) => b.stateChangedAt.localeCompare(a.stateChangedAt)).slice(0, 25).map((j) => html`<li>
       ${linkTo(ctx, "detail", { jobId: j.id }, j.id)}
-      <span><strong>${j.siteName ?? "Site name unavailable"}</strong> <span class="s3-muted">${placeLine(j.siteAddress) ?? ""}</span></span>
+      <span><strong>${placeName(j)}</strong> <span class="s3-muted">${placeLine(j.siteAddress) ?? ""}</span></span>
       <span>${STATE_LABEL[j.state]}</span>
     </li>`)}</ul>`, "Recent jobs"))}
   </section>`;

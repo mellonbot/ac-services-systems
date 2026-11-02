@@ -50,7 +50,7 @@ const HOME_NODES: AccountWire[] = [
 ];
 const job = (n: number, state: string, end: string, siteId = HOME) => ({
   id: U(n), siteId, siteName: "4012 Ridgeview Dr", siteAddress: null, contractId: null, projectId: null, serviceCode: "PM-VISIT", priority: "routine", state,
-  serviceWindowStart: end, serviceWindowEnd: end, version: 1, openedAt: end, stateChangedAt: end, regionId: SOUTH, orgId: TURNER, customerSegment: "residential",
+  serviceWindowStart: end, serviceWindowEnd: end, version: 1, openedAt: end, stateChangedAt: end, regionId: SOUTH, orgId: TURNER, customerSegment: "residential", customerName: null,
   currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null, slaDueAt: null, slaEscalationStage: null, slaSatisfiedAt: null, returnTrip: false, latestNote: null,
 });
 const HOME_JOBS = [
@@ -338,7 +338,7 @@ test("the new-node screen: a location under a region node offers no region field
   render(app.view()); await settle(); await settle();
   let out = render(app.view());
   assert.match(out, /New location/);
-  assert.match(out, /Under <strong>Amped \/ South<\/strong> \(region\) — dispatched from <strong>South<\/strong>/);
+  assert.match(out, /Under <strong>Amped \/ South<\/strong> \(region node\) — dispatched from <strong>South<\/strong>/);
   assert.doesNotMatch(out, /name="regionId"/, "region is not an input below the region tier — the form does not offer the refusal");
   assert.match(out, /name="customerGroup"/);
 
@@ -668,9 +668,30 @@ test("a required choice with nothing to choose says so where the select would be
   for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
   const out = render(app.view());
   assert.doesNotMatch(out, /name="newParentId"/, "no required select that can only be empty");
-  assert.match(out, /There is no other location in this tree to move under\./);
+  assert.match(out, /Move house &quot;4012 Ridgeview Dr&quot;|Move house "4012 Ridgeview Dr"/, "a home's site is the house");
+  assert.match(out, /There is no other address in this tree to move under\./);
   assert.match(out, /id="move" aria-disabled="true"/);
-  assert.match(out, /class="ac-action__reason" role="note">There is no other location to move under\./);
+  assert.match(out, /class="ac-action__reason" role="note">There is no other address to move under\./);
+});
+
+test("ACCOUNTS: a home's tree says customer, address and house — never region node, location or site", async () => {
+  const gw = fakeGateway();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
+  await app.login("owner@ac.test", "pw");
+  app.router.navigate("accounts.tree", { orgId: TURNER });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const tree = render(app.view()).split('id="account-tree"')[1]!;
+  const tiers = [...tree.matchAll(/class="s2-tier">([^<]+)</g)].map((m) => m[1]);
+  assert.deepEqual(tiers, ["Customer", "Address", "House"]);
+  assert.match(tree, /Turner residence is a home/);
+  assert.match(tree, /\+ Another region/);
+  assert.match(tree, /aria-label="Add a house under Turner household"/);
+  assert.doesNotMatch(tree, /Region node|region nodes|\+ location|\+ site/);
+
+  app.router.navigate("accounts.tree", { orgId: ORG });
+  for (let i = 0; i < 4; i++) { render(app.view()); await settle(); }
+  const commercial = render(app.view()).split('id="account-tree"')[1]!;
+  assert.deepEqual([...new Set([...commercial.matchAll(/class="s2-tier">([^<]+)</g)].map((m) => m[1]))].sort(), ["Location", "Region node", "Site"], "a building keeps its words");
 });
 
 test("a row's actions are named for the row, so a screen reader's list of them is not 'Move, Move, Move'", async () => {

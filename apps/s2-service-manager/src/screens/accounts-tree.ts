@@ -1,5 +1,5 @@
 import { html, pageHead, panel, DataGrid, signal, CustomerCard, PLAN_WORD, KIND_WORD, addressLines, type VNode } from "../../../../packages/ui/src/index.ts";
-import { serviceLabel, type AccountWire, type JobWire, type OrganizationWire, type RegionWire, type CustomerSegment } from "../../../../packages/contracts/src/index.ts";
+import { serviceLabel, tierWord, type AccountWire, type JobWire, type OrganizationWire, type RegionWire, type CustomerSegment } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, linkTo, type Screen, type ScreenContext } from "./common.ts";
 import { customerDetail } from "./customer-detail.ts";
@@ -138,11 +138,12 @@ const descendantCounts = (nodes: readonly AccountWire[]): ReadonlyMap<string, { 
   }
   return out;
 };
-const countLine = (n: AccountWire, c: { location: number; site: number } | undefined): VNode | null => {
+/** A home's count is its houses alone — its address row is one per house and says nothing a count adds. */
+const countLine = (n: AccountWire, c: { location: number; site: number } | undefined, segment: CustomerSegment | null): VNode | null => {
   if (n.tier === "site") return null;
   const parts = ([["location", c?.location ?? 0], ["site", c?.site ?? 0]] as const)
-    .filter(([t]) => n.tier === "region" || t === "site")
-    .map(([t, k]) => html`<span class="s2-num">${k}</span> ${t}${k === 1 ? "" : "s"}`);
+    .filter(([t]) => (n.tier === "region" && segment !== "residential") || t === "site")
+    .map(([t, k]) => { const w = tierWord(t, segment).toLowerCase(); return html`<span class="s2-num">${k}</span> ${k === 1 ? w : w.endsWith("s") ? `${w}es` : `${w}s`}`; });
   return html`<span class="s2-node__count">${parts.map((p, i) => html`${i ? " · " : ""}${p}`)}</span>`;
 };
 
@@ -236,18 +237,20 @@ export const accountsTree: Screen = (ctx, params) => {
     const ordered = orderTree(nodes);
     const guides = treeGuides(ordered);
     const counts = descendantCounts(ordered);
+    const segment = org?.segment ?? null;
+    const home = segment === "residential";
     return panel(DataGrid({
       density: ctx.density,
       stack: true,
       columns: [
-        { key: "name", header: "Node", cell: (n: AccountWire) => html`<span class="s2-node" data-depth=${n.path.length - 1} data-tier=${n.tier}>${(guides.get(n.id) ?? []).map((g) => html`<span class="s2-node__guide" data-guide=${g} aria-hidden="true"></span>`)}<span class="s2-node__label"><span class="s2-node__name">${n.name}</span>${countLine(n, counts.get(n.id))}</span></span>` },
-        { key: "tier", header: "Tier", cell: (n: AccountWire) => html`<span class="s2-tier">${n.tier}</span>` },
+        { key: "name", header: home ? "Customer and house" : "Node", cell: (n: AccountWire) => html`<span class="s2-node" data-depth=${n.path.length - 1} data-tier=${n.tier}>${(guides.get(n.id) ?? []).map((g) => html`<span class="s2-node__guide" data-guide=${g} aria-hidden="true"></span>`)}<span class="s2-node__label"><span class="s2-node__name">${n.name}</span>${countLine(n, counts.get(n.id), segment)}</span></span>` },
+        { key: "tier", header: home ? "What it is" : "Tier", cell: (n: AccountWire) => html`<span class="s2-tier">${tierWord(n.tier, segment)}</span>` },
         // Below the region node the region is inherited, so it reads quiet; the region node is where it is set.
         { key: "regionId", header: "Our region", cell: (n: AccountWire) => n.tier === "region" ? regionName(n.regionId) : html`<span class="s2-muted">${regionName(n.regionId)}</span>` },
         { key: "customerGroup", header: "Customer group", cell: (n: AccountWire) => n.customerGroup ?? "—" },
         { key: "active", header: "Status", cell: (n: AccountWire) => html`<span class="s2-state" data-tone=${n.active ? "live" : "ended"}>${n.active ? "Active" : "Inactive"}</span>` },
         { key: "actions", header: "", align: "end", cell: (n: AccountWire) => html`<span class="s2-row-actions">
-            ${childTier(n.tier) ? linkTo(ctx, "accounts.new", { orgId: orgId!, tier: childTier(n.tier)!, parentId: n.id }, `+ ${childTier(n.tier)}`, undefined, `Add a ${childTier(n.tier)} under ${n.name}`) : null}
+            ${childTier(n.tier) ? linkTo(ctx, "accounts.new", { orgId: orgId!, tier: childTier(n.tier)!, parentId: n.id }, `+ ${tierWord(childTier(n.tier)!, segment).toLowerCase()}`, undefined, `Add a ${tierWord(childTier(n.tier)!, segment).toLowerCase()} under ${n.name}`) : null}
             ${n.tier !== "region" ? linkTo(ctx, "accounts.move", { orgId: orgId!, id: n.id }, "Move", undefined, `Move ${n.name}`) : null}
           </span>` },
       ],
@@ -255,7 +258,10 @@ export const accountsTree: Screen = (ctx, params) => {
       rowKey: (n: AccountWire) => n.id,
       groupHead: (n: AccountWire) => n.tier === "region",
       emptyText: "No nodes. A customer parent always has at least one region node — if this is empty, the tree failed to load.",
-    }), "Account tree", org ? `How ${org.name} is filed: region nodes, locations and sites, and which of our regions serves each` : undefined, linkTo(ctx, "accounts.new", { orgId: orgId!, tier: "region" }, "+ Region node", "ac-action s2-link--action"), "account-tree");
+    }), "Account tree", org ? (home
+      ? `${org.name} is a home: the customer row is ${org.name} and the region we serve them from, the address under it, and the house — where the equipment and every job are`
+      : `How ${org.name} is filed: region nodes, locations and sites, and which of our regions serves each`) : undefined,
+    linkTo(ctx, "accounts.new", { orgId: orgId!, tier: "region" }, home ? "+ Another region" : "+ Region node", "ac-action s2-link--action"), "account-tree");
   };
 
   const selected = orgId && orgs.value.state === "ready" ? orgs.value.value.organizations.find((o) => o.id === orgId) : undefined;

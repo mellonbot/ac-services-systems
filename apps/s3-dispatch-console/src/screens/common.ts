@@ -64,6 +64,14 @@ export const perStore = <T>(initial: T) => {
   };
 };
 
+/**
+ * What dispatch calls a job or a request. A home's site is named "Home" — every
+ * house is — so a homeowner's row reads as the customer; a building reads as
+ * its site, which is what a crew drives to.
+ */
+export const placeName = (r: { readonly siteName: string | null; readonly customerName: string | null; readonly customerSegment: CustomerSegment | null }): string =>
+  r.customerSegment === "residential" && r.customerName ? r.customerName : r.siteName ?? "Site name unavailable";
+
 /** A homeowner, marked where the office reads a site (0019) — commercial is the default and carries no mark. */
 export const homeMark = (segment: CustomerSegment | null): VNode | null =>
   segment === "residential" ? html`<span class="s3-flag" data-segment="residential">Residential</span>` : null;

@@ -617,7 +617,7 @@ const H: Partial<Record<OperationId, Handler>> = {
     const site = accounts.find((a) => a.id === i.siteId)!;
     need(site.tier === "site", `"${i.siteId}" is a ${site.tier}, not a site — service is requested at a site, the tier equipment lives at`, "not_a_site");
     const id = uid("q");
-    serviceRequests.unshift({ id, siteId: site.id, siteName: site.name, priority: i.priority ?? "routine", description, requestedBy: session?.user.name ?? "customer", createdAt: new Date().toISOString(), jobId: null, jobState: null, orgId: site.orgId, regionId: site.regionId, customerSegment: "commercial", photos: [], waitingOnTerm: null });
+    serviceRequests.unshift({ id, siteId: site.id, siteName: site.name, priority: i.priority ?? "routine", description, requestedBy: session?.user.name ?? "customer", createdAt: new Date().toISOString(), jobId: null, jobState: null, orgId: site.orgId, regionId: site.regionId, customerSegment: "commercial", customerName: orgs.find((o) => o.id === site.orgId)?.name ?? null, photos: [], waitingOnTerm: null });
     return { id, orgId: site.orgId, regionId: site.regionId, eventId: publish(surface, "service_request.created", "service_request", id, site.orgId, site.regionId) };
   },
   // Photos live in this tab's memory as data: URLs — the demo has no bucket, and needs none.

@@ -1,7 +1,7 @@
 import { html, type VNode } from "../../../../packages/ui/src/index.ts";
 import { MAP_TILE_REACH, MAP_ZOOM_MAX, MAP_ZOOM_MIN, tileOf, type JobWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { perStore, type ScreenContext } from "./common.ts";
+import { placeName, perStore, type ScreenContext } from "./common.ts";
 
 /**
  * WHERE THE JOB IS, FROM ABOVE — the gateway's satellite tiles (sites.mapTile)
@@ -117,7 +117,7 @@ export const siteMap = (ctx: ScreenContext, job: JobWire): VNode => {
 
   return html`<figure class="s3-map" id="site-map" data-basemap=${imagery ? "tiles" : "grid"}>
     <div class="s3-map__view" tabindex="0" role="application" aria-roledescription="map"
-      aria-label=${`Satellite map of ${job.siteName ?? "the site"}. Arrow keys pan, plus and minus zoom.`} title="Drag to pan · Ctrl + scroll to zoom"
+      aria-label=${`Satellite map of ${placeName(job)}. Arrow keys pan, plus and minus zoom.`} title="Drag to pan · Ctrl + scroll to zoom"
       onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${up} onWheel=${wheel} onKeyDown=${key}>
       ${cells}
       <svg class="s3-map__pin" viewBox="0 0 24 32" width="24" height="32" aria-hidden="true"

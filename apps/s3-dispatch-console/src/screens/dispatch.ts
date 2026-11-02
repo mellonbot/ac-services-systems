@@ -3,7 +3,7 @@ import { serviceLabel } from "../../../../packages/contracts/src/index.ts";
 import type { JobWire, CandidateCrewWire } from "../../../../packages/contracts/src/index.ts";
 import { JOB_WORK_CLASS_LABEL, CREW_KIND_LABEL, crewKindFor } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
-import { whenReady, perStore, type Screen } from "./common.ts";
+import { placeName, whenReady, perStore, type Screen } from "./common.ts";
 
 /** The crew an Assign is in flight for — one at a time, so a second click cannot send a second assignment. */
 const assigningFor = perStore<string | null>(null);
@@ -64,7 +64,7 @@ export const dispatch: Screen = (ctx, params) => {
     return html`<section class="s3-dispatch">
       ${pageHead(`Dispatch — ${serviceLabel(job.serviceCode)}`, `Every active ${CREW_KIND_LABEL[crewKindFor(job.workClass)].toLowerCase()} in this job's region, checked against the same gate Assign enforces. ${job.workClass === "install" ? "Install work goes to an install crew." : "Service and commissioning go to a technician."}`)}
       ${panel(html`<dl class="s3-job-facts">
-        <dt>Site</dt><dd>${job.siteName ?? job.siteId}</dd>
+        <dt>${job.customerSegment === "residential" ? "Customer" : "Site"}</dt><dd>${placeName(job)}</dd>
         <dt>Work</dt><dd>${JOB_WORK_CLASS_LABEL[job.workClass]}</dd>
         <dt>Priority</dt><dd>${job.priority}</dd>
         <dt>Window</dt><dd class="s3-num">${new Date(job.serviceWindowStart).toLocaleString()} → ${new Date(job.serviceWindowEnd).toLocaleString()}</dd>

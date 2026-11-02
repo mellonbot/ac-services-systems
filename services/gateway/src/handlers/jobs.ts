@@ -43,7 +43,7 @@ const PRIORITIES: readonly JobPriority[] = ["emergency", "urgent", "routine", "p
 export type JobRow = {
   id: string; site_id: string; site_name: string | null; site_address: AddressWire | null; contract_id: string | null; project_id: string | null;
   service_code: string; priority: JobPriority; state: JobStateWire; work_class: JobWorkClass;
-  ws: string; we: string; version: number; opened_at: string; state_changed_at: string; region_id: string; org_id: string; customer_segment: CustomerSegment | null;
+  ws: string; we: string; version: number; opened_at: string; state_changed_at: string; region_id: string; org_id: string; customer_segment: CustomerSegment | null; customer_name: string | null;
   current_crew_id: string | null; current_crew_label: string | null; current_assignment_id: string | null;
   sla_due_at: string | null; sla_escalation_stage: number | null; sla_satisfied_at: string | null;
   return_trip: boolean; note_body: string | null; note_at: string | null;
@@ -53,7 +53,7 @@ export const toWire = (r: JobRow): JobWire => ({
   id: r.id, siteId: r.site_id, siteName: r.site_name, siteAddress: r.site_address, contractId: r.contract_id, projectId: r.project_id,
   serviceCode: r.service_code, priority: r.priority, state: r.state, workClass: r.work_class,
   serviceWindowStart: r.ws, serviceWindowEnd: r.we, version: r.version, openedAt: r.opened_at, stateChangedAt: r.state_changed_at,
-  regionId: r.region_id, orgId: r.org_id, customerSegment: r.customer_segment ?? null,
+  regionId: r.region_id, orgId: r.org_id, customerSegment: r.customer_segment ?? null, customerName: r.customer_name ?? null,
   currentCrewId: r.current_crew_id, currentCrewLabel: r.current_crew_label, currentAssignmentId: r.current_assignment_id,
   slaDueAt: r.sla_due_at, slaEscalationStage: r.sla_escalation_stage, slaSatisfiedAt: r.sla_satisfied_at,
   returnTrip: r.return_trip, latestNote: r.note_body !== null && r.note_at !== null ? { body: r.note_body, at: r.note_at } : null,
@@ -64,7 +64,7 @@ export const JOB_SELECT = `
          lower(j.service_window) AS ws, upper(j.service_window) AS we, j.version,
          ${iso("j.opened_at")} AS opened_at,
          ${iso("COALESCE((SELECT max(e.occurred_at) FROM job_state_events e WHERE e.job_id = j.id AND e.to_state = j.state), j.opened_at)")} AS state_changed_at,
-         j.region_id, j.org_id, o.segment AS customer_segment,
+         j.region_id, j.org_id, o.segment AS customer_segment, o.name AS customer_name,
          a.crew_id AS current_crew_id, c.label AS current_crew_label, a.id AS current_assignment_id,
          ${iso("st.due_at")} AS sla_due_at, st.escalation_stage AS sla_escalation_stage,
          ${iso("st.satisfied_at")} AS sla_satisfied_at,

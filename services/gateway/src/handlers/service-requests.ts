@@ -77,7 +77,7 @@ export const createServiceRequest = async (
 
 type Row = {
   id: string; site_id: string; site_name: string; priority: ServiceRequestPriority; description: string;
-  requested_by: string; created_at: string; job_id: string | null; job_state: JobStateWire | null; org_id: string; region_id: string; customer_segment: CustomerSegment | null;
+  requested_by: string; created_at: string; job_id: string | null; job_state: JobStateWire | null; org_id: string; region_id: string; customer_segment: CustomerSegment | null; customer_name: string | null;
   photos: RequestPhotoWire[];
 };
 
@@ -108,7 +108,7 @@ export const listServiceRequests = async (uow: UnitOfWork, input: ListServiceReq
   const rows = await uow.tx.query<Row>(
     `SELECT r.id, r.site_id, a.name AS site_name, r.priority, r.description, r.requested_by,
             ${iso("r.created_at")} AS created_at,
-            r.job_id, j.state AS job_state, r.org_id, r.region_id, o.segment AS customer_segment,
+            r.job_id, j.state AS job_state, r.org_id, r.region_id, o.segment AS customer_segment, o.name AS customer_name,
             COALESCE((SELECT json_agg(json_build_object('id', m.id, 'contentType', o.content_type, 'bytes', o.byte_size) ORDER BY m.created_at, m.id)
                         FROM service_request_media m JOIN storage_objects o ON o.id = m.storage_object_id
                        WHERE m.request_id = r.id), '[]'::json) AS photos
@@ -123,7 +123,7 @@ export const listServiceRequests = async (uow: UnitOfWork, input: ListServiceReq
   const blocked = office ? await waitingOnTerms(uow, rows, now) : new Map<string, string>();
   const requests: ServiceRequestWire[] = rows.map((r) => ({
     id: r.id, siteId: r.site_id, siteName: r.site_name, priority: r.priority, description: r.description,
-    requestedBy: r.requested_by, createdAt: r.created_at, jobId: r.job_id, jobState: r.job_state, orgId: r.org_id, regionId: r.region_id, customerSegment: r.customer_segment ?? null,
+    requestedBy: r.requested_by, createdAt: r.created_at, jobId: r.job_id, jobState: r.job_state, orgId: r.org_id, regionId: r.region_id, customerSegment: r.customer_segment ?? null, customerName: r.customer_name ?? null,
     photos: r.photos.map((p) => ({ id: p.id, contentType: p.contentType, bytes: Number(p.bytes) })),
     waitingOnTerm: r.job_id === null ? blocked.get(r.site_id) ?? null : null,
   }));

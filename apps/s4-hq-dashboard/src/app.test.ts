@@ -231,7 +231,7 @@ const job = {
   id: JOB, siteId: SITE, siteName: "Amped HQ", siteAddress: { line1: "1 Main St", city: "Austin", state: "TX" }, contractId: null, projectId: null,
   serviceCode: "repair", priority: "urgent", state: "assigned", workClass: "service",
   serviceWindowStart: "2026-09-27T14:00:00.000Z", serviceWindowEnd: "2026-09-27T18:00:00.000Z", version: 2, openedAt: "2026-09-27T13:00:00.000Z",
-  stateChangedAt: "2026-09-27T13:30:00.000Z", regionId: SOUTH, orgId: ORG, customerSegment: "commercial",
+  stateChangedAt: "2026-09-27T13:30:00.000Z", regionId: SOUTH, orgId: ORG, customerSegment: "commercial", customerName: null,
   currentCrewId: U(20), currentCrewLabel: "South Crew 1", currentAssignmentId: U(21),
   slaDueAt: "2026-09-27T16:00:00.000Z", slaEscalationStage: 1, slaSatisfiedAt: null, returnTrip: false, latestNote: null,
 };
@@ -252,7 +252,7 @@ const RECORDS: Record<string, unknown> = {
   [OPERATIONS["devices.list"].path]: { devices: [] },
   [OPERATIONS["jobs.list"].path]: { jobs: [job, { ...job, id: U(15), state: "invoiced", slaDueAt: null, slaEscalationStage: null }] },
   [OPERATIONS["jobs.detail"].path]: { job, contact: { name: "Front desk", phone: "555-0199", email: null }, visits: [], media: [], notes: [], updates: [], messages: [] },
-  [OPERATIONS["serviceRequests.list"].path]: { requests: [{ id: U(60), siteId: SITE, siteName: "Amped HQ", priority: "urgent", description: "No cooling", requestedBy: "Front desk", createdAt: "2026-09-27T12:00:00.000Z", jobId: null, jobState: null, orgId: ORG, regionId: SOUTH, customerSegment: "commercial", photos: [], waitingOnTerm: null }] },
+  [OPERATIONS["serviceRequests.list"].path]: { requests: [{ id: U(60), siteId: SITE, siteName: "Amped HQ", priority: "urgent", description: "No cooling", requestedBy: "Front desk", createdAt: "2026-09-27T12:00:00.000Z", jobId: null, jobState: null, orgId: ORG, regionId: SOUTH, customerSegment: "commercial", customerName: null, photos: [], waitingOnTerm: null }] },
 };
 const records = Object.fromEntries(Object.entries(RECORDS).map(([p, body]) => [p, { status: 200, body }]));
 const visit = async (app: Awaited<ReturnType<typeof ready>>["app"], screen: Parameters<typeof app.router.navigate>[0], params: Record<string, string> = {}) => {

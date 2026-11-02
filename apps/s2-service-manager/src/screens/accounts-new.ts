@@ -1,5 +1,5 @@
 import { html, pageHead, signal, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { AccountWire, CreateAccountInput, Refusal, RegionWire } from "../../../../packages/contracts/src/index.ts";
+import { tierWord, type AccountWire, type CreateAccountInput, type CustomerSegment, type Refusal, type RegionWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, refusalView, submitAction, noChoice, noActiveRegion, formValues, linkTo, type Screen, type ScreenContext } from "./common.ts";
 
@@ -28,9 +28,13 @@ export const accountsNew: Screen = (ctx, params) => {
   const parentId = params.parentId;
   const key = `${orgId}/${tier}/${parentId ?? ""}`;
   if (outcome.value.key !== key) outcome.value = { key, refusal: null, busy: false };
+  const orgList = store.read(keyOf("organizations.list", { kind: "customer" }), () => shell.gateway.listOrganizations({ kind: "customer" })).value;
+  const segment = orgList.state === "ready" ? orgList.value.organizations.find((o) => o.id === orgId)?.segment ?? null : null;
 
   if (!isTier(tier)) return html`<p class="s2-empty">Unknown tier "${tier}". ${linkTo(ctx, "accounts.tree", { orgId }, "Back to the tree")}</p>`;
-  if (tier !== "region" && !parentId) return html`<p class="s2-empty">A ${tier} needs a parent. Pick one in ${linkTo(ctx, "accounts.tree", { orgId }, "the tree")}.</p>`;
+  // A home's region row is the customer itself, so a second one is "another region", not "another customer".
+  const word = segment === "residential" && tier === "region" ? "region" : tierWord(tier, segment).toLowerCase();
+  if (tier !== "region" && !parentId) return html`<p class="s2-empty">A ${word} needs a parent. Pick one in ${linkTo(ctx, "accounts.tree", { orgId }, "the tree")}.</p>`;
 
   const submit = async (e: Event) => {
     e.preventDefault();
@@ -48,7 +52,7 @@ export const accountsNew: Screen = (ctx, params) => {
       const out = await shell.gateway.createAccount(input);
       store.invalidate(keyOf("accounts.list", { orgId }));
       store.invalidate("organizations.list");
-      store.notice.value = [`Created ${tier} "${input.name}".`, ...out.caveats.map((c) => `Admitted with a caveat: ${c}.`)];
+      store.notice.value = [`Created ${word} "${input.name}".`, ...out.caveats.map((c) => `Admitted with a caveat: ${c}.`)];
       ctx.router.navigate("accounts.tree", { orgId });
     } catch (err) {
       outcome.value = { key, refusal: shell.refusalOf(err) ?? { kind: "transport", status: null, message: String(err) }, busy: false };
@@ -60,21 +64,21 @@ export const accountsNew: Screen = (ctx, params) => {
     <select name="regionId" required class="ac-input">
       ${regions.filter((r) => r.assignable).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}
     </select>
-    <small>The region node is where this customer's tree meets one of our regions. Everything under it is dispatched from here.</small>
+    <small>${segment === "residential" ? "The region we serve this home from. Its address and house are dispatched from here." : "The region node is where this customer's tree meets one of our regions. Everything under it is dispatched from here."}</small>
   </label>`;
 
   const parentLine = (nodes: readonly AccountWire[], regions: readonly RegionWire[]): VNode => {
     const p = nodes.find((n) => n.id === parentId);
     if (!p) return html`<p class="s2-empty">Parent ${parentId} is not in this tree.</p>`;
     const region = regions.find((r) => r.id === p.regionId);
-    return html`<p class="s2-parent">Under <strong>${p.name}</strong> (${p.tier}) — dispatched from <strong>${region?.name ?? p.regionId}</strong>. The region follows the edge; it is not chosen here.</p>`;
+    return html`<p class="s2-parent">Under <strong>${p.name}</strong> (${tierWord(p.tier, segment).toLowerCase()}) — dispatched from <strong>${region?.name ?? p.regionId}</strong>. The region follows the edge; it is not chosen here.</p>`;
   };
 
   const regions = store.read(keyOf("regions.list"), () => shell.gateway.listRegions());
   const tree = parentId ? store.read(keyOf("accounts.list", { orgId }), () => shell.gateway.listAccounts({ orgId })) : null;
 
   return html`<section class="s2-form-screen">
-    ${pageHead(`New ${tier}`, "Add a node to this customer's tree; a region node binds to one of our regions, and below it the region follows the parent.")}
+    ${pageHead(`New ${word}`, segment === "residential" ? "Add to this home's record; the region we serve it from follows from the customer row." : "Add a node to this customer's tree; a region node binds to one of our regions, and below it the region follows the parent.")}
     ${tree ? whenReady(ctx, tree.value, (t) => whenReady(ctx, regions.value, (r) => parentLine(t.nodes, r.regions))) : null}
     <form class="ac-form" onSubmit=${submit} id="account-form">
       <label class="ac-field"><span>Name</span><input class="ac-input" name="name" required autocomplete="off" /></label>
@@ -84,23 +88,23 @@ export const accountsNew: Screen = (ctx, params) => {
         <label class="ac-field"><span>Customer's site / store code</span><input class="ac-input" name="externalRef" /></label>
         <label class="ac-field"><span>Timezone (IANA)</span><input class="ac-input" name="timezone" placeholder="America/Chicago" /></label>` : null}
       <div class="s2-form__actions">
-        ${submitAction(ctx, outcome.value.busy ? "Creating…" : `Create ${tier}`, "create", tier === "region" ? noActiveRegion(regions.value) : null)}
+        ${submitAction(ctx, outcome.value.busy ? "Creating…" : `Create ${word}`, "create", tier === "region" ? noActiveRegion(regions.value) : null)}
         ${linkTo(ctx, "accounts.tree", { orgId }, "Cancel")}
       </div>
     </form>
-    ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, refusalRoutes(ctx, outcome.value.refusal, orgId, tier, parentId)) : null}
+    ${outcome.value.refusal ? refusalView(ctx, outcome.value.refusal, refusalRoutes(ctx, outcome.value.refusal, orgId, tier, parentId, segment)) : null}
   </section>`;
 };
 
 /** Where a refusal can go from here — the route is part of the decision (09 §3.8). */
-export const refusalRoutes = (ctx: ScreenContext, r: Refusal, orgId: string, tier: Tier, parentId: string | undefined) => {
+export const refusalRoutes = (ctx: ScreenContext, r: Refusal, orgId: string, tier: Tier, parentId: string | undefined, segment: CustomerSegment | null = null) => {
   const routes: { label: string; onSelect: () => void; primary?: boolean }[] = [];
   if (r.kind === "admission" && r.code === "supply_below_density") {
     // Phase 1: the commercial route opens the account owner's contact with the refusal text; `commercial_review` is a later catalogue row.
     routes.push({ label: "Request commercial review", onSelect: () => { ctx.store.notice.value = [`Commercial review requested: ${r.message}`]; ctx.router.navigate("accounts.tree", { orgId }); }, primary: true });
   }
   if (r.kind === "admission" && r.code === "ac_accounts_derive_region" && tier === "site" && parentId) {
-    routes.push({ label: "Add a location here instead", onSelect: () => ctx.router.navigate("accounts.new", { orgId, tier: "location", parentId }), primary: true });
+    routes.push({ label: `Add ${segment === "residential" ? "an" : "a"} ${tierWord("location", segment).toLowerCase()} here instead`, onSelect: () => ctx.router.navigate("accounts.new", { orgId, tier: "location", parentId }), primary: true });
   }
   routes.push({ label: "Back to the tree", onSelect: () => ctx.router.navigate("accounts.tree", { orgId }) });
   return routes;

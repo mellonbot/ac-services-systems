@@ -2,7 +2,7 @@ import { html, signal, shortRef, StatusPill, DataGrid, pageHead, statStrip, pane
 import { serviceLabel, WORK_DONE_STATES, crewKindFor, crewKindForRole, type JobWire, type CrewWire, type CrewKind, type TechnicianWire } from "../../../../packages/contracts/src/index.ts";
 import { STATUS_GLYPH } from "../../../../packages/tokens/src/index.ts";
 import { keyOf, type Store } from "../state.ts";
-import { whenReady, homeMark, linkTo, type Screen } from "./common.ts";
+import { placeName, whenReady, homeMark, linkTo, type Screen } from "./common.ts";
 import { STATE_LABEL } from "./jobs.ts";
 
 /**
@@ -57,7 +57,7 @@ const startOfDay = (ms: number, offset: number): number => {
   return d.getTime();
 };
 const initialsOf = (label: string): string => label.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
-const describe = (job: JobWire): string => `${job.siteName ?? "Site name unavailable"} — ${serviceLabel(job.serviceCode)}`;
+const describe = (job: JobWire): string => `${placeName(job)} — ${serviceLabel(job.serviceCode)}`;
 
 const WAITING: readonly string[] = ["awaiting_customer", "awaiting_parts", "quote_requested", "quote_submitted", "awaiting_po", "awaiting_pictures"];
 const DONE: readonly string[] = [...WORK_DONE_STATES];
@@ -184,10 +184,10 @@ const offTimeline = (ctx: Parameters<Screen>[0], unassigned: readonly JobWire[],
       density: "console", stack: true, caption: `Unassigned — ${unassigned.length} not on any crew's row`,
       columns: [
         { key: "id", header: "Job #", numeric: true, cell: jobLink },
-        { key: "site", header: "Site", cell: (j: JobWire) => html`${j.siteName ?? "Site name unavailable"}${homeMark(j.customerSegment)} <span class="s3-muted">· ${serviceLabel(j.serviceCode)} · ${j.priority}</span>` },
+        { key: "site", header: "Customer / site", cell: (j: JobWire) => html`${placeName(j)}${homeMark(j.customerSegment)} <span class="s3-muted">· ${serviceLabel(j.serviceCode)} · ${j.priority}</span>` },
         { key: "window", header: "Window", cell: (j: JobWire) => html`<span class="s3-num">${windowText(j)}</span>` },
         { key: "sla", header: "SLA", cell: sla },
-        { key: "act", header: "", align: "end", cell: (j: JobWire) => isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act", `Dispatch job ${j.id} at ${j.siteName ?? "its site"}`) : html`<span class="s3-muted">${STATE_LABEL[j.state]}</span>` },
+        { key: "act", header: "", align: "end", cell: (j: JobWire) => isDispatchable(j) ? linkTo(ctx, "dispatch", { jobId: j.id }, "Dispatch", "s3-act", `Dispatch job ${j.id} at ${placeName(j)}`) : html`<span class="s3-muted">${STATE_LABEL[j.state]}</span>` },
       ],
       rows: unassigned, rowKey: (j: JobWire) => j.id, emptyText: "Every open job is on a crew.",
     })}
@@ -196,7 +196,7 @@ const offTimeline = (ctx: Parameters<Screen>[0], unassigned: readonly JobWire[],
       columns: [
         { key: "id", header: "Job #", numeric: true, cell: (o: { job: JobWire }) => jobLink(o.job) },
         { key: "crew", header: "Crew", cell: (o: { crew: string }) => o.crew },
-        { key: "site", header: "Site", cell: (o: { job: JobWire }) => html`${o.job.siteName ?? "Site name unavailable"} <span class="s3-muted">· ${serviceLabel(o.job.serviceCode)} · ${o.job.priority}</span>` },
+        { key: "site", header: "Customer / site", cell: (o: { job: JobWire }) => html`${placeName(o.job)}${homeMark(o.job.customerSegment)} <span class="s3-muted">· ${serviceLabel(o.job.serviceCode)} · ${o.job.priority}</span>` },
         { key: "window", header: "Window", cell: (o: { job: JobWire }) => html`<span class="s3-num">${windowText(o.job)}</span>` },
         { key: "sla", header: "SLA", cell: (o: { job: JobWire }) => sla(o.job) },
       ],
@@ -257,7 +257,7 @@ export const board: Screen = (ctx) => {
               const at = m.place(job);
               if (at.width <= 0) return null;
               const tone = boardTone(job, now);
-              return html`<a class="dispatch-board__segment" key=${job.id} href=${ctx.router.href("detail", { jobId: job.id })} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate("detail", { jobId: job.id }); }} data-tone=${tone} style=${`left:${at.left}%; width:${at.width}%;`} title=${`${TONE_WORD[tone]} — ${describe(job)}`}>${stateMark(tone)}${shortRef(job.id)}<span>${job.siteName ?? "Site name unavailable"}</span></a>`;
+              return html`<a class="dispatch-board__segment" key=${job.id} href=${ctx.router.href("detail", { jobId: job.id })} onClick=${(e: Event) => { e.preventDefault(); ctx.router.navigate("detail", { jobId: job.id }); }} data-tone=${tone} style=${`left:${at.left}%; width:${at.width}%;`} title=${`${TONE_WORD[tone]} — ${describe(job)}`}>${stateMark(tone)}${shortRef(job.id)}<span>${placeName(job)}</span></a>`;
             })}
           </div>
         </div>`) : html`<p class="dispatch-board__empty">No crews or technicians on the roster.</p>`}

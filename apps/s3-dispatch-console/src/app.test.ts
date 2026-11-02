@@ -35,7 +35,7 @@ const context: HierarchyContext = {
 const jobCreated: JobWire = {
   id: JOB_CREATED, siteId: SITE, siteName: "Austin — Roof", siteAddress: null, contractId: null, projectId: null, serviceCode: "HVAC-REPAIR", priority: "urgent", state: "created", workClass: "service",
   serviceWindowStart: "2026-09-18T09:00:00.000Z", serviceWindowEnd: "2026-09-18T17:00:00.000Z", version: 1, openedAt: "2026-09-17T12:00:00.000Z", stateChangedAt: "2026-09-17T12:00:00.000Z",
-  regionId: SOUTH, orgId: ORG, customerSegment: "commercial", currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
+  regionId: SOUTH, orgId: ORG, customerSegment: "commercial", customerName: null, currentCrewId: null, currentCrewLabel: null, currentAssignmentId: null,
   slaDueAt: "2026-09-17T16:00:00.000Z", slaEscalationStage: 1, slaSatisfiedAt: null,
   returnTrip: false, latestNote: null,
 };
@@ -489,7 +489,7 @@ const REQ_ROUTINE = "5e000001-0000-4000-8000-000000000001", REQ_EMERGENCY = "5e0
 const PHOTO_A = U(40), PHOTO_B = U(41);
 const req = (id: string, priority: ServiceRequestWire["priority"], createdAt: string, extra: Partial<ServiceRequestWire> = {}): ServiceRequestWire => ({
   id, siteId: SITE, siteName: "Austin — Roof", priority, description: `Request ${id.slice(0, 8)}`, requestedBy: "u-cust", createdAt,
-  jobId: null, jobState: null, orgId: ORG, regionId: SOUTH, customerSegment: "commercial", photos: [], waitingOnTerm: null, ...extra,
+  jobId: null, jobState: null, orgId: ORG, regionId: SOUTH, customerSegment: "commercial", customerName: null, photos: [], waitingOnTerm: null, ...extra,
 });
 const REQUESTS: ServiceRequestWire[] = [
   req(REQ_ROUTINE, "routine", "2026-09-17T11:00:00.000Z", { siteName: "Home", customerSegment: "residential" }),

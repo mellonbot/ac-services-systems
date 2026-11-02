@@ -1,5 +1,5 @@
 import { html, panel, DataGrid, signal, PLAN_WORD, type VNode } from "../../../../packages/ui/src/index.ts";
-import type { AccountWire, ContractKind, ContractState, ContractWire, OrganizationWire } from "../../../../packages/contracts/src/index.ts";
+import { tierWord, type AccountWire, type ContractKind, type ContractState, type ContractWire, type OrganizationWire } from "../../../../packages/contracts/src/index.ts";
 import { keyOf } from "../state.ts";
 import { whenReady, linkTo, type ScreenContext } from "./common.ts";
 import { siteMap, serviceHistory } from "./home-card.ts";
@@ -71,19 +71,20 @@ export const mapSiteOf = (orgId: string, sites: readonly AccountWire[]): Account
 const overview = (ctx: ScreenContext, org: OrganizationWire, card: VNode, sites: readonly AccountWire[]): VNode => {
   const site = mapSiteOf(org.id, sites);
   const where = site ? placeLine(site.address) : null;
+  const word = tierWord("site", org.segment);
   const picker = sites.length > 1 ? html`<label class="s2-site-pick">
-      <span class="s2-site-pick__label">Site</span>
-      <select class="ac-input" aria-label="Site shown on the map" onChange=${(e: Event) => pickSite(org.id, (e.currentTarget as HTMLSelectElement).value)}>
+      <span class="s2-site-pick__label">${word}</span>
+      <select class="ac-input" aria-label=${`${word} shown on the map`} onChange=${(e: Event) => pickSite(org.id, (e.currentTarget as HTMLSelectElement).value)}>
         ${sites.map((s) => html`<option value=${s.id} selected=${s.id === site?.id}>${s.name}</option>`)}
       </select>
     </label>` : null;
   return panel(html`<div class="s2-overview">
       ${card}
       <div class="s2-overview__site">
-        ${site ? siteMap(ctx, site) : html`<div class="s2-map s2-map--empty" id="site-map"><p class="s2-muted">This customer has no site yet, so there is no address to pin.</p></div>`}
+        ${site ? siteMap(ctx, site) : html`<div class="s2-map s2-map--empty" id="site-map"><p class="s2-muted">This customer has no ${word.toLowerCase()} yet, so there is no address to pin.</p></div>`}
       </div>
-    </div>`, "Customer and site",
-    site ? (where ? `${site.name === site.address?.line1 ? "" : `${site.name} · `}${where}` : `${site.name} · no street address recorded`) : "No site yet",
+    </div>`, `Customer and ${word.toLowerCase()}`,
+    site ? (where ? `${site.name === site.address?.line1 ? "" : `${site.name} · `}${where}` : `${site.name} · no street address recorded`) : `No ${word.toLowerCase()} yet`,
     picker, "customer-overview");
 };
 

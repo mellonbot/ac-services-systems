@@ -134,6 +134,8 @@ export type JobWire = {
   readonly regionId: string; readonly orgId: string;
   /** The customer's segment (0019) — null where the organization row is not visible to this principal (a firm). */
   readonly customerSegment: CustomerSegment | null;
+  /** The customer's name, under the same visibility as the segment. A home's site is just "Home", so dispatch names a homeowner's job by this. */
+  readonly customerName: string | null;
   /** The crew currently holding this job, unreleased — null once dispatched-and-released or never assigned. */
   readonly currentCrewId: string | null; readonly currentCrewLabel: string | null;
   /** The open assignment's own id — what `dispatch.release` names. Null exactly when currentCrewId is null. */
@@ -162,6 +164,8 @@ export type ServiceRequestWire = {
   readonly orgId: string; readonly regionId: string;
   /** The customer's segment (0019), so the office can tell a homeowner from a building. */
   readonly customerSegment: CustomerSegment | null;
+  /** The customer's name, under the same visibility as the segment — what a homeowner's request is called on the office's screens. */
+  readonly customerName: string | null;
   /** Oldest first. Fetch each with `media.get`. */
   readonly photos: readonly RequestPhotoWire[];
   /**
