@@ -6,6 +6,7 @@ import { SCREENS } from "./screens.ts";
 import { S1_CSS } from "./styles.ts";
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import { OPERATIONS, SURFACES, type SignInInput, type SignInOutput } from "../../../packages/contracts/src/index.ts";
+import { SHIFT_TAB_KEY, HELD_SHIFT_KEY } from "../../../packages/shell/src/index.ts";
 
 /**
  * S1, THE FRONT DOOR, against a scripted gateway, through the REAL shell and
@@ -144,6 +145,17 @@ test("a field device: the box shows the device ID field, and the ID goes with th
   assert.deepEqual(went, ["/technician/"]);
 });
 
+test("a shift sent to S5 marks this tab, so S5 resumes it here and nowhere else; another surface leaves no mark", async () => {
+  for (const [surface, marked] of [["S5", true], ["S2", false]] as const) {
+    const m = new Map<string, string>();
+    const tab = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, removeItem: (k: string) => { m.delete(k); } };
+    const app = createApp({ baseUrl: "https://api.ac.test", fetch: fakeGateway({ signIn: () => signedIn(surface) }).fetch, session: "bearer", go: () => {}, tab });
+    app.signIn(surface === "S5" ? { ...DANA, hardwareId: "TAB-0042" } : DANA);
+    await settle();
+    assert.equal(m.has(SHIFT_TAB_KEY), marked, surface);
+  }
+});
+
 test("ticking the device box while a sign-in is in flight survives the refusal that comes back", async () => {
   let answer!: () => void;
   const g = fakeGateway({ signIn: () => ({ status: 403, body: { error: "HttpError", message: "This login signs in on a field device." } }) });
@@ -251,4 +263,69 @@ test("NO TIME OR AVAILABILITY CLAIM ANYWHERE IN S1'S COPY — the ceiling is unw
 test("S1 is the one surface that wears the house red, and its stylesheet holds no colour of its own", () => {
   assert.equal(SURFACES.S1.stateRamp, false, "nothing on this page bears state, which is why the red is allowed here");
   assert.equal(/#[0-9a-f]{3,8}|rgb\(/i.test(S1_CSS), false, "colour literals live in packages/tokens and nowhere else");
+});
+
+/**
+ * OFFLINE. With no network S1 offers no form: a tab holding a front-door shift
+ * goes on to S5, which opens it from the tab; any other tab is told plainly.
+ * Online, a held shift changes nothing until a sign-in cannot get through.
+ */
+const NOW = Date.parse("2026-11-02T15:00:00Z");
+const heldTab = (opts: { marked?: boolean; held?: boolean; endsAt?: string } = {}) => {
+  const m = new Map<string, string>();
+  if (opts.marked ?? true) m.set(SHIFT_TAB_KEY, "1");
+  if (opts.held ?? true) {
+    m.set(HELD_SHIFT_KEY, JSON.stringify({
+      principal: { namespace: "device", subjectId: "tech-1", orgId: "o", regionId: "r", scopeTier: "region", scopeId: "r", roles: ["technician"], firmId: null, deviceId: "d", shiftId: "s", tierClaim: null, sessionId: "x" },
+      path: [], parent: { tier: "parent", id: "o", name: "AC Services", regionId: null, customerGroup: null }, regions: [], activeRegionId: "r",
+      deviceCrew: { id: "c", label: "Crew A1" }, deviceShiftEndsAt: opts.endsAt ?? "2026-11-02T22:00:00.000Z",
+    }));
+  }
+  return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, removeItem: (k: string) => { m.delete(k); } };
+};
+const doorWith = (opts: { online: boolean; tab: ReturnType<typeof heldTab> | null; down?: boolean }) => {
+  const went: string[] = [];
+  let online = opts.online;
+  const g = fakeGateway({ down: opts.down ?? !opts.online });
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, session: "bearer", go: (p) => { went.push(p); }, tab: opts.tab, online: () => online, now: () => NOW });
+  return { app, went, g, setOnline: (v: boolean) => { online = v; app.network(); } };
+};
+
+test("offline, a tab holding a shift goes straight on to S5 — asking the gateway nothing", () => {
+  const { app, went, g } = doorWith({ online: false, tab: heldTab() });
+  assert.deepEqual(went, ["/technician/"]);
+  assert.equal(g.calls.length, 0);
+  assert.match(render(app.view()), /Opening Technician web fallback/);
+});
+
+test("offline, a tab holding nothing — a fresh tab, an ended shift, a record without its mark — gets a plain refusal and no form", () => {
+  for (const tab of [null, heldTab({ held: false }), heldTab({ endsAt: "2026-11-02T14:00:00.000Z" }), heldTab({ marked: false })]) {
+    const { app, went, g } = doorWith({ online: false, tab });
+    assert.deepEqual(went, []);
+    const out = render(app.view());
+    assert.match(out, /No signal/);
+    assert.match(out, /this tab holds no shift to open offline/);
+    assert.doesNotMatch(out, /id="sign-in-form"|Signing in…/, "no form to submit, no spinner");
+    assert.equal(g.calls.length, 0);
+  }
+});
+
+test("the form comes back when the network does; online, a held shift does not send anyone anywhere", () => {
+  const { app, went, setOnline } = doorWith({ online: false, tab: null });
+  setOnline(true);
+  assert.match(render(app.view()), /id="sign-in-form"/);
+  const online = doorWith({ online: true, tab: heldTab() });
+  assert.deepEqual([...went, ...online.went], []);
+  assert.match(render(online.app.view()), /id="sign-in-form"/);
+});
+
+test("online but unreachable — a dead zone — a tab holding a shift is offered it under the refusal; another tab is not", async () => {
+  for (const [tab, offered] of [[heldTab(), true], [heldTab({ held: false }), false]] as const) {
+    const { app, went } = doorWith({ online: true, tab, down: true });
+    app.signIn(DANA);
+    await settle();
+    assert.deepEqual(went, [], "nobody is sent anywhere by a failed sign-in");
+    const out = render(app.view());
+    assert.equal(/id="open-held-shift"[^>]*href="\/technician\/"|href="\/technician\/"[^>]*id="open-held-shift"/.test(out), offered);
+  }
 });

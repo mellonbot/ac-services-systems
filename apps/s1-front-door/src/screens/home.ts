@@ -1,6 +1,6 @@
 import { html, PrimaryAction, type VNode } from "../../../../packages/ui/src/index.ts";
 import { BRAND } from "../../../../packages/tokens/src/brand.ts";
-import { refusalView, type DoorState, type Screen, type ScreenContext } from "./common.ts";
+import { refusalView, offlineView, S5_PATH, type DoorState, type Screen, type ScreenContext } from "./common.ts";
 
 /** The site's name, as the visitor reads it in the heading and the tab. */
 export const SITE_TITLE = `${BRAND.works.firm} — Service System`;
@@ -41,7 +41,7 @@ export const home: Screen = (ctx: ScreenContext): VNode => {
     <h1 class="s1-h1 s1-sr-only">${SITE_TITLE}</h1>
     <div class="s1-door">
       <div class="s1-door__panel">
-        ${d.step === "choose" ? chooser(ctx, d) : d.step === "going" ? going(d) : signInForm(ctx, d)}
+        ${d.step === "going" ? going(d) : ctx.offline ? noSignal(ctx) : d.step === "choose" ? chooser(ctx, d) : signInForm(ctx, d)}
       </div>
       <div class="s1-scene">
         <div class="s1-scene__stage" role="img" aria-label="AC Services service truck, Unit TACLA-14402C, in the service yard"><canvas ref=${sceneRef}></canvas></div>
@@ -73,8 +73,20 @@ const signInForm = (ctx: ScreenContext, d: Extract<DoorState, { step: "form" }>)
         : null}
       ${PrimaryAction({ density: ctx.density, label: d.busy ? "Signing in…" : "Sign in", type: "submit", id: "sign-in" })}
     </form>
-    ${d.refusal ? refusalView(ctx, d.refusal) : null}`;
+    ${d.refusal ? refusalView(ctx, d.refusal) : null}
+    ${d.refusal?.kind === "transport" && ctx.heldShift
+      ? html`<p><a class="ac-link" id="open-held-shift" href=${S5_PATH}>Open the shift saved in this tab</a></p>`
+      : null}`;
 };
+
+/**
+ * No network at all, and nothing this tab can open without one (a tab that
+ * holds a shift never gets here — app.ts sends it on to S5). Not the form: a
+ * sign-in cannot work, and a spinner would say it might.
+ */
+const noSignal = (ctx: ScreenContext): VNode => html`
+  <h2 class="s1-h2 s1-welcome" id="door-title">No signal</h2>
+  ${offlineView(ctx)}`;
 
 const chooser = (ctx: ScreenContext, d: Extract<DoorState, { step: "choose" }>): VNode => html`
   <h2 class="s1-h2 s1-welcome" id="door-title">Where to?</h2>

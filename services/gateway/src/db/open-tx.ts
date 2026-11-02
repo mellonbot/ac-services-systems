@@ -18,12 +18,17 @@ type Unit = Awaited<ReturnType<typeof createUnitOfWork>>;
  * `ac_session` cookie. `viaCookie` is remembered because a cookie principal
  * must name its surface (surfaceOf) — that requirement is the CSRF line.
  */
-export type Caller = { readonly principal: Principal; readonly viaCookie: boolean };
+/** `expiresAt` is the token's own `exp` (seconds) — the instant its session row and cookie end. */
+export type Caller = { readonly principal: Principal; readonly viaCookie: boolean; readonly expiresAt: number };
+const callerFrom = (token: string, viaCookie: boolean): Caller => {
+  const claims = verifyToken(token, keys, Date.now());
+  return { principal: principalFromClaims(claims), viaCookie, expiresAt: claims.exp };
+};
 export const callerOf = (req: IncomingMessage): Caller => {
   const auth = req.headers.authorization ?? "";
-  if (auth.startsWith("Bearer ")) return { principal: principalFromClaims(verifyToken(auth.slice(7), keys, Date.now())), viaCookie: false };
+  if (auth.startsWith("Bearer ")) return callerFrom(auth.slice(7), false);
   const fromCookie = cookieToken(req.headers.cookie);
-  if (fromCookie) return { principal: principalFromClaims(verifyToken(fromCookie, keys, Date.now())), viaCookie: true };
+  if (fromCookie) return callerFrom(fromCookie, true);
   throw new AuthError("no bearer token and no session cookie", "malformed");
 };
 

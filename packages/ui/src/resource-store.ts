@@ -15,9 +15,20 @@ export type Store = {
   readonly version: Signal<number>;
 };
 
+/**
+ * `held` seeds the last-answered values (S5 opening offline from what an
+ * earlier load of the same tab saw); `onAnswer` is told each value the gateway
+ * answers, and each key a real refusal drops, so the caller can keep them.
+ */
+export type ResourceStoreOptions = {
+  readonly held?: Readonly<Record<string, unknown>>;
+  readonly onAnswer?: (key: string, value: unknown) => void;
+};
+
 export const createResourceStore = (
   shell: { readonly refusalOf: (error: unknown) => Refusal | null },
   now: () => number,
+  opts: ResourceStoreOptions = {},
 ): Store => {
   const cache = new Map<string, Signal<Resource<unknown>>>();
   // The last value each key was answered with. It outlives `invalidate`, so a
@@ -26,7 +37,7 @@ export const createResourceStore = (
   // freshness line says how old it is — instead of trading a job the user is
   // working for a transport error. A refusal the gateway actually gave
   // (forbidden, not found) still replaces it: that is new information.
-  const last = new Map<string, unknown>();
+  const last = new Map<string, unknown>(Object.entries(opts.held ?? {}));
   // Bumped per key by `invalidate`. A fetch that was in flight when its key
   // was invalidated may resolve after the refetch; its answer is older, so it
   // must not become the held value.
@@ -44,10 +55,10 @@ export const createResourceStore = (
     const gen = generation.get(key) ?? 0;
     const current = () => (generation.get(key) ?? 0) === gen;
     fetcher().then(
-      (value) => { lastOkAt.value = now(); if (current()) last.set(key, value); resource.value = { state: "ready", value }; },
+      (value) => { lastOkAt.value = now(); if (current()) { last.set(key, value); opts.onAnswer?.(key, value); } resource.value = { state: "ready", value }; },
       (error: unknown) => {
         const refusal = shell.refusalOf(error) ?? { kind: "transport", status: null, message: String(error) } as const;
-        if (refusal.kind !== "transport") { lastOkAt.value = now(); if (current()) last.delete(key); }
+        if (refusal.kind !== "transport") { lastOkAt.value = now(); if (current()) { last.delete(key); opts.onAnswer?.(key, undefined); } }
         else if (held) return;
         resource.value = { state: "refused", refusal };
       },

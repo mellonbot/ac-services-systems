@@ -1,5 +1,5 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
-import { gatewayOrigin, type ConnectedShell } from "../../../packages/shell/src/index.ts";
+import { html, mount, spinFavicon, registerOfflineShell, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
+import { gatewayOrigin, SHIFT_TAB_KEY, heldShift, holdShift, forgetShift, resumeHeldShift, type ConnectedShell, type TabMark } from "../../../packages/shell/src/index.ts";
 export { gatewayOrigin };
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
 import { SURFACE, connect } from "./main.ts";
@@ -20,9 +20,16 @@ import { S5_CSS } from "./styles.ts";
  * ConnectConfig doc). A sign-in made at the FRONT DOOR (S1, `auth.signIn`
  * with a device ID) arrives as the session cookie instead, so boot first
  * tries to resume that — `resume()` — and keeps it only when it is a device
- * session with a crew. Anything else falls through to this page's own login,
+ * session with a crew, in a tab S1 marked (SHIFT_TAB_KEY): the shift lasts
+ * across a reload and ends with the tab. Anything else falls through to this page's own login,
  * as before. A reload losing a bearer session is the accepted cost of the web
  * fallback being the fallback; re-authenticating with the hardware in hand is quick.
+ *
+ * OFFLINE: a shift resumed that way is also held in the tab (packages/shell's
+ * `holdShift`), with the last jobs and punches the gateway answered. When the
+ * next load of that tab cannot reach the gateway, `resume()` opens the held
+ * shift instead — the same crew, the last list, every tap queued as ever. A
+ * tab with nothing held is told so; nothing is ever signed in offline.
  *
  * `become()` is also where the two things S2/S3 have no equivalent of are
  * created once per session: the offline mutation queue (./offline.ts) and
@@ -43,7 +50,7 @@ type Phase =
   | { kind: "login"; refusal: Refusal | null; busy: boolean }
   | { kind: "ready"; shell: ConnectedShell; store: Store; queue: OfflineQueue; wrapUps: WrapUps; crew: { id: string; label: string }; clock: Signal<Readonly<Record<string, string>>>; account: AccountMenuState; messages: MessengerState };
 
-export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window; newId?: () => string; store?: QueueStore | null; media?: MediaStore }) => {
+export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof connect>[0]["fetch"]; now?: () => number; window?: Window; newId?: () => string; store?: QueueStore | null; media?: MediaStore; tab?: TabMark | null }) => {
   const now = opts.now ?? (() => Date.now());
   const newId = opts.newId ?? (() => (globalThis.crypto?.randomUUID?.() ?? `${now()}-${Math.random()}`));
   const phase = signal<Phase>({ kind: "login", refusal: null, busy: false });
@@ -53,9 +60,9 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
 
   /** The signed-in phase, from a shell that already holds a device session and its crew. */
   const enter = (shell: ConnectedShell & { deviceCrew: { id: string; label: string } }, hardwareId: string) => {
-    const store = createStore(shell, now);
     // A device principal's subject is the technician who signed in (auth.deviceLogin's `sub`).
     const deviceId = shell.principal.deviceId ?? hardwareId;
+    const store = createStore(shell, now, heldReads(opts.tab, readsKey(deviceId, shell.principal.subjectId)));
     const queue = createOfflineQueue({ deviceId, subjectId: shell.principal.subjectId, newId, now, store: opts.store ?? null });
     const wrapUps = createWrapUps({ deviceId, subjectId: shell.principal.subjectId, newId, now, store: opts.store ?? null, media: opts.media ?? memoryMedia() });
     const others = othersPending(opts.store, deviceId, shell.principal.subjectId);
@@ -89,18 +96,45 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     try {
       const shell = await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { session: "cookie" } });
       if (shell.principal.namespace === "device" && shell.deviceCrew) {
-        enter(shell as typeof shell & { deviceCrew: { id: string; label: string } }, shell.principal.deviceId ?? "");
+        if (opts.tab?.getItem(SHIFT_TAB_KEY)) {
+          holdShift(opts.tab, shell);
+          enter(shell as typeof shell & { deviceCrew: { id: string; label: string } }, shell.principal.deviceId ?? "");
+          return;
+        }
+        // A shift left behind by a closed tab: end it on the gateway, so the
+        // next person at this browser does not walk into it.
+        await shell.logout().catch(() => {});
+      } else shell.close();
+      forget();
+    } catch (e) {
+      if (refusalOf(e).kind !== "transport") forget(); // the gateway answered: whatever this tab held is over
+      else {
+        // No answer at all. Open the shift this tab holds, if it holds one that has not ended.
+        const held = heldShift(opts.tab, now());
+        if (held) {
+          enter(resumeHeldShift({ surfaceId: "S5", baseUrl: opts.baseUrl, fetch: opts.fetch }, held) as ConnectedShell & { deviceCrew: { id: string; label: string } }, held.principal.deviceId ?? "");
+          return;
+        }
+        phase.value = { kind: "login", refusal: { kind: "transport", status: null, message: NO_HELD_SHIFT }, busy: false };
         return;
       }
-      shell.close();
-    } catch { /* nothing to resume */ }
+    }
     if (phase.value.kind === "login") phase.value = { kind: "login", refusal: null, busy: false };
+  };
+
+  /** End what this tab holds: the shift and its last reads. The queue stays — it is the technician's work. */
+  const forget = () => {
+    const p = phase.value;
+    if (p.kind === "ready") { try { opts.tab?.removeItem(readsKey(p.shell.principal.deviceId ?? "", p.shell.principal.subjectId)); } catch { /* blocked */ } }
+    forgetShift(opts.tab);
   };
 
   const logout = async () => {
     const p = phase.value;
     if (p.kind !== "ready") return;
     p.messages.stop();
+    forget();
+    opts.tab?.removeItem(SHIFT_TAB_KEY);
     try { await p.shell.logout(); } finally { phase.value = { kind: "login", refusal: null, busy: false }; router.navigate("login", {}); }
   };
 
@@ -135,6 +169,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           if (refusal.kind === "token") {
             // The shift's token is over. The work is on this device; signing in again replays it.
             // Its stream goes with it: the next sign-in opens its own.
+            forget();
             p.shell.close();
             phase.value = { kind: "login", refusal: { ...refusal, message: `${refusal.message} — ${p.queue.pending.value.length} change(s) are saved on this device and will be sent after you sign in.` }, busy: false };
             router.navigate("login", {});
@@ -171,6 +206,29 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   return { phase, degraded, router, view, login, resume, logout, tick };
 };
 
+export const NO_HELD_SHIFT = "No signal, and this tab holds no shift to open offline. Sign in when you are back in signal.";
+
+/**
+ * The last answers to the reads a shift cannot work without — its jobs and its
+ * punches (the clock gate) — kept in the tab beside the held shift, so an
+ * offline load has the list and the gate it had. Only those two.
+ */
+const KEPT_READS = ["jobs.mine", "punches.mine"];
+export const readsKey = (deviceId: string, subjectId: string): string => `ac.s5.reads.${deviceId}.${subjectId}`;
+const heldReads = (tab: TabMark | null | undefined, key: string) => {
+  let held: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = tab?.getItem(SHIFT_TAB_KEY) ? JSON.parse(tab.getItem(key) ?? "{}") : {};
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) held = parsed as Record<string, unknown>;
+  } catch { /* unreadable: nothing held */ }
+  const onAnswer = (k: string, value: unknown) => {
+    if (!KEPT_READS.some((r) => k === r || k.startsWith(`${r}?`))) return;
+    if (value === undefined) delete held[k]; else held[k] = value;
+    try { if (tab?.getItem(SHIFT_TAB_KEY)) tab.setItem(key, JSON.stringify(held)); } catch { /* blocked or full: this tab opens offline without them */ }
+  };
+  return { held, onAnswer };
+};
+
 const refusalOf = (e: unknown): Refusal =>
   (e as { refusal?: Refusal })?.refusal ?? { kind: "transport", status: null, message: e instanceof Error ? e.message : String(e) };
 
@@ -188,7 +246,7 @@ export const loginView = (p: { refusal: Refusal | null; busy: boolean }, login: 
       <label class="ac-field"><span>Password</span><input class="ac-input" name="password" type="password" required autocomplete="current-password" /></label>
       ${PrimaryAction({ density: DENSITY, label: p.busy ? "Signing in…" : "Sign in", type: "submit", id: "sign-in" })}
     </form>
-    ${p.refusal ? RefusalNotice({ density: DENSITY, refusal: p.refusal }) : null}
+    ${p.refusal ? RefusalNotice({ density: DENSITY, refusal: p.refusal, ...(p.refusal.message === NO_HELD_SHIFT ? { message: NO_HELD_SHIFT } : {}) }) : null}
   </section>`;
 };
 
@@ -202,12 +260,15 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
 
   let store: QueueStore | null = null;
   try { store = window.localStorage; } catch { /* site data blocked: the queue lives in memory */ }
-  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window, store, ...(typeof indexedDB !== "undefined" ? { media: indexedDbMedia("ac-s5-media") } : {}) });
+  let tab: TabMark | null = null;
+  try { tab = window.sessionStorage; } catch { /* site data blocked: a front-door shift then always signs in again */ }
+  const app = createApp({ baseUrl: gatewayOrigin(document), fetch: globalThis.fetch.bind(globalThis), window, store, tab, ...(typeof indexedDB !== "undefined" ? { media: indexedDbMedia("ac-s5-media") } : {}) });
   const el = document.getElementById("mount")!;
   const slot = document.querySelector("ac-degraded") as (HTMLElement | null);
   const Root = () => app.view();
   mount(html`<${Root} />`, el);
   spinFavicon(document);
+  registerOfflineShell(window);
   const degradedTick = slot ? driveDegraded(slot, () => {
     const p = app.phase.value;
     return { degraded: app.degraded.value, text: SURFACE.degradedNotice, lastOkAt: p.kind === "ready" ? p.store.lastOkAt.value : null };

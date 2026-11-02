@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToString as render } from "../../../packages/ui/src/testing.ts";
-import { createApp, SCREEN_VIEWS } from "./app.ts";
+import { createApp, NO_HELD_SHIFT, readsKey, SCREEN_VIEWS } from "./app.ts";
 import { SCREENS } from "./screens.ts";
 import { priorityStatus, forwardState } from "./screens/job-list.ts";
 import { CHECKLIST, PART_SOURCES } from "./screens/job-detail.ts";
@@ -9,6 +9,7 @@ import { nextDeviceStates, JOB_TRANSITIONS, DEVICE_TRANSITIONS, queueKey, type Q
 import type { FetchLike } from "../../../packages/sdk/src/runtime.ts";
 import type { HierarchyContext, FieldJobWire, ShiftPunchWire, SyncMutationWire, SyncOutcomeWire } from "../../../packages/contracts/src/index.ts";
 import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
+import { SHIFT_TAB_KEY, HELD_SHIFT_KEY } from "../../../packages/shell/src/index.ts";
 
 /**
  * S5 against a scripted gateway, through the REAL shell and the REAL
@@ -22,6 +23,7 @@ import { OPERATIONS } from "../../../packages/contracts/src/index.ts";
  * trigger, the real state machine, RLS — is held in test/integration/s3-s5.test.ts.
  */
 const U = (n: number) => `f5000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
+const SHIFT_ENDS = "2026-09-18T18:00:00.000Z";
 const REGION = U(1), ORG = U(2), DEVICE = U(3), SHIFT = U(4), CREW = U(5), JOB = U(6);
 
 const deviceContext: HierarchyContext = {
@@ -41,7 +43,7 @@ const job: FieldJobWire = {
 type Reply = { status: number; body: unknown };
 type SyncHandler = (mutations: readonly SyncMutationWire[]) => Reply;
 
-const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJobWire[]; punches?: readonly ShiftPunchWire[]; wrapUpReply?: (b: Record<string, unknown>) => Reply; cookie?: "device" | "staff" } = {}) => {
+const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJobWire[]; punches?: readonly ShiftPunchWire[]; wrapUpReply?: (b: Record<string, unknown>) => Reply; cookie?: "device" | "staff"; unreachable?: () => boolean } = {}) => {
   // `cookie`: a session the front door (S1) already minted — a shift's, or a staff member's from another surface.
   let session = opts.cookie !== undefined;
   const sentMedia: { mutationId: string; kind: string }[] = [];
@@ -51,11 +53,13 @@ const fakeGateway = (opts: { syncHandler?: SyncHandler; jobs?: readonly FieldJob
   const fetch: FetchLike = async (url, init) => {
     const path = new URL(url).pathname;
     calls.push({ path, init });
+    if (opts.unreachable?.()) throw new TypeError("Failed to fetch");
     if (path === OPERATIONS["auth.deviceLogin"].path) { session = true; return reply(200, { token: "dev-token", expiresAt: "2026-09-18T18:00:00Z", crewId: CREW, crewLabel: "Crew A1", context: {} }); }
     if (!session) return reply(401, { error: "AuthError", code: "malformed", message: "no session" });
+    if (path === OPERATIONS["auth.logout"].path) { session = false; return reply(200, {}); }
     if (path === OPERATIONS["session.me"].path) {
       if (opts.cookie === "staff") return reply(403, { error: "HttpError", message: "session.me is not served to S5 for a internal principal" });
-      return reply(200, opts.cookie === "device" ? { ...deviceContext, deviceCrew: { id: CREW, label: "Crew A1" } } : deviceContext);
+      return reply(200, opts.cookie === "device" ? { ...deviceContext, deviceCrew: { id: CREW, label: "Crew A1" }, deviceShiftEndsAt: SHIFT_ENDS } : deviceContext);
     }
     if (path === OPERATIONS["jobs.mine"].path) return reply(200, { jobs: opts.jobs ?? [job] });
     // Clocked in by default: a job does not move until the shift clock is in (partner rule, 2026-10-27).
@@ -158,9 +162,15 @@ test("creating the app fetches nothing; with no session to resume, resume() land
   assert.match(render(app.view()), /name="hardwareId"/);
 });
 
+/** A tab's sessionStorage over a Map. */
+const tabMark = (marked: boolean) => {
+  const m = new Map<string, string>(marked ? [[SHIFT_TAB_KEY, "1"]] : []);
+  return { map: m, tab: { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, removeItem: (k: string) => { m.delete(k); } } };
+};
+
 test("a shift S1's front door signed in resumes by cookie: the crew comes from session.me, and the job list opens", async () => {
   const g = fakeGateway({ cookie: "device" });
-  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000 });
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000, tab: tabMark(true).tab });
   await app.resume();
   const p = app.phase.value;
   assert.equal(p.kind, "ready");
@@ -168,6 +178,26 @@ test("a shift S1's front door signed in resumes by cookie: the crew comes from s
   assert.equal(p.crew.label, "Crew A1");
   assert.equal(g.calls.some((c) => c.path === OPERATIONS["auth.deviceLogin"].path), false, "no second sign-in");
   assert.equal(app.router.current.value?.screen, "jobs");
+});
+
+test("a shift cookie in a tab S1 did not mark — the tab it was signed in from was closed — is ended on the gateway, not resumed", async () => {
+  const g = fakeGateway({ cookie: "device" });
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000, tab: tabMark(false).tab });
+  await app.resume();
+  const p = app.phase.value;
+  assert.ok(p.kind === "login" && p.refusal === null && !p.busy, "the next person sees the login, not the last shift");
+  assert.ok(g.calls.some((c) => c.path === OPERATIONS["auth.logout"].path), "the left-behind session is revoked, not just ignored");
+  assert.equal(g.calls.some((c) => c.path === OPERATIONS["jobs.mine"].path), false);
+});
+
+test("signing out of a front-door shift clears the tab's mark", async () => {
+  const g = fakeGateway({ cookie: "device" });
+  const { map, tab } = tabMark(true);
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => 1_000, tab });
+  await app.resume();
+  assert.equal(app.phase.value.kind, "ready");
+  await app.logout();
+  assert.equal(map.has(SHIFT_TAB_KEY), false);
 });
 
 test("a staff member's cookie is not a shift — S5 shows its own login rather than resuming it", async () => {
@@ -684,4 +714,102 @@ test("a wrap-up the office refuses comes back to the job with its words, and ope
   click(app.view(), "wrap-up-reopen");
   assert.equal(app.router.current.value?.screen, "wrapup");
   assert.equal(p.wrapUps.draftFor(JOB).photos.length, 2);
+});
+
+/**
+ * OFFLINE ENTRY. A front-door shift resumed online is held in its tab with its
+ * last jobs and punches; a later load of that tab with no network opens it
+ * from there. A tab holding nothing is told so — never a spinner, never a
+ * sign-in accepted offline.
+ */
+const SHIFT_DAY = Date.parse("2026-09-18T12:00:00Z");
+
+test("a shift resumed online is held in its tab; with the network gone, the next load opens it from there with the last job list", async () => {
+  let offline = false;
+  const g = fakeGateway({ cookie: "device", unreachable: () => offline });
+  const { map, tab } = tabMark(true);
+  const online = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => SHIFT_DAY, tab });
+  await online.resume();
+  assert.equal(online.phase.value.kind, "ready");
+  online.view(); await settle(); // Today reads jobs.mine and punches.mine
+  assert.ok(map.has(HELD_SHIFT_KEY));
+  assert.ok(map.get(readsKey(DEVICE, "tech-1"))?.includes("Shipman Co"), "the last job list is kept in the tab");
+
+  offline = true;
+  const before = g.calls.length;
+  const reload = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => SHIFT_DAY, tab });
+  await reload.resume();
+  const p = reload.phase.value;
+  assert.equal(p.kind, "ready", "no network, and the shift opens");
+  if (p.kind !== "ready") return;
+  assert.equal(p.crew.label, "Crew A1");
+  assert.equal(g.calls.slice(before).some((c) => c.path === OPERATIONS["auth.deviceLogin"].path || c.path === OPERATIONS["auth.signIn"].path), false, "nothing signs in");
+  const html = render(reload.view());
+  assert.match(html, /Shipman Co/, "the job list is on screen from the tab");
+  await settle();
+  reload.tick();
+  assert.equal(reload.degraded.value, true, "and the page says it is offline");
+});
+
+test("offline, a tab that holds no shift gets a plain refusal on the login — not a spinner, not the last person's shift", async () => {
+  const g = fakeGateway({ unreachable: () => true });
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => SHIFT_DAY, tab: tabMark(false).tab });
+  await app.resume();
+  const p = app.phase.value;
+  assert.ok(p.kind === "login" && !p.busy && p.refusal?.message === NO_HELD_SHIFT);
+  assert.match(render(app.view()), /holds no shift to open offline/);
+});
+
+test("a held shift past its end does not open offline", async () => {
+  let offline = false;
+  const g = fakeGateway({ cookie: "device", unreachable: () => offline });
+  const { tab } = tabMark(true);
+  await createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => SHIFT_DAY, tab }).resume();
+  offline = true;
+  const late = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => Date.parse(SHIFT_ENDS), tab });
+  await late.resume();
+  const p = late.phase.value;
+  assert.ok(p.kind === "login" && p.refusal?.message === NO_HELD_SHIFT);
+});
+
+test("an answer that is not a shift — signed out elsewhere, a staff cookie — forgets what the tab held", async () => {
+  const { map, tab } = tabMark(true);
+  await createApp({ baseUrl: "https://api.ac.test", fetch: fakeGateway({ cookie: "device" }).fetch, now: () => SHIFT_DAY, tab }).resume();
+  assert.ok(map.has(HELD_SHIFT_KEY));
+  await createApp({ baseUrl: "https://api.ac.test", fetch: fakeGateway().fetch, now: () => SHIFT_DAY, tab }).resume();
+  assert.equal(map.has(HELD_SHIFT_KEY), false, "a 401 is an answer: the shift is over");
+});
+
+test("signing out forgets the held shift and its reads; the queued work stays on the device", async () => {
+  const g = fakeGateway({ cookie: "device" });
+  const { map, tab } = tabMark(true);
+  const store = memory();
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => SHIFT_DAY, tab, store, newId: () => `mut-${++seq}` });
+  await app.resume();
+  app.view(); await settle();
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  p.queue.enqueue("jobs", JOB, "transition", { state: "en_route" }, 3);
+  await app.logout();
+  assert.equal(map.has(HELD_SHIFT_KEY), false);
+  assert.equal(map.has(readsKey(DEVICE, "tech-1")), false);
+  assert.ok([...store.map.keys()].some((k) => k.startsWith("ac.s5.pending.")), "the queue is the technician's work, not the tab's");
+});
+
+test("a token refusal on replay — the shift was revoked while offline — returns to sign-in and forgets the held shift", async () => {
+  let offline = false;
+  let revoked = false;
+  const g = fakeGateway({ cookie: "device", unreachable: () => offline, syncHandler: () => (revoked ? { status: 401, body: { error: "AuthError", code: "revoked", message: "session revoked" } } : { status: 200, body: { outcomes: [] } }) });
+  const { map, tab } = tabMark(true);
+  await createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => SHIFT_DAY, tab }).resume();
+  offline = true;
+  const app = createApp({ baseUrl: "https://api.ac.test", fetch: g.fetch, now: () => SHIFT_DAY, tab, newId: () => `mut-${++seq}` });
+  await app.resume();
+  const p = app.phase.value;
+  if (p.kind !== "ready") return assert.fail("not ready");
+  p.queue.enqueue("jobs", JOB, "transition", { state: "en_route" }, 3);
+  offline = false; revoked = true;
+  app.tick(); await settle(); await settle();
+  assert.equal(app.phase.value.kind, "login");
+  assert.equal(map.has(HELD_SHIFT_KEY), false);
 });

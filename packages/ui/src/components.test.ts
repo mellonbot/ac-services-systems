@@ -478,3 +478,10 @@ test("Messenger: a sign-in that is not an employee draws nothing", async () => {
   assert.equal(menu.available.value, false);
   assert.equal(render(Messenger({ density: "console", menu })!), "");
 });
+
+test("RefusalNotice takes the surface's own words over the kind's plain message when it has better ones", () => {
+  const out = render(RefusalNotice({ density: "field", refusal: { kind: "transport", status: null, message: "Failed to fetch" }, message: "No signal, and this tab holds no shift." }) ?? html``);
+  assert.match(out, /No signal, and this tab holds no shift\./);
+  assert.doesNotMatch(out, /Check your connection/);
+  assert.match(out, /We can't reach our system right now/, "the heading still says what happened");
+});

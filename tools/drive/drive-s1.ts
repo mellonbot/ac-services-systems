@@ -15,12 +15,21 @@
  *     reads `location.pathname` and asks the gateway, AS the destination,
  *     who is signed in — with the cookie the browser holds and script cannot read.
  *
+ * And OFFLINE (steps 9–11): the site is built as it ships — S1 at `/`, S5 at
+ * `/technician/`, and the `/sw.js` that keeps both on the device. A technician
+ * signs in on a field device and reaches their job list; then the network is
+ * cut twice over (the browser's own offline switch, and the site and gateway
+ * both stopped) and the same tab, reloaded at `/`, must land on that job list
+ * from the cache. A new tab, offline, must be told it holds no shift — no form,
+ * no spinner.
+ *
  * Same scratch-database discipline as drive-s2-c4, drive-s6 and drive-s8
  * (which see): create, migrate, drive, drop.
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer, type Server } from "node:http";
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync, mkdtempSync, cpSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPool, type Pool } from "../../services/gateway/src/db/pg-tx.ts";
@@ -28,6 +37,9 @@ import { REGION_SOUTH } from "../../packages/domain/src/inheritance/fixtures/amp
 import { hashPassword } from "../../services/gateway/src/auth/auth.ts";
 import { INTERNAL_ORG_ID } from "../../packages/schema/src/tenancy.ts";
 import { Cdp, findChrome } from "./cdp.ts";
+import { connectShell } from "../../packages/shell/src/index.ts";
+import { SURFACE_PATHS } from "../../packages/contracts/src/surfaces.ts";
+import { stateMsaTerms } from "../../packages/domain/src/inheritance/fixtures/msa-terms.ts";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const GIVEN_DB = process.env.DATABASE_URL;
@@ -45,11 +57,14 @@ const check = (n: number, what: string) => { passed++; console.log(`  ${String(n
 const must = (cond: boolean, msg: string) => { if (!cond) throw new Error(msg); };
 
 const MIME: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".map": "application/json" };
-const serveDist = (dir: string): Server => {
+const S5_PATH = SURFACE_PATHS.S5;
+/** The site as Pages serves it: S5's paths fall to S5's page, every other path to S1's. */
+const serveSite = (dir: string): Server => {
   const s = createServer((req, res) => {
     const rel = normalize(decodeURIComponent((req.url ?? "/").split("?")[0]!)).replace(/^(\.\.[/\\])+/, "");
     let file = join(dir, rel);
-    if (!existsSync(file) || rel === "/" || rel.endsWith("/")) file = join(dir, "index.html");
+    const page = rel === S5_PATH || rel.startsWith(`${S5_PATH}/`) ? join(dir, S5_PATH, "index.html") : join(dir, "index.html");
+    if (!existsSync(file) || statSync(file).isDirectory()) file = page;
     if (!existsSync(file)) { res.writeHead(404).end("not found"); return; }
     res.writeHead(200, { "content-type": MIME[extname(file)] ?? "application/octet-stream" }).end(readFileSync(file));
   });
@@ -141,6 +156,7 @@ async function main(): Promise<void> {
 
   let gateway: ChildProcess | undefined;
   let site: Server | undefined;
+  let siteDir: string | undefined;
   let cdp: Cdp | undefined;
   let log = "";
   try {
@@ -151,18 +167,30 @@ async function main(): Promise<void> {
     await admin(`INSERT INTO users (id, org_id, region_id, namespace, email, display_name, roles, scope_tier, scope_id, password_hash, active)
       VALUES ('d1d00000-0000-0000-0000-000000000001',$1,$2,'internal','office.drive1@ac.test','Office Manager','["office_manager"]','parent',$1,$3,true),
              ('d1d00000-0000-0000-0000-000000000002',$1,$2,'internal','principal.drive1@ac.test','Principal','["principal"]','parent',$1,$3,true),
-             ('d1d00000-0000-0000-0000-000000000003',$1,$2,'internal','tech.drive1@ac.test','Technician','["technician"]','region',$2,$3,true)
+             ('d1d00000-0000-0000-0000-000000000003',$1,$2,'internal','tech.drive1@ac.test','Technician','["technician"]','region',$2,$3,true),
+             ('d1d00000-0000-0000-0000-000000000004',$1,$2,'internal','owner.drive1@ac.test','Drive Owner','["account_owner"]','parent',$1,$3,true),
+             ('d1d00000-0000-0000-0000-000000000005',$1,$2,'internal','dispatch.drive1@ac.test','Dispatcher','["dispatcher"]','region',$2,$3,true)
       ON CONFLICT (id) DO NOTHING`, [INTERNAL_ORG_ID, REGION_SOUTH, hash]);
 
-    // The one build step, with this run's gateway stamped into the frame.
-    const build = spawn(process.execPath, [join(ROOT, "tools/ci/build-surface.ts"), "S1"], { env: { ...process.env, AC_GATEWAY: GATEWAY }, stdio: ["ignore", "pipe", "pipe"] });
-    let blog = "";
-    build.stdout!.on("data", (d) => { blog += String(d); });
-    build.stderr!.on("data", (d) => { blog += String(d); });
-    must((await new Promise<number>((r) => build.on("exit", (c) => r(c ?? 1)))) === 0, `build-surface S1 failed:\n${blog}`);
+    // The site as it ships, with this run's gateway stamped into the frames:
+    // S1 at the root, S5 under its path, and the offline shell over both
+    // (tools/ci/build-pages.ts does the same with the production gateway).
+    // Loaded here, not at the top: build-surface pulls in esbuild.
+    const { buildSurface } = await import("../ci/build-surface.ts");
+    const { builtUrls, serviceWorker } = await import("../ci/offline-shell.ts");
+    siteDir = mkdtempSync(join(tmpdir(), "ac-drive1-site-"));
+    const s1 = await buildSurface("S1", { gateway: GATEWAY, basePath: "/" });
+    const s1Files = builtUrls("S1", s1.outDir);
+    cpSync(s1.outDir, siteDir, { recursive: true });
+    const s5 = await buildSurface("S5", { gateway: GATEWAY, basePath: S5_PATH });
+    const s5Files = builtUrls("S5", s5.outDir);
+    cpSync(s5.outDir, join(siteDir, S5_PATH), { recursive: true });
+    // The worker is built from the copies the site serves, which the drive owns.
+    const served = (files: { url: string }[]) => files.map((f) => ({ url: f.url, file: join(siteDir!, f.url.endsWith("/") ? `${f.url}index.html` : f.url) }));
+    writeFileSync(join(siteDir, "sw.js"), serviceWorker([...served(s1Files), ...served(s5Files)]));
 
     // NOTHING is listening on the gateway's port yet. That is the point.
-    site = serveDist(join(ROOT, "apps/s1-front-door/dist"));
+    site = serveSite(siteDir);
     cdp = await Cdp.launch(chrome);
     const shots = process.env.AC_DRIVE_SHOTS;
     if (shots) { mkdirSync(shots, { recursive: true }); }
@@ -259,10 +287,79 @@ async function main(): Promise<void> {
     must(brand.token.toLowerCase() !== brand.ink.toLowerCase(), `S1 is the one surface where the brand does NOT resolve to Ink Black, got ${brand.token}`);
     check(8, "--color-brand is the house red here, not Ink Black — S1 is the one surface that wears it");
 
+    // ── OFFLINE. A crew, a device, a shift and a job — the same calls S2's and S3's screens make.
+    const TECH = "d1d00000-0000-0000-0000-000000000003";
+    const HARDWARE = `DRIVE1-TABLET-${RUN}`;
+    const office = await connectShell({ surfaceId: "S2", baseUrl: GATEWAY, fetch, credentials: { email: "owner.drive1@ac.test", password: PASSWORD } });
+    const org = await office.gateway.createOrganization({ name: "Amped Fitness", externalRef: `drive1-${RUN}`, firstRegionNode: { regionId: REGION_SOUTH, name: "Amped / South" } });
+    const loc = (await office.gateway.createAccount({ orgId: org.orgId, tier: "location", parentId: org.regionNodeId, name: "Austin" })).id;
+    const SITE_NAME = `Austin — Roof ${RUN}`;
+    const roof = (await office.gateway.createAccount({ orgId: org.orgId, tier: "site", parentId: loc, name: SITE_NAME })).id;
+    const msa = (await office.gateway.createContract({ orgId: org.orgId, regionId: REGION_SOUTH, scopeTier: "parent", scopeId: org.orgId, kind: "msa", billingPath: "enterprise_sla", signedAt: "2026-01-05", effectiveFrom: "2026-01-01", diagnosticDataRightsReserved: true })).id;
+    await stateMsaTerms(office.gateway, { contractId: msa, orgId: org.orgId, regionId: REGION_SOUTH, effectiveFrom: "2026-01-01" });
+    await office.gateway.transitionContract({ contractId: msa, to: "active" });
+    const crewId = (await office.gateway.createCrew({ label: `Door Crew ${RUN}`, employmentType: "employed", homeRegionId: REGION_SOUTH })).id;
+    for (const kind of ["license", "background_check"] as const) {
+      const c = await office.gateway.recordCredential({ crewId, kind, identifier: `${kind}-${RUN}`, validFrom: "2026-01-01", validTo: "2027-12-31" });
+      await office.gateway.verifyCredential({ credentialId: c.id });
+    }
+    await admin(`UPDATE users SET crew_id = $2 WHERE id = $1`, [TECH, crewId]);
+    const minute = Math.floor(Date.now() / 60_000) * 60_000;
+    const jobId = (await office.gateway.createJob({ siteId: roof, serviceCode: "HVAC-REPAIR", priority: "urgent", serviceWindowStart: new Date(minute - 30 * 60_000).toISOString(), serviceWindowEnd: new Date(minute + 3 * 3600_000).toISOString() })).id;
+    const dispatch = await connectShell({ surfaceId: "S3", baseUrl: GATEWAY, fetch, credentials: { email: "dispatch.drive1@ac.test", password: PASSWORD } });
+    must((await dispatch.gateway.assignCrew({ jobId, crewId, orgId: org.orgId, regionId: REGION_SOUTH })).ok, "the crew should clear the gate");
+    const deviceId = (await office.gateway.registerDevice({ hardwareId: HARDWARE, kind: "web_fallback", publicKey: Buffer.from("not-yet-checked").toString("base64"), regionId: REGION_SOUTH })).id;
+    await office.gateway.grantDeviceShift({ deviceId, crewId, technicianId: TECH, windowStart: new Date(Date.now() - 3600_000).toISOString(), windowEnd: new Date(Date.now() + 8 * 3600_000).toISOString() });
+    await office.logout(); await dispatch.logout();
+
+    // ── 9. online: the technician signs in on the device and reaches the job list; the worker holds the pages
+    await backToTheDoor();
+    await cdp.eval(`document.getElementById("field-device").click()`);
+    await cdp.waitFor(`document.getElementById("hardware-id") !== null`, "the device ID field");
+    await cdp.eval(fillAndSubmit("sign-in-form", { email: "tech.drive1@ac.test", password: PASSWORD, hardwareId: HARDWARE }));
+    await cdp.waitFor(`location.pathname.startsWith(${JSON.stringify(`${S5_PATH}/`)})`, "the browser to go to S5", 20_000);
+    await cdp.waitFor(has(SITE_NAME), "the technician's job on Today", 20_000);
+    await cdp.waitFor(`navigator.serviceWorker.controller !== null`, "the offline shell to control the page", 20_000);
+    await cdp.waitFor(`Object.keys(sessionStorage).some((k) => k.startsWith("ac.s5.reads.") && sessionStorage.getItem(k).includes(${JSON.stringify(SITE_NAME)})) && sessionStorage.getItem("ac.shift.held") !== null`, "the shift and its job list held in the tab");
+    await shot("05-technician-online");
+    check(9, "a technician signs in at the front door on a field device and reaches Today; the tab holds the shift and the worker holds the pages");
+
+    // ── 10. the network is cut — the browser's switch, and the site and gateway both gone — and the same tab reopens the shift
+    await cdp.send("Network.enable");
+    await cdp.send("Network.emulateNetworkConditions", { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    site.closeAllConnections();
+    await new Promise<void>((r) => site!.close(() => r()));
+    site = undefined;
+    gateway.kill("SIGTERM");
+    await new Promise<void>((r) => gateway!.once("exit", () => r()));
+    await cdp.navigate(`${SITE}/`);
+    await cdp.waitFor(`location.pathname.startsWith(${JSON.stringify(`${S5_PATH}/`)})`, "the front door to send the held shift on to S5", 20_000);
+    await cdp.waitFor(has(SITE_NAME), "the job list, from the tab, with no network", 20_000);
+    await cdp.waitFor(`document.querySelector("ac-degraded") && !document.querySelector("ac-degraded").hidden`, "the page to say it is offline");
+    must(!(await cdp.eval<boolean>(`!!document.getElementById("login-form")`)), "no sign-in asked for");
+    await shot("06-technician-offline");
+    await cdp.eval(`document.getElementById("clock-in").click()`);
+    await cdp.waitFor(`Object.keys(localStorage).some((k) => k.startsWith("ac.s5.pending.") && JSON.parse(localStorage.getItem(k)).length === 1)`, "the clock-in queued on the device");
+    check(10, "offline, the same tab reloaded at / lands on S5's job list from the cache — no sign-in — and a tap is queued on the device");
+
+    // ── 11. a new tab, offline: nothing held, so a plain refusal — no form, no spinner
+    await cdp.openTab(`${SITE}/`, async () => {
+      await cdp!.send("Network.enable");
+      await cdp!.send("Network.emulateNetworkConditions", { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    });
+    await cdp.waitFor(has("No signal"), "the offline refusal", 20_000);
+    must(await cdp.eval<boolean>(has("this tab holds no shift to open offline")), "it says why");
+    must(await pathname() === "/", "nobody is sent anywhere");
+    must(!(await cdp.eval<boolean>(`!!document.getElementById("sign-in-form") || ${has("Signing in…")}`)), "no form to submit, no spinner");
+    await shot("07-new-tab-offline");
+    check(11, "offline, a new tab holds no shift: the front door says so plainly, with no form and no spinner");
+
     console.log(`\ndrive-s1: ${passed} checks passed`);
   } finally {
     if (cdp) await cdp.close();
+    site?.closeAllConnections();
     site?.close();
+    if (siteDir) rmSync(siteDir, { recursive: true, force: true });
     if (gateway && gateway.exitCode === null) {
       gateway.kill("SIGTERM");
       await Promise.race([
