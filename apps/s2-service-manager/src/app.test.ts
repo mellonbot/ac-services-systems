@@ -138,7 +138,7 @@ test("confirmation cannot commit while degraded but keeps its safe cancel action
     onCancel: () => {},
   }));
   assert.match(out, /<button[^>]*disabled[^>]*>Terminate agreement<\/button>/);
-  assert.match(out, />Keep as is<\/button>/);
+  assert.match(out, />Cancel<\/button>/);
 });
 
 test("boot with no session shows login, not an error; a bad password is a refusal card; login posts in cookie mode and the surface holds no token", async () => {

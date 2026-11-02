@@ -93,7 +93,7 @@ export const contractsList: Screen = (ctx, params) => {
                   ${pending ? confirmPanel({
                     id: `confirm-contract-${c.id}`,
                     title: `${label} this agreement?`,
-                    detail: `${c.kind.replace(/_/g, " ")} agreement · currently ${c.state}. This state change is recorded in the agreement history.`,
+                    detail: `${c.kind.replace(/_/g, " ")} agreement · currently ${c.state}. ${to === "active" ? "Its terms start resolving for this customer. " : ""}This state change is recorded in the agreement history.`,
                     confirmLabel: `${label} agreement`,
                     danger: to === "terminated" || to === "expired",
                     busy: outcome.value.busy === c.id,
