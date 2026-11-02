@@ -133,12 +133,12 @@ const G = ACDemo;
 
 const GUIDE = {
   S1: {
-    about: "The public site. Visitors never sign in and the page never waits for the server. It renders with the gateway down, and the metros it lists come from the regions table.",
+    about: "The front door: the page everyone starts at. One sign-in form; the gateway, not the page, decides where each person belongs, mints that surface's session, and the browser goes there.",
     steps: [
-      "Press <b>Just blow into town, partner?</b> at the foot of the front page and submit the form. The log shows one write, <code>leads.submit</code>, and nothing reads it back.",
-      "Follow <b>Where we work</b> under the form. West, Mountain and South come from our <code>regions</code> rows, not from the page.",
-      "Switch <b>Gateway up</b> to down, then submit again. The form queues in the browser and the degraded banner appears.",
-      "Switch the gateway back up. The queued lead sends once. Its submission ID means a retry can't create a duplicate.",
+      "Sign in as <code>dispatch.south@rankine.demo</code> (password <code>demo</code>). The log shows one <code>auth.signIn</code>, and the Dispatch Console opens already signed in.",
+      "Come back and sign in as <code>exec@amped.demo</code>. The same form takes a customer to the Customer Portal.",
+      "Tick <b>Signing in on a field device</b>, then sign in as <code>tech.south1@rankine.demo</code> with device <code>RK-TAB-0042</code>. The tablet opens on the technician's shift.",
+      "Switch <b>Gateway up</b> to down and sign in. The page still renders and says it could not get through; nothing is queued.",
     ],
   },
   S2: {
@@ -169,7 +169,7 @@ const GUIDE = {
       "Open <b>Service &amp; SLA → By region</b>. There's a company total row, and you can pick any figure to chart its 30-day trend per region.",
       "Go to S3 and dispatch the Austin emergency, then come back and press <b>Reload surface</b>. Unassigned and At risk drop, and Answered in time moves.",
       "In S8, dispute Lone Star's August statement. Back here, <b>Statements in dispute</b> shows 1 with a pill.",
-      "Submit a lead in S1. <b>Leads</b> under Growth goes up. Leads are counted company-wide because they have no region until the office works them, and <b>Customers</b> counts Amped once even though it is served in three regions.",
+      "Under Growth, <b>Leads</b> are counted company-wide because they have no region until the office works them, and <b>Customers</b> counts Amped once even though it is served in three regions.",
     ],
   },
   S5: {
@@ -255,7 +255,7 @@ const renderPersona = () => {
   const sel = $("persona");
   sel.innerHTML = "";
   const list = G.PERSONAS.filter((p) => p.surface === current);
-  if (current === "S1") { sel.innerHTML = `<option>Anonymous visitor</option>`; sel.disabled = true; return; }
+  if (current === "S1") { sel.innerHTML = `<option>Not signed in</option>`; sel.disabled = true; return; }
   sel.disabled = false;
   const active = current === "S5" ? list[0].email : G.signedInAs(current);
   for (const p of list) {
@@ -298,6 +298,16 @@ addEventListener("message", async (ev) => {
   if (ev.source !== iframes[m.surface]?.frame.contentWindow) return;
   if (m.type === "path") { paths[m.surface] = m.path; if (m.surface === current) $("path").textContent = m.path; return; }
   if (m.type === "error") { (window.__demoErrors ||= []).push(`${m.surface}: ${m.message}`); console.warn(`${m.surface}:`, m.message); return; }
+  // S1's front door signed someone in: open their surface, fresh, so it resumes the session the gateway minted.
+  if (m.type === "open") {
+    const to = m.surface === "S1" ? SURFACE_LIST.find((s) => s.path === m.path && s.built) : null;
+    if (!to) return;
+    if (iframes[to.id]) reloadFrame(to.id);
+    select(to.id);
+    renderPersona();
+    reloadFrame("S1");
+    return;
+  }
   if (m.type !== "req") return;
   await new Promise((r) => setTimeout(r, 40 + Math.random() * 90));
   const r = await G.handle({ surface: m.surface, url: m.url, method: m.method, headers: m.headers, body: m.body });
@@ -315,7 +325,7 @@ G.onActivity((a) => {
   li.innerHTML = `<span class="t">${fmt.format(new Date(a.at))}</span><span class="s">${esc(a.surface)}</span><span class="op"><span class="k ${esc(a.kind)}">${esc(label)}</span>${esc(a.op)}</span>${a.note ? `<span class="note">${esc(a.note)}</span>` : ""}`;
   log.prepend(li);
   while (log.children.length > 250) log.lastChild.remove();
-  if ((a.op === "auth.login" || a.op === "auth.logout") && a.surface === current) renderPersona();
+  if ((a.op === "auth.login" || a.op === "auth.logout" || a.op === "auth.signIn") && a.surface === current) renderPersona();
 });
 $("clear").addEventListener("click", () => { $("log").innerHTML = `<li class="empty">Requests, refusals and events appear here as you click.</li>`; });
 

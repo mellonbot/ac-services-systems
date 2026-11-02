@@ -166,7 +166,7 @@ export const badgeSvg = (px: number = ICON_SIZES.masthead): string => {
  *
  * Every surface's tab shows the packaged rooftop unit from S1's yard turning
  * once every 2.25s; S5, the technician's surface, shows the service truck
- * instead. Both are S1's own models (apps/s1-marketing/public/*.glb) rendered
+ * instead. Both are S1's own models (apps/s1-front-door/public/*.glb) rendered
  * by tools/icons/ into packages/tokens/icons/<art>/, so the tab and the yard
  * cannot drift apart. The glow is the livery red, solid behind the model and
  * faded to nothing inside the square, so no ground meets a hard edge; the

@@ -1,6 +1,6 @@
 ---
 name: deploy
-description: Production for this repository — the gateway container on Cloudflare (api.acservice.systems), the Pages site (acservice.systems), the production database, secrets, the ROLLOUT list, the manual ops workflows (db-check, seed-logins, grant-logins-role, msa-terms-audit, backfill-home-agreements) and the dashboard-only WAF rules. Use when a deploy job is red or skipped, when publishing a surface, rotating a secret, or diagnosing the live site or gateway.
+description: Production for this repository — the gateway container on Cloudflare (api.acservice.systems), the Pages site (acservice.systems), the production database, secrets, the ROLLOUT list, the manual ops workflows (db-check, seed-logins, grant-logins-role, msa-terms-audit, backfill-home-agreements) and the edge sign-in rate limit. Use when a deploy job is red or skipped, when publishing a surface, rotating a secret, or diagnosing the live site or gateway.
 ---
 
 # Production
@@ -58,14 +58,14 @@ Pin wrangler to the version the workflow uses (`4.148.0`) when reproducing.
 
 `ROLLOUT` in `packages/contracts/src/surfaces.ts` (today `S1, S2, S3, S5`) is the whole
 switch: it publishes the frame on Pages, lets the production gateway mint sessions for it,
-and takes the tape off its plate on S1. Outside `ROLLOUT` a surface is built, tested and
+and lets S1's front door send that surface's logins to it. Outside `ROLLOUT` a surface is built, tested and
 driven but answers `SurfaceNotLive` (404) in production.
 
 Before adding one, confirm in the PR:
 - its sign-in path works for real principals (S6/S7/S8 have no production principals —
   `OPEN-S6-IDP`; `seed-logins` only seeds staff);
-- **S1:** the two WAF rate-limit rules (`/auth/anonymous`, `/s1/leads`) exist on the zone.
-  They are dashboard objects, not files — no diff can prove them. Ask the user.
+- **S1:** the sign-in limit (`SIGN_IN_LIMIT`, `infra/cloudflare/wrangler.jsonc`, applied in
+  `worker.mjs`) is still in place — it ships with the gateway deploy, not the zone.
 
 ## Manual workflows (Actions → Run workflow, all against production)
 

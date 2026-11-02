@@ -158,12 +158,12 @@ test("a 429 or a 413 is the gateway answering — a refusal of its own kind, and
   }
 });
 
-test("every body-carrying POST says it is JSON, and the anonymous mint names its surface — what the gateway requires of a cross-site-proof request", async () => {
+test("every body-carrying POST says it is JSON, and the front door's sign-in names its surface — what the gateway requires of a cross-site-proof request", async () => {
   const { fetch, calls } = fakeFetch(() => ({ status: 200, body: { token: "t", expiresAt: "x" } }));
   const { t } = transportWith(fetch, { token: () => null, surfaceId: "S1" });
   const client = createGatewayClient(t);
   await client.login({ email: "a@b", password: "p", surface: "S2" });
-  await client.anonymousSession();
+  await client.signIn({ email: "a@b", password: "p" });
   assert.equal(calls[0]!.init.headers["content-type"], "application/json");
   assert.equal(calls[1]!.init.headers["x-ac-surface"], "S1");
 });

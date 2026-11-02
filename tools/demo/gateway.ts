@@ -19,8 +19,11 @@ import {
   type OperationId,
 } from "../../packages/contracts/src/operations.ts";
 import {
+  SURFACES,
+  SURFACE_PATHS,
   type SurfaceId,
 } from "../../packages/contracts/src/surfaces.ts";
+import type { SignInInput, SignInOutput } from "../../packages/contracts/src/operations/wire.ts";
 import {
   ANONYMOUS_PRINCIPAL_IDS,
 } from "../../packages/contracts/src/scope.ts";
@@ -34,10 +37,8 @@ import {
   buildContext,
 } from "../../services/gateway/src/http/context.ts";
 import {
-  MIN,
   HOUR,
   at,
-  uid,
   Refused,
   crews,
   devices,
@@ -46,7 +47,6 @@ import {
   cookieSessions,
   bearerSessions,
   liveSession,
-  anonTokens,
   principalOf,
   mint,
   reader,
@@ -77,7 +77,7 @@ const sessionFor = (req: WireRequest): Session | null => {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a log line reads whatever shape came back
 const noteOf = (id: OperationId, input: any, out: any): string => {
-  if (id === "auth.login" || id === "auth.deviceLogin") return `as ${input?.email ?? "?"}`;
+  if (id === "auth.login" || id === "auth.deviceLogin" || id === "auth.signIn") return `as ${input?.email ?? "?"}${out?.kind === "signed_in" ? ` → ${out.surface}` : out?.kind === "choose" ? " → choose" : ""}`;
   if (id === "session.me") return "who is signed in, and where they sit in the hierarchy";
   if (id === "pos.detail") return `${out.order.number}: ${out.lines.length} line${out.lines.length === 1 ? "" : "s"}, ${out.order.state}`;
   if (typeof out?.number === "string") return `→ ${out.number}`;
@@ -112,11 +112,25 @@ export const handle = async (req: WireRequest): Promise<WireResponse | "offline"
       const ctx = await buildContext(principalOf(s), reader);
       const crew = user.crewId ? crews.find((c) => c.id === user.crewId)! : null;
       out = { token: s.token, expiresAt: at(8 * HOUR), context: { path: ctx.path, parent: ctx.parent, regions: ctx.regions, activeRegionId: ctx.activeRegionId }, ...(crew ? { crewId: crew.id, crewLabel: crew.label } : {}) };
-    } else if (op.id === "auth.anonymousSession") {
-      const token = `demo.anon.${uid("t")}`;
-      anonTokens.set(token, Date.now() + 15 * MIN);
-      liveSession.anonCookieExpires = Date.now() + 15 * MIN;
-      out = { token, expiresAt: at(15 * MIN) };
+    } else if (op.id === "auth.signIn") {
+      // S1, the front door: the same answers as the real gateway's auth.signIn — one surface, a choice, or S5 with a device.
+      const i = input as SignInInput;
+      const user = users.find((u) => u.email.toLowerCase() === (i.email ?? "").trim().toLowerCase() && u.password === i.password);
+      if (!user) throw new Refused(401, "AuthError", "invalid credentials", "invalid_credentials");
+      const signedIn = (id: SurfaceId, s: ReturnType<typeof mint>): SignInOutput => ({ kind: "signed_in", surface: id, path: `${SURFACE_PATHS[id]}/`, token: s.token, expiresAt: at(8 * HOUR) });
+      if (i.hardwareId) {
+        if (!user.crewId || i.hardwareId.trim() !== devices[0]!.hardwareId) throw new Refused(401, "AuthError", "invalid credentials", "invalid_credentials");
+        const s = mint(user);
+        cookieSessions.set("S5", s); liveSession.device = s;
+        out = signedIn("S5", s);
+      } else {
+        const open: SurfaceId[] = user.surfaces.filter((id) => id !== "S1" && id !== "S5");
+        if (i.surface && !open.includes(i.surface)) throw new Refused(403, "HttpError", `${i.surface} does not admit this login`, "not_admitted");
+        const target = i.surface ?? (open.length === 1 ? open[0] : undefined);
+        if (target) { const s = mint(user); cookieSessions.set(target, s); out = signedIn(target, s); }
+        else if (open.length > 1) out = { kind: "choose", choices: open.map((id) => ({ surface: id, name: SURFACES[id].name, path: `${SURFACE_PATHS[id]}/` })) } satisfies SignInOutput;
+        else throw new Refused(403, "HttpError", user.crewId ? "This login signs in on a field device. Choose “Signing in on a field device” and enter the device ID." : "No portal is set up for this login yet. Ask the office.", "no_surface");
+      }
     } else if (op.id === "auth.logout") {
       const s = sessionFor(req);
       if (!s) throw new Refused(401, "AuthError", "no session", "missing");
@@ -126,17 +140,11 @@ export const handle = async (req: WireRequest): Promise<WireResponse | "offline"
       const h = H[op.id];
       if (!h) return { status: 404, body: { error: "NoRoute", message: `${op.id} is not in the demo gateway` } };
       let ctx: Ctx;
-      if (op.auth === "bearer" && req.surface !== "S1") {
+      if (op.auth === "bearer") {
         const s = sessionFor(req);
         if (!s) throw new Refused(401, "AuthError", "no session — sign in", "missing");
         ctx = { surface: req.surface, p: principalOf(s), session: s };
       } else {
-        if (op.auth === "bearer") {
-          // S1: the anonymous token from auth.anonymousSession, unexpired — never nothing at all.
-          const auth = req.headers["authorization"] ?? "";
-          const exp = auth.startsWith("Bearer ") ? anonTokens.get(auth.slice(7)) : liveSession.anonCookieExpires;
-          if (exp === undefined || exp < Date.now()) throw new Refused(401, "AuthError", "no anonymous session — the page asks for one first", "missing");
-        }
         ctx = { surface: req.surface, p: { namespace: "anonymous", subjectId: ANONYMOUS_PRINCIPAL_IDS.actor, orgId: ANONYMOUS_PRINCIPAL_IDS.org, regionId: ANONYMOUS_PRINCIPAL_IDS.region, scopeTier: "parent", scopeId: ANONYMOUS_PRINCIPAL_IDS.org, roles: [], firmId: null, deviceId: null, shiftId: null, tierClaim: null, sessionId: "anon" }, session: null };
       }
       out = await h(input, ctx);

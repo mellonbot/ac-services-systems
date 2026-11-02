@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""S1's yard vegetation for apps/s1-marketing/src/scene.ts: the trimmed lawn the yard is laid
+"""S1's yard vegetation for apps/s1-front-door/src/scene.ts: the trimmed lawn the yard is laid
 in (tileable, opaque), and two alpha textures drawn as crossed planes — a grass tuft for the
 road edges and tall weeds for the fence line.
 
-    python3 tools/textures/vegetation.py   # writes apps/s1-marketing/public/{lawn,grass,weeds}.webp
+    python3 tools/textures/vegetation.py   # writes apps/s1-front-door/public/{lawn,grass,weeds}.webp
 
 Like dirt.webp, the vegetation's colour is the asset's, not an ink: a dry
 Texas yard — olive, sage and straw — never a lawn green, which would sit on the
@@ -15,7 +15,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-OUT = Path(__file__).resolve().parents[2] / "apps/s1-marketing/public"
+OUT = Path(__file__).resolve().parents[2] / "apps/s1-front-door/public"
 BLADE = [(78, 90, 43), (107, 122, 58), (128, 134, 72), (154, 143, 82), (184, 164, 106), (96, 104, 52)]
 LAWN = [(86, 100, 50), (98, 112, 56), (110, 122, 62), (78, 92, 46), (122, 128, 70), (104, 110, 60)]
 SEED_HEAD = [(170, 150, 98), (140, 118, 74), (196, 178, 128)]

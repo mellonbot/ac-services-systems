@@ -316,6 +316,8 @@ export const connectShell = async (cfg: ConnectConfig): Promise<ConnectedShell> 
     if (session === "bearer") token = login.token;
   }
   const context = await bootstrap.me();
+  // A device session resumed by cookie — one S1's front door signed in — learns its crew from session.me.
+  if (!deviceCrew && context.deviceCrew) deviceCrew = { id: context.deviceCrew.id, label: context.deviceCrew.label };
   const shell = createShell({ surfaceId: cfg.surfaceId, principal: context.principal, transport: raw, context });
   const logout = async () => {
     try { await shell.gateway.logout(); } finally { shell.close(); token = null; }
@@ -325,48 +327,25 @@ export const connectShell = async (cfg: ConnectConfig): Promise<ConnectedShell> 
 };
 
 /**
- * ITEM 8 — S0 FOR A SURFACE WITH NO LOGIN.
+ * S0 FOR THE FRONT DOOR — a surface with no session of its own.
  *
- * `connectShell` above is login → `session.me` → createShell, and S1 can do
- * none of it: `session.me` is a bearer read the catalogue serves only to the
- * authenticated surfaces, and there is no credential to present anyway. So
- * this is the third boot path, beside the password one and the device one,
- * and the shape of it is dictated by one line in the surface registry:
+ * `connectShell` above is login → `session.me` → createShell. S1 does none of
+ * it: it signs a person in to ANOTHER surface (auth.signIn mints that
+ * surface's session and the browser follows the path it answers with), so S1
+ * itself is never anybody. And the registry's degraded line rules out a
+ * round trip at boot: the page renders whether or not the gateway answers.
  *
- *   "Site stays up when the gateway does not."
- *
- * That sentence rules out a round trip at boot. An anonymous shell is
- * therefore CONSTRUCTED, not connected: the principal is the shared constant
- * in packages/contracts (neither side invents it), the transport is live, and
- * the page renders whether or not anything answers. The degraded flag is the
- * transport's, exactly as everywhere else — the first call that fails raises
- * it, and S1's job is to show that state rather than to avoid it.
- *
- * The session is minted LAZILY, by `ensureSession`, on the first write. Two
- * reasons, and the second is the real one:
- *   - a session row per page view is a database write per page view;
- *   - a token minted at boot and used twenty minutes later is a token that
- *     has expired while the visitor was reading, and the failure lands on the
- *     submit button. Minting it at the submit makes its fifteen minutes the
- *     fifteen minutes that matter.
+ * So the shell is CONSTRUCTED, not connected: the principal is the shared
+ * anonymous constant in packages/contracts, the transport is live, and the
+ * degraded flag is the transport's, exactly as everywhere else.
  */
-export type AnonymousShell = Shell & {
-  /**
-   * Mint an anonymous session if this shell has none. Idempotent, and safe to
-   * call from every write path: the surface does not track whether it has one.
-   */
-  ensureSession(): Promise<void>;
-  /** Forget the session this shell holds. The next `ensureSession` mints a new one. */
-  forgetSession(): void;
-  /** The bearer token in force, or null before the first write. Null in cookie-session mode. */
-  readonly token: () => string | null;
-};
+export type AnonymousShell = Shell;
 
 export type AnonymousConfig = {
   readonly surfaceId: SurfaceId;
   readonly baseUrl: string;
   readonly fetch: FetchLike;
-  /** `"cookie"` for a browser (the gateway sets httpOnly and script never sees the token); bearer for tests and drives. */
+  /** `"cookie"` for a browser (the session auth.signIn mints is an httpOnly cookie); bearer for tests and drives. */
   readonly session?: "bearer" | "cookie";
   readonly requestId?: () => string;
   readonly page?: unknown;
@@ -380,51 +359,16 @@ export const openAnonymousShell = (cfg: AnonymousConfig): AnonymousShell => {
       `A surface with a principal boots through connectShell, which resolves that principal at the gateway.`,
     );
   }
-  const session: "bearer" | "cookie" = cfg.session ?? "cookie";
-  let token: string | null = null;
-  // Separate from `token` on purpose: in cookie mode the token is the
-  // browser's and script never holds it, so "have I got a session" cannot be
-  // read off the token. Conflating the two mints a fresh session on every
-  // write — which is the bug this comment exists because I wrote.
-  let minted = false;
   const transport = httpTransport({
-    baseUrl: cfg.baseUrl, surfaceId: cfg.surfaceId, fetch: cfg.fetch, token: () => token, session,
+    baseUrl: cfg.baseUrl, surfaceId: cfg.surfaceId, fetch: cfg.fetch, token: () => null, session: cfg.session ?? "cookie",
     ...(cfg.requestId ? { requestId: cfg.requestId } : {}),
   });
-  const shell = createShell({
+  return createShell({
     surfaceId: cfg.surfaceId,
     principal: ANONYMOUS_PRINCIPAL,
     transport,
     ...(cfg.page !== undefined ? { page: cfg.page } : {}),
   });
-
-  // One in-flight mint, however many writes race for it. Two submits a
-  // keystroke apart would otherwise be two sessions and two rows in a table
-  // whose whole purpose is to make one visit one revocable thing.
-  let minting: Promise<void> | null = null;
-  const ensureSession = async (): Promise<void> => {
-    if (minted) return;
-    if (minting) return minting;
-    minting = (async () => {
-      try {
-        const out = await shell.gateway.anonymousSession();
-        // In cookie mode the browser now holds the httpOnly cookie and the
-        // body's token is not retained anywhere script can read — the same
-        // rule connectShell applies to a password login.
-        if (session === "bearer") token = out.token;
-        minted = true;
-      } finally {
-        minting = null;
-      }
-    })();
-    return minting;
-  };
-
-  /** A refused write may be a dead session. The next one mints a new one rather than retrying into the same 401. */
-  const forgetSession = (): void => { minted = false; token = null; };
-
-  // Spread copies own enumerable symbol keys too, so the DEGRADED handle travels with it.
-  return Object.freeze({ ...shell, ensureSession, forgetSession, token: () => token });
 };
 
 export { applyBrand, fetchBrand, installBrand, type BrandSlot, type BrandConfig, type BrandResult } from "./brand.ts";

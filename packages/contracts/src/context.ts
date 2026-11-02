@@ -42,4 +42,11 @@ export type HierarchyContext = {
    * there before the split.
    */
   readonly segment?: CustomerSegment | null;
+  /**
+   * For a device principal, the crew its shift grant names — what
+   * `auth.deviceLogin` answers with, read again so S5 can resume a session S1
+   * signed it into. Not a token claim, for the reason in the gateway's
+   * context.ts: a revoked grant would leave a claim that lies. Absent otherwise.
+   */
+  readonly deviceCrew?: { readonly id: string; readonly label: string } | null;
 };

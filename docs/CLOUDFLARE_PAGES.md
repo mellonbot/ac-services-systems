@@ -152,10 +152,11 @@ session dies with the container; the Worker refuses to start it. The custom
 domain `api.acservice.systems` is created by the first deploy from the
 `routes` entry — do not create a DNS record for it by hand.
 
-Then, for OPEN-S1-ABUSE, one WAF rate-limiting rule on the zone before the
-site goes public: `POST` to `api.acservice.systems` on `/auth/anonymous`
-and `/s1/leads`, per IP, a handful a minute. The gateway has no rate limiter
-and is not meant to grow one.
+For OPEN-S1-ABUSE the Worker itself limits `POST /auth/sign-in` — the front
+door's one request — per IP before it reaches the container (see "Rate limiting
+the front door" below); it ships with every deploy, nothing to create on the zone.
+The gateway's own per-address count (`LOGIN_BY_ADDRESS`, 120 a minute) stays
+as the floor behind it.
 
 ### The site
 
@@ -183,12 +184,12 @@ workflow** on `main` to deploy manually.
 ## Published routes
 
 Production publishes only the surfaces in `ROLLOUT`
-(`packages/contracts/src/surfaces.ts`). The first rollout is the front page
+(`packages/contracts/src/surfaces.ts`). The first rollout is the front door
 and the three staff surfaces:
 
 | Surface | Path | Sign-in audience | Live |
 | --- | --- | --- | --- |
-| S1 Marketing / lead-gen | `/` | Public | **yes** — the first page; every other portal shows taped off, "Section not open yet" |
+| S1 Front door | `/` | Everyone | **yes** — the page everyone starts at: one sign-in, and the gateway sends each login to its own live surface |
 | S2 Service Manager | `/service-manager/` | Staff | **yes** |
 | S3 Dispatch Console | `/dispatch/` | Staff | **yes** |
 | S4 HQ Ops Dashboard | `/hq/` | Staff | no |
@@ -200,9 +201,11 @@ A surface outside `ROLLOUT` is enabled — built, tested, driven in CI and in th
 demo — but is not published, and the production gateway (`AC_ROLLOUT=1` in
 `infra/cloudflare/wrangler.jsonc`) mints no session and takes no request for
 it: `SurfaceNotLive`, 404. Publishing one is adding its id to `ROLLOUT`, which
-also takes the tape off its plate on S1. S1 being live means its lead form is
-live: the WAF rules below must exist first. Each portal retains its own
-authentication flow and gateway-enforced scope. `_redirects` serves deep links through the correct
+also lets S1's front door send that surface's logins to it; until then a login
+that belongs only there is told its portal is not open yet. S1 being live means
+its sign-in is a door anyone can knock on: the edge limit below guards it.
+Each portal keeps its own sign-in page for a deep link or a bookmark, and its
+gateway-enforced scope. `_redirects` serves deep links through the correct
 surface entry point, and each app's router confines navigation to its mount
 path.
 
@@ -214,21 +217,25 @@ where Pages serves every portal, plus one subdomain per enabled surface — and
 `SameSite=Strict`.
 
 
-## Rate limiting the public intake (OPEN-S1-ABUSE)
+## Rate limiting the front door (OPEN-S1-ABUSE)
 
-`leads.submit` and `auth.anonymousSession` are the first mutations a stranger
-can reach. The chosen protection is a Cloudflare WAF rate-limiting rule on the
-zone (not a counter inside the gateway).
+`auth.signIn` (`POST /auth/sign-in`) is the first request a stranger can make:
+S1 became the front door on 2026-11-01 and no longer has a lead form, so the
+old `/auth/anonymous` and `/s1/leads` routes are gone (they answer 404) and
+their two WAF rules can be deleted from the zone. The protection is a Workers
+Rate Limiting binding in the edge Worker, in front of the gateway's own
+per-address count — a file, so a diff shows it and every deploy carries it:
 
-Create one rule for each path:
+| Path | Method | Limit | Period | Over the limit | Where |
+|------|--------|-------|--------|----------------|-------|
+| `/auth/sign-in` | POST | 30 | 60 s | `429`, `retry-after: 60` | `SIGN_IN_LIMIT` in `infra/cloudflare/wrangler.jsonc`, applied in `worker.mjs` |
 
-| Path | Method | Limit | Period | Action |
-|------|--------|-------|--------|--------|
-| `/auth/anonymous` | POST | 10 | 1 minute | Block for 10 minutes |
-| `/s1/leads` | POST | 20 | 1 minute | Block for 10 minutes |
-
-Key by IP. These numbers are conservative for a marketing form and an
-anonymous session mint; raise them if real traffic hits them. The rule is a
-dashboard or API object on the zone — not a file in this repository. S1 should
-not be public until the rules exist.
+Keyed by `CF-Connecting-IP`. Thirty a minute allows a whole office signing in at
+shift start from one address (a person whose login opens several surfaces sends
+two requests: the sign-in and the pick); raise it in `wrangler.jsonc` if real
+traffic hits it. The binding counts per Cloudflare location and settles within
+seconds, so it is a ceiling against volume, not an exact count; the period can
+only be 10 or 60 seconds, so there is no ten-minute block — a client over the
+limit is refused until its window rolls over. If a hard ban is ever wanted, a
+zone WAF rule can be added in front; nothing here depends on one.
 

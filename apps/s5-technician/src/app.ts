@@ -15,12 +15,14 @@ import { createWrapUps, indexedDbMedia, memoryMedia, type MediaStore, type WrapU
 import { S5_CSS } from "./styles.ts";
 
 /**
- * S5 — THE BROWSER ENTRY. Boot is deliberately NOT S2's/S3's shape: there is
- * no cookie session to resume — `{ hardwareId, email, password }` is always
- * bearer, held in memory (packages/shell's own ConnectConfig doc) — so this
- * starts at login every time rather than trying `session: "cookie"` first.
- * A reload losing the session is the accepted cost of the web fallback being
- * the fallback; re-authenticating with the hardware in hand is quick.
+ * S5 — THE BROWSER ENTRY. A sign-in made HERE is `{ hardwareId, email,
+ * password }`, always bearer, held in memory (packages/shell's own
+ * ConnectConfig doc). A sign-in made at the FRONT DOOR (S1, `auth.signIn`
+ * with a device ID) arrives as the session cookie instead, so boot first
+ * tries to resume that — `resume()` — and keeps it only when it is a device
+ * session with a crew. Anything else falls through to this page's own login,
+ * as before. A reload losing a bearer session is the accepted cost of the web
+ * fallback being the fallback; re-authenticating with the hardware in hand is quick.
  *
  * `become()` is also where the two things S2/S3 have no equivalent of are
  * created once per session: the offline mutation queue (./offline.ts) and
@@ -49,27 +51,50 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
   const minute = signal(Math.floor(now() / 60_000));
   const router = createRouter(SCREENS, opts.window ? browserHistory(opts.window, SURFACE_PATHS.S5) : { path: () => "/", push: () => {}, onPop: () => () => {} });
 
+  /** The signed-in phase, from a shell that already holds a device session and its crew. */
+  const enter = (shell: ConnectedShell & { deviceCrew: { id: string; label: string } }, hardwareId: string) => {
+    const store = createStore(shell, now);
+    // A device principal's subject is the technician who signed in (auth.deviceLogin's `sub`).
+    const deviceId = shell.principal.deviceId ?? hardwareId;
+    const queue = createOfflineQueue({ deviceId, subjectId: shell.principal.subjectId, newId, now, store: opts.store ?? null });
+    const wrapUps = createWrapUps({ deviceId, subjectId: shell.principal.subjectId, newId, now, store: opts.store ?? null, media: opts.media ?? memoryMedia() });
+    const others = othersPending(opts.store, deviceId, shell.principal.subjectId);
+    if (others > 0) store.notice.value = [...store.notice.value, `${others} change(s) another technician saved on this device are kept for them and will be sent when they sign in on it.`];
+    phase.value = { kind: "ready", shell, store, queue, wrapUps, crew: shell.deviceCrew, clock: queue.clock, account: createAccountMenu(shell.gateway, shell.refusalOf), messages: createMessenger(shell.gateway, shell.refusalOf) };
+    router.navigate("jobs", {});
+    // Envelopes carry no payload; a job assigned to or pulled off this
+    // shift's crew, or a term change affecting the field ground, is a
+    // refetch of jobs.mine, same as every other surface's own event handling.
+    shell.subscribe(() => { store.invalidate("jobs.mine"); }, { topics: ["job.assigned", "job.reassigned", "job.cancelled"] });
+  };
+
   const login = async (hardwareId: string, email: string, password: string) => {
     phase.value = { kind: "login", refusal: null, busy: true };
     try {
       const shell = await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { hardwareId, email, password } });
       if (!shell.deviceCrew) throw new Error("auth.deviceLogin answered with no crew — the shell's own contract was not honored");
-      const store = createStore(shell, now);
-      // A device principal's subject is the technician who signed in (auth.deviceLogin's `sub`).
-      const deviceId = shell.principal.deviceId ?? hardwareId;
-      const queue = createOfflineQueue({ deviceId, subjectId: shell.principal.subjectId, newId, now, store: opts.store ?? null });
-      const wrapUps = createWrapUps({ deviceId, subjectId: shell.principal.subjectId, newId, now, store: opts.store ?? null, media: opts.media ?? memoryMedia() });
-      const others = othersPending(opts.store, deviceId, shell.principal.subjectId);
-      if (others > 0) store.notice.value = [...store.notice.value, `${others} change(s) another technician saved on this device are kept for them and will be sent when they sign in on it.`];
-      phase.value = { kind: "ready", shell, store, queue, wrapUps, crew: shell.deviceCrew, clock: queue.clock, account: createAccountMenu(shell.gateway, shell.refusalOf), messages: createMessenger(shell.gateway, shell.refusalOf) };
-      router.navigate("jobs", {});
-      // Envelopes carry no payload; a job assigned to or pulled off this
-      // shift's crew, or a term change affecting the field ground, is a
-      // refetch of jobs.mine, same as every other surface's own event handling.
-      shell.subscribe(() => { store.invalidate("jobs.mine"); }, { topics: ["job.assigned", "job.reassigned", "job.cancelled"] });
+      enter(shell as typeof shell & { deviceCrew: { id: string; label: string } }, hardwareId);
     } catch (e) {
       phase.value = { kind: "login", refusal: refusalOf(e), busy: false };
     }
+  };
+
+  /**
+   * The session S1's front door minted, if there is one. Kept only when it is
+   * a DEVICE session that knows its crew; a staff member's cookie, an expired
+   * shift or no cookie at all is simply this page's login, with no refusal shown.
+   */
+  const resume = async () => {
+    phase.value = { kind: "login", refusal: null, busy: true };
+    try {
+      const shell = await connect({ baseUrl: opts.baseUrl, fetch: opts.fetch, credentials: { session: "cookie" } });
+      if (shell.principal.namespace === "device" && shell.deviceCrew) {
+        enter(shell as typeof shell & { deviceCrew: { id: string; label: string } }, shell.principal.deviceId ?? "");
+        return;
+      }
+      shell.close();
+    } catch { /* nothing to resume */ }
+    if (phase.value.kind === "login") phase.value = { kind: "login", refusal: null, busy: false };
   };
 
   const logout = async () => {
@@ -143,7 +168,7 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     </div>`;
   };
 
-  return { phase, degraded, router, view, login, logout, tick };
+  return { phase, degraded, router, view, login, resume, logout, tick };
 };
 
 const refusalOf = (e: unknown): Refusal =>
@@ -188,5 +213,6 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
     return { degraded: app.degraded.value, text: SURFACE.degradedNotice, lastOkAt: p.kind === "ready" ? p.store.lastOkAt.value : null };
   }, Date.now) : () => {};
   app.router.start();
+  void app.resume();
   setInterval(() => { app.tick(); degradedTick(); }, 1000);
 }
