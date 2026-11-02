@@ -168,40 +168,40 @@ test("boot with no session shows login, not an error; a bad password is a refusa
   if (ready.kind !== "ready") return;
   assert.equal(ready.shell.token(), null, "cookie mode: script never sees the token");
   const chrome = render(app.view());
-  // The department bar: one tile per domain, each its name and what is inside, in order.
-  const tiles = [...chrome.matchAll(/<a class="ac-nav__domain" data-current="(true|false)"[^>]*href="([^"]+)"><span class="ac-nav__domain-name">([^<]+)<\/span><span class="ac-nav__domain-sub">([^<]+)<\/span>/g)];
-  assert.deepEqual(tiles.map((m) => m[3]), ["Customer records", "Technician Network", "Purchasing"]);
-  assert.deepEqual(tiles.map((m) => m[2]), ["/accounts", "/network", "/purchasing"]);
-  assert.ok(tiles.every((m) => m[4]!.length > 0), "every tile says what is inside it");
-  assert.deepEqual(tiles.map((m) => m[1]), ["true", "false", "false"], "the open domain is marked on its tile");
-  assert.match(chrome, /class="ac-nav__domain" data-current="true" aria-current="true" href="\/accounts"/, "the tile is the domain; the tab below is the page");
-  // The open domain's screens are one track beneath; the closed domains show none.
-  assert.equal(chrome.match(/<div class="ac-seg">/g)?.length, 1, "only the open domain's screens get a track");
-  assert.match(chrome, /role="group" aria-label="Customer records" data-current="true"><div class="ac-seg">/);
-  assert.match(chrome, /data-current="true" aria-current="page" href="\/accounts">Accounts</);
-  assert.match(chrome, /class="ac-nav ac-nav--grouped"/, "the plain ac-nav is one shared track and would merge the domains again");
-  // The console names itself under the masthead, as S3 does â€” above the departments, and not a second h1.
-  assert.match(chrome, /<p class="s2-console-head__title">Service &amp; Account Management<\/p><p class="s2-console-head__lede">This page tracks the records, databases, tables, and agreements that dispatching calls on throughout daily operations\.<\/p>/);
-  assert.ok(chrome.indexOf("s2-console-head") < chrome.indexOf("ac-nav__domains"), "the name comes before the department bar");
+  // The global bar: one item per group, in order, the open group marked.
+  const bar = chrome.split('<nav class="s2-global"')[1]!.split("</nav>")[0]!;
+  const items = [...bar.matchAll(/<a class="ac-seg__item" data-current="(true|false)"[^>]*href="([^"]+)">([^<]+)<\/a>/g)];
+  assert.deepEqual(items.map((m) => m[3]), ["Customers", "Invoicing", "Follow-ups", "Technician Network", "Purchasing"]);
+  assert.deepEqual(items.map((m) => m[2]), ["/accounts", "/invoicing", "/follow-ups", "/network", "/purchasing"]);
+  assert.deepEqual(items.map((m) => m[1]), ["true", "false", "false", "false", "false"], "the open group is marked");
+  assert.match(bar, /data-current="true" aria-current="true" href="\/accounts">Customers</, "Customers has a tab row, so its item is the group and the tab is the page");
+  // Customers holds its three per-customer screens; with no customer open there is no customer header.
+  const tabsOf = (out: string) => [...(out.split('<div class="s2-tabs"')[1] ?? "").split("</div></div>")[0]!.matchAll(/<a class="ac-seg__item" data-current="(true|false)"[^>]*>([^<]+)<\/a>/g)].map((m) => `${m[2]}${m[1] === "true" ? "*" : ""}`);
+  assert.match(chrome, /<div class="s2-tabs" role="group" aria-label="Customers"><div class="ac-seg">/);
+  assert.deepEqual(tabsOf(chrome), ["Accounts*", "Agreements", "Projects"]);
+  assert.doesNotMatch(chrome, /s2-custbar/, "no customer open, no customer header");
+  // No hero and no department tiles; each screen keeps the only h1.
+  assert.doesNotMatch(chrome, /s2-console-head|ac-nav__domain/);
   assert.equal(chrome.match(/<h1/g)?.length ?? 0, 1, "each screen keeps the only h1");
-  // A one-screen domain's tile is the page itself, with no track repeating it.
+  // A one-screen group's item is the page itself, with no second row repeating it.
   app.router.navigate("purchasing", {});
-  const buying = render(app.view()).split('<nav class="s2-trail"')[0]!;
-  assert.match(buying, /class="ac-nav__domain" data-current="true" aria-current="page" href="\/purchasing"/);
-  assert.doesNotMatch(buying, /<div class="ac-seg">/, "a track holding one segment only repeats the tile above it");
-  // Invoicing is part of the customer's records; field devices are the technicians' hardware.
-  const tabsOf = (out: string) => [...out.split('<nav class="s2-trail"')[0]!.matchAll(/<a class="ac-seg__item" data-current="(true|false)"[^>]*>([^<]+)<\/a>/g)].map((m) => `${m[2]}${m[1] === "true" ? "*" : ""}`);
+  const buying = render(app.view());
+  assert.match(buying, /data-current="true" aria-current="page" href="\/purchasing">Purchasing</);
+  assert.doesNotMatch(buying, /s2-tabs/, "a row holding one tab only repeats the item above it");
+  // Invoicing and Follow-ups are lists across every customer: items in the bar, never under a customer.
   app.router.navigate("billing", {});
   let moved = render(app.view());
-  assert.deepEqual(tabsOf(moved), ["Projects", "Accounts", "Agreements", "Invoicing*", "Follow-ups"]);
-  assert.match(moved, /class="ac-nav__domain" data-current="true" aria-current="true" href="\/accounts"/);
-  assert.match(moved, /href="\/invoicing">Invoicing</);
+  assert.match(moved, /data-current="true" aria-current="page" href="\/invoicing">Invoicing</);
+  assert.doesNotMatch(moved, /s2-tabs|s2-custbar/);
   assert.match(moved, /<h1 class="ac-page-head__title">Invoicing<\/h1>/);
-  assert.match(moved, /<li>Customer records<\/li><\/ol>/, "the trail names the domain it now sits in");
+  assert.doesNotMatch(moved, /s2-trail/, "the bar and the page head already say where this is");
+  app.router.navigate("leads", {});
+  assert.match(render(app.view()), /data-current="true" aria-current="page" href="\/follow-ups">Follow-ups</);
+  // Field devices are the technicians' hardware, so they sit with the network.
   app.router.navigate("devices", {});
   moved = render(app.view());
   assert.deepEqual(tabsOf(moved), ["AC Services DFW", "Field devices*"], "on field devices, our crews' tab is not also lit");
-  assert.match(moved, /class="ac-nav__domain" data-current="true" aria-current="true" href="\/network"/);
+  assert.match(moved, /data-current="true" aria-current="true" href="\/network">Technician Network</);
   assert.doesNotMatch(moved, /Billing/, "nowhere called Billing any more");
   app.router.navigate("accounts.tree", {});
   assert.doesNotMatch(chrome, /Signed-in scope/, "the header no longer spells out the signed-in scope and roles");
@@ -217,8 +217,7 @@ test("Technician Network: AC Services DFW is a tab, and every firm that can stil
   app.router.navigate("network", { firmId: U(60) });
   render(app.view());
   await settle();
-  const nav = render(app.view()).split('<nav class="s2-trail"')[0]!;
-  const group = nav.split('aria-label="Technician Network"')[1]!.split('aria-label="Purchasing"')[0]!;
+  const group = render(app.view()).split('<div class="s2-tabs"')[1]!.split(/<nav class="s2-trail"|<header class="ac-page-head"/)[0]!;
   const tabs = [...group.matchAll(/<a class="ac-seg__item"[^>]*>([^<]+)<\/a>/g)].map((m) => m[1]);
   assert.deepEqual(tabs, ["AC Services DFW", "Field devices"], "a firm is a choice in the picker, never a tab of its own");
   const options = [...group.matchAll(/<option[^>]*>([^<]+)<\/option>/g)].map((m) => m[1]);
@@ -235,7 +234,7 @@ test("Technician Network: AC Services DFW is a tab, and every firm that can stil
   assert.match(own, /<span class="ac-seg__pick" data-current="false">/);
   assert.match(own, /<option value disabled selected>Subcontractor firms \(2\)<\/option>/, "on our own crews the picker names what it holds, and no firm reads as chosen");
   assert.match(own, /<h1 class="ac-page-head__title">Technician Network<\/h1>/);
-  assert.match(own, /<li>Technician Network<\/li><li aria-current="location">AC Services DFW<\/li>/);
+  assert.doesNotMatch(own, /s2-trail/, "our own crews is the lit tab, so a trail would only repeat it");
 });
 
 test("hovering a customer shows S6's card for it: a commercial account's sites and plan, a homeowner's home, units and membership", async () => {
@@ -293,9 +292,11 @@ test("the tree screen: customers on the left, the selected tree ordered region â
   await settle(); await settle();
   const out = render(app.view());
   assert.match(out, /Amped Fitness Inc\./);
-  assert.match(out, /Current location/);
-  assert.match(out, /aria-current="location">Amped Fitness Inc\.<\/li>/);
-  assert.match(out, /data-current="true" aria-current="page" href="\/accounts"/, "child routes retain their domain as the active nav target");
+  assert.match(out, /<section class="s2-custbar" aria-label="Customer"><p class="s2-custbar__name">Amped Fitness Inc\.<\/p><a class="s2-custbar__all" href="\/accounts">All customers<\/a><\/section>/, "an open customer is named once, in the header, with a way back to the list");
+  assert.doesNotMatch(out, /Current location/, "the header already says who; with no sub-screen or node open there is no trail");
+  assert.match(out, new RegExp(`data-current="true" aria-current="page" href="/accounts/${ORG}">Accounts<`), "the tabs carry the open customer");
+  assert.match(out, new RegExp(`href="/contracts/${ORG}">Agreements<`), "a tab changes the screen and never the customer");
+  assert.match(out, new RegExp(`href="/projects/${ORG}">Projects<`));
   assert.match(out, /Amped \/ South/);
   const treeOnly = out.split('id="account-tree"')[1]!;
   const order = ["Amped / South", "Amped Austin", "Rooftop units", "Amped / West"].map((n) => treeOnly.indexOf(n));
@@ -416,7 +417,7 @@ test("NEW CUSTOMER: commercial by default, as before; Residential asks for the h
   (nodesIn(app.view()).find((n) => n.type === "input" && n.props?.value === "commercial")!.props!.onChange as () => void)();
 });
 
-test("FOLLOW-UPS (leads): a tab under Customer records; waiting leads with a way to reach them; Convert opens the home form, named for them", async () => {
+test("FOLLOW-UPS (leads): an item in the global bar; waiting leads with a way to reach them; Convert opens the home form, named for them", async () => {
   const gw = fakeGateway();
   const app = createApp({ baseUrl: "https://api.ac.test", fetch: gw.fetch, now: () => 1_000 });
   await app.login("owner@ac.test", "pw");
