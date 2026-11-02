@@ -145,15 +145,16 @@ claim comes back it comes back through that function, never a list in a bundle.
 
 **~~OPEN-S1-ABUSE~~ — a public door with no credential in front of it.**
 
-**CLOSED 2026-10-28; the door changed 2026-11-01.** Edge rate limiting via
-Cloudflare WAF on the zone. S1 is now the front door and takes no write, so the
-one rule is on its sign-in (documented in `docs/CLOUDFLARE_PAGES.md`):
+**CLOSED 2026-10-28; the door changed 2026-11-01; the limit moved into the
+repository 2026-11-02.** Edge rate limiting in the gateway's Worker — a Workers
+Rate Limiting binding, not a dashboard rule — so it is a file a diff can prove.
+S1 is now the front door and takes no write, so the one limit is on its sign-in
+(documented in `docs/CLOUDFLARE_PAGES.md`):
 
-- `POST /auth/sign-in` — 30 requests per minute per IP, block 10 minutes
+- `POST /auth/sign-in` — 30 requests per 60 s per IP, then `429` until the window rolls
 
-The October rules on `/auth/anonymous` and `/s1/leads` guard routes that no
-longer exist and can be deleted. The rule is a dashboard/API object on the
-zone, not a file here. S1 should not be public until it exists. Behind it, the
+The October WAF rules on `/auth/anonymous` and `/s1/leads` guard routes that no
+longer exist and can be deleted from the zone. Behind it, the
 gateway counts sign-ins per address itself (`LOGIN_BY_ADDRESS`, 120 a minute).
 
 **OPEN-S7 — enable the vendor portal (D9).** *Item 11 (2026-09-27)* built

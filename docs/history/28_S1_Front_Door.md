@@ -28,9 +28,8 @@ Chromium. An independent review of the auth change found three issues, all fixed
 
 ## Left
 
-- **WAF:** `POST /auth/sign-in`, 30/min per IP, block 10 min, must exist on the zone
-  before merge (`docs/CLOUDFLARE_PAGES.md`). The `/auth/anonymous` and `/s1/leads`
-  rules guard routes that no longer exist.
+- **Edge limit:** `POST /auth/sign-in`, 30/min per IP — `SIGN_IN_LIMIT` in `infra/cloudflare/wrangler.jsonc`, applied in `worker.mjs` (was a zone WAF rule; moved into the repo 2026-11-02, `docs/CLOUDFLARE_PAGES.md`).
+  The old `/auth/anonymous` and `/s1/leads` WAF rules guard routes that no longer exist.
 - **Decision:** S5 now keeps a front-door shift session across a reload until the
   shift ends. On a shared browser, closing the tab without signing out leaves the
   next person in it.

@@ -115,6 +115,5 @@ branch name. Give it a body: what changes, why, how it was verified.
    `deploy-gateway` is something the user needs to hear, not a success.
 5. Unsubscribe from the PR once it is merged.
 
-What no file can do: the Cloudflare WAF rate-limit rule on S1's sign-in (`POST /auth/sign-in`,
-`docs/CLOUDFLARE_PAGES.md`) is a dashboard object. If S1 is in `ROLLOUT`, remind the user
-it must exist.
+S1's sign-in rate limit (`POST /auth/sign-in`, 30/min per IP) is the `SIGN_IN_LIMIT` binding
+in `infra/cloudflare/wrangler.jsonc`, applied in `worker.mjs`; it ships with `deploy-gateway`.
