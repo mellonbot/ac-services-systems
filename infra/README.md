@@ -16,7 +16,7 @@ infrastructure decision it gated was taken on 2026-10-13: **Cloudflare**.
 What is still held elsewhere, and why:
 
 - **database** — PlanetScale Postgres created from the Cloudflare dashboard (or
-  any Postgres 16 over TLS). The four roles are `migrations/0002`; the restore
+  any Postgres 16+ over TLS; production runs 18). The four roles are `migrations/0002`; the restore
   test (#11) is an operations calendar item with a name attached, not a file
   here, because no file can run a restore for you.
 - **monitoring** — external by construction (#12). Monitoring that lives on the

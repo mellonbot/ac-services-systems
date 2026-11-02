@@ -43,8 +43,8 @@ whether or not a browser is open.
 
 Cloudflare hosts no Postgres of its own. The production database is
 **PlanetScale Postgres created from the Cloudflare dashboard** (billed on the
-Cloudflare invoice at PlanetScale's rates) or any Postgres 16 reachable over
-TLS. Whichever it is, its connection string is the `DATABASE_URL` secret in
+Cloudflare invoice at PlanetScale's rates) or any Postgres 16+ reachable over
+TLS (production runs 18, and CI tests on 18). Whichever it is, its connection string is the `DATABASE_URL` secret in
 two places: the Worker (for the container) and the GitHub `production`
 environment (for migrations). Paste it exactly as the provider shows it (see
 'The gateway' below — PlanetScale's already ends in `sslmode=verify-full&sslrootcert=system`).
