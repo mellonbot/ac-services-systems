@@ -8,7 +8,7 @@
 
 **Tech Stack:** as before — TypeScript on Node 24, `pg` via `apps/gateway/src/pg-tx.ts`, Electron 38, esbuild, `node:test`.
 
-**Spec:** `docs/superpowers/specs/2026-10-21-logins-app-companies-design.md` (extends `docs/superpowers/specs/2026-10-20-logins-app-design.md`)
+**Spec:** `docs/specs/2026-10-21-logins-app-companies-design.md` (extends `docs/specs/2026-10-20-logins-app-design.md`)
 
 ## Global Constraints
 

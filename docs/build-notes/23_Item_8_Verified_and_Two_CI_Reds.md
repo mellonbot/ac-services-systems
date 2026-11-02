@@ -1,7 +1,7 @@
 # 23 — Item 8 re-run on a second machine; two CI jobs were red and nobody knew
 
 **Date:** 2026-09-21
-**Reads as:** the execution half of `claude/22_S1_Marketing_Built.md`, which
+**Reads as:** the execution half of `docs/build-notes/22_S1_Marketing_Built.md`, which
 recorded item 8 as built and proven. This doc records the first time anything
 in it ran anywhere but the sandbox that wrote it.
 

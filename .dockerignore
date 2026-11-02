@@ -21,4 +21,3 @@ Claude outputs
 **/*.tfstate*
 **/.terraform
 .claude
-.impeccable
