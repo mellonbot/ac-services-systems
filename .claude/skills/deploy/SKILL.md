@@ -22,7 +22,7 @@ main push ─ guard (zero-install-guard, full, migrate, drive)
 |---|---|---|
 | Gateway + worker | One container (`Dockerfile`, PID 1 `infra/cloudflare/entrypoint.mjs`) behind `infra/cloudflare/worker.mjs` | `infra/cloudflare/wrangler.jsonc` — `AC_SITE`, `AC_ROLLOUT=1`, one `basic` instance |
 | Site | Cloudflare Pages, one project, every published surface under its path | GitHub `production` env: `CLOUDFLARE_PAGES_PROJECT`, optional `AC_GATEWAY` |
-| Database | PlanetScale Postgres (via Cloudflare) or any PG16 over TLS; string pasted exactly as the provider shows it, owner string kept in a password manager | `DATABASE_URL` in **two** places: Worker secret and GitHub `production` env |
+| Database | PlanetScale Postgres (via Cloudflare) or any PG16+ over TLS (production runs 18; CI tests on 18); string pasted exactly as the provider shows it, owner string kept in a password manager | `DATABASE_URL` in **two** places: Worker secret and GitHub `production` env |
 
 Order matters: the site build stamps the gateway origin into every frame, so the gateway
 deploys first. Migrations run against production **before** the new image ships — a
