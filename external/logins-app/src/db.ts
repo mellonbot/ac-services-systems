@@ -13,8 +13,8 @@ import { registerDevice, grantDeviceShift, type DeviceWriter } from "../../../se
 import { revokeUserSessions } from "../../../services/gateway/src/auth/sessions.ts";
 import { randomUUID } from "node:crypto";
 import { isTopic, type Topic } from "../../../packages/contracts/src/events.ts";
-import { buildCrewRow, buildFirmRows, documentsLabel, normaliseName } from "./companies.ts";
-import type { NewCompany, CrewRow } from "./companies.ts";
+import { buildCrewRow, buildFirmRows, documentsLabel, normaliseName } from "./crews.ts";
+import type { NewCrew, CrewRow } from "./crews.ts";
 
 /**
  * The app's actor in audit_log and outbox. Like the worker (WORKER_ACTOR), it
@@ -35,7 +35,7 @@ export class LoginsDbError extends Error {}
 export type Region = { id: string; code: string; name: string };
 export type Firm = { id: string; legalName: string; regionId: string; status: "onboarding" | "active" | "suspended" | "terminated" };
 /** A crew (0024): a technician's own service unit, or an install crew. */
-export type Company = {
+export type Crew = {
   id: string; label: string; homeRegionId: string; employmentType: "employed" | "subcontracted"; kind: CrewKind; firmName: string | null;
   regionCode: string; active: boolean; firmId: string | null; firmStatus: Firm["status"] | null; technicians: number; documents: string;
 };
@@ -63,10 +63,10 @@ export type LoginsDb = {
   listUsers(opts: { includeInactive: boolean }): Promise<readonly UserRecord[]>;
   listRegions(): Promise<readonly Region[]>;
   listFirms(): Promise<readonly Firm[]>;
-  listCompanies(opts: { includeInactive: boolean }): Promise<readonly Company[]>;
-  addCompany(n: NewCompany): Promise<{ id: string; firmId: string | null }>;
-  removeCompany(id: string): Promise<void>;
-  reactivateCompany(id: string): Promise<void>;
+  listCrews(opts: { includeInactive: boolean }): Promise<readonly Crew[]>;
+  addCrew(n: NewCrew): Promise<{ id: string; firmId: string | null }>;
+  removeCrew(id: string): Promise<void>;
+  reactivateCrew(id: string): Promise<void>;
   listCustomerOrgs(): Promise<readonly CustomerOrg[]>;
   listAccountTree(orgId: string): Promise<readonly AccountNode[]>;
   addLogin(n: NewLogin): Promise<{ id: string }>;
@@ -101,10 +101,10 @@ const toRecord = (r: UserRow): UserRecord => ({
 
 const LOST = "Lost the connection to the database.";
 const GONE = "That login no longer exists";
-const COMPANY_GONE = "That company no longer exists";
+const CREW_GONE = "That crew no longer exists";
 const NO_REGION = "That region is not available";
 const removedMessage = (label: string): string => `${label} has been removed`;
-const terminatedMessage = (legalName: string): string => `${legalName} is terminated — it can't take a new company`;
+const terminatedMessage = (legalName: string): string => `${legalName} is terminated — it can't take a new crew`;
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 const NOT_THIS_CUSTOMER = "That site or location doesn't belong to the chosen customer";
 
@@ -176,7 +176,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
     await emit(q, { topic, action, entity: "crew", entityId: crewId, orgId: c!.org_id, regionId: c!.region_id, after: { label: c!.label, active: c!.active } });
   };
 
-  /** Company writes — and technician writes, which must share a transaction with the company-row lock — run as the office: internal, bound, one commit. */
+  /** Crew writes — and technician writes, which must share a transaction with the crew-row lock — run as the office: internal, bound, one commit. */
   const writeAsOffice = <T>(f: (q: Q) => Promise<T>): Promise<T> => attempt(async () => {
     const tx = await beginTx(pool, "ac_logins");
     try {
@@ -190,10 +190,10 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
     }
   });
 
-  /** A technician may only stand on an active crew; the share lock keeps removeCompany from slipping in before the users write commits. */
-  const requireActiveCompany = async (q: Q, crewId: string): Promise<void> => {
+  /** A technician may only stand on an active crew; the share lock keeps removeCrew from slipping in before the users write commits. */
+  const requireActiveCrew = async (q: Q, crewId: string): Promise<void> => {
     const [c] = await q<{ label: string; active: boolean }>(`SELECT label, active FROM crews WHERE id = $1 FOR SHARE`, [crewId]);
-    if (!c) throw new LoginInputError(COMPANY_GONE);
+    if (!c) throw new LoginInputError(CREW_GONE);
     if (!c.active) throw new LoginInputError(removedMessage(c.label));
   };
 
@@ -296,9 +296,9 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       `SELECT id, legal_name, region_id, status FROM subcontractor_firms WHERE status <> 'terminated' ORDER BY legal_name`))
       .map((f) => ({ id: f.id, legalName: f.legal_name, regionId: f.region_id, status: f.status })),
 
-    listCompanies: async ({ includeInactive }) => {
+    listCrews: async ({ includeInactive }) => {
       const crews = await read<{
-        id: string; label: string; home_region_id: string; region_code: string; employment_type: Company["employmentType"]; kind: CrewKind; active: boolean;
+        id: string; label: string; home_region_id: string; region_code: string; employment_type: Crew["employmentType"]; kind: CrewKind; active: boolean;
         firm_id: string | null; firm_name: string | null; firm_status: Firm["status"] | null; technicians: number;
       }>(
         `SELECT c.id, c.label, c.home_region_id, r.code AS region_code, c.employment_type, c.kind, c.active,
@@ -326,7 +326,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       }));
     },
 
-    addCompany: async (n) => {
+    addCrew: async (n) => {
       // Rows are built (and validated) before any connection is taken; the checks that need the database run in the same transaction as the inserts.
       const newFirm = n.type === "contractor" && !("existing" in n.firm) ? n.firm : null;
       const firmRows = newFirm ? buildFirmRows(randomUUID(), newFirm) : null;
@@ -334,9 +334,9 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       if (name === "") throw new LoginInputError("The name cannot be empty.");
       return writeAsOffice(async (q) => {
         // The duplicate checks below read, then insert. Two saves at once (a
-        // double-click, two operators) would both read nothing; company
+        // double-click, two operators) would both read nothing; crew
         // creation is serialised so the second reads the first's row.
-        await q("SELECT pg_advisory_xact_lock(hashtext('ac-logins:add-company'))");
+        await q("SELECT pg_advisory_xact_lock(hashtext('ac-logins:add-crew'))");
         let crew;
         if (n.type === "ours") {
           await requireRegion(q, n.regionId);
@@ -368,9 +368,9 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       });
     },
 
-    removeCompany: (id) => writeAsOffice(async (q) => {
+    removeCrew: (id) => writeAsOffice(async (q) => {
       const [c] = await q<{ kind: CrewKind }>(`SELECT kind FROM crews WHERE id = $1 FOR UPDATE`, [id]);
-      if (!c) throw new LoginInputError(COMPANY_GONE);
+      if (!c) throw new LoginInputError(CREW_GONE);
       const [{ n: techs }] = await q<{ n: number }>(`SELECT count(*)::int AS n FROM users WHERE crew_id = $1 AND active`, [id]) as [{ n: number }];
       if (techs === 1 && c.kind === "service") throw new LoginInputError("This is a technician's own service unit — remove their login and the unit goes with it");
       if (techs > 0) throw new LoginInputError(`Give its ${plural(techs, "technician", "technicians")} their own service units first (Edit → Move to their own service unit)`);
@@ -380,10 +380,10 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       await crewChanged(q, id, "crew.updated", "crew.retire");
     }),
 
-    reactivateCompany: (id) => writeAsOffice(async (q) => {
+    reactivateCrew: (id) => writeAsOffice(async (q) => {
       const [c] = await q<{ label: string; kind: CrewKind; firm_status: Firm["status"] | null; legal_name: string | null }>(
         `SELECT c.label, c.kind, f.status AS firm_status, f.legal_name FROM crews c LEFT JOIN subcontractor_firms f ON f.id = c.firm_id WHERE c.id = $1 FOR UPDATE OF c`, [id]);
-      if (!c) throw new LoginInputError(COMPANY_GONE);
+      if (!c) throw new LoginInputError(CREW_GONE);
       // Reactivated alone, a service unit would be an empty row on the dispatch board.
       if (c.kind === "service") throw new LoginInputError("A service unit comes back with its technician — reactivate their login");
       if (c.firm_status === "terminated") throw new LoginInputError(terminatedMessage(c.legal_name!));
@@ -441,7 +441,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
         if (edit.roles) checkRoles(cur.namespace, edit.roles);
         if (edit.ownUnit && cur.crew_id === null) throw new LoginInputError("Only a technician has a service unit.");
         if (edit.scope) {
-          if (cur.namespace === "subcontractor" || cur.crew_id !== null) throw new LoginInputError("This login's scope follows its company — it cannot be set by hand.");
+          if (cur.namespace === "subcontractor" || cur.crew_id !== null) throw new LoginInputError("This login's scope follows its crew — it cannot be set by hand.");
           if (cur.namespace === "internal") {
             const want = edit.scope.tier === "parent" || edit.scope.tier === "region" ? internalScope(edit.scope.tier === "parent" ? "org" : "region", edit.scope.regionId) : null;
             if (!want || want.scope_tier !== edit.scope.tier || want.scope_id !== edit.scope.scopeId) throw new LoginInputError("A staff login sees the whole company or one region.");
@@ -452,11 +452,11 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
         let after: Access = { ...before, roles: edit.roles ?? before.roles };
         if (edit.scope) after = { ...after, scopeTier: edit.scope.tier, scopeId: edit.scope.scopeId, regionId: edit.scope.regionId };
         if (edit.ownUnit) {
-          const [c] = await q<{ kind: CrewKind; employment_type: Company["employmentType"]; firm_id: string | null; home_region_id: string; others: number }>(
+          const [c] = await q<{ kind: CrewKind; employment_type: Crew["employmentType"]; firm_id: string | null; home_region_id: string; others: number }>(
             `SELECT kind, employment_type, firm_id, home_region_id,
                     (SELECT count(*)::int FROM users u WHERE u.crew_id = crews.id AND u.active AND u.id <> $2) AS others
                FROM crews WHERE id = $1 FOR SHARE`, [cur.crew_id, userId]);
-          if (!c) throw new LoginInputError(COMPANY_GONE);
+          if (!c) throw new LoginInputError(CREW_GONE);
           if (c.kind === "service" && c.others === 0) throw new LoginInputError("This technician already has their own service unit.");
           const employer: Employer = c.employment_type === "employed" ? { type: "ours", regionId: c.home_region_id } : { type: "contractor", firmId: c.firm_id! };
           const unit = await makeUnit(q, edit.displayName, employer);
@@ -531,7 +531,7 @@ export const openDb = async (connectionString: string): Promise<LoginsDb> => {
       return (crewId ? writeAsOffice : write)(async (q) => {
         if (crewId) {
           await restoreOwnUnit(q, crewId);
-          await requireActiveCompany(q, crewId);
+          await requireActiveCrew(q, crewId);
         }
         const hit = await q(`UPDATE users SET active = true WHERE id = $1 RETURNING id`, [userId]);
         if (hit.length === 0) throw new LoginInputError(GONE);

@@ -2,8 +2,8 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DbName } from "./connections.ts";
 import type { UserRecord } from "./kinds.ts";
 import type { NewLogin } from "./rows.ts";
-import type { Region, Firm, Company, CustomerOrg, AccountNode, LoginEdit, Device, NewShift } from "./db.ts";
-import type { NewCompany } from "./companies.ts";
+import type { Region, Firm, Crew, CustomerOrg, AccountNode, LoginEdit, Device, NewShift } from "./db.ts";
+import type { NewCrew } from "./crews.ts";
 
 export type Api = {
   /** Which connections are configured — never the strings. `localIsDefault`: Local is LOCAL_DEFAULT. `selected`: the database the main process opened. `error`: connections.json could not be read. */
@@ -13,10 +13,10 @@ export type Api = {
   listUsers(db: DbName, includeInactive: boolean): Promise<readonly UserRecord[]>;
   listRegions(db: DbName): Promise<readonly Region[]>;
   listFirms(db: DbName): Promise<readonly Firm[]>;
-  listCompanies(db: DbName, includeInactive: boolean): Promise<readonly Company[]>;
-  addCompany(db: DbName, n: NewCompany): Promise<{ id: string; firmId: string | null }>;
-  removeCompany(db: DbName, id: string): Promise<void>;
-  reactivateCompany(db: DbName, id: string): Promise<void>;
+  listCrews(db: DbName, includeInactive: boolean): Promise<readonly Crew[]>;
+  addCrew(db: DbName, n: NewCrew): Promise<{ id: string; firmId: string | null }>;
+  removeCrew(db: DbName, id: string): Promise<void>;
+  reactivateCrew(db: DbName, id: string): Promise<void>;
   listCustomerOrgs(db: DbName): Promise<readonly CustomerOrg[]>;
   listAccountTree(db: DbName, orgId: string): Promise<readonly AccountNode[]>;
   addLogin(db: DbName, n: NewLogin): Promise<{ id: string }>;
@@ -30,7 +30,7 @@ export type Api = {
 
 const METHODS = [
   "connections", "setConnection", "select", "listUsers", "listRegions", "listFirms",
-  "listCompanies", "addCompany", "removeCompany", "reactivateCompany", "listCustomerOrgs",
+  "listCrews", "addCrew", "removeCrew", "reactivateCrew", "listCustomerOrgs",
   "listAccountTree", "addLogin", "resetPassword", "editLogin", "deactivate", "reactivate",
   "listDevices", "grantShift",
 ] as const satisfies readonly (keyof Api)[];

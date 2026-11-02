@@ -7,9 +7,9 @@ import type { CustomerSegment, DeviceKind } from "../../../../packages/contracts
 import type { Api } from "../preload.ts";
 import type { DbName } from "../connections.ts";
 import type { NewLogin } from "../rows.ts";
-import type { AccountNode, Company, LoginEdit } from "../db.ts";
-import { DEFAULT_PAYMENT_TERMS_DAYS } from "../companies.ts";
-import type { NewCompany } from "../companies.ts";
+import type { AccountNode, Crew, LoginEdit } from "../db.ts";
+import { DEFAULT_PAYMENT_TERMS_DAYS } from "../crews.ts";
+import type { NewCrew } from "../crews.ts";
 
 // Injected by build.mjs from connections.ts, which the browser bundle cannot import (node:fs).
 declare const LOCAL_DEFAULT: string;
@@ -35,12 +35,12 @@ const state = {
   db: "local" as DbName,
   production: false,
   localIsDefault: true,
-  kind: "S2" as KindId | "companies",
+  kind: "S2" as KindId | "crews",
   showInactive: false,
   /** The Customer Portal tab's residential / commercial selection (0019). */
   segment: "all" as CustomerSegment | "all",
   users: [] as readonly UserRecord[],
-  companies: [] as readonly Company[],
+  crews: [] as readonly Crew[],
 };
 
 // ── Banner ────────────────────────────────────────────────────────────────
@@ -67,13 +67,13 @@ const inKind = (u: UserRecord, id: KindId): boolean => kindsOf(u).includes(id);
 
 const renderSidebar = (): void => {
   const active = state.users.filter((u) => u.active);
-  const item = (id: KindId | "companies", name: string, count: number, cls = ""): HTMLLIElement => h("li", { class: cls },
+  const item = (id: KindId | "crews", name: string, count: number, cls = ""): HTMLLIElement => h("li", { class: cls },
     h("button", { type: "button", "aria-current": id === state.kind ? "true" : undefined, onclick: () => { state.kind = id; render(); } },
       h("span", { class: "name" }, name),
       h("span", { class: "count" }, String(count))));
   $("kinds").replaceChildren(
     ...KINDS.map((k) => item(k.id, k.name, active.filter((u) => inKind(u, k.id)).length)),
-    item("companies", "Crews & units", state.companies.filter((c) => c.active).length, "companies"));
+    item("crews", "Crews & units", state.crews.filter((c) => c.active).length, "crews"));
 };
 
 const SEGMENT_WORD: Readonly<Record<CustomerSegment, string>> = { residential: "Residential", commercial: "Commercial" };
@@ -90,9 +90,9 @@ const renderSegment = (): void => {
 };
 
 const roles = (u: UserRecord): string => u.roles.join(", ") || "—";
-const KIND_WORD: Record<Company["kind"], string> = { service: "Service unit", install: "Install crew" };
+const KIND_WORD: Record<Crew["kind"], string> = { service: "Service unit", install: "Install crew" };
 /** Who employs the people on a crew: us, or the contractor firm by name. */
-const employer = (type: Company["employmentType"] | null, firmName: string | null): string =>
+const employer = (type: Crew["employmentType"] | null, firmName: string | null): string =>
   type === null ? "—" : type === "employed" ? "Ours" : firmName ?? "Contractor";
 /** 0024: a technician's unit is their own; one shared or an install crew predates that and can be moved off in Edit. */
 const unitWord = (u: UserRecord): string =>
@@ -108,7 +108,7 @@ const COLUMNS: Record<KindId, readonly [string, (u: UserRecord) => string][]> = 
   other: [["Namespace", (u) => u.namespace], ["Roles", roles]],
 };
 
-const COMPANY_COLUMNS: readonly [string, (c: Company) => string, string?][] = [
+const CREW_COLUMNS: readonly [string, (c: Crew) => string, string?][] = [
   ["Kind", (c) => KIND_WORD[c.kind]],
   ["Employer", (c) => employer(c.employmentType, c.firmName)],
   ["Region", (c) => c.regionCode],
@@ -117,26 +117,26 @@ const COMPANY_COLUMNS: readonly [string, (c: Company) => string, string?][] = [
   ["Firm status", (c) => (c.employmentType === "subcontracted" ? c.firmStatus ?? "" : "")],
 ];
 
-const renderCompanies = (): void => {
+const renderCrews = (): void => {
   $("title").textContent = "Crews & units";
   $("add").hidden = false;
   $("add").textContent = "+ Add install crew";
   $("note").hidden = true;
-  $("thead").replaceChildren(...["Name", ...COMPANY_COLUMNS.map(([t]) => t), ""].map((t) => h("th", { scope: "col" }, t)));
-  const rows = state.companies.filter((c) => state.showInactive || c.active);
+  $("thead").replaceChildren(...["Name", ...CREW_COLUMNS.map(([t]) => t), ""].map((t) => h("th", { scope: "col" }, t)));
+  const rows = state.crews.filter((c) => state.showInactive || c.active);
   $("tbody").replaceChildren(...(rows.length === 0
-    ? [h("tr", {}, h("td", { colspan: COMPANY_COLUMNS.length + 2, class: "empty" }, "No crews or units."))]
+    ? [h("tr", {}, h("td", { colspan: CREW_COLUMNS.length + 2, class: "empty" }, "No crews or units."))]
     : rows.map((c) => h("tr", { class: c.active ? "" : "inactive" },
       h("td", {}, c.label, !c.active && h("span", { class: "tag" }, "inactive")),
-      ...COMPANY_COLUMNS.map(([, f, cls]) => h("td", cls ? { class: cls } : {}, f(c))),
+      ...CREW_COLUMNS.map(([, f, cls]) => h("td", cls ? { class: cls } : {}, f(c))),
       h("td", { class: "actions" }, c.active
-        ? h("button", { type: "button", onclick: () => void removeCompany(c) }, "Remove")
-        : h("button", { type: "button", onclick: () => void reactivateCompany(c) }, "Reactivate"))))));
+        ? h("button", { type: "button", onclick: () => void removeCrew(c) }, "Remove")
+        : h("button", { type: "button", onclick: () => void reactivateCrew(c) }, "Reactivate"))))));
 };
 
 const renderTable = (): void => {
   renderSegment();
-  if (state.kind === "companies") { renderCompanies(); return; }
+  if (state.kind === "crews") { renderCrews(); return; }
   const kind = kindOf(state.kind);
   $("title").textContent = `${kind.name} logins`;
   $("add").hidden = !kind.canAdd;
@@ -171,14 +171,14 @@ const stale = (db: DbName): boolean => state.db !== db;
 const reload = async (): Promise<void> => {
   const db = state.db;
   try {
-    const [users, companies] = await Promise.all([api.listUsers(db, state.showInactive), api.listCompanies(db, state.showInactive)]);
+    const [users, crews] = await Promise.all([api.listUsers(db, state.showInactive), api.listCrews(db, state.showInactive)]);
     if (stale(db)) return;
     state.users = users;
-    state.companies = companies;
+    state.crews = crews;
   } catch (e) {
     if (stale(db)) return;
     state.users = [];
-    state.companies = [];
+    state.crews = [];
     banner(message(e));
   }
   render();
@@ -207,22 +207,22 @@ const reactivate = async (u: UserRecord): Promise<void> => {
   await reload();
 };
 
-const removeCompany = async (c: Company): Promise<void> => {
+const removeCrew = async (c: Crew): Promise<void> => {
   const db = state.db;
   if (db === "production" && !confirm(`Remove ${c.label}?`)) return;
   try {
     clearBanner();
-    await api.removeCompany(db, c.id);
+    await api.removeCrew(db, c.id);
   } catch (e) { if (stale(db)) return; banner(message(e)); }
   if (stale(db)) return;
   await reload();
 };
 
-const reactivateCompany = async (c: Company): Promise<void> => {
+const reactivateCrew = async (c: Crew): Promise<void> => {
   const db = state.db;
   try {
     clearBanner();
-    await api.reactivateCompany(db, c.id);
+    await api.reactivateCrew(db, c.id);
   } catch (e) { if (stale(db)) return; banner(message(e)); }
   if (stale(db)) return;
   await reload();
@@ -316,7 +316,7 @@ const showBranch = (g: HTMLFieldSetElement, on: boolean): void => { g.hidden = !
 
 const DATA_RIGHTS_UNCHOSEN = "Choose whether diagnostic data rights are reserved";
 
-const companyForm = async (db: DbName): Promise<void> => {
+const crewForm = async (db: DbName): Promise<void> => {
   const [regions, firms] = await Promise.all([api.listRegions(db), api.listFirms(db)]);
   if (stale(db)) return;
   const regionOptions = regions.map((r): [string, string] => [r.id, `${r.code} — ${r.name}`]);
@@ -336,14 +336,14 @@ const companyForm = async (db: DbName): Promise<void> => {
     radios("dataRights", "Diagnostic data rights reserved", [["yes", "Yes"], ["no", "No"]], null),
     field("MSA signed date", h("input", { name: "msaSignedAt", type: "date" })),
   );
-  // The company name follows the firm's legal name until the user types their own.
-  const companyName = input("companyName");
+  // The crew name follows the firm's legal name until the user types their own.
+  const crewName = input("crewName");
   let named = false;
-  companyName.addEventListener("input", () => { named = companyName.value !== ""; });
-  const follow = (text: string): void => { if (!named) companyName.value = text; };
+  crewName.addEventListener("input", () => { named = crewName.value !== ""; });
+  const follow = (text: string): void => { if (!named) crewName.value = text; };
   legalName.addEventListener("input", () => follow(legalName.value));
   firm.addEventListener("change", () => follow(firms.find((x) => x.id === firm.value)?.legalName ?? ""));
-  const contractor = branch(firmMode, existing, fresh, field("Crew name", companyName));
+  const contractor = branch(firmMode, existing, fresh, field("Crew name", crewName));
 
   const sync = (): void => {
     const isOurs = type.querySelector<HTMLInputElement>("[value=ours]")!.checked;
@@ -359,19 +359,19 @@ const companyForm = async (db: DbName): Promise<void> => {
   sync();
 
   openForm("Add install crew", [type, ours, contractor], async (f) => {
-    let n: NewCompany;
+    let n: NewCrew;
     if (str(f, "type") === "ours") {
       n = { type: "ours", name: str(f, "name"), regionId: str(f, "regionId") };
     } else if (str(f, "firmMode") === "existing") {
-      n = { type: "contractor", name: str(f, "companyName"), firm: { existing: str(f, "firmId") } };
+      n = { type: "contractor", name: str(f, "crewName"), firm: { existing: str(f, "firmId") } };
     } else {
       if (!f.has("dataRights")) throw new Error(DATA_RIGHTS_UNCHOSEN);
-      n = { type: "contractor", name: str(f, "companyName"), firm: {
+      n = { type: "contractor", name: str(f, "crewName"), firm: {
         legalName: str(f, "legalName"), regionId: str(f, "firmRegionId"), paymentTermsDays: Number(str(f, "paymentTermsDays")),
         dataRightsReserved: str(f, "dataRights") === "yes", msaSignedAt: str(f, "msaSignedAt") || null,
       } };
     }
-    await api.addCompany(db, n);
+    await api.addCrew(db, n);
   });
 };
 
@@ -416,8 +416,8 @@ const scopeRadios = (current: "org" | "region"): HTMLElement => h("fieldset", { 
 
 const addForm = async (): Promise<void> => {
   const db = state.db;
-  if (state.kind === "companies") {
-    try { await companyForm(db); } catch (e) { if (!stale(db)) banner(message(e)); }
+  if (state.kind === "crews") {
+    try { await crewForm(db); } catch (e) { if (!stale(db)) banner(message(e)); }
     return;
   }
   const kind = kindOf(state.kind);

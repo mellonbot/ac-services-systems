@@ -3,14 +3,14 @@ import { INTERNAL_ORG_ID } from "../../../packages/schema/src/tenancy.ts";
 import { LoginInputError } from "./errors.ts";
 
 /** An install crew (0024). A service unit is never added here: it is made with its technician's login. */
-export type NewCompany =
+export type NewCrew =
   | { readonly type: "ours"; readonly name: string; readonly regionId: string }
   | { readonly type: "contractor"; readonly name: string; readonly firm:
         | { readonly existing: string }
         | { readonly legalName: string; readonly regionId: string; readonly paymentTermsDays: number;
             readonly dataRightsReserved: boolean; readonly msaSignedAt: string | null } };
 
-export type NewFirm = Exclude<Extract<NewCompany, { type: "contractor" }>["firm"], { existing: string }>;
+export type NewFirm = Exclude<Extract<NewCrew, { type: "contractor" }>["firm"], { existing: string }>;
 
 export const DEFAULT_PAYMENT_TERMS_DAYS = 30;
 
