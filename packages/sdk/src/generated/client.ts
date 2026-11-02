@@ -5,7 +5,7 @@ import { OPERATIONS, type OperationIO, type EventEnvelope } from "../../../contr
 import type { Transport, StreamState } from "../runtime.ts";
 
 /**
- * One method per operation in the catalogue — 129 today. There is no
+ * One method per operation in the catalogue — 126 today. There is no
  * generic `request(path)`; a request the gateway did not agree to serve has
  * no method here.
  */
@@ -66,13 +66,6 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["accounts.update"], input) as Promise<OperationIO["accounts.update"]["output"]>;
   },
 
-  /** `POST /auth/anonymous` · login · none · surfaces: S1
-   *
-   * Mint a short-lived anonymous token bound to PROSPECT/UNASSIGNED for S1's intake. Carries no roles and no scope below the prospect root; the only thing it can do is the two writes below. */
-  anonymousSession(): Promise<OperationIO["auth.anonymousSession"]["output"]> {
-    return transport.request(OPERATIONS["auth.anonymousSession"], undefined) as Promise<OperationIO["auth.anonymousSession"]["output"]>;
-  },
-
   /** `POST /auth/device-login` · login · none · surfaces: S5
    *
    * A technician's own credential PLUS the hardware they are holding. Mints a device-namespace token bound to the one active shift grant for (device, technician) — the token expires with the shift, never later. */
@@ -94,6 +87,13 @@ export const createGatewayClient = (transport: Transport) => ({
     return transport.request(OPERATIONS["auth.logout"], undefined) as Promise<OperationIO["auth.logout"]["output"]>;
   },
 
+  /** `POST /auth/sign-in` · login · none · surfaces: S1
+   *
+   * S1's front door. Checks the credential once and sends the person where they belong: the one live surface their login opens, a choice when it opens several, or S5 when a device ID is given. The same checks as auth.login and auth.deviceLogin, which it shares. */
+  signIn(input: OperationIO["auth.signIn"]["input"]): Promise<OperationIO["auth.signIn"]["output"]> {
+    return transport.request(OPERATIONS["auth.signIn"], input) as Promise<OperationIO["auth.signIn"]["output"]>;
+  },
+
   /** `POST /s2/brand/theme` · mutation · bearer · surfaces: S2
    *
    * Store a tenant's white-label theme. Validated against the ink schedule BEFORE it is a row: a theme that would break the portal is a 422 with the ratio, not a stylesheet nobody looks at until a customer does. */
@@ -106,13 +106,6 @@ export const createGatewayClient = (transport: Transport) => ({
    * The stored theme for a host, as the stylesheet the shell installs. Unauthenticated because a portal is branded on its sign-in screen, before a principal exists; an unknown host gets Rankine's own plate rather than a 404, so the route cannot be used to ask which tenants exist. */
   brandTheme(input: OperationIO["brand.theme"]["input"]): Promise<OperationIO["brand.theme"]["output"]> {
     return transport.request(OPERATIONS["brand.theme"], input) as Promise<OperationIO["brand.theme"]["output"]>;
-  },
-
-  /** `POST /s1/call-records` · mutation · bearer · surfaces: S1
-   *
-   * A visitor used the call button. Recorded against the lead when there is one, and against nothing when there is not — an inbound call is a fact whether or not a form was filled. */
-  recordCall(input: OperationIO["callRecords.record"]["input"]): Promise<OperationIO["callRecords.record"]["output"]> {
-    return transport.request(OPERATIONS["callRecords.record"], input) as Promise<OperationIO["callRecords.record"]["output"]>;
   },
 
   /** `POST /s2/procurement/catalog` · mutation · bearer · surfaces: S2
@@ -162,13 +155,6 @@ export const createGatewayClient = (transport: Transport) => ({
    * draft → active → expired | terminated. A step off that ladder is refused by name; activation and ending are what the other blocks subscribe to. */
   transitionContract(input: OperationIO["contracts.transition"]["input"]): Promise<OperationIO["contracts.transition"]["output"]> {
     return transport.request(OPERATIONS["contracts.transition"], input) as Promise<OperationIO["contracts.transition"]["output"]>;
-  },
-
-  /** `GET /coverage` · system · none · surfaces: S1
-   *
-   * The metros we serve, read from the regions table — code and name, nothing else. No density, no availability, no response window: the ceiling on what S1 may promise is D7a/OQ6 and it is not written yet (F9). */
-  coverage(): Promise<OperationIO["coverage.list"]["output"]> {
-    return transport.request(OPERATIONS["coverage.list"], undefined) as Promise<OperationIO["coverage.list"]["output"]>;
   },
 
   /** `GET /network/credentials` · query · bearer · surfaces: S2, S4, S8
@@ -456,13 +442,6 @@ export const createGatewayClient = (transport: Transport) => ({
    * Leads S1 captured, newest first — waiting ones by default — with the contact the visitor gave and, once converted, the home it became. */
   listLeads(input: OperationIO["leads.list"]["input"]): Promise<OperationIO["leads.list"]["output"]> {
     return transport.request(OPERATIONS["leads.list"], input) as Promise<OperationIO["leads.list"]["output"]>;
-  },
-
-  /** `POST /s1/leads` · mutation · bearer · surfaces: S1
-   *
-   * A stranger asks us to call them. Lands in PROSPECT/UNASSIGNED — tenancy is total, so a lead is owned before an account exists (arc 1). The submitter can never read it back. */
-  submitLead(input: OperationIO["leads.submit"]["input"]): Promise<OperationIO["leads.submit"]["output"]> {
-    return transport.request(OPERATIONS["leads.submit"], input) as Promise<OperationIO["leads.submit"]["output"]>;
   },
 
   /** `GET /s3/manager` · query · bearer · surfaces: S3, S4
@@ -917,4 +896,4 @@ export const createGatewayClient = (transport: Transport) => ({
 export type GatewayClient = ReturnType<typeof createGatewayClient>;
 
 /** Every sdkMethod in the catalogue, for the parity guard. */
-export const GENERATED_METHODS = Object.freeze(["changePassword", "myAccount", "setAccountAvatar", "updateMyAccount", "createAccount", "listAccounts", "moveAccount", "updateAccount", "anonymousSession", "deviceLogin", "login", "logout", "setBrandTheme", "brandTheme", "recordCall", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "coverage", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "attachJobMedia", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "wrapUpJob", "convertLead", "listLeads", "submitLead", "managerOverview", "getMedia", "listColleagues", "dismissMessage", "pendingMessages", "recentMessages", "sendMessage", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "paymentWebhook", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "myPunches", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "issueSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "ready", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);
+export const GENERATED_METHODS = Object.freeze(["changePassword", "myAccount", "setAccountAvatar", "updateMyAccount", "createAccount", "listAccounts", "moveAccount", "updateAccount", "deviceLogin", "login", "logout", "signIn", "setBrandTheme", "brandTheme", "addCatalogItem", "listCatalog", "listContacts", "setContact", "createContract", "listContracts", "transitionContract", "listCredentials", "recordCredential", "submitCredential", "verifyCredential", "createCrew", "enrollCrew", "listCrews", "retireCrew", "updateCrew", "createResidentialCustomer", "grantDeviceShift", "listDevices", "registerDevice", "assignCrew", "candidateCrews", "releaseAssignment", "listEquipment", "registerEquipment", "events", "createFirm", "listFirms", "updateFirm", "hqHistory", "hqMetrics", "listInvoices", "voidInvoice", "addJobNote", "attachJobMedia", "jobConversation", "createJob", "jobDetail", "listJobs", "myJobs", "postJobMessage", "publishJobUpdate", "saveJobUpdate", "setReturnTrip", "transitionJob", "wrapUpJob", "convertLead", "listLeads", "managerOverview", "getMedia", "listColleagues", "dismissMessage", "pendingMessages", "recentMessages", "sendMessage", "createOrganization", "listOrganizations", "listPayments", "recordPayment", "returnPayment", "paymentWebhook", "acknowledgePurchaseOrder", "cancelPurchaseOrder", "createPurchaseOrder", "purchaseOrder", "issuePurchaseOrder", "listPurchaseOrders", "decidePrice", "proposePrice", "withdrawPrice", "createProject", "listProjects", "myPunches", "listRateCards", "setRateCard", "recordReceipt", "createReceivingPoint", "listReceivingPoints", "listRegions", "listReturns", "requestReturn", "respondToReturn", "attachServiceRequestPhoto", "createServiceRequest", "holdServiceRequest", "listServiceRequests", "openServiceRequestJob", "me", "acknowledgeSettlement", "disputeSettlement", "issueSettlement", "listSettlementLines", "listSettlements", "recordShipment", "siteImagery", "listSites", "locateSite", "siteMapTile", "replaySync", "health", "ready", "listTechnicians", "recordTechnician", "updateTechnician", "authorTermOverride", "listTermOverrides", "termRegister", "resolvedTerms", "listVendorInvoices", "submitVendorInvoice", "createVendor", "listVendors"] as const);

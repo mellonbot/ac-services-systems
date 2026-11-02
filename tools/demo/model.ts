@@ -455,12 +455,7 @@ export type Session = { id: string; user: User; token: string };
 export const cookieSessions = new Map<SurfaceId, Session>();
 export const bearerSessions = new Map<string, Session>();
 /** S5's signed-in device, whose stream the launcher feeds; the last device login wins, as on one tablet. */
-export const liveSession = { device: null as Session | null, anonCookieExpires: 0 };
-/**
- * S1's anonymous sessions and when each expires: S1's bearer operations need one, as at the real gateway —
- * by bearer token, or (the browser's way, which S1 uses) by the session cookie, kept here per surface.
- */
-export const anonTokens = new Map<string, number>();
+export const liveSession = { device: null as Session | null };
 export type Profile = { presence: W.Presence; statusNote: string | null; avatar: W.MyAccountWire["avatar"]; passwordChangedAt: string | null };
 export const profiles = new Map<string, Profile>();
 export const profileOf = (u: User): Profile => {

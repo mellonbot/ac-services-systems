@@ -33,9 +33,6 @@ import {
   type Principal,
 } from "../../packages/contracts/src/scope.ts";
 import {
-  ANONYMOUS_PRINCIPAL_IDS,
-} from "../../packages/contracts/src/scope.ts";
-import {
   TERMS,
   TERM_KEYS,
 } from "../../packages/contracts/src/terms.ts";
@@ -101,8 +98,6 @@ import {
   payments,
   serviceRequests,
   photoData,
-  leads,
-  callRecords,
   users,
   type Session,
   profileOf,
@@ -179,7 +174,12 @@ const H: Partial<Record<OperationId, Handler>> = {
   "system.health": () => ({ ok: true, surfaces: Object.values(SURFACES).filter((s) => s.enabled).map((s) => s.id) }),
   // The demo's store is in memory, so it is always as ready as it is live.
   "system.ready": () => ({ ok: true, database: "reachable", storage: "not_configured" }),
-  "session.me": async (_i, { p }) => buildContext(p, reader),
+  "session.me": async (_i, { p, session }) => {
+    const context = await buildContext(p, reader);
+    // A device session S1's front door signed in resumes on S5 by cookie, and learns its crew here.
+    const crew = p.namespace === "device" && session?.user.crewId ? crews.find((c) => c.id === session.user.crewId) : undefined;
+    return crew ? { ...context, deviceCrew: { id: crew.id, label: crew.label } } : context;
+  },
   // 0032 — the Account button, on the signed-in demo user's own record.
   "account.me": (_i, { session }) => accountOf(session!.user),
   "account.update": (i: W.UpdateMyAccountInput, { session }) => {
@@ -261,23 +261,6 @@ const H: Partial<Record<OperationId, Handler>> = {
     return { ok: true };
   },
   "brand.theme": () => ({ tenant: false, css: "", admission: null }),
-
-  // ---- S1 ----
-  "coverage.list": () => ({ metros: REGIONS.filter((r) => r.active).map((r) => ({ code: r.code, name: r.name })) }),
-  "leads.submit": (i: W.SubmitLeadInput, { surface }) => {
-    const name = (i.contact?.name ?? "").trim();
-    need(name, "name is empty", "empty_name");
-    const dup = leads.find((l) => l.submissionId === i.submissionId);
-    if (dup) throw new Refused(422, "DuplicateRefused", "duplicate key value violates unique constraint \"leads_submission_id_key\"", "leads_submission_id_key");
-    const id = uid("L");
-    leads.push({ id, submissionId: i.submissionId, name, metro: i.requestedMetro ?? null, source: i.source, at: new Date().toISOString() });
-    return { id, eventId: publish(surface, "lead.captured", "lead", id, ANONYMOUS_PRINCIPAL_IDS.org, ANONYMOUS_PRINCIPAL_IDS.region) };
-  },
-  "callRecords.record": (i: W.RecordCallInput, { surface }) => {
-    const id = uid("R");
-    callRecords.push({ id, leadId: i.leadId ?? null, at: i.occurredAt });
-    return { id, eventId: publish(surface, "call_record.logged", "call_record", id, ANONYMOUS_PRINCIPAL_IDS.org, ANONYMOUS_PRINCIPAL_IDS.region) };
-  },
 
   // ---- hierarchy ----
   "regions.list": () => ({ regions: REGIONS }),
@@ -989,7 +972,7 @@ const UNIMPLEMENTED_DEMO_OPS = [
 ] as const satisfies readonly OperationId[];
 
 /** auth.* is answered in gateway.ts handle(), before this table is consulted. */
-const WIRE_HANDLED = ["auth.login", "auth.logout", "auth.deviceLogin", "auth.anonymousSession"] as const satisfies readonly OperationId[];
+const WIRE_HANDLED = ["auth.login", "auth.logout", "auth.deviceLogin", "auth.signIn"] as const satisfies readonly OperationId[];
 
 {
   const table = new Set(Object.keys(H));

@@ -120,7 +120,7 @@ will author terms.
 
 **OPEN-S1-CEILING — what is S1 allowed to promise? (D7a, OQ6, action plan F9)**
 
-`05` §S1 says availability and response-time language on the marketing surface
+`05` §S1 says availability and response-time language on S1 (the marketing surface then; the front door since 2026-11-01)
 is bounded by **OQ6** (the single-site constraint) and **D7a** (the response
 obligation behind a single named owner), and adds the sentence that made this
 an item rather than a copy review: *"neither of which is visible to whoever
@@ -129,7 +129,7 @@ writes the copy"*. F9 is where the ceiling gets written down.
 Item 8 (2026-09-18) did not wait for it and did not guess at it. It set the
 ceiling to **zero** and made that a mechanism rather than an intention:
 
-- `apps/s1-marketing/src/app.test.ts` fails on a rendered page containing a
+- `apps/s1-front-door/src/app.test.ts` fails on a rendered page containing a
   response window, a "24/7", a "same-day", a guarantee, an uptime figure or the
   word SLA;
 - `tools/drive/drive-s1.ts` runs the same list against the **painted** page in a
@@ -139,22 +139,23 @@ So a sentence promising a time fails in the commit that adds it, and nobody has
 to remember why. **When F9 lands, those two lists are what changes** — they are
 the ceiling, written in the only place that enforces it.
 
-The related half is the coverage map, and it is already closed: the metros are
-read from `regions` through `ac_public_coverage()` (migration 0008), never from
-a list in the bundle, so a map claiming a metro with no crews behind it is not
-expressible. `min_crew_density` — D14's rule — is deliberately not in that
-function's result, because a supply figure on a public page is a promise.
+The related half was the coverage map. S1 no longer shows one (2026-11-01);
+`ac_public_coverage()` (migration 0008) stays in the schema, and if a coverage
+claim comes back it comes back through that function, never a list in a bundle.
 
-**~~OPEN-S1-ABUSE~~ — a public write with no credential in front of it.**
+**~~OPEN-S1-ABUSE~~ — a public door with no credential in front of it.**
 
-**CLOSED 2026-10-28.** Edge rate limiting via Cloudflare WAF on the zone.
-Concrete limits (documented in `docs/CLOUDFLARE_PAGES.md`):
+**CLOSED 2026-10-28; the door changed 2026-11-01; the limit moved into the
+repository 2026-11-02.** Edge rate limiting in the gateway's Worker — a Workers
+Rate Limiting binding, not a dashboard rule — so it is a file a diff can prove.
+S1 is now the front door and takes no write, so the one limit is on its sign-in
+(documented in `docs/CLOUDFLARE_PAGES.md`):
 
-- `POST /auth/anonymous` — 10 requests per minute per IP, block 10 minutes
-- `POST /s1/leads` — 20 requests per minute per IP, block 10 minutes
+- `POST /auth/sign-in` — 30 requests per 60 s per IP, then `429` until the window rolls
 
-The rules are dashboard/API objects on the zone, not files here. S1 should not
-be public until they exist. The gateway itself has no counter.
+The October WAF rules on `/auth/anonymous` and `/s1/leads` guard routes that no
+longer exist and can be deleted from the zone. Behind it, the
+gateway counts sign-ins per address itself (`LOGIN_BY_ADDRESS`, 120 a minute).
 
 **OPEN-S7 — enable the vendor portal (D9).** *Item 11 (2026-09-27)* built
 procurement and S7 in full, with S7 left `enabled: false` (Phase 4). The

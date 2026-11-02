@@ -16,7 +16,7 @@ test("allowed origins are derived from the registry: one https origin per enable
   }
   assert.ok(!o.has("https://s7-vendor-portal.ac.example"), "a phase-disabled surface is not an origin — deferring a surface (D9) also closes its door");
   assert.ok(o.has("https://s4-hq-dashboard.ac.example"), "S4, enabled at item 10, holds a session like every console");
-  assert.ok(!o.has("https://s1-marketing.ac.example"), "the anonymous marketing site never holds a session");
+  assert.ok(!o.has("https://s1-front-door.ac.example"), "the front door holds no session of its own — it mints the destination's");
 });
 
 test("the unified site is an origin: every portal served under its path on https://<AC_SITE> (and www) may hold a session", () => {

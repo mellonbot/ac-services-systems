@@ -2,15 +2,15 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import { beginTx, bindSystem, hierarchyReader } from "../db/pg-tx.ts";
 import { AuthError } from "../auth/auth.ts";
-import { buildContext, scopeBinding } from "./context.ts";
+import { buildContext } from "./context.ts";
 import { createUnitOfWork } from "../db/unit-of-work.ts";
-import { login, deviceLogin, anonymousSession } from "../auth/auth-routes.ts";
+import { login, deviceLogin, signIn } from "../auth/auth-routes.ts";
 import { assertSessionLive, callerOf, openSelf, openTx, surfaceOf } from "../db/open-tx.ts";
 import { clearedCookie } from "../auth/session.ts";
 import { HttpError } from "./http.ts";
 import { namedOrg, optionalOrg, withCallerOrg } from "./policy.ts";
 import {
-  ANONYMOUS_ACTOR, BEHIND_CLOUDFLARE, GEOCODE, IMAGERY, MAP_TILES, SESSION, STORE, pool, signInAllowed, signInFailed,
+  BEHIND_CLOUDFLARE, GEOCODE, IMAGERY, MAP_TILES, SESSION, STORE, pool, signInAllowed, signInFailed,
 } from "../env.ts";
 import { SSE_STREAMS_PER_SESSION, SSE_SESSION_RECHECK_MS, STREAMING, sseClients, type SseClient } from "./sse.ts";
 import { authorTermOverride, resolvedTermsAt } from "../handlers/terms.ts";
@@ -32,7 +32,6 @@ import { createServiceRequest, listServiceRequests, openJobFromRequest } from ".
 import { attachPhoto, getMedia } from "../handlers/photos.ts";
 import { attachJobMedia, wrapUpJob } from "../handlers/wrap-up.ts";
 import { createResidential, listLeads, convertLead } from "../handlers/residential.ts";
-import { submitLead, recordCall, listCoverage } from "../handlers/leads.ts";
 import { listEquipment, registerEquipment, listContacts, setContact, listInvoices } from "../handlers/site-record.ts";
 import { listPayments, recordPayment, returnPayment, voidInvoice, paymentWebhook } from "../handlers/payments.ts";
 import { siteImageryRead, siteMapTileRead, locateSiteRead, geocode, locateSiteWrite, runPlan } from "../handlers/imagery.ts";
@@ -46,7 +45,6 @@ import {
 import { SURFACES } from "../../../../packages/contracts/src/surfaces.ts";
 import { seesManagerOverview, type OperationId, type OperationIO } from "../../../../packages/contracts/src/operations.ts";
 import type { Principal } from "../../../../packages/contracts/src/scope.ts";
-import { PROSPECT_ORG_ID, UNASSIGNED_REGION_ID } from "../../../../packages/schema/src/tenancy.ts";
 
 /**
  * THE ROUTE TABLE. One handler per catalogue id. `tools/ci/schema-guard.ts`
@@ -88,6 +86,7 @@ const createOrHold = <K extends "serviceRequests.create" | "serviceRequests.hold
 export const handlers: { readonly [K in OperationId]: Handler<K> } = {
   "auth.login": (req, input, res) => login(req, input, res),
   "auth.deviceLogin": (req, input, res) => deviceLogin(req, input, res),
+  "auth.signIn": (req, input, res) => signIn(req, input, res),
 
   // Ending a session is the one mutation outside the unit of work: it writes the
   // sessions row, which belongs to the gateway, not to any surface's allowlist.
@@ -104,7 +103,16 @@ export const handlers: { readonly [K in OperationId]: Handler<K> } = {
     return { ok: true, sessionId: caller.principal.sessionId };
   },
 
-  "session.me": (req) => openTx(req, "session.me", "read", (uow, p) => buildContext(p, hierarchyReader(uow.tx))),
+  // A device principal also learns its shift's crew, so S5 can resume a
+  // session S1 signed it into (auth.deviceLogin answers the same, once).
+  "session.me": (req) => openTx(req, "session.me", "read", async (uow, p) => {
+    const context = await buildContext(p, hierarchyReader(uow.tx));
+    if (p.namespace !== "device" || !p.shiftId) return context;
+    const crew = (await uow.tx.query<{ id: string; label: string }>(
+      "SELECT c.id, c.label FROM device_grants g JOIN crews c ON c.id = g.crew_id WHERE g.id = $1", [p.shiftId],
+    ))[0];
+    return { ...context, deviceCrew: crew ? { id: crew.id, label: crew.label } : null };
+  }),
 
   // 0032 — the Account button: the caller's own picture, status and password.
   "account.me": (req) => openSelf(req, "account.me", false, readMyAccount),
@@ -374,42 +382,6 @@ export const handlers: { readonly [K in OperationId]: Handler<K> } = {
     const host = url.searchParams.get("host") ?? (BEHIND_CLOUDFLARE ? (typeof forwarded === "string" ? forwarded : undefined) : req.headers.host);
     const tx = await beginTx(pool, "ac_gateway");
     try { await bindSystem(tx); return await brandStylesheetFor(tx, host ?? undefined); } finally { await tx.rollback().catch(() => {}); }
-  },
-
-  // ---- item 8: S1's anonymous door ----
-  "auth.anonymousSession": (req, _input, res) => anonymousSession(req, res),
-  // Throttled per address before the body is read (beforeBody).
-  "leads.submit": (req, input) => openTx(req, "leads.submit", "uow", (uow) => submitLead(uow, input, randomUUID)),
-  "callRecords.record": (req, input) => openTx(req, "callRecords.record", "uow", (uow) => recordCall(uow, input, randomUUID, () => new Date())),
-
-  /**
-   * The coverage map, with no session behind it — the same shape as
-   * `brand.theme` above and for the same kind of reason: a marketing page is
-   * read before anyone is anybody.
-   *
-   * Where it differs, deliberately: this transaction is BOUND, as the
-   * anonymous principal, before it reads. It does not need to be —
-   * `ac_public_coverage()` is SECURITY DEFINER and answers the same two
-   * columns either way — and it is bound anyway, because 0007's finding was a
-   * week of unbound sweeps reading zero rows and reporting green, and the
-   * habit that prevents that is binding every transaction whether or not this
-   * one's correctness depends on it.
-   */
-  "coverage.list": async () => {
-    const tx = await beginTx(pool, "ac_gateway");
-    try {
-      await tx.setLocal(scopeBinding(
-        {
-          namespace: "anonymous", subjectId: ANONYMOUS_ACTOR, orgId: PROSPECT_ORG_ID, regionId: UNASSIGNED_REGION_ID,
-          scopeTier: "parent", scopeId: PROSPECT_ORG_ID, roles: [], firmId: null, deviceId: null, shiftId: null,
-          tierClaim: null, sessionId: ANONYMOUS_ACTOR,
-        },
-        "S1",
-      ));
-      return await listCoverage(tx);
-    } finally {
-      await tx.rollback().catch(() => {});
-    }
   },
 
   "system.health": async () => ({ ok: true, surfaces: Object.values(SURFACES).filter((s) => s.enabled).map((s) => s.id) }),

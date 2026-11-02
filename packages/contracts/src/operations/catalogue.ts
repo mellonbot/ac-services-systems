@@ -25,6 +25,11 @@ export const OPERATIONS = {
     surfaces: ["S5"], carrier: "body", sdkMethod: "deviceLogin",
     summary: "A technician's own credential PLUS the hardware they are holding. Mints a device-namespace token bound to the one active shift grant for (device, technician) — the token expires with the shift, never later.",
   }),
+  "auth.signIn": op<Wire.SignInInput, Wire.SignInOutput>()({
+    id: "auth.signIn", method: "POST", path: "/auth/sign-in", kind: "login", auth: "none",
+    surfaces: ["S1"], carrier: "body", sdkMethod: "signIn",
+    summary: "S1's front door. Checks the credential once and sends the person where they belong: the one live surface their login opens, a choice when it opens several, or S5 when a device ID is given. The same checks as auth.login and auth.deviceLogin, which it shares.",
+  }),
   "session.me": op<void, HierarchyContext>()({
     id: "session.me", method: "GET", path: "/me", kind: "query", auth: "bearer",
     surfaces: AUTHENTICATED, carrier: "none", sdkMethod: "me",
@@ -522,62 +527,6 @@ export const OPERATIONS = {
     id: "brand.theme", method: "GET", path: "/brand/theme", kind: "system", auth: "none",
     surfaces: WHITE_LABEL_SURFACES, carrier: "query", sdkMethod: "brandTheme",
     summary: "The stored theme for a host, as the stylesheet the shell installs. Unauthenticated because a portal is branded on its sign-in screen, before a principal exists; an unknown host gets Rankine's own plate rather than a 404, so the route cannot be used to ask which tenants exist.",
-  }),
-  // ---- item 8: S1's anonymous door (00 §2.8 build order item 8) ----
-  /**
-   * THE COVERAGE CLAIM, AND ITS CEILING.
-   *
-   * 05 §S1: "coverage read from hierarchy, not hard-coded". This answers with
-   * the metros our `regions` rows name and NOTHING else — no crew density, no
-   * availability, no response window. That restraint is the product decision,
-   * not an oversight: D7a (the response obligation behind a named owner) and
-   * OQ6 (the single-site constraint) set the ceiling on what this surface may
-   * promise, neither is written down yet, and action plan F9 is where it gets
-   * written. Until it is, a page that says "we are in Dallas" is a statement
-   * of presence; a page that says how fast we answer is a commitment nobody at
-   * the gateway can enforce. `ac_public_coverage()` is the mechanism — a
-   * SECURITY DEFINER function that returns two columns, so widening the claim
-   * is a reviewed diff on a migration rather than a SELECT someone extends.
-   *
-   * `system` because it runs without a session, the way `brand.theme` does.
-   * It is still BOUND — as the anonymous principal — before it reads: 0007's
-   * lesson was a week of unbound sweeps reading zero rows and reporting green.
-   */
-  "coverage.list": op<void, Wire.CoverageOutput>()({
-    id: "coverage.list", method: "GET", path: "/coverage", kind: "system", auth: "none",
-    surfaces: ["S1"], carrier: "none", sdkMethod: "coverage",
-    summary: "The metros we serve, read from the regions table — code and name, nothing else. No density, no availability, no response window: the ceiling on what S1 may promise is D7a/OQ6 and it is not written yet (F9).",
-  }),
-  /**
-   * A visitor becomes a principal for as long as it takes to say who they are.
-   *
-   * Shaped like `auth.deviceLogin` rather than invented: it mints a token and
-   * a `sessions` row (`principal_kind = 'anonymous'`, which 0001 has admitted
-   * since the bootstrap), so an anonymous write arrives at the unit of work
-   * the same way every other write does — a verified token, a live session, a
-   * scope binding, an audit row with a real actor and a real session id. The
-   * alternative, an unauthenticated POST straight onto `leads`, would have
-   * been the one mutation in the system with no principal behind it.
-   *
-   * Minted LAZILY, on the first submit — not at page load. A session row per
-   * visitor is a write per page view, and the site has to stand up with the
-   * gateway unreachable (the registry's degraded line), which a boot-time
-   * round trip would quietly undo.
-   */
-  "auth.anonymousSession": op<void, Wire.AnonymousSessionOutput>()({
-    id: "auth.anonymousSession", method: "POST", path: "/auth/anonymous", kind: "login", auth: "none",
-    surfaces: ["S1"], carrier: "none", sdkMethod: "anonymousSession",
-    summary: "Mint a short-lived anonymous token bound to PROSPECT/UNASSIGNED for S1's intake. Carries no roles and no scope below the prospect root; the only thing it can do is the two writes below.",
-  }),
-  "leads.submit": op<Wire.SubmitLeadInput, Wire.SubmitLeadOutput>()({
-    id: "leads.submit", method: "POST", path: "/s1/leads", kind: "mutation", auth: "bearer",
-    surfaces: ["S1"], carrier: "body", sdkMethod: "submitLead",
-    summary: "A stranger asks us to call them. Lands in PROSPECT/UNASSIGNED — tenancy is total, so a lead is owned before an account exists (arc 1). The submitter can never read it back.",
-  }),
-  "callRecords.record": op<Wire.RecordCallInput, Wire.RecordCallOutput>()({
-    id: "callRecords.record", method: "POST", path: "/s1/call-records", kind: "mutation", auth: "bearer",
-    surfaces: ["S1"], carrier: "body", sdkMethod: "recordCall",
-    summary: "A visitor used the call button. Recorded against the lead when there is one, and against nothing when there is not — an inbound call is a fact whether or not a form was filled.",
   }),
   // ---- item 10: S4, the HQ view. Two reads of the rollup and nothing else:
   // `SURFACES.S4.writes` is [] and 0010 grants the gateway no write on

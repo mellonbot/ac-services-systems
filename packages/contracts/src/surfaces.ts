@@ -89,16 +89,20 @@ export type Surface = {
 
 const REGISTRY = {
   S1: {
-    id: "S1", name: "Marketing / lead-gen", app: "s1-marketing",
+    // THE FRONT DOOR (2026-11-01; until then "Marketing / lead-gen"). The page
+    // everyone starts at: one sign-in form, and the gateway sends each person to
+    // the surface their login belongs to (auth.signIn). It holds no session of
+    // its own and writes nothing — a sign-in mints the DESTINATION's session.
+    id: "S1", name: "Front door", app: "s1-front-door",
     block: "OFC", phase: 1, enabled: true,
-    namespace: "anonymous", authScope: "none (anonymous)", scopeBinding: "none",
-    writes: ["lead", "call_record"],
+    namespace: "anonymous", authScope: "none — signs a person in and hands them to their surface", scopeBinding: "none",
+    writes: [],
     density: "comfort", realtime: false, offline: false,
-    degraded: "Statically generated; forms queue to a durable buffer and replay. Site stays up when the gateway does not. Coverage map is read from the hierarchy — never hard-coded (D14: supply before signature).",
-    degradedNotice: "We can't reach our system right now. You can still send a request — it is kept on this device and sent as soon as the connection returns.",
-    // The only surface that shows no state: an anonymous visitor has nothing
-    // under SLA and no compliance to read. So it is the only one that wears the
-    // brand red, which is also the one place the brand has to do its work.
+    degraded: "Statically generated; the page renders with no gateway call. Signing in needs the gateway: when it does not answer, the form says so and keeps what was typed. Nothing is queued — a sign-in is not a write to replay.",
+    degradedNotice: "We can't reach our system right now, so signing in will not work yet. Try again in a moment.",
+    // The only surface that shows no state: a visitor who has not signed in has
+    // nothing under SLA and no compliance to read. So it is the only one that
+    // wears the brand red, which is also the one place the brand has to do its work.
     stateRamp: false,
     whiteLabel: false,
   },
@@ -276,9 +280,10 @@ export const SURFACE_PATHS: Readonly<Record<SurfaceId, string>> = Object.freeze(
  * other enabled surface keeps its tests and its demo, and is simply not on
  * acservice.systems.
  *
- * First rollout, 2026-10-31: the front page (S1), the office (S2), dispatch
- * (S3) and the technician web fallback (S5). S1 still shows every other
- * enabled portal, taped off as not open yet. Publishing another surface is one reviewed
+ * First rollout, 2026-10-31: the front door (S1), the office (S2), dispatch
+ * (S3) and the technician web fallback (S5). S1 signs a person in only to a
+ * surface on this list; a login whose surfaces are all off it is told its
+ * portal is not open yet. Publishing another surface is one reviewed
  * line here. The Pages build reads it (tools/ci/build-pages.ts); the gateway
  * enforces it when AC_ROLLOUT=1 (infra/cloudflare/wrangler.jsonc).
  */

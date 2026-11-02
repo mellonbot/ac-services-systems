@@ -46,7 +46,7 @@ const escapeHtml = (s: string): string =>
  * with three.js.
  */
 const OWN_PACKAGES: Readonly<Record<string, { dependencies: Record<string, string>; devDependencies: Record<string, string> }>> = {
-  "s1-marketing": { dependencies: { three: "0.184.0" }, devDependencies: { "@types/three": "0.184.0" } },
+  "s1-front-door": { dependencies: { three: "0.184.0" }, devDependencies: { "@types/three": "0.184.0" } },
 };
 
 export const renderPackageJson = (s: Surface): string => JSON.stringify({
@@ -106,7 +106,7 @@ export const SURFACE = SURFACES.${s.id};
 export const boot = (principal: Principal) => createShell({ surfaceId: "${s.id}", principal });
 
 ${s.namespace === "anonymous"
-  ? `/** Live shell — no login. The principal is the shared constant; the session is minted on the first write. */
+  ? `/** Live shell — no session of its own. The principal is the shared constant; signing in mints the destination surface's session. */
 export const open = (cfg: Omit<AnonymousConfig, "surfaceId">) => openAnonymousShell({ ...cfg, surfaceId: "${s.id}" });`
   : `/** Live shell — login, hierarchy context, generated client, event stream, degraded flag. */
 export const connect = (cfg: Omit<ConnectConfig, "surfaceId">) => connectShell({ ...cfg, surfaceId: "${s.id}" });`}
@@ -180,13 +180,14 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
  * S3 (dispatch board + the one gated door) and S5 (offline-first field
  * screens), item 6's S6 (the customer's sites, work, agreements and
  * request intake, scoped by RLS), item 7's S8 (a firm's row, roster,
- * documents, work and statements — D12's four writes), item 8's S1 (the
- * coverage map, the lead form and the durable buffer behind it) and item
- * 10's S4 (the HQ view over the rollup — every region, no writes).
+ * documents, work and statements — D12's four writes), S1 (the front door:
+ * one sign-in, routed by the gateway — item 8's marketing page until
+ * 2026-11-01) and item 10's S4 (the HQ view over the rollup — every region,
+ * no writes).
  *
  * S1 is the one whose shared first cut was actively WRONG rather than merely
- * thin: `renderStatusApp` resumes a browser session and offers to sign in,
- * and S1 has no session and no sign-in. Every other surface still gets the
+ * thin: `renderStatusApp` resumes a browser session of its own, and S1 has no
+ * session of its own — it mints the destination's. Every other surface still gets the
  * first cut until its own product-specific workflow is built.
  */
 const HAND_WRITTEN_APPS: readonly SurfaceId[] = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"];
@@ -402,7 +403,7 @@ gate's ${ACCENT_GATE.minHueSeparation}° and is the instrument accent on every s
 | Layer | Where | Resolved by |
 |---|---|---|
 | Instrument — red \`${SEMANTIC["color.action"]}\` | every control and highlight, S1–S8 | the default |
-| Brand — red \`${SEMANTIC["color.brand"]}\` | wordmark, livery, badge, S1 marketing | \`stateRamp: false\` in the surface registry |
+| Brand — red \`${SEMANTIC["color.brand"]}\` | wordmark, livery, badge, S1 front door | \`stateRamp: false\` in the surface registry |
 
 The brand roles keep their surface fence: it is the mechanism a tenant accent
 that fails the gate still falls behind, and the house is held to it.

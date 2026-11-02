@@ -104,7 +104,7 @@ export const neutralBrand = (ground: Ground): Readonly<Record<string, string>> =
 
 export type FrameOptions = {
   /**
-   * True only for a surface that renders NO state ramp — S1 marketing, the
+   * True only for a surface that renders NO state ramp — S1, the front door, the
    * livery, the badge. Defaults to FALSE, so a screen cannot paint red by
    * forgetting the rule: the unsafe direction requires an explicit opt-in.
    */

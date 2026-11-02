@@ -6,7 +6,7 @@ import { SurfaceWriteDenied, TenancyMismatch, SurfaceDisabled, RoleDenied } from
 import { InputRefused, BadInput, dbRefusal } from "./http/refusals.ts";
 import { cors, applyHeaders } from "./auth/session.ts";
 import { HttpError } from "./http/http.ts";
-import { ANONYMOUS_BY_ADDRESS, DATABASE_URL, LOGIN_BY_ADDRESS, ORIGINS, addressOf, pool, throttled } from "./env.ts";
+import { DATABASE_URL, LOGIN_BY_ADDRESS, ORIGINS, addressOf, pool, throttled } from "./env.ts";
 import { callerOf } from "./db/open-tx.ts";
 import { handlers } from "./http/routes.ts";
 import { STREAMING, push, sseClients, type SseClient } from "./http/sse.ts";
@@ -40,8 +40,8 @@ type Json = Record<string, unknown>;
  * The most a request body may be, by who can send it. A photo is the largest
  * thing an operation carries — PHOTO_MAX_BYTES as base64 plus its envelope —
  * and only the photo upload is given that. A signed-in request (a sync batch
- * is the largest) gets a megabyte; a door anyone can knock on — sign-in, the
- * anonymous mint, a lead — gets 64 KB, so a stranger cannot make the gateway
+ * is the largest) gets a megabyte; a door anyone can knock on — a sign-in —
+ * gets 64 KB, so a stranger cannot make the gateway
  * hold fourteen megabytes per request.
  */
 const PHOTO_BODY_BYTES = Math.ceil(PHOTO_MAX_BYTES / 3) * 4 + 64 * 1024;
@@ -113,9 +113,7 @@ const ROUTES: ReadonlyMap<string, OperationId> = new Map(OPERATION_IDS.map((id) 
 const beforeBody: Partial<Record<OperationId, (req: IncomingMessage) => void>> = {
   "auth.login": (req) => throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)), "sign-in attempts"),
   "auth.deviceLogin": (req) => throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)), "sign-in attempts"),
-  "auth.anonymousSession": (req) => throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "visits from this address"),
-  "leads.submit": (req) => throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"),
-  "callRecords.record": (req) => throttled(ANONYMOUS_BY_ADDRESS.hit(addressOf(req)), "submissions from this address"),
+  "auth.signIn": (req) => throttled(LOGIN_BY_ADDRESS.hit(addressOf(req)), "sign-in attempts"),
   "serviceRequests.attachPhoto": (req) => { callerOf(req); },
   "jobs.attachMedia": (req) => { callerOf(req); },
 };

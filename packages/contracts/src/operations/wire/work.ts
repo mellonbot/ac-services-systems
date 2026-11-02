@@ -643,62 +643,17 @@ export type BrandStylesheetOutput = {
 };
 
 /**
- * ITEM 8 — S1's wire shapes.
- *
- * `CoverageMetro` is two fields on purpose. Every other read in this file
- * widens as the surface needs it; this one is the public claim, and the
- * narrowest thing that answers "are you in my city" is a name.
- */
-export type CoverageMetro = { readonly code: string; readonly name: string };
-export type CoverageOutput = { readonly metros: readonly CoverageMetro[] };
-
-export type AnonymousSessionOutput = {
-  /** Also set as the httpOnly `ac_session` cookie. Short-lived; a visitor is not a session to resume. */
-  readonly token: string;
-  readonly expiresAt: string;
-};
-
-/**
- * WHERE THE LEAD CAME FROM, as data. A source typed into a handler is a
- * funnel nobody can count; adding one is a diff here and a diff on 0008's
- * check constraint, which is exactly as hard as it should be.
+ * WHERE A LEAD CAME FROM, as data. Leads were S1's intake until S1 became the
+ * front door (2026-11-01); the table, its sources and the office's Follow-ups
+ * screen stay, because a lead already captured is still the office's to work.
  */
 export const LEAD_SOURCES = ["web_form", "call_button", "referral"] as const;
 export type LeadSource = (typeof LEAD_SOURCES)[number];
 
-/**
- * What a stranger hands us. No account, no site, no equipment — those are
- * things a customer has, and this is the surface for people who are not one
- * yet. `requestedMetro` is free text and stays free text: it is what they
- * typed, not a resolved region, and resolving it is S2's job when the lead is
- * worked (`converted_account_id`).
- */
+/** Who the lead is. No account, no site, no equipment — those are things a customer has. */
 export type LeadContact = {
   readonly name: string;
   readonly email?: string;
   readonly phone?: string;
   readonly note?: string;
 };
-export type SubmitLeadInput = {
-  /**
-   * Minted by the browser ONCE, when the visitor presses the button, and
-   * replayed unchanged until the gateway answers. The unique index behind it
-   * (migration 0008) is what makes S1's durable buffer safe to retry: a
-   * replay that already landed loses to the constraint and comes back as
-   * `leads_submission_id_key`, which the buffer reads as "done" rather than
-   * as a failure. Without it, "queue and replay" means phoning the same
-   * person once per reconnection.
-   */
-  readonly submissionId: string;
-  readonly source: LeadSource;
-  readonly contact: LeadContact;
-  readonly requestedMetro?: string;
-};
-export type SubmitLeadOutput = { readonly id: string; readonly eventId: string };
-
-export type RecordCallInput = {
-  readonly leadId?: string;
-  readonly direction: "inbound" | "outbound";
-  readonly occurredAt: string;
-};
-export type RecordCallOutput = { readonly id: string; readonly eventId: string };

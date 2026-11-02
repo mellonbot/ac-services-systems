@@ -16,22 +16,6 @@ if (!url) throw new Error("DATABASE_URL is required");
 export const DATABASE_URL: string = url;
 
 export const TOKEN_TTL = Number(process.env.TOKEN_TTL_SECONDS ?? 8 * 3600);
-/**
- * ITEM 8 — how long a stranger stays a principal. Fifteen minutes is the time
- * to fill in a form and press the button once more after a typo, and it is
- * deliberately not the eight hours a person who signed in gets: nothing on
- * the other side of this token is worth keeping open, and every minute of it
- * is a minute a token scraped off a page is still good for.
- */
-export const ANONYMOUS_TTL = Number(process.env.ANONYMOUS_TTL_SECONDS ?? 900);
-/**
- * The actor id on an anonymous audit row. A constant, the way WORKER_ACTOR is
- * in the worker: `actor_id` is a uuid and not a foreign key, so the honest
- * answer to "who did this" is a named nobody rather than an invented user.
- * The SESSION id beside it is real and per-visit, which is what makes two
- * submissions from one visitor distinguishable in the log.
- */
-export const ANONYMOUS_ACTOR = "00000000-0000-0000-0000-0000000000a1";
 
 export const keypair = process.env.AC_SIGNING_KEY_PEM
   ? keypairFromPem(process.env.AC_SIGNING_KEY_PEM, process.env.AC_SIGNING_KID ?? "k1")
@@ -91,13 +75,12 @@ export const ROLLOUT_ENFORCED = process.env.AC_ROLLOUT === "1";
 export const LOGIN_BY_ADDRESS = createThrottle({ limit: 120, windowMs: 60_000 });
 const LOGIN_FAILURES_BY_EMAIL_AND_ADDRESS = createThrottle({ limit: 10, windowMs: 15 * 60_000 });
 const LOGIN_FAILURES_BY_EMAIL = createThrottle({ limit: 100, windowMs: 15 * 60_000 });
-export const ANONYMOUS_BY_ADDRESS = createThrottle({ limit: 20, windowMs: 60_000 });
 export const addressOf = (req: IncomingMessage): string => {
   const cf = BEHIND_CLOUDFLARE ? req.headers["cf-connecting-ip"] : undefined;
   return (typeof cf === "string" && cf) || req.socket.remoteAddress || "unknown";
 };
 // Ended windows are dropped each minute, so the tables hold only live ones.
-setInterval(() => { for (const t of [LOGIN_BY_ADDRESS, LOGIN_FAILURES_BY_EMAIL_AND_ADDRESS, LOGIN_FAILURES_BY_EMAIL, ANONYMOUS_BY_ADDRESS]) t.sweep(); }, 60_000).unref();
+setInterval(() => { for (const t of [LOGIN_BY_ADDRESS, LOGIN_FAILURES_BY_EMAIL_AND_ADDRESS, LOGIN_FAILURES_BY_EMAIL]) t.sweep(); }, 60_000).unref();
 /** Before the password: this email from this address, and this email from anywhere. */
 export const signInAllowed = (req: IncomingMessage, who: string): boolean =>
   !LOGIN_FAILURES_BY_EMAIL_AND_ADDRESS.spent(`${who} ${addressOf(req)}`) && !LOGIN_FAILURES_BY_EMAIL.spent(who);

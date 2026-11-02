@@ -3,15 +3,15 @@ import { SURFACES } from "../../../packages/contracts/src/index.ts";
 import type { Principal } from "../../../packages/contracts/src/index.ts";
 
 /**
- * S1 — Marketing / lead-gen
+ * S1 — Front door
  *
  * Block OFC · Phase 1 · comfort density · enabled
  *
- * Auth: none (anonymous)
- * Writes: lead, call_record
+ * Auth: none — signs a person in and hands them to their surface
+ * Writes: NOTHING — read-only by construction
  *
  * Degraded mode:
- *   Statically generated; forms queue to a durable buffer and replay. Site stays up when the gateway does not. Coverage map is read from the hierarchy — never hard-coded (D14: supply before signature).
+ *   Statically generated; the page renders with no gateway call. Signing in needs the gateway: when it does not answer, the form says so and keeps what was typed. Nothing is queued — a sign-in is not a write to replay.
  *
  * This surface owns no data. Every read and every write goes through
  * `shell.gateway` — the client generated from the operation catalogue — and
@@ -25,5 +25,5 @@ export const SURFACE = SURFACES.S1;
 /** Configuration-only shell — the registry checks, no transport. */
 export const boot = (principal: Principal) => createShell({ surfaceId: "S1", principal });
 
-/** Live shell — no login. The principal is the shared constant; the session is minted on the first write. */
+/** Live shell — no session of its own. The principal is the shared constant; signing in mints the destination surface's session. */
 export const open = (cfg: Omit<AnonymousConfig, "surfaceId">) => openAnonymousShell({ ...cfg, surfaceId: "S1" });
