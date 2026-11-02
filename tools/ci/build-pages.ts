@@ -3,6 +3,7 @@ import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SURFACE_IDS, SURFACE_PATHS, isLive } from "../../packages/contracts/src/index.ts";
+import { OFFLINE_SURFACES, builtUrls, serviceWorker } from "./offline-shell.ts";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const OUTPUT = join(ROOT, "dist", "pages");
@@ -36,8 +37,10 @@ export const redirectsForLiveSurfaces = (): string => {
 // no-cache keeps the copy but revalidates its ETag on every load. chunks/ is
 // named by content hash, so a copy is never stale: cache it for a year and skip
 // the revalidation round trip.
+// sw.js keeps its name too, and a browser must see a new one on the next load
+// after a deploy — that is how a device learns the pages it holds are stale.
 export const headersForLiveSurfaces = (): string =>
-  SURFACE_IDS
+  "/sw.js\n  Cache-Control: no-cache\n" + SURFACE_IDS
     .filter(isLive)
     .flatMap((id) => {
       const prefix = SURFACE_PATHS[id] === "/" ? "" : SURFACE_PATHS[id];
@@ -55,15 +58,18 @@ export const buildPages = async (gateway = gatewayOrigin(process.env.AC_GATEWAY)
   rmSync(OUTPUT, { recursive: true, force: true });
   mkdirSync(OUTPUT, { recursive: true });
 
+  const offline: { url: string; file: string }[] = [];
   for (const id of SURFACE_IDS.filter(isLive)) {
     const basePath = SURFACE_PATHS[id];
     const built = await buildSurface(id, { minify: true, gateway, basePath });
+    if ((OFFLINE_SURFACES as readonly string[]).includes(id)) offline.push(...builtUrls(id, built.outDir));
     const target = basePath === "/" ? OUTPUT : join(OUTPUT, basePath.slice(1));
     // Never a source map: published, it is the surface's whole source.
     cpSync(built.outDir, target, { recursive: true, force: true, filter: (src) => !src.endsWith(".map") });
     console.log(`build-pages: ${id} → ${target.replace(ROOT, "")}`);
   }
 
+  writeFileSync(join(OUTPUT, "sw.js"), serviceWorker(offline));
   writeFileSync(join(OUTPUT, "_redirects"), redirectsForLiveSurfaces());
   writeFileSync(join(OUTPUT, "_headers"), headersForLiveSurfaces());
 };

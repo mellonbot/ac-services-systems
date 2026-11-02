@@ -1,4 +1,4 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, type VNode } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, registerOfflineShell, signal, createRouter, browserHistory, driveDegraded, type VNode } from "../../../packages/ui/src/index.ts";
 import { gatewayOrigin, heldShift, SHIFT_TAB_KEY, type AnonymousShell, type TabMark } from "../../../packages/shell/src/index.ts";
 export { gatewayOrigin };
 import { densityOf, SURFACES, SURFACE_PATHS, type Refusal, type SignInInput, type SurfaceId } from "../../../packages/contracts/src/index.ts";
@@ -153,6 +153,7 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   const Root = () => app.view();
   mount(html`<${Root} />`, el);
   spinFavicon(document);
+  registerOfflineShell(window);
   const degradedTick = slot ? driveDegraded(slot, () => ({ degraded: app.degraded.value, text: SURFACE.degradedNotice, lastOkAt: null }), Date.now) : () => {};
   app.router.start();
   setInterval(() => { app.tick(); degradedTick(); }, 1000);

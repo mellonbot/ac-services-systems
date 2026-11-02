@@ -1,4 +1,4 @@
-import { html, mount, spinFavicon, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
+import { html, mount, spinFavicon, registerOfflineShell, signal, createRouter, browserHistory, driveDegraded, PrimaryAction, RefusalNotice, pageHead, AccountMenu, createAccountMenu, type AccountMenuState, Messenger, createMessenger, type MessengerState, sessionTools, type VNode, type Signal } from "../../../packages/ui/src/index.ts";
 import { gatewayOrigin, SHIFT_TAB_KEY, heldShift, holdShift, forgetShift, resumeHeldShift, type ConnectedShell, type TabMark } from "../../../packages/shell/src/index.ts";
 export { gatewayOrigin };
 import { densityOf, SURFACE_PATHS, type Refusal } from "../../../packages/contracts/src/index.ts";
@@ -268,6 +268,7 @@ if (typeof document !== "undefined" && document.getElementById("mount")) {
   const Root = () => app.view();
   mount(html`<${Root} />`, el);
   spinFavicon(document);
+  registerOfflineShell(window);
   const degradedTick = slot ? driveDegraded(slot, () => {
     const p = app.phase.value;
     return { degraded: app.degraded.value, text: SURFACE.degradedNotice, lastOkAt: p.kind === "ready" ? p.store.lastOkAt.value : null };
