@@ -26,6 +26,14 @@ export const S1_CSS = `
 /* The door: the form beside the yard, the form first in reading order. */
 .s1-door{display:grid;grid-template-columns:minmax(0,var(--measure-short)) minmax(0,1fr);gap:var(--space-8);align-items:start;margin-top:var(--space-4)}
 .s1-door__panel{display:flex;flex-direction:column}
+/* Wide: the yard fills the door and the form stands on its open left side, where the camera leaves the lawn clear of the truck. */
+@media (min-width: 861px) {
+  .s1-door{grid-template-columns:minmax(0,1fr)}
+  .s1-door>*{grid-area:1/1}
+  .s1-door__panel{position:relative;z-index:1;align-self:center;width:min(var(--measure-short),42%);margin:var(--space-6);padding:var(--space-6);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-raised)}
+  .s1-scene{align-self:stretch}
+  .s1-scene__stage{height:100%}
+}
 .s1-check{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-height)}
 .s1-check input{width:var(--space-4);height:var(--space-4);accent-color:var(--color-action)}
 .s1-check input:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
