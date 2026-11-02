@@ -26,8 +26,13 @@ const SCOPE_TIERS: readonly Tier[] = ["parent", "region", "location", "site"];
 
 export type Oq5 = "unset" | "reserved" | "not_reserved";
 
-type Form = { readonly key: string; readonly scopeTier: Tier; readonly kind: string; readonly oq5: Oq5; readonly refusal: Refusal | null; readonly busy: boolean };
-const form = signal<Form>({ key: "", scopeTier: "parent", kind: "msa", oq5: "unset", refusal: null, busy: false });
+/** The inputs stay uncontrolled and are read at submit; scopeId, billingPath and the dates are mirrored here only so the summary can say what will be recorded. */
+type Form = {
+  readonly key: string; readonly scopeTier: Tier; readonly kind: string; readonly oq5: Oq5; readonly refusal: Refusal | null; readonly busy: boolean;
+  readonly scopeId: string; readonly billingPath: string; readonly effectiveFrom: string; readonly effectiveTo: string;
+};
+const blank = (key: string): Form => ({ key, scopeTier: "parent", kind: "msa", oq5: "unset", refusal: null, busy: false, scopeId: "", billingPath: BILLING_PATHS[0], effectiveFrom: "", effectiveTo: "" });
+const form = signal<Form>(blank(""));
 
 /** The submit gate, as a function so the test can state the rule without a DOM. */
 export const canSubmit = (f: Pick<Form, "oq5" | "busy">, degraded: boolean): boolean => f.oq5 !== "unset" && !f.busy && !degraded;
@@ -35,7 +40,7 @@ export const canSubmit = (f: Pick<Form, "oq5" | "busy">, degraded: boolean): boo
 export const contractsNew: Screen = (ctx, params) => {
   const { shell, store } = ctx;
   const orgId = params.orgId!;
-  if (form.value.key !== orgId) form.value = { key: orgId, scopeTier: "parent", kind: "msa", oq5: "unset", refusal: null, busy: false };
+  if (form.value.key !== orgId) form.value = blank(orgId);
   const f = form.value;
 
   const tree = store.read(keyOf("accounts.list", { orgId }), () => shell.gateway.listAccounts({ orgId }));
@@ -89,7 +94,7 @@ export const contractsNew: Screen = (ctx, params) => {
         ? noChoice(`Which ${f.scopeTier}`, `This customer has no ${f.scopeTier} yet.`, linkTo(ctx, "accounts.tree", { orgId }, "Add one in the tree"))
       : html`<label class="ac-field">
           <span>Which ${f.scopeTier}</span>
-          <select name="scopeId" required class="ac-input">
+          <select name="scopeId" required class="ac-input" onChange=${(e: Event) => { form.value = { ...form.value, scopeId: (e.currentTarget as HTMLSelectElement).value }; }}>
             ${scopeNodes(nodes).map((n) => html`<option value=${n.id}>${n.name}</option>`)}
           </select>
           <small>The region follows this node's edge; it is not chosen here.</small>
@@ -102,6 +107,7 @@ export const contractsNew: Screen = (ctx, params) => {
     <select name="regionId" required class="ac-input">
       ${activeRegions(regions).map((r) => html`<option value=${r.id}>${r.name} (${r.code})</option>`)}
     </select>
+    <small>A parent-scope agreement has no edge to take a region from, so name the region it is administered from.</small>
   </label>`;
 
   const amendmentField = (contracts: readonly ContractWire[]): VNode => amendable(contracts).length === 0
@@ -111,6 +117,7 @@ export const contractsNew: Screen = (ctx, params) => {
     <select name="parentContractId" required class="ac-input">
       ${amendable(contracts).map((c) => html`<option value=${c.id}>${c.kind} · ${c.effectiveFrom} → ${c.effectiveTo ?? "evergreen"}</option>`)}
     </select>
+    <small>An agreement that has already ended is not offered — a child of one binds nobody.</small>
   </label>`;
 
   /** OQ5. Three states, and "not stated" is where it starts. */
@@ -128,42 +135,66 @@ export const contractsNew: Screen = (ctx, params) => {
       : null}
   </fieldset>`;
 
+  /** What will be recorded, said before the write: kind, scope, billing path, window and rights position in one line. */
+  const summary = (nodes: readonly AccountWire[] | null): VNode => {
+    const scoped = nodes ? scopeNodes(nodes) : [];
+    const picked = f.scopeTier === "parent" ? "the organization" : (scoped.find((n) => n.id === f.scopeId) ?? scoped[0])?.name;
+    const rights = f.oq5 === "unset" ? "data rights not stated" : f.oq5 === "reserved" ? "diagnostic rights reserved" : "diagnostic rights not reserved";
+    const parts: (string | VNode)[] = [
+      f.kind.replace(/_/g, " "), ...(picked ? [picked] : []), f.billingPath.replace(/_/g, " "),
+      ...(f.effectiveFrom ? [html`<span class="s2-num">${f.effectiveFrom} → ${f.effectiveTo || "evergreen"}</span>`] : []), rights,
+    ];
+    return html`<p class="s2-summary"><b>Will record</b> ${parts.map((p, i) => html`${i ? " · " : ""}${p}`)}</p>`;
+  };
+
   return html`<section class="s2-form-screen">
     ${pageHead("New agreement", "Record a signed agreement for this customer, offering only the scope, billing path and data rights position the catalogue admits.")}
     <form class="ac-form" onSubmit=${submit} id="contract-form">
-      <label class="ac-field">
-        <span>Binds to</span>
-        <select name="scopeTier" class="ac-input" onChange=${(e: Event) => { form.value = { ...form.value, scopeTier: (e.currentTarget as HTMLSelectElement).value as Tier }; }}>
-          ${SCOPE_TIERS.map((t) => html`<option value=${t} selected=${f.scopeTier === t}>${t}</option>`)}
-        </select>
-      </label>
-      ${whenReady(ctx, tree.value, (t) => scopeField(t.nodes))}
-      ${f.scopeTier === "parent" ? html`<details class="s2-help"><summary>Why a region is needed</summary><p>A parent-scope agreement has no edge to take a region from, so name the region it is administered from.</p></details>` : null}
-      ${f.scopeTier === "parent" ? whenReady(ctx, regions.value, (r) => regionField(r.regions)) : null}
-      <label class="ac-field">
-        <span>Kind</span>
-        <select name="kind" class="ac-input" onChange=${(e: Event) => { form.value = { ...form.value, kind: (e.currentTarget as HTMLSelectElement).value }; }}>
-          ${KINDS.map((k) => html`<option value=${k} selected=${f.kind === k}>${k === "residential_membership" ? `residential membership — ${COOL_CLUB.name}` : k.replace(/_/g, " ")}</option>`)}
-        </select>
-      </label>
-      ${f.kind === "amendment" ? whenReady(ctx, existing.value, (c) => amendmentField(c.contracts)) : null}
-      ${f.kind === "amendment" ? html`<details class="s2-help"><summary>Why ended agreements are unavailable</summary><p>An agreement that has already ended is not offered — a child of one binds nobody.</p></details>` : null}
-      <label class="ac-field">
-        <span>Billing path</span>
-        <select name="billingPath" class="ac-input">${BILLING_PATHS.map((b) => html`<option value=${b}>${b.replace(/_/g, " ")}</option>`)}</select>
-      </label>
-      <details class="s2-help"><summary>How billing path is used</summary><p>Choose one of the four paths at signature. It defines how the agreement bills; it is not a flag on one function.</p></details>
-      <label class="ac-field"><span>Signed</span><input class="ac-input" type="date" name="signedAt" required /></label>
-      <label class="ac-field"><span>Effective from</span><input class="ac-input" type="date" name="effectiveFrom" required onInput=${boundEnd("effectiveTo")} /></label>
-      <label class="ac-field"><span>Effective to</span><input class="ac-input" type="date" name="effectiveTo" /><small>Leave empty for evergreen.</small></label>
-      <label class="ac-field"><span>Signed document</span><input class="ac-input" name="documentKey" /><small>The storage key of the signed PDF.</small></label>
-      ${oq5Field()}
+      <fieldset class="s2-fieldset">
+        <legend>What it binds to</legend>
+        <div class="s2-row">
+          <label class="ac-field">
+            <span>Binds to</span>
+            <select name="scopeTier" class="ac-input" onChange=${(e: Event) => { form.value = { ...form.value, scopeTier: (e.currentTarget as HTMLSelectElement).value as Tier, scopeId: "" }; }}>
+              ${SCOPE_TIERS.map((t) => html`<option value=${t} selected=${f.scopeTier === t}>${t}</option>`)}
+            </select>
+          </label>
+          ${whenReady(ctx, tree.value, (t) => scopeField(t.nodes))}
+        </div>
+        ${f.scopeTier === "parent" ? whenReady(ctx, regions.value, (r) => regionField(r.regions)) : null}
+        <label class="ac-field">
+          <span>Kind</span>
+          <select name="kind" class="ac-input" onChange=${(e: Event) => { form.value = { ...form.value, kind: (e.currentTarget as HTMLSelectElement).value }; }}>
+            ${KINDS.map((k) => html`<option value=${k} selected=${f.kind === k}>${k === "residential_membership" ? `residential membership — ${COOL_CLUB.name}` : k.replace(/_/g, " ")}</option>`)}
+          </select>
+        </label>
+        ${f.kind === "amendment" ? whenReady(ctx, existing.value, (c) => amendmentField(c.contracts)) : null}
+      </fieldset>
+      <fieldset class="s2-fieldset">
+        <legend>Terms</legend>
+        <label class="ac-field">
+          <span>Billing path</span>
+          <select name="billingPath" class="ac-input" onChange=${(e: Event) => { form.value = { ...form.value, billingPath: (e.currentTarget as HTMLSelectElement).value }; }}>${BILLING_PATHS.map((b) => html`<option value=${b}>${b.replace(/_/g, " ")}</option>`)}</select>
+          <small>Chosen once, at signature. It defines how the agreement bills; it is not a flag on one function.</small>
+        </label>
+        <div class="s2-row s2-row--3">
+          <label class="ac-field"><span>Signed</span><input class="ac-input" type="date" name="signedAt" required /></label>
+          <label class="ac-field"><span>Effective from</span><input class="ac-input" type="date" name="effectiveFrom" required onInput=${(e: Event) => { boundEnd("effectiveTo")(e); form.value = { ...form.value, effectiveFrom: (e.currentTarget as HTMLInputElement).value }; }} /></label>
+          <label class="ac-field"><span>Effective to</span><input class="ac-input" type="date" name="effectiveTo" onInput=${(e: Event) => { form.value = { ...form.value, effectiveTo: (e.currentTarget as HTMLInputElement).value }; }} /><small>Leave empty for evergreen.</small></label>
+        </div>
+      </fieldset>
+      <fieldset class="s2-fieldset">
+        <legend>Rights and document</legend>
+        ${oq5Field()}
+        <label class="ac-field"><span>Signed document</span><input class="ac-input" name="documentKey" /><small>The storage key of the signed PDF.</small></label>
+      </fieldset>
+      ${summary(tree.value.state === "ready" ? tree.value.value.nodes : null)}
+      ${f.refusal ? refusalView(ctx, f.refusal, refusalRoutes(ctx, f.refusal, orgId)) : null}
       <div class="s2-form__actions">
         ${oq5Submit(ctx, f, blocked)}
         ${linkTo(ctx, "contracts.list", { orgId }, "Cancel")}
       </div>
     </form>
-    ${f.refusal ? refusalView(ctx, f.refusal, refusalRoutes(ctx, f.refusal, orgId)) : null}
   </section>`;
 };
 
