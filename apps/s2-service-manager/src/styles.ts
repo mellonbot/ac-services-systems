@@ -36,6 +36,13 @@ export const S2_CSS = `
 .s2-form-screen{max-width:var(--measure-text);display:flex;flex-direction:column;gap:var(--space-3)}
 .s2-fieldset small{color:var(--color-text-muted);font-size:var(--text-sm)}
 .s2-fieldset{border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-3)}
+#contract-form .s2-fieldset>legend{padding-inline:var(--space-2);font-family:var(--font-display);font-weight:700}
+.s2-fieldset .s2-oq5{border:0;padding:0}
+.s2-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(var(--tile-min),1fr));gap:var(--space-3)}
+.s2-row--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.s2-row>.s2-parent{align-self:end;margin:0;min-height:var(--control-height);display:flex;align-items:center}
+.s2-summary{margin:0;padding:var(--space-3) var(--space-4);background:var(--color-surface-sunken);border-radius:var(--radius-card);font-size:var(--text-sm)}
+.s2-summary b{font-family:var(--font-label);font-size:var(--text-xs);letter-spacing:var(--track-wide);text-transform:uppercase;color:var(--color-text-muted);margin-inline-end:var(--space-2)}
 .s2-form__actions{display:flex;align-items:center;gap:var(--space-4)}
 .s2-address-row{display:grid;grid-template-columns:minmax(0,2fr) minmax(4rem,1fr) minmax(6rem,1fr);gap:var(--space-3)}
 .s2-parent{margin:0;color:var(--color-text-muted)}
@@ -85,6 +92,7 @@ export const S2_CSS = `
   .s2-node[data-depth="2"]{padding-inline-start:var(--space-6)}
   .s2-col--orgs{position:static}
   .s2-form__actions{align-items:stretch;flex-direction:column}
+  .s2-row--3{grid-template-columns:minmax(0,1fr)}
   .s2-app .s2-trace-table{display:block;width:100%;max-width:100%;overflow-x:auto}
   .s2-app .s2-trace__step{grid-template-columns:minmax(0,1fr) max-content}
 }
