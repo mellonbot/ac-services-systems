@@ -69,19 +69,22 @@ export const SCREEN_VIEWS: Readonly<Record<Exclude<ScreenId, "login">, Screen>> 
   "devices.grant": devicesGrant,
 };
 
-/** The department bar. `inside` is the tile's second line: what the domain holds, so a tile is a sign and not only a name. */
+/**
+ * The global bar. Only Customers is scoped to a customer (its three screens take an
+ * `orgId`, so its tabs carry the open customer); Invoicing and Follow-ups are lists
+ * across every customer, which is why they sit in the bar and not under a customer.
+ * Field devices sit with the network because they are the technicians' phones and tablets.
+ */
 const NAV_GROUPS = [
-  // Invoicing sits with the customer's records because an invoice IS part of the
-  // customer's account; field devices sit with the network because they are the
-  // technicians' phones and tablets.
-  // Accounts stays the department's landing (`home`) though Projects is the first tab.
-  { label: "Customer records", inside: "Projects, accounts, agreements, invoicing, follow-ups", home: "accounts.tree", screens: ["projects", "accounts.tree", "contracts.list", "billing", "leads"] as const },
-  { label: "Technician Network", inside: "Crews, subcontractor firms, field devices", screens: ["network", "devices"] as const },
-  { label: "Purchasing", inside: "Vendors, purchase orders, receiving", screens: ["purchasing"] as const },
+  { label: "Customers", home: "accounts.tree", screens: ["accounts.tree", "contracts.list", "projects"] as const },
+  { label: "Invoicing", screens: ["billing"] as const },
+  { label: "Follow-ups", screens: ["leads"] as const },
+  { label: "Technician Network", screens: ["network", "devices"] as const },
+  { label: "Purchasing", screens: ["purchasing"] as const },
   // 0038: shown to principals only — the gateway refuses regions.* to everyone else.
-  { label: "Regions", inside: "Where we serve from", screens: ["regions"] as const },
+  { label: "Regions", screens: ["regions"] as const },
 ] as const;
-/** A domain with more than one screen gets a second tier of tabs. */
+/** A group with more than one screen gets a second row of tabs. */
 const hasSubTabs = (g: (typeof NAV_GROUPS)[number]) => g.screens.length > 1;
 
 /** A terminated firm will field no more crews for us, so the picker does not offer it; it stays in the screen's firm list. */
@@ -117,20 +120,20 @@ const navGroupFor = (screen: Exclude<ScreenId, "login">): (typeof NAV_GROUPS)[nu
   return NAV_GROUPS.find((group) => (group.screens as readonly string[]).includes(target));
 };
 
+/** The customer an `orgId` names and the account node open inside it, once their lists have been read. */
+const openCustomer = (params: Readonly<Record<string, string>>, store: Store): { readonly name: string; readonly node: string | null } | null => {
+  if (!params.orgId) return null;
+  const orgs = store.peek<{ readonly organizations: readonly OrganizationWire[] }>(keyOf("organizations.list", { kind: "customer" }));
+  const org = orgs?.state === "ready" ? orgs.value.organizations.find((item) => item.id === params.orgId) : undefined;
+  if (!org) return null;
+  const nodeId = params.nodeId ?? params.id;
+  const nodes = nodeId ? store.peek<{ readonly nodes: readonly AccountWire[] }>(keyOf("accounts.list", { orgId: params.orgId })) : undefined;
+  const node = nodes?.state === "ready" ? nodes.value.nodes.find((item) => item.id === nodeId) : undefined;
+  return { name: org.name, node: node?.name ?? null };
+};
+
+/** The record open in a screen that is not a customer's: a firm, crew, vendor or purchase order. */
 const activeEntity = (params: Readonly<Record<string, string>>, store: Store): string | null => {
-  if (params.orgId) {
-    const orgs = store.peek<{ readonly organizations: readonly OrganizationWire[] }>(keyOf("organizations.list", { kind: "customer" }));
-    const org = orgs?.state === "ready" ? orgs.value.organizations.find((item) => item.id === params.orgId) : undefined;
-    if (org) {
-      const nodeId = params.nodeId ?? params.id;
-      if (nodeId) {
-        const nodes = store.peek<{ readonly nodes: readonly AccountWire[] }>(keyOf("accounts.list", { orgId: params.orgId }));
-        const node = nodes?.state === "ready" ? nodes.value.nodes.find((item) => item.id === nodeId) : undefined;
-        if (node) return `${org.name} / ${node.name}`;
-      }
-      return org.name;
-    }
-  }
   if (params.firmId) {
     const firms = store.peek<{ readonly firms: readonly FirmWire[] }>(keyOf("firms.list"));
     const firm = firms?.state === "ready" ? firms.value.firms.find((item) => item.id === params.firmId) : undefined;
@@ -226,8 +229,10 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
     const screen = routeId ? SCREEN_VIEWS[routeId] : null;
     const notice = p.store.notice.value;
     const group = routeId ? navGroupFor(routeId) : undefined;
-    // The network screen with no firm open is our own crews; say so, as its tab does.
-    const entity = loc ? activeEntity(loc.params, p.store) ?? (routeId === "network" ? OWN_CREWS_LABEL : null) : null;
+    // A customer is the header's business; a firm, crew, vendor or purchase order is the trail's.
+    const inCustomers = group?.label === "Customers";
+    const customer = loc && inCustomers ? openCustomer(loc.params, p.store) : null;
+    const entity = loc && !inCustomers ? activeEntity(loc.params, p.store) : null;
     const firms = p.store.read(keyOf("firms.list"), () => p.shell.gateway.listFirms({})).value;
     const tab = (id: Exclude<ScreenId, "login">, params: Readonly<Record<string, string>>, title: string, current: boolean): VNode =>
       html`<a class="ac-seg__item" data-current=${current ? "true" : "false"} aria-current=${current ? "page" : undefined} href=${router.href(id, params)} onClick=${(e: Event) => { e.preventDefault(); router.navigate(id, params); }}>${title}</a>`;
@@ -253,44 +258,46 @@ export const createApp = (opts: { baseUrl: string; fetch: Parameters<typeof conn
           tab("devices", {}, screenTitle("devices"), open && navTargetFor(routeId!) === "devices"),
         ];
       }
-      return navGroup.screens.map((id) => tab(id, {}, screenTitle(id), open && navTargetFor(routeId!) === id));
+      // A customer's tabs carry the open customer, so a tab changes the screen and never the customer.
+      const carry = open && loc?.params.orgId ? { orgId: loc.params.orgId } : {};
+      return navGroup.screens.map((id) => tab(id, carry, screenTitle(id), open && navTargetFor(routeId!) === id));
     };
-    // The trail says only what the tabs and the page head do not: the domain, the
-    // tab a sub-screen sits under, and the record open in it.
+    // The trail says only what the bar, the customer header and the tabs do not: the tab a
+    // sub-screen sits under, and the record open in it. With neither, there is no trail.
     const target = routeId ? navTargetFor(routeId) : undefined;
     const targetTitle = target ? screenTitle(target) : undefined;
     const parentTab = routeId && target && routeId !== target && targetTitle !== group?.label ? targetTitle : null;
+    const record = customer?.node ?? entity;
+    const crumbs = [...(parentTab ? [{ text: parentTab, current: false }] : []), ...(record ? [{ text: record, current: true }] : [])];
     return html`<div class="s2-app">
-      <div class="s2-console-head">
-        <p class="s2-console-head__title">Service & Account Management</p>
-        <p class="s2-console-head__lede">This page tracks the records, databases, tables, and agreements that dispatching calls on throughout daily operations.</p>
-      </div>
-      <nav class="ac-nav ac-nav--grouped" aria-label="Workspace">
-        <div class="ac-nav__end">
-          ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
-        </div>
-        <ul class="ac-nav__domains" aria-label="Departments">
+      <nav class="s2-global" aria-label="Workspace">
+        <div class="ac-seg">
           ${NAV_GROUPS.filter((navGroup) => navGroup.label !== "Regions" || p.shell.principal.roles.includes("principal")).map((navGroup) => {
             const current = group?.label === navGroup.label;
             const home = "home" in navGroup ? navGroup.home : navGroup.screens[0];
-            // A one-screen domain's tile IS the tab, so it carries the page; otherwise the tab below does.
+            // Customers keeps the customer that is open; the other groups hold none.
+            const params = current && inCustomers && loc?.params.orgId ? { orgId: loc.params.orgId } : {};
+            // A one-screen group's item IS the page; otherwise the tab row below carries it.
             const page = current && !hasSubTabs(navGroup) && routeId === home;
-            return html`<li><a class="ac-nav__domain" data-current=${current ? "true" : "false"} aria-current=${page ? "page" : current ? "true" : undefined}
-              href=${router.href(home, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(home, {}); }}>
-              <span class="ac-nav__domain-name">${navGroup.label}</span>
-              <span class="ac-nav__domain-sub">${navGroup.inside}</span>
-            </a></li>`;
+            return html`<a class="ac-seg__item" data-current=${current ? "true" : "false"} aria-current=${page ? "page" : current ? "true" : undefined}
+              href=${router.href(home, params)} onClick=${(e: Event) => { e.preventDefault(); router.navigate(home, params); }}>${navGroup.label}</a>`;
           })}
-        </ul>
-        ${group && hasSubTabs(group) ? html`<div class="ac-nav__group" role="group" aria-label=${group.label} data-current="true">
-          <div class="ac-seg">${tabsFor(group)}</div>
-        </div>` : null}
+        </div>
+        <div class="s2-global__tools">
+          ${Messenger({ density: DENSITY, menu: p.messages })}${sessionTools(AccountMenu({ density: DENSITY, menu: p.account }), logout)}
+        </div>
       </nav>
+      ${customer && target ? html`<section class="s2-custbar" aria-label="Customer">
+        <p class="s2-custbar__name">${customer.name}</p>
+        <a class="s2-custbar__all" href=${router.href(target, {})} onClick=${(e: Event) => { e.preventDefault(); router.navigate(target, {}); }}>All customers</a>
+      </section>` : null}
+      ${group && hasSubTabs(group) ? html`<div class="s2-tabs" role="group" aria-label=${group.label}>
+        <div class="ac-seg">${tabsFor(group)}</div>
+      </div>` : null}
       ${notice.length ? html`<div class="s2-notice" role="status">${notice.map((n) => html`<p>${n}</p>`)}<button type="button" class="s2-notice__dismiss" onClick=${() => { p.store.notice.value = []; }} aria-label="Dismiss">×</button></div>` : null}
-      ${group ? html`<nav class="s2-trail" aria-label="Current location"><ol>
-        <li>${group.label}</li>
-        ${parentTab ? html`<li>${parentTab}</li>` : null}
-        ${entity ? html`<li aria-current="location">${entity}</li>` : null}
+      ${group && crumbs.length ? html`<nav class="s2-trail" aria-label="Current location"><ol>
+        ${customer ? null : html`<li>${group.label}</li>`}
+        ${crumbs.map((c) => html`<li aria-current=${c.current ? "location" : undefined}>${c.text}</li>`)}
       </ol></nav>` : null}
       ${screen ? screen(ctx, loc!.params) : html`<p class="s2-empty">No screen at ${String(router.current.value ? router.current.value.screen : "this path")}.</p>`}
     </div>`;

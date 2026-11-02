@@ -7,10 +7,13 @@
 export const S2_CSS = `
 .s2-app{display:flex;flex-direction:column;gap:var(--space-3)}
 /* The console names itself under the masthead, as S3's does — a styled line, not a second h1: each screen keeps its own. */
-.s2-console-head{display:flex;flex-direction:column;gap:var(--space-1);margin-top:var(--space-2)}
-.s2-console-head__title{margin:0;font-family:var(--font-display);font-size:var(--text-mast);font-weight:800;letter-spacing:var(--track-tight);line-height:1.1;color:var(--color-text);text-wrap:balance}
-.s2-console-head__lede{margin:0;max-width:var(--measure-text);color:var(--color-text-muted);font-size:var(--text-md)}
-@media (max-width:640px){.s2-console-head__title{font-size:var(--text-display)}}
+.s2-global{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-2) var(--space-4);padding:var(--space-3) 0}
+.s2-global__tools{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-3);margin-inline-start:auto}
+.s2-custbar{display:flex;align-items:center;gap:var(--space-4);padding:var(--space-3) var(--space-4);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--elevation-card)}
+.s2-custbar__name{margin:0;min-width:0;font-family:var(--font-display);font-size:var(--text-xl);font-weight:700;line-height:1.2;overflow-wrap:anywhere}
+.s2-custbar__all{margin-inline-start:auto;flex:none;font-size:var(--text-sm);font-weight:600;color:var(--color-action-text);text-decoration:none}
+.s2-custbar__all:focus-visible{outline:var(--focus-ring) var(--color-focus-ring);outline-offset:2px}
+.s2-tabs{margin:var(--space-3) 0}
 .s2-notice{display:flex;gap:var(--space-3);align-items:baseline;padding:var(--space-2) var(--space-3);background:var(--color-surface-sunken);border:1px solid var(--color-border-hard);border-radius:var(--radius-control)}
 .s2-notice p{margin:0}
 .s2-notice__dismiss{appearance:none;background:none;border:0;margin-inline-start:auto;cursor:pointer;color:var(--color-text-muted);padding:0 var(--space-2);min-height:var(--control-height)}
