@@ -14,7 +14,9 @@ test("events: a region login hears its own region; an org-wide login hears every
   assert.ok(eventFor("S3", env(AMPED, REGION_SOUTH)));
   assert.equal(eventFor("S3", env(AMPED, REGION_WEST)), null, "the South dispatcher does not hear West");
   signInAs("S2", "office@rankine.demo");
-  assert.deepEqual(eventFor("S2", env(AMPED, REGION_WEST)), env(AMPED, REGION_WEST), "internal hears the whole envelope");
+  // One envelope, compared with itself: two calls to env() stamp two clock readings.
+  const west = env(AMPED, REGION_WEST);
+  assert.deepEqual(eventFor("S2", west), west, "internal hears the whole envelope");
 });
 
 test("events: a customer hears only its own org, and blind — no entity, no org", () => {
