@@ -1,6 +1,6 @@
 # 33 — A technician gets from the front door to S5 with no network
 
-**Date:** 2026-11-02 · **PR:** see branch `s1-offline-shift-entry` · **Builds on:** #209 (`shift-session-ends-with-tab`)
+**Date:** 2026-11-02 · **PR:** #210 · **Builds on:** #209 (`shift-session-ends-with-tab`)
 **Spec:** `docs/superpowers/specs/2026-11-02-s1-offline-shift-entry-design.md`
 
 ## What was done
