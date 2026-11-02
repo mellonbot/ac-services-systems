@@ -128,9 +128,12 @@ before(async () => {
   await assign(J.twoVisits, true);
   await assign(J.twoVisits, true);
   await assign(J.onSite, false);
-  // Half an hour of labour on the job the crew is on now.
+  // Half an hour of labour on the job the crew is on now. It never starts before this week
+  // does: run in the first half hour of a UTC week, now() - 30 minutes is last week and
+  // "hours this week" reads 0, so the span is pushed forward to start at the week's edge.
   await admin(`INSERT INTO time_entries (org_id, region_id, job_id, crew_id, span, kind, mutation_id)
-    VALUES ($1,$2,$3,$4, tstzrange(now() - interval '30 minutes', now(), '[)'), 'labor', 'te-1')`, [ORG, REGION_SOUTH, J.onSite, CREW_A]);
+    SELECT $1,$2,$3,$4, tstzrange(s, s + interval '30 minutes', '[)'), 'labor', 'te-1'
+      FROM (SELECT greatest(now() - interval '30 minutes', date_trunc('week', now())) AS s) w`, [ORG, REGION_SOUTH, J.onSite, CREW_A]);
 
   // Money: this month's invoice for the one-visit job, and last month's at the same point.
   await admin(`INSERT INTO contracts (id, org_id, region_id, scope_tier, scope_id, kind, billing_path, signed_at, effective, diagnostic_data_rights_reserved, state)
