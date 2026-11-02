@@ -6,7 +6,7 @@ import ac from "./tools/eslint-plugin-ac/index.js";
  * disabled somewhere, and the disable comment is the erosion.
  */
 export default tseslint.config(
-  { ignores: ["**/node_modules/**", "**/dist/**", "packages/sdk/src/generated/**"] },
+  { ignores: ["**/node_modules/**", "**/dist/**", "packages/sdk/src/generated/**", ".claude/**"] },
   ...tseslint.configs.recommended,
   {
     plugins: { ac },
