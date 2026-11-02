@@ -390,7 +390,7 @@ export const createGatewayClient = (transport: Transport) => ({
 
   /** `GET /s3/jobs/detail` · query · bearer · surfaces: S3, S4
    *
-   * One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — the customer thread, and how the field wrapped it up (0034). RLS decides; nothing here filters. */
+   * One job as dispatch reads it: the board row, the site contact, every visit (assignment) with its logged span, every photo, every internal note, every customer update — drafts too — the customer thread, and how the field completed it (0034). RLS decides; nothing here filters. */
   jobDetail(input: OperationIO["jobs.detail"]["input"]): Promise<OperationIO["jobs.detail"]["output"]> {
     return transport.request(OPERATIONS["jobs.detail"], input) as Promise<OperationIO["jobs.detail"]["output"]>;
   },

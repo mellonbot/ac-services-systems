@@ -7,7 +7,7 @@ import { photoBase64, signatureBase64 } from "../capture.ts";
 import { whenReady, addressLine, flushQueue, type Screen, type ScreenContext } from "./common.ts";
 
 /**
- * WRAP UP — how the visit closes (0034, partner mockup "3 · Wrap up the job").
+ * COMPLETE JOB — how the visit closes (0034).
  * Every field saves to the device as it is typed or taken; Submit moves the
  * draft to the outbox and the job off the crew's working list at once. It
  * stays disabled, with what is missing said under it, until the rules the
@@ -83,7 +83,7 @@ const form = (ctx: ScreenContext, job: FieldJobWire, d: Draft): VNode => {
   if (d.signature) w.preview(d.signature.id);
 
   return html`<section class="s5-wrap">
-    ${pageHead(`Wrap up — ${job.site?.name ?? serviceLabel(job.serviceCode)}`, addressLine(job.site?.address ?? null) || "Photos, notes and the customer's signature. Everything here is saved on this device until it is sent.")}
+    ${pageHead(`Complete job — ${job.site?.name ?? serviceLabel(job.serviceCode)}`, addressLine(job.site?.address ?? null) || "Photos, notes and the customer's signature. Everything here is saved on this device until it is sent.")}
 
     ${panel(html`<div class="ac-seg s5-outcome" role="radiogroup" aria-label="How the visit closes">
         ${(["complete", "quote_needed"] as const).map((o) => html`<button type="button" role="radio" class="ac-seg__item s5-outcome__opt" id=${`outcome-${o}`}
@@ -140,8 +140,8 @@ export const wrapUp: Screen = (ctx, params) => {
   return whenReady(ctx, jobs.value, (out) => {
     const job = out.jobs.find((j) => j.id === jobId);
     if (!job) return html`<p class="s5-empty">Job ${jobId} is not on this shift's board.</p>`;
-    if (ctx.wrapUps.pendingFor(job.id)) return html`<p class="s5-empty" role="status">This job is wrapped up and waiting to be sent.</p>`;
-    if (projectedJob(job, ctx.queue.pending.value).state !== "in_progress") return html`<p class="s5-empty">A job is wrapped up while it is in progress.</p>`;
+    if (ctx.wrapUps.pendingFor(job.id)) return html`<p class="s5-empty" role="status">This job is completed and waiting to be sent.</p>`;
+    if (projectedJob(job, ctx.queue.pending.value).state !== "in_progress") return html`<p class="s5-empty">A job is completed while it is in progress.</p>`;
     return form(ctx, job, ctx.wrapUps.draftFor(job.id));
   });
 };

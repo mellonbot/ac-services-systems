@@ -26,7 +26,7 @@ export type ScreenContext = {
   readonly shell: Shell;
   readonly store: Store;
   readonly queue: OfflineQueue;
-  /** Wrap-up drafts and the outbox that sends them (0034). */
+  /** Completion drafts and the outbox that sends them (0034). */
   readonly wrapUps: WrapUps;
   readonly crew: { readonly id: string; readonly label: string };
   readonly clock: Signal<Readonly<Record<string, string>>>;
@@ -65,13 +65,13 @@ export const flushQueue = (ctx: ScreenContext): void => {
 
 /** What a device's state change says on its button — the verb a crew would use, not the enum. */
 export const ACTION_LABEL: Readonly<Record<string, string>> = {
-  en_route: "Head out", on_site: "On site", in_progress: "Start work", awaiting_parts: "Waiting on parts",
+  en_route: "Head out", in_progress: "Start work", awaiting_parts: "Waiting on parts",
   awaiting_customer: "Waiting on customer", complete: "Complete", aborted: "Abort",
 };
 
 export const stateText = (state: string): string => state.replace(/_/g, " ");
 
-/** Where a job stands on this device: the server's state with the queued moves applied, and complete once its wrap-up is in the outbox. */
+/** Where a job stands on this device: the server's state with the queued moves applied, and complete once its completion report is in the outbox. */
 export const deviceState = (ctx: ScreenContext, job: { readonly id: string; readonly state: string; readonly version: number }): string =>
   ctx.wrapUps.pendingFor(job.id) ? "complete" : projectedJob(job, ctx.queue.pending.value).state;
 

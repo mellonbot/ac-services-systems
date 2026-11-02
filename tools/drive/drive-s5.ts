@@ -247,20 +247,17 @@ async function main(): Promise<void> {
     await shot("04-clocked-in");
     check(4, "the job's moves wait for the shift clock; Clock in writes one punch on this grant and opens them");
 
-    // ── 5. en route from the card; on site and in progress from the job — each reaches the row through the queue
+    // ── 5. en route from the card; in progress from the job — each reaches the row through the queue
     const stateIs = (s: string) => async () => (await admin(`SELECT state FROM jobs WHERE id = $1`, [jobA]))[0]!.state === s;
     await cdp.eval(click(`#card-${jobA}-en_route`));
     await until(stateIs("en_route"), "en_route in the row");
     await cdp.eval(click(".s5-card__link"));
-    await cdp.waitFor(`document.getElementById("to-on_site")`, "the job's next move");
-    await cdp.eval(click("#to-on_site"));
-    await until(stateIs("on_site"), "on_site in the row");
     await cdp.waitFor(`document.getElementById("to-in_progress")`, "in progress offered");
     await cdp.eval(click("#to-in_progress"));
     await until(stateIs("in_progress"), "in_progress in the row");
     const moves = (await admin(`SELECT to_state FROM job_state_events WHERE job_id = $1 ORDER BY created_at`, [jobA])).map((r) => r.to_state as string);
-    must(["en_route", "on_site", "in_progress"].every((s) => moves.includes(s)), `each move an event, got ${moves.join(",")}`);
-    check(5, "en route, on site, in progress: each tap reaches the job's row and its event log through the offline queue");
+    must(["en_route", "in_progress"].every((s) => moves.includes(s)), `each move an event, got ${moves.join(",")}`);
+    check(5, "en route, in progress: each tap reaches the job's row and its event log through the offline queue");
 
     // ── 6. a checklist item and a part reach their tables
     await cdp.eval(click("#check-ppe_donned"));
@@ -272,8 +269,8 @@ async function main(): Promise<void> {
     check(6, "checklist: PPE marked done, one row; parts: a contactor added from the truck, one row");
 
     // ── 7. wrap-up: two photos through the real file input, a signature drawn with a pointer
-    await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Wrap up").click(); return true; })()`);
-    await cdp.waitFor(`document.getElementById("add-photo") && document.getElementById("signature-pad")`, "the wrap-up form");
+    await cdp.eval(`(() => { [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Complete job").click(); return true; })()`);
+    await cdp.waitFor(`document.getElementById("add-photo") && document.getElementById("signature-pad")`, "the completion form");
     must(await cdp.eval<boolean>(`document.getElementById("submit-wrap-up").disabled || document.getElementById("submit-wrap-up").getAttribute("aria-disabled") === "true"`), "submit waits for photos and a signature");
     // Two JPEGs, drawn by the browser itself so no binary lives in the repository.
     for (const [i, colour] of [[1, "#4a6"], [2, "#a64"]] as const) {
